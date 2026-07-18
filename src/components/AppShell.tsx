@@ -17,17 +17,18 @@ type SessionCtx = {
   error: string | null;
 };
 
-const NAV_ITEMS = [
+type NavItem = { to: "/" | "/verification"; label: string; disabled?: boolean };
+const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard" },
   { to: "/verification", label: "N3 Verification Console" },
   // Deferred MAF milestones — placeholders only; no business logic yet.
-  { to: "/reservations", label: "Reservations", disabled: true },
-  { to: "/guests", label: "Guests", disabled: true },
-  { to: "/rooms", label: "Rooms & Rates", disabled: true },
-  { to: "/housekeeping", label: "Housekeeping", disabled: true },
-  { to: "/folios", label: "Folios & AR", disabled: true },
-  { to: "/reports", label: "Reports", disabled: true },
-] as const;
+  { to: "/", label: "Reservations", disabled: true },
+  { to: "/", label: "Guests", disabled: true },
+  { to: "/", label: "Rooms & Rates", disabled: true },
+  { to: "/", label: "Housekeeping", disabled: true },
+  { to: "/", label: "Folios & AR", disabled: true },
+  { to: "/", label: "Reports", disabled: true },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -65,10 +66,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     setSession((s) => ({ ...s, loading: true, error: null }));
     (async () => {
       try {
-        const envelope = await qneJson<{ code: string; data: unknown; message?: string }>(
-          "main",
-          "/api/companyprofile/BasicInfo",
-        );
+        const envelope = await qneJson<{
+          code?: string;
+          data?: Record<string, unknown>;
+          message?: string;
+        }>("main", "/api/companyprofile/BasicInfo");
         const data = unwrapApiResponse<Record<string, unknown>>(envelope);
         const claims = decodeJwtClaims(token) ?? {};
         if (cancelled) return;

@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiProxySplatRouteImport } from './routes/api/proxy/$'
 import { Route as ApiAuthConnectRouteImport } from './routes/api/auth/connect'
 
+const VerificationRoute = VerificationRouteImport.update({
+  id: '/verification',
+  path: '/verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +37,47 @@ const ApiAuthConnectRoute = ApiAuthConnectRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/proxy/$': typeof ApiProxySplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/proxy/$': typeof ApiProxySplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/proxy/$': typeof ApiProxySplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/auth/connect' | '/api/proxy/$'
+  fullPaths: '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/auth/connect' | '/api/proxy/$'
-  id: '__root__' | '/' | '/api/auth/connect' | '/api/proxy/$'
+  to: '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
+  id: '__root__' | '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  VerificationRoute: typeof VerificationRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
   ApiProxySplatRoute: typeof ApiProxySplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verification': {
+      id: '/verification'
+      path: '/verification'
+      fullPath: '/verification'
+      preLoaderRoute: typeof VerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  VerificationRoute: VerificationRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
   ApiProxySplatRoute: ApiProxySplatRoute,
 }
