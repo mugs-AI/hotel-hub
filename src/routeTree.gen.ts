@@ -11,8 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiProxySplatRouteImport } from './routes/api/proxy/$'
+import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
 import { Route as ApiAuthConnectRouteImport } from './routes/api/auth/connect'
+import { Route as ApiN3ProbeIndexRouteImport } from './routes/api/n3/probe/index'
+import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$probe'
 
 const VerificationRoute = VerificationRouteImport.update({
   id: '/verification',
@@ -24,9 +28,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiProxySplatRoute = ApiProxySplatRouteImport.update({
-  id: '/api/proxy/$',
-  path: '/api/proxy/$',
+const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
+  id: '/api/session/me',
+  path: '/api/session/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLaunchRoute = ApiAuthLaunchRouteImport.update({
+  id: '/api/auth/launch',
+  path: '/api/auth/launch',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthConnectRoute = ApiAuthConnectRouteImport.update({
@@ -34,39 +48,90 @@ const ApiAuthConnectRoute = ApiAuthConnectRouteImport.update({
   path: '/api/auth/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiN3ProbeIndexRoute = ApiN3ProbeIndexRouteImport.update({
+  id: '/api/n3/probe/',
+  path: '/api/n3/probe/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
+  id: '/api/n3/probe/$probe',
+  path: '/api/n3/probe/$probe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
-  '/api/proxy/$': typeof ApiProxySplatRoute
+  '/api/auth/launch': typeof ApiAuthLaunchRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/session/me': typeof ApiSessionMeRoute
+  '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
-  '/api/proxy/$': typeof ApiProxySplatRoute
+  '/api/auth/launch': typeof ApiAuthLaunchRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/session/me': typeof ApiSessionMeRoute
+  '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/probe': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
-  '/api/proxy/$': typeof ApiProxySplatRoute
+  '/api/auth/launch': typeof ApiAuthLaunchRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/session/me': typeof ApiSessionMeRoute
+  '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
+  fullPaths:
+    | '/'
+    | '/verification'
+    | '/api/auth/connect'
+    | '/api/auth/launch'
+    | '/api/auth/logout'
+    | '/api/session/me'
+    | '/api/n3/probe/$probe'
+    | '/api/n3/probe/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
-  id: '__root__' | '/' | '/verification' | '/api/auth/connect' | '/api/proxy/$'
+  to:
+    | '/'
+    | '/verification'
+    | '/api/auth/connect'
+    | '/api/auth/launch'
+    | '/api/auth/logout'
+    | '/api/session/me'
+    | '/api/n3/probe/$probe'
+    | '/api/n3/probe'
+  id:
+    | '__root__'
+    | '/'
+    | '/verification'
+    | '/api/auth/connect'
+    | '/api/auth/launch'
+    | '/api/auth/logout'
+    | '/api/session/me'
+    | '/api/n3/probe/$probe'
+    | '/api/n3/probe/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   VerificationRoute: typeof VerificationRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
-  ApiProxySplatRoute: typeof ApiProxySplatRoute
+  ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiSessionMeRoute: typeof ApiSessionMeRoute
+  ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
+  ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -85,11 +150,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/proxy/$': {
-      id: '/api/proxy/$'
-      path: '/api/proxy/$'
-      fullPath: '/api/proxy/$'
-      preLoaderRoute: typeof ApiProxySplatRouteImport
+    '/api/session/me': {
+      id: '/api/session/me'
+      path: '/api/session/me'
+      fullPath: '/api/session/me'
+      preLoaderRoute: typeof ApiSessionMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/launch': {
+      id: '/api/auth/launch'
+      path: '/api/auth/launch'
+      fullPath: '/api/auth/launch'
+      preLoaderRoute: typeof ApiAuthLaunchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/connect': {
@@ -99,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/n3/probe/': {
+      id: '/api/n3/probe/'
+      path: '/api/n3/probe'
+      fullPath: '/api/n3/probe/'
+      preLoaderRoute: typeof ApiN3ProbeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/probe/$probe': {
+      id: '/api/n3/probe/$probe'
+      path: '/api/n3/probe/$probe'
+      fullPath: '/api/n3/probe/$probe'
+      preLoaderRoute: typeof ApiN3ProbeProbeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -106,7 +199,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   VerificationRoute: VerificationRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
-  ApiProxySplatRoute: ApiProxySplatRoute,
+  ApiAuthLaunchRoute: ApiAuthLaunchRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiSessionMeRoute: ApiSessionMeRoute,
+  ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
+  ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

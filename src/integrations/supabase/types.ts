@@ -14,7 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      hotel_audit_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          event_type: string
+          id: string
+          ip: string | null
+          n3_user_key: string | null
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          event_type: string
+          id?: string
+          ip?: string | null
+          n3_user_key?: string | null
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          id?: string
+          ip?: string | null
+          n3_user_key?: string | null
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_audit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_tenants: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          id: string
+          n3_tenant_key: string
+          status: string
+          tenant_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          n3_tenant_key: string
+          status?: string
+          tenant_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          n3_tenant_key?: string
+          status?: string
+          tenant_code?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hotel_user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          n3_user_key: string
+          role: Database["public"]["Enums"]["hotel_role"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          n3_user_key: string
+          role: Database["public"]["Enums"]["hotel_role"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          n3_user_key?: string
+          role?: Database["public"]["Enums"]["hotel_role"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_user_roles_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +128,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      hotel_role: "owner" | "front_desk" | "housekeeper"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +255,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      hotel_role: ["owner", "front_desk", "housekeeper"],
+    },
   },
 } as const
