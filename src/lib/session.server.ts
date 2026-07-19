@@ -32,7 +32,7 @@ function sessionPassword(): string {
 }
 
 export function getHotelSession() {
-  return useSession<HotelSessionData>({
+  return tanstackUseSession<HotelSessionData>({
     password: sessionPassword(),
     name: SESSION_COOKIE_NAME,
     maxAge: SESSION_MAX_AGE_SECONDS,
