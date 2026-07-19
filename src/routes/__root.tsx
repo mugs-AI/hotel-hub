@@ -80,15 +80,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "HotelHub — Boutique Hotel System" },
       {
         name: "description",
-        content:
-          "Boutique hotel front-desk operations integrated with N3 AI Cloud Accounting.",
+        content: "Boutique hotel front-desk operations integrated with N3 AI Cloud Accounting.",
       },
       { name: "author", content: "HotelHub" },
       { property: "og:title", content: "HotelHub — Boutique Hotel System" },
       {
         property: "og:description",
-        content:
-          "Boutique hotel front-desk operations integrated with N3 AI Cloud Accounting.",
+        content: "Boutique hotel front-desk operations integrated with N3 AI Cloud Accounting.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

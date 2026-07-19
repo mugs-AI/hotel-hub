@@ -42,7 +42,9 @@ function Home() {
         <section className="rounded-lg border border-border bg-card p-6">
           <h2 className="text-sm font-semibold">What this foundation provides</h2>
           <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-            <li>· Secure N3 launch/auth (Path A: <code>?token=</code> from My Apps)</li>
+            <li>
+              · Secure N3 launch/auth (Path A: <code>?token=</code> from My Apps)
+            </li>
             <li>· Dev-only API-key sign-in (Path B), stripped from production</li>
             <li>· Same-origin proxy — browser never calls N3 hosts directly</li>
             <li>· Live session header (company, tenant, user) refreshed from N3 every load</li>
