@@ -1,11 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
-import {
-  useSessionMe,
-  useSignOut,
-  useDevConnect,
-  type SessionMe,
-} from "@/lib/session-client";
+import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
 
 type NavItem = {
@@ -38,8 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const params = new URLSearchParams(window.location.search);
     if (params.has("token")) {
       params.delete("token");
-      const clean =
-        window.location.pathname + (params.size ? "?" + params.toString() : "");
+      const clean = window.location.pathname + (params.size ? "?" + params.toString() : "");
       window.history.replaceState({}, "", clean);
     }
   }, []);
@@ -50,11 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const session = sessionQuery.data;
   if (!session || session.authenticated === false) {
-    return (
-      <UnauthenticatedGate
-        devConnectAvailable={session?.devConnectAvailable ?? false}
-      />
-    );
+    return <UnauthenticatedGate devConnectAvailable={session?.devConnectAvailable ?? false} />;
   }
 
   const role = session.role;
@@ -86,8 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ul className="space-y-1">
             {NAV_ITEMS.map((item, i) => {
               const active = !item.disabled && location.pathname === item.to;
-              const visible =
-                !item.permission || hasPermission(role, item.permission);
+              const visible = !item.permission || hasPermission(role, item.permission);
               if (item.disabled || !visible) {
                 const title = item.disabled
                   ? "Deferred MAF milestone"
@@ -156,8 +145,8 @@ function RoleUnassignedBanner({
           {session.tenant.tenantCode ?? session.tenant.companyName ?? "—"}
         </span>
         , but no HotelHub role (<code>owner</code>, <code>front_desk</code>, or{" "}
-        <code>housekeeper</code>) is assigned yet. All hotel features are
-        denied by default until a role is granted.
+        <code>housekeeper</code>) is assigned yet. All hotel features are denied by default until a
+        role is granted.
       </p>
     </div>
   );
@@ -198,9 +187,7 @@ function SessionBadge({
           {session.user.userEmail ?? session.user.userName ?? "—"}
         </dd>
         <dd className="font-medium text-foreground truncate max-w-[120px]">
-          {session.role ?? (
-            <span className="text-amber-500">unassigned</span>
-          )}
+          {session.role ?? <span className="text-amber-500">unassigned</span>}
         </dd>
       </dl>
       <button
@@ -214,11 +201,7 @@ function SessionBadge({
   );
 }
 
-function UnauthenticatedGate({
-  devConnectAvailable,
-}: {
-  devConnectAvailable: boolean;
-}) {
+function UnauthenticatedGate({ devConnectAvailable }: { devConnectAvailable: boolean }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-sm">
@@ -234,9 +217,8 @@ function UnauthenticatedGate({
         <div className="rounded-md border border-border bg-muted/40 p-4 text-sm">
           <p className="font-medium">Sign in from N3</p>
           <p className="mt-1 text-muted-foreground">
-            Open this app from <strong>N3 → Marketplace → My Apps → Open</strong>.
-            N3 will hand off a secure launch token to the server; the browser
-            never sees it.
+            Open this app from <strong>N3 → Marketplace → My Apps → Open</strong>. N3 will hand off
+            a secure launch token to the server; the browser never sees it.
           </p>
         </div>
         {devConnectAvailable ? <DevApiKeyLogin /> : null}
@@ -283,9 +265,9 @@ function DevApiKeyLogin() {
           Development only — API key sign-in
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Disabled in production. The key is exchanged server-side, immediately
-          verified against N3, and stored only inside the HttpOnly session
-          cookie. It is never persisted, logged, or returned to the browser.
+          Disabled in production. The key is exchanged server-side, immediately verified against N3,
+          and stored only inside the HttpOnly session cookie. It is never persisted, logged, or
+          returned to the browser.
         </p>
       </div>
       <input
@@ -298,9 +280,7 @@ function DevApiKeyLogin() {
         required
       />
       {connect.error ? (
-        <p className="text-xs text-destructive">
-          {(connect.error as Error).message}
-        </p>
+        <p className="text-xs text-destructive">{(connect.error as Error).message}</p>
       ) : null}
       <div className="flex items-center justify-end gap-2">
         <button

@@ -3,7 +3,9 @@ import { isProbeName, listProbes, callN3Path } from "@/lib/n3-gateway.server";
 
 describe("N3 gateway allowlist", () => {
   it("advertises exactly the three approved probes", () => {
-    const names = listProbes().map((p) => p.name).sort();
+    const names = listProbes()
+      .map((p) => p.name)
+      .sort();
     expect(names).toEqual(["companyprofile", "customers", "stocks"]);
   });
 
@@ -22,14 +24,8 @@ describe("N3 gateway allowlist", () => {
   });
 
   it("callN3Path rejects unsafe paths without touching the network", async () => {
-    await expect(callN3Path("token", "/etc/passwd")).rejects.toThrow(
-      /must be under \/api\//,
-    );
-    await expect(callN3Path("token", "/api/../secrets")).rejects.toThrow(
-      /unsafe path/,
-    );
-    await expect(
-      callN3Path("token", "https://evil.example/api/x"),
-    ).rejects.toThrow();
+    await expect(callN3Path("token", "/etc/passwd")).rejects.toThrow(/must be under \/api\//);
+    await expect(callN3Path("token", "/api/../secrets")).rejects.toThrow(/unsafe path/);
+    await expect(callN3Path("token", "https://evil.example/api/x")).rejects.toThrow();
   });
 });

@@ -24,9 +24,7 @@ const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8; // 8 hours
 function sessionPassword(): string {
   const pw = process.env.HOTELHUB_SESSION_SECRET;
   if (!pw || pw.length < 32) {
-    throw new Error(
-      "HOTELHUB_SESSION_SECRET is not configured (must be at least 32 chars).",
-    );
+    throw new Error("HOTELHUB_SESSION_SECRET is not configured (must be at least 32 chars).");
   }
   return pw;
 }

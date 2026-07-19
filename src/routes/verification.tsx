@@ -10,8 +10,7 @@ export const Route = createFileRoute("/verification")({
       { title: "N3 Verification Console — HotelHub" },
       {
         name: "description",
-        content:
-          "Owner-only read-only probes against the three allowlisted N3 endpoints.",
+        content: "Owner-only read-only probes against the three allowlisted N3 endpoints.",
       },
     ],
   }),
@@ -43,11 +42,8 @@ function VerificationConsolePage() {
   const [probes, setProbes] = useState<ProbeItem[]>([]);
   const [state, setState] = useState<Record<string, ProbeState>>({});
 
-  const authenticated =
-    session.data && session.data.authenticated === true ? session.data : null;
-  const canVerify = authenticated
-    ? hasPermission(authenticated.role, "n3:verify")
-    : false;
+  const authenticated = session.data && session.data.authenticated === true ? session.data : null;
+  const canVerify = authenticated ? hasPermission(authenticated.role, "n3:verify") : false;
 
   useEffect(() => {
     if (!canVerify) return;
@@ -107,13 +103,10 @@ function VerificationConsolePage() {
     <AppShell>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            N3 Verification Console
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight">N3 Verification Console</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Owner-only. Runs the three fixed read-only probes through the
-            server-side gateway. No custom paths, no writes, no arbitrary
-            endpoints.
+            Owner-only. Runs the three fixed read-only probes through the server-side gateway. No
+            custom paths, no writes, no arbitrary endpoints.
           </p>
         </div>
 
@@ -121,9 +114,8 @@ function VerificationConsolePage() {
           <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm">
             <p className="font-semibold">Access denied</p>
             <p className="mt-1 text-muted-foreground">
-              The N3 Verification Console is restricted to the{" "}
-              <code>owner</code> role. Housekeeping and front-desk staff must
-              not have access to accounting integration health data.
+              The N3 Verification Console is restricted to the <code>owner</code> role. Housekeeping
+              and front-desk staff must not have access to accounting integration health data.
             </p>
           </div>
         ) : (
@@ -134,16 +126,11 @@ function VerificationConsolePage() {
             {probes.map((probe) => {
               const s = state[probe.name] ?? INITIAL;
               return (
-                <div
-                  key={probe.name}
-                  className="rounded-lg border border-border bg-card p-4"
-                >
+                <div key={probe.name} className="rounded-lg border border-border bg-card p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="text-sm font-semibold">{probe.label}</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {probe.description}
-                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{probe.description}</p>
                     </div>
                     <button
                       onClick={() => run(probe.name)}
@@ -156,15 +143,11 @@ function VerificationConsolePage() {
                   <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
                     <span>
                       Gateway:{" "}
-                      <span className="font-mono text-foreground">
-                        {s.httpStatus ?? "—"}
-                      </span>
+                      <span className="font-mono text-foreground">{s.httpStatus ?? "—"}</span>
                     </span>
                     <span>
                       N3 upstream:{" "}
-                      <span className="font-mono text-foreground">
-                        {s.upstreamStatus ?? "—"}
-                      </span>
+                      <span className="font-mono text-foreground">{s.upstreamStatus ?? "—"}</span>
                     </span>
                     <span>
                       Duration:{" "}

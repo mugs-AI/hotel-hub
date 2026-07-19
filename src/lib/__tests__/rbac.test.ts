@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  authorize,
-  hasPermission,
-  isHotelRole,
-  HOTEL_ROLES,
-} from "@/lib/rbac";
+import { authorize, hasPermission, isHotelRole, HOTEL_ROLES } from "@/lib/rbac";
 
 describe("hotel role matrix", () => {
   it("only recognizes the three confirmed roles", () => {
@@ -46,41 +41,36 @@ describe("hotel role matrix", () => {
 
 describe("authorize()", () => {
   it("denies unauthenticated callers", () => {
-    expect(
-      authorize({ hasSession: false, tenantId: null, role: null }, "app:view"),
-    ).toEqual({ ok: false, reason: "unauthenticated" });
+    expect(authorize({ hasSession: false, tenantId: null, role: null }, "app:view")).toEqual({
+      ok: false,
+      reason: "unauthenticated",
+    });
   });
 
   it("denies when tenant is missing", () => {
-    expect(
-      authorize({ hasSession: true, tenantId: null, role: "owner" }, "app:view"),
-    ).toEqual({ ok: false, reason: "unprovisioned" });
+    expect(authorize({ hasSession: true, tenantId: null, role: "owner" }, "app:view")).toEqual({
+      ok: false,
+      reason: "unprovisioned",
+    });
   });
 
   it("denies when role is unassigned", () => {
-    expect(
-      authorize(
-        { hasSession: true, tenantId: "t1", role: null },
-        "app:view",
-      ),
-    ).toEqual({ ok: false, reason: "role_unassigned" });
+    expect(authorize({ hasSession: true, tenantId: "t1", role: null }, "app:view")).toEqual({
+      ok: false,
+      reason: "role_unassigned",
+    });
   });
 
   it("denies when permission is not granted to the role", () => {
     expect(
-      authorize(
-        { hasSession: true, tenantId: "t1", role: "housekeeper" },
-        "n3:verify",
-      ),
+      authorize({ hasSession: true, tenantId: "t1", role: "housekeeper" }, "n3:verify"),
     ).toEqual({ ok: false, reason: "forbidden" });
   });
 
   it("allows when the role has the permission", () => {
-    expect(
-      authorize(
-        { hasSession: true, tenantId: "t1", role: "owner" },
-        "n3:verify",
-      ),
-    ).toEqual({ ok: true, role: "owner" });
+    expect(authorize({ hasSession: true, tenantId: "t1", role: "owner" }, "n3:verify")).toEqual({
+      ok: true,
+      role: "owner",
+    });
   });
 });

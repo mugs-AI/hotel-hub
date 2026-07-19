@@ -2,8 +2,7 @@
 // endpoint allowlist are permitted. Never reachable from the browser except
 // through the specific /api/n3/probe/:name route.
 
-const MAIN_BASE =
-  process.env.OPEN_API_BASE_URL ?? "https://openapi.account.qne.cloud";
+const MAIN_BASE = process.env.OPEN_API_BASE_URL ?? "https://openapi.account.qne.cloud";
 
 const N3_TIMEOUT_MS = 15_000;
 
@@ -11,21 +10,16 @@ export type ProbeName = "companyprofile" | "customers" | "stocks";
 
 // Fixed, GET-only allowlist for Milestone 1.0.1.
 // Extending this list is a milestone decision, not a runtime concern.
-const PROBES: Record<
-  ProbeName,
-  { path: string; label: string; description: string }
-> = {
+const PROBES: Record<ProbeName, { path: string; label: string; description: string }> = {
   companyprofile: {
     path: "/api/companyprofile/BasicInfo",
     label: "Company profile — BasicInfo",
-    description:
-      "Confirms authenticated identity, tenant code and company name from N3.",
+    description: "Confirms authenticated identity, tenant code and company name from N3.",
   },
   customers: {
     path: "/api/customers/list?$top=5&$skip=0",
     label: "Customers — list (top 5)",
-    description:
-      "Confirms authenticated read access to the customer master list.",
+    description: "Confirms authenticated read access to the customer master list.",
   },
   stocks: {
     path: "/api/stocks/list?$top=5&$skip=0",
@@ -114,9 +108,11 @@ export async function exchangeApiKey(
   try {
     const url = `${MAIN_BASE}/api/auth/connect?api-key=${encodeURIComponent(apiKey)}`;
     const upstream = await fetch(url, { method: "GET", signal: controller.signal });
-    const envelope = (await upstream.json().catch(() => null)) as
-      | { code?: string; message?: string; data?: { token?: string; expiration?: string } }
-      | null;
+    const envelope = (await upstream.json().catch(() => null)) as {
+      code?: string;
+      message?: string;
+      data?: { token?: string; expiration?: string };
+    } | null;
     if (!upstream.ok || !envelope || envelope.code !== "0000" || !envelope.data?.token) {
       throw new Error(envelope?.message ?? "N3 connect failed");
     }

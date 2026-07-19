@@ -13,13 +13,7 @@ function methodNotAllowed() {
   });
 }
 
-async function handle({
-  request,
-  params,
-}: {
-  request: Request;
-  params: { probe?: string };
-}) {
+async function handle({ request, params }: { request: Request; params: { probe?: string } }) {
   const method = request.method.toUpperCase();
   if (method !== "GET") return methodNotAllowed();
 
@@ -77,10 +71,7 @@ async function handle({
   } catch (err) {
     console.error("[probe] failed", (err as Error).message);
     // Never leak upstream error text.
-    return Response.json(
-      { error: "probe_failed", probe: probeName },
-      { status: 502 },
-    );
+    return Response.json({ error: "probe_failed", probe: probeName }, { status: 502 });
   }
 }
 

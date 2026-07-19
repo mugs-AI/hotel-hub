@@ -54,9 +54,7 @@ async function handleLaunch({ request }: { request: Request }) {
       return new Response("N3 tenant identity not available", { status: 502 });
     }
     const n3UserKey =
-      (typeof claims.sub === "string" && claims.sub) ||
-      info.userEmail ||
-      info.userName;
+      (typeof claims.sub === "string" && claims.sub) || info.userEmail || info.userName;
     if (!n3UserKey) {
       await logAudit({
         eventType: "session.launch.failure",

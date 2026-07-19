@@ -3,11 +3,7 @@
 
 export type HotelRole = "owner" | "front_desk" | "housekeeper";
 
-export const HOTEL_ROLES: readonly HotelRole[] = [
-  "owner",
-  "front_desk",
-  "housekeeper",
-] as const;
+export const HOTEL_ROLES: readonly HotelRole[] = ["owner", "front_desk", "housekeeper"] as const;
 
 export type Permission =
   | "app:view" // load the authenticated shell at all
@@ -27,10 +23,7 @@ export function isHotelRole(v: unknown): v is HotelRole {
   return typeof v === "string" && (HOTEL_ROLES as readonly string[]).includes(v);
 }
 
-export function hasPermission(
-  role: HotelRole | null | undefined,
-  permission: Permission,
-): boolean {
+export function hasPermission(role: HotelRole | null | undefined, permission: Permission): boolean {
   if (!role || !isHotelRole(role)) return false;
   const allowed = MATRIX[permission];
   return allowed ? allowed.has(role) : false;

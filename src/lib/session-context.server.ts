@@ -42,10 +42,7 @@ export async function requirePermission(
 ): Promise<{ ctx: Extract<RequestContext, { authenticated: true }>; decision: AuthzDecision }> {
   const ctx = await readRequestContext();
   if (!ctx.authenticated) {
-    const decision = authorize(
-      { hasSession: false, tenantId: null, role: null },
-      permission,
-    );
+    const decision = authorize({ hasSession: false, tenantId: null, role: null }, permission);
     return {
       ctx: {
         authenticated: true,

@@ -22,14 +22,12 @@ function pick<T = string>(source: Record<string, unknown>, keys: string[]): T | 
  * (tenantId / companyId / GUID) over the human-editable tenant code and
  * company name, which are display-only.
  */
-export function normalizeBasicInfo(
-  raw: unknown,
-  claims: Record<string, unknown> = {},
-): BasicInfo {
+export function normalizeBasicInfo(raw: unknown, claims: Record<string, unknown> = {}): BasicInfo {
   const src = (raw ?? {}) as Record<string, unknown>;
   const claim = (claims ?? {}) as Record<string, unknown>;
 
-  const tenantCode = pick<string>(src, ["TenantCode", "tenantCode", "tenantcode"]) ??
+  const tenantCode =
+    pick<string>(src, ["TenantCode", "tenantCode", "tenantcode"]) ??
     pick<string>(claim, ["TenantCode", "tenantCode", "tenant_code"]);
 
   const companyName =

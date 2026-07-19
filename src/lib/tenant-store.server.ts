@@ -43,10 +43,7 @@ export async function upsertTenant(input: {
   };
 }
 
-export async function lookupRole(
-  tenantId: string,
-  n3UserKey: string,
-): Promise<RoleLookup> {
+export async function lookupRole(tenantId: string, n3UserKey: string): Promise<RoleLookup> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("hotel_user_roles")

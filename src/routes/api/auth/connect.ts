@@ -36,35 +36,21 @@ export const Route = createFileRoute("/api/auth/connect")({
               eventType: "session.dev_connect.failure",
               detail: { stage: "basicinfo", status: probe.status },
             });
-            return Response.json(
-              { error: "N3 verification failed" },
-              { status: 502 },
-            );
+            return Response.json({ error: "N3 verification failed" }, { status: 502 });
           }
           const envelope = (probe.body ?? {}) as { code?: string; data?: unknown };
           if (envelope.code && envelope.code !== "0000") {
-            return Response.json(
-              { error: "N3 verification failed" },
-              { status: 502 },
-            );
+            return Response.json({ error: "N3 verification failed" }, { status: 502 });
           }
           const claims = decodeJwtClaims(token);
           const info = normalizeBasicInfo(envelope.data, claims);
           if (!info.n3TenantKey) {
-            return Response.json(
-              { error: "N3 tenant identity not available" },
-              { status: 502 },
-            );
+            return Response.json({ error: "N3 tenant identity not available" }, { status: 502 });
           }
           const n3UserKey =
-            (typeof claims.sub === "string" && claims.sub) ||
-            info.userEmail ||
-            info.userName;
+            (typeof claims.sub === "string" && claims.sub) || info.userEmail || info.userName;
           if (!n3UserKey) {
-            return Response.json(
-              { error: "N3 user identity not available" },
-              { status: 502 },
-            );
+            return Response.json({ error: "N3 user identity not available" }, { status: 502 });
           }
 
           const tenant = await upsertTenant({
