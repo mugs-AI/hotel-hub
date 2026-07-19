@@ -1,6 +1,8 @@
 // Server-side encrypted session. HttpOnly, Secure, SameSite=Lax cookie.
 // The N3 access token lives ONLY here — never returned to the browser.
-import { useSession } from "@tanstack/react-start/server";
+// `useSession` from TanStack's server runtime is a request-context helper,
+// not a React hook — alias it so the react-hooks lint rule doesn't misfire.
+import { useSession as tanstackUseSession } from "@tanstack/react-start/server";
 
 export type HotelSessionData = {
   // Raw N3 JWT. Server-only.
