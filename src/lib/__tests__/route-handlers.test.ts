@@ -43,35 +43,15 @@ vi.mock("@/lib/audit.server", () => ({
   },
 }));
 
-const tenantStore = {
-  upsertTenant: vi.fn(async (i: { n3TenantKey: string }) => ({
-    id: "tenant-uuid-1",
-    n3TenantKey: i.n3TenantKey,
-    tenantCode: "T-001",
-    companyName: "Test Hotel Sdn Bhd",
-  })),
-  lookupRole: vi.fn(
-    async (
-      _tenantId: string,
-      _n3UserKey: string,
-    ): Promise<{ status: "assigned" | "role_unassigned"; role?: string; isActive?: boolean }> => ({
-      status: "role_unassigned",
-    }),
-  ),
-};
+const tenantStore = vi.hoisted(() => ({
+  upsertTenant: vi.fn(),
+  lookupRole: vi.fn(),
+}));
 vi.mock("@/lib/tenant-store.server", () => tenantStore);
 
-const gateway = {
-  callN3Path: vi.fn(async (_t: string, _p: string) => ({
-    status: 200,
-    body: { code: "0000", data: { CompanyName: "Test Hotel", TenantId: "n3-tenant-1" } },
-    durationMs: 5,
-  })),
-  runProbe: vi.fn(async (_t: string, _n: string) => ({
-    status: 200,
-    body: { code: "0000", data: [] },
-    durationMs: 5,
-  })),
+const gateway = vi.hoisted(() => ({
+  callN3Path: vi.fn(),
+  runProbe: vi.fn(),
   isProbeName: (v: unknown): v is "companyprofile" | "customers" | "stocks" =>
     v === "companyprofile" || v === "customers" || v === "stocks",
   listProbes: () => [
@@ -79,8 +59,8 @@ const gateway = {
     { name: "customers", label: "", description: "" },
     { name: "stocks", label: "", description: "" },
   ],
-  exchangeApiKey: vi.fn(async () => ({ token: "eyJ.tok.en", expiration: null })),
-};
+  exchangeApiKey: vi.fn(),
+}));
 vi.mock("@/lib/n3-gateway.server", () => gateway);
 
 beforeEach(() => {
