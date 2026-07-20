@@ -1,6 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 // Error boundary for uncaught server errors — must run outermost.
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -48,6 +49,6 @@ export const startInstance = createStart(() => ({
   // No `attachSupabaseAuth` client middleware is registered because no
   // server function requires `requireSupabaseAuth`; the server uses the
   // service-role client directly for tenant/role/audit access.
-  functionMiddleware: [],
+  functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));

@@ -122,10 +122,10 @@ export type Database = {
       hotelhub_provision_owner: {
         Args: { p_n3_tenant_key: string; p_n3_user_key: string };
         Returns: {
-          is_active: boolean;
-          n3_user_key: string;
-          role: Database["public"]["Enums"]["hotel_role"];
-          tenant_id: string;
+          out_is_active: boolean;
+          out_n3_user_key: string;
+          out_role: Database["public"]["Enums"]["hotel_role"];
+          out_tenant_id: string;
         }[];
       };
     };

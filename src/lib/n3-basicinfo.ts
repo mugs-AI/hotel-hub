@@ -18,6 +18,26 @@ function pick<T = string>(source: Record<string, unknown>, keys: string[]): T | 
 }
 
 /**
+ * Select exactly one authoritative email value. Priority:
+ *   1. N3 profile (BasicInfo) — Email/email/UserEmail/userEmail
+ *   2. JWT claims — email/preferred_username (used only if profile is empty)
+ *
+ * Never concatenates. Never combines. Returns the first non-empty match
+ * or null. The header, session response, and audit log all read from a
+ * single value; there is no second render path that could double-print.
+ */
+export function pickAuthoritativeEmail(
+  profile: Record<string, unknown> | null | undefined,
+  claims: Record<string, unknown> | null | undefined,
+): string | null {
+  const p = (profile ?? {}) as Record<string, unknown>;
+  const c = (claims ?? {}) as Record<string, unknown>;
+  const fromProfile = pick<string>(p, ["Email", "email", "UserEmail", "userEmail"]);
+  if (fromProfile) return fromProfile;
+  return pick<string>(c, ["email", "Email", "preferred_username"]) ?? null;
+}
+
+/**
  * Normalize N3 BasicInfo. Prefers an immutable identifier
  * (tenantId / companyId / GUID) over the human-editable tenant code and
  * company name, which are display-only.
@@ -48,9 +68,7 @@ export function normalizeBasicInfo(raw: unknown, claims: Record<string, unknown>
     tenantCode ??
     null;
 
-  const userEmail =
-    pick<string>(src, ["Email", "email", "UserEmail", "userEmail"]) ??
-    pick<string>(claim, ["email", "Email", "preferred_username"]);
+  const userEmail = pickAuthoritativeEmail(src, claim);
 
   const userName =
     pick<string>(src, ["UserName", "userName", "DisplayName", "displayName"]) ??

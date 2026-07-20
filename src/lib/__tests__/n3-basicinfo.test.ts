@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBasicInfo } from "@/lib/n3-basicinfo";
+import { normalizeBasicInfo, pickAuthoritativeEmail } from "@/lib/n3-basicinfo";
 
 describe("normalizeBasicInfo", () => {
   it("handles PascalCase N3 keys", () => {
@@ -50,5 +50,50 @@ describe("normalizeBasicInfo", () => {
     const result = normalizeBasicInfo({});
     expect(result.n3TenantKey).toBeNull();
     expect(result.userEmail).toBeNull();
+  });
+});
+
+describe("pickAuthoritativeEmail (Correction B: no concatenation)", () => {
+  it("returns exactly one string when both profile and JWT provide an email", () => {
+    const result = pickAuthoritativeEmail(
+      { Email: "lks.mugs@gmail.com" },
+      { email: "lks.mugs@gmail.com" },
+    );
+    expect(result).toBe("lks.mugs@gmail.com");
+    expect(result?.length).toBe("lks.mugs@gmail.com".length);
+  });
+
+  it("prefers profile email over JWT email — never combines them", () => {
+    const result = pickAuthoritativeEmail(
+      { Email: "profile@example.test" },
+      { email: "jwt@example.test" },
+    );
+    expect(result).toBe("profile@example.test");
+    expect(result).not.toContain("jwt@example.test");
+  });
+
+  it("falls back to JWT email only when profile omits it", () => {
+    expect(pickAuthoritativeEmail({}, { email: "jwt-only@example.test" })).toBe(
+      "jwt-only@example.test",
+    );
+    expect(pickAuthoritativeEmail({ Email: "" }, { email: "jwt-only@example.test" })).toBe(
+      "jwt-only@example.test",
+    );
+  });
+
+  it("returns null when neither source has an email", () => {
+    expect(pickAuthoritativeEmail({}, {})).toBeNull();
+  });
+
+  it("normalizeBasicInfo.userEmail is a single non-doubled value", () => {
+    const r = normalizeBasicInfo(
+      { Email: "lks.mugs@gmail.com", UserName: "lks.mugs@gmail.com" },
+      { email: "lks.mugs@gmail.com" },
+    );
+    expect(r.userEmail).toBe("lks.mugs@gmail.com");
+    // Regression: catches any accidental concatenation like "a@x.coma@x.co".
+    const doubled = "lks.mugs@gmail.comlks.mugs@gmail.com";
+    expect(r.userEmail).not.toBe(doubled);
+    expect(r.userEmail?.length).toBeLessThan(doubled.length);
   });
 });
