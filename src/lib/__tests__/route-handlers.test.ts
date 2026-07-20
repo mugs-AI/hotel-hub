@@ -118,7 +118,7 @@ describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", (
   });
 
   it("returns 401 when N3 rejects the token, does not open a session, and audits failure", async () => {
-    gateway.callN3Path.mockResolvedValueOnce({ status: 401, body: {}, durationMs: 1 });
+    gateway.callN3Path.mockResolvedValueOnce({ status: 401, body: null as unknown as { code: string; data: unknown }, durationMs: 1 });
     const { performN3Launch } = await import("@/lib/launch.server");
     const res = await performN3Launch("bad.token.sig", "/");
     expect(res.status).toBe(401);
@@ -312,7 +312,7 @@ describe("/api/n3/probe/:name (execute)", () => {
 
   it("N3 401 during a probe destroys the session", async () => {
     await seedAuthenticated("owner");
-    gateway.runProbe.mockResolvedValueOnce({ status: 401, body: {}, durationMs: 1 });
+    gateway.runProbe.mockResolvedValueOnce({ status: 401, body: null as unknown as { code: string; data: never[] }, durationMs: 1 });
     const { handleProbeExecute } = await import("@/routes/api/n3/probe/$probe");
     const res = await handleProbeExecute({
       request: new Request("http://x.test/api/n3/probe/customers"),
