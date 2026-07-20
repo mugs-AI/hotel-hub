@@ -1,5 +1,7 @@
 // Pure BasicInfo normalization. Handles realistic casing/key variants that
-// N3 returns for company profile responses. No I/O; safe to unit-test.
+// N3 returns for company profile responses. Input values may be strings,
+// arrays of strings, or unexpected shapes; we never assume a value is a
+// string before checking. No I/O; safe to unit-test.
 
 export type BasicInfo = {
   n3TenantKey: string | null; // immutable identity used to key the tenant
@@ -9,10 +11,67 @@ export type BasicInfo = {
   userName: string | null;
 };
 
-function pick<T = string>(source: Record<string, unknown>, keys: string[]): T | null {
+/**
+ * Return the first non-empty trimmed string from a value that may be a
+ * string, an array of arbitrary values, or something else entirely.
+ * Never throws.
+ */
+function firstNonEmptyString(v: unknown): string | null {
+  if (typeof v === "string") {
+    const t = v.trim();
+    return t ? t : null;
+  }
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const s = firstNonEmptyString(item);
+      if (s) return s;
+    }
+  }
+  return null;
+}
+
+/**
+ * Safe string picker. Iterates the given keys and returns the first
+ * non-empty trimmed string value. Ignores non-string / non-array values.
+ */
+function pickString(source: Record<string, unknown>, keys: string[]): string | null {
   for (const k of keys) {
-    const v = source[k];
-    if (v !== undefined && v !== null && v !== "") return v as T;
+    const s = firstNonEmptyString(source[k]);
+    if (s) return s;
+  }
+  return null;
+}
+
+// Loose email shape check — good enough to reject "not an email at all"
+// without pulling in a full validator. Requires `local@domain.tld`.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Safely normalize an email-shaped value. Accepts anything and never
+ * throws. Behavior:
+ *   - string: trim, accept if it matches EMAIL_RE, or collapse a value
+ *     that is exactly two identical valid email halves
+ *     (e.g. `"a@x.coa@x.co"` -> `"a@x.co"`).
+ *   - array: recurse into each element; return the first valid email
+ *     found. Never joins or concatenates array elements.
+ *   - anything else (null, undefined, number, boolean, object, ...): null.
+ */
+export function normalizeEmail(raw: unknown): string | null {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    if (EMAIL_RE.test(trimmed)) return trimmed;
+    if (trimmed.length % 2 === 0) {
+      const half = trimmed.slice(0, trimmed.length / 2);
+      if (trimmed === half + half && EMAIL_RE.test(half)) return half;
+    }
+    return null;
+  }
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const n = normalizeEmail(item);
+      if (n) return n;
+    }
   }
   return null;
 }
@@ -22,9 +81,8 @@ function pick<T = string>(source: Record<string, unknown>, keys: string[]): T | 
  *   1. N3 profile (BasicInfo) — Email/email/UserEmail/userEmail
  *   2. JWT claims — email/preferred_username (used only if profile is empty)
  *
- * Never concatenates. Never combines. Returns the first non-empty match
- * or null. The header, session response, and audit log all read from a
- * single value; there is no second render path that could double-print.
+ * Never concatenates. Never combines. Returns the first valid match
+ * (arrays are searched element-by-element) or null.
  */
 export function pickAuthoritativeEmail(
   profile: Record<string, unknown> | null | undefined,
@@ -32,28 +90,13 @@ export function pickAuthoritativeEmail(
 ): string | null {
   const p = (profile ?? {}) as Record<string, unknown>;
   const c = (claims ?? {}) as Record<string, unknown>;
-  const fromProfile = pick<string>(p, ["Email", "email", "UserEmail", "userEmail"]);
-  const fromClaims = pick<string>(c, ["email", "Email", "preferred_username"]);
-  return normalizeEmail(fromProfile) ?? normalizeEmail(fromClaims) ?? null;
-}
-
-// Loose email shape check — good enough to reject "not an email at all"
-// without pulling in a full validator. Requires `local@domain.tld`.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * Trim whitespace and collapse a value that is exactly two identical valid
- * email halves (e.g. `"a@x.coma@x.co"` -> `"a@x.co"`). Returns null if the
- * result is not a valid single email address.
- */
-export function normalizeEmail(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  if (EMAIL_RE.test(trimmed)) return trimmed;
-  if (trimmed.length % 2 === 0) {
-    const half = trimmed.slice(0, trimmed.length / 2);
-    if (trimmed === half + half && EMAIL_RE.test(half)) return half;
+  for (const k of ["Email", "email", "UserEmail", "userEmail"]) {
+    const n = normalizeEmail(p[k]);
+    if (n) return n;
+  }
+  for (const k of ["email", "Email", "preferred_username"]) {
+    const n = normalizeEmail(c[k]);
+    if (n) return n;
   }
   return null;
 }
@@ -62,20 +105,23 @@ export function normalizeEmail(raw: string | null | undefined): string | null {
  * Normalize N3 BasicInfo. Prefers an immutable identifier
  * (tenantId / companyId / GUID) over the human-editable tenant code and
  * company name, which are display-only.
+ *
+ * All value reads are made through the safe string picker: array-valued
+ * BasicInfo/JWT fields (which N3 has been observed returning) never
+ * throw and are never concatenated.
  */
 export function normalizeBasicInfo(raw: unknown, claims: Record<string, unknown> = {}): BasicInfo {
-  const src = (raw ?? {}) as Record<string, unknown>;
-  const claim = (claims ?? {}) as Record<string, unknown>;
+  const src = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const claim = (claims && typeof claims === "object" ? claims : {}) as Record<string, unknown>;
 
   const tenantCode =
-    pick<string>(src, ["TenantCode", "tenantCode", "tenantcode"]) ??
-    pick<string>(claim, ["TenantCode", "tenantCode", "tenant_code"]);
+    pickString(src, ["TenantCode", "tenantCode", "tenantcode"]) ??
+    pickString(claim, ["TenantCode", "tenantCode", "tenant_code"]);
 
-  const companyName =
-    pick<string>(src, ["CompanyName", "companyName", "company", "Company"]) ?? null;
+  const companyName = pickString(src, ["CompanyName", "companyName", "company", "Company"]);
 
   const n3TenantKey =
-    pick<string>(src, [
+    pickString(src, [
       "TenantId",
       "tenantId",
       "CompanyId",
@@ -85,15 +131,15 @@ export function normalizeBasicInfo(raw: unknown, claims: Record<string, unknown>
       "TenantGuid",
       "tenantGuid",
     ]) ??
-    pick<string>(claim, ["tenantId", "TenantId", "companyId", "CompanyId"]) ??
+    pickString(claim, ["tenantId", "TenantId", "companyId", "CompanyId"]) ??
     tenantCode ??
     null;
 
   const userEmail = pickAuthoritativeEmail(src, claim);
 
   const userName =
-    pick<string>(src, ["UserName", "userName", "DisplayName", "displayName"]) ??
-    pick<string>(claim, ["name", "unique_name", "sub"]);
+    pickString(src, ["UserName", "userName", "DisplayName", "displayName"]) ??
+    pickString(claim, ["name", "unique_name", "sub"]);
 
   return { n3TenantKey, tenantCode, companyName, userEmail, userName };
 }
