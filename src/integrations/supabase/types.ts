@@ -125,7 +125,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      hotelhub_provision_owner: {
+        Args: { p_n3_tenant_key: string; p_n3_user_key: string }
+        Returns: {
+          is_active: boolean
+          n3_user_key: string
+          role: Database["public"]["Enums"]["hotel_role"]
+          tenant_id: string
+        }[]
+      }
     }
     Enums: {
       hotel_role: "owner" | "front_desk" | "housekeeper"
