@@ -182,7 +182,9 @@ export function stripTokenFromUrl(url: URL): string {
 
 /** Build the token-free 302 redirect to the launch-error view. */
 export function redirectToLaunchError(code: SafeLaunchErrorCode): Response {
-  const safe = (SAFE_LAUNCH_ERROR_CODES as readonly string[]).includes(code) ? code : "launch_failed";
+  const safe = (SAFE_LAUNCH_ERROR_CODES as readonly string[]).includes(code)
+    ? code
+    : "launch_failed";
   return new Response(null, {
     status: 302,
     headers: {

@@ -99,9 +99,7 @@ afterEach(() => {
 describe("normalizeEmail (unknown-safe)", () => {
   it("collapses an array of two identical emails to one value", async () => {
     const { normalizeEmail } = await import("@/lib/n3-basicinfo");
-    expect(normalizeEmail(["LKS.MUGS@GMAIL.COM", "LKS.MUGS@GMAIL.COM"])).toBe(
-      "LKS.MUGS@GMAIL.COM",
-    );
+    expect(normalizeEmail(["LKS.MUGS@GMAIL.COM", "LKS.MUGS@GMAIL.COM"])).toBe("LKS.MUGS@GMAIL.COM");
   });
 
   it("returns first valid email skipping empty/invalid entries", async () => {
@@ -242,7 +240,9 @@ describe("handleRootLaunchRequest (root token safety)", () => {
 
   it("ignores non-root paths and requests without a token", async () => {
     const { handleRootLaunchRequest } = await import("@/lib/launch.server");
-    expect(await handleRootLaunchRequest(new Request("http://x.test/dashboard?token=abc"))).toBeNull();
+    expect(
+      await handleRootLaunchRequest(new Request("http://x.test/dashboard?token=abc")),
+    ).toBeNull();
     expect(await handleRootLaunchRequest(new Request("http://x.test/"))).toBeNull();
     expect(await handleRootLaunchRequest(new Request("http://x.test/?token="))).toBeNull();
   });

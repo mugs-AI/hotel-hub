@@ -22,10 +22,7 @@ function coerce(code: unknown): SafeCode {
 export const Route = createFileRoute("/launch-error")({
   validateSearch: (search: Record<string, unknown>) => ({ code: coerce(search.code) }),
   head: () => ({
-    meta: [
-      { title: "HotelHub — Unable to start" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "HotelHub — Unable to start" }, { name: "robots", content: "noindex" }],
   }),
   component: LaunchErrorPage,
 });
