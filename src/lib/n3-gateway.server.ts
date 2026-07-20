@@ -413,10 +413,7 @@ async function fetchAllPages<T extends { id: string; code: string }>(
   return { items: dedupeById(merged), total, pagesFetched: 1 + remaining.length };
 }
 
-export function listAllN3Customers(
-  token: string,
-  hooks?: { onActive?: (active: number) => void },
-) {
+export function listAllN3Customers(token: string, hooks?: { onActive?: (active: number) => void }) {
   return fetchAllPages<N3CustomerSummary>((o) => listN3Customers(token, o), hooks);
 }
 export function listAllN3Stocks(token: string, hooks?: { onActive?: (active: number) => void }) {
@@ -426,8 +423,6 @@ export function listAllN3Stocks(token: string, hooks?: { onActive?: (active: num
 // ---- Search normalization (Correction B) --------------------------------
 // Re-exported from the browser-safe module for server-side callers.
 export { normalizeSearchText, matchesQuery } from "./n3-gateway.browser";
-
-
 
 const DEV_KEY_TIMEOUT_MS = 10_000;
 

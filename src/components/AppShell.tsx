@@ -141,7 +141,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-
 function FullScreenLoader({ label }: { label: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">

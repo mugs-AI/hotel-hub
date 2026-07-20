@@ -128,7 +128,10 @@ function customerPage(from: number, count: number, total: number) {
     },
   };
 }
-function stockPage(items: Array<{ id: number | string; code: string; description?: string }>, total: number) {
+function stockPage(
+  items: Array<{ id: number | string; code: string; description?: string }>,
+  total: number,
+) {
   return {
     status: 200,
     body: { code: "0000", data: { count: total, value: items } },

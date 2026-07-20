@@ -4,12 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { matchesQuery } from "@/lib/n3-gateway.browser";
-import {
-  paginate,
-  pageWindow,
-  PAGE_SIZE_OPTIONS,
-  type PageSize,
-} from "@/lib/search-pagination";
+import { paginate, pageWindow, PAGE_SIZE_OPTIONS, type PageSize } from "@/lib/search-pagination";
 
 export const Route = createFileRoute("/rooms-rates")({
   head: () => ({
@@ -196,7 +191,11 @@ function ReadinessCard({
   return (
     <div
       className={CARD}
-      style={{ borderColor: `${color}66`, backgroundColor: `${color}12`, borderLeft: `4px solid ${color}` }}
+      style={{
+        borderColor: `${color}66`,
+        backgroundColor: `${color}12`,
+        borderLeft: `4px solid ${color}`,
+      }}
     >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -446,7 +445,11 @@ function RoomsCard({
       {adding && canSetup ? (
         <div
           className="mt-4 rounded-md p-3"
-          style={{ backgroundColor: `${TEAL}0D`, borderLeft: `3px solid ${TEAL}`, border: `1px dashed ${TEAL}55` }}
+          style={{
+            backgroundColor: `${TEAL}0D`,
+            borderLeft: `3px solid ${TEAL}`,
+            border: `1px dashed ${TEAL}55`,
+          }}
         >
           <p className="text-xs font-semibold" style={{ color: NAVY }}>
             Pick an N3 stock code — it becomes the room number automatically.
@@ -493,7 +496,13 @@ function RoomsCard({
               </tr>
             ) : null}
             {rooms.map((r, i) => (
-              <RoomRow key={r.id} room={r} zebra={i % 2 === 1} canSetup={canSetup} onChange={onChange} />
+              <RoomRow
+                key={r.id}
+                room={r}
+                zebra={i % 2 === 1}
+                canSetup={canSetup}
+                onChange={onChange}
+              />
             ))}
           </tbody>
         </table>
@@ -637,11 +646,7 @@ function RoomRow({
                 >
                   Edit
                 </button>
-                <button
-                  onClick={remove}
-                  className="text-xs font-medium"
-                  style={{ color: ERR }}
-                >
+                <button onClick={remove} className="text-xs font-medium" style={{ color: ERR }}>
                   Remove
                 </button>
               </>
@@ -755,9 +760,7 @@ function N3Picker<T extends "customers" | "stocks">({
       {/* Status line */}
       {state.kind === "loading" ? (
         <p className="text-xs" style={{ color: NAVY }}>
-          {kind === "customers"
-            ? "Loading all live N3 customers…"
-            : "Loading all live N3 stocks…"}
+          {kind === "customers" ? "Loading all live N3 customers…" : "Loading all live N3 stocks…"}
         </p>
       ) : null}
       {state.kind === "error" ? (
@@ -842,11 +845,7 @@ function N3Picker<T extends "customers" | "stocks">({
             </select>
           </label>
           <div className="flex flex-wrap items-center gap-1">
-            <PagerButton
-              onClick={() => setPage(1)}
-              disabled={paged.page === 1}
-              label="« First"
-            />
+            <PagerButton onClick={() => setPage(1)} disabled={paged.page === 1} label="« First" />
             <PagerButton
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={paged.page === 1}
