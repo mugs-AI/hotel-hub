@@ -52,6 +52,115 @@ export type Database = {
           },
         ]
       }
+      hotel_rooms: {
+        Row: {
+          base_rate: number
+          created_at: string
+          display_name: string | null
+          floor: string | null
+          id: string
+          is_active: boolean
+          max_occupancy: number
+          n3_stock_code: string
+          n3_stock_id: string
+          n3_stock_name: string | null
+          room_number: string
+          room_type: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_rate?: number
+          created_at?: string
+          display_name?: string | null
+          floor?: string | null
+          id?: string
+          is_active?: boolean
+          max_occupancy?: number
+          n3_stock_code: string
+          n3_stock_id: string
+          n3_stock_name?: string | null
+          room_number: string
+          room_type?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_rate?: number
+          created_at?: string
+          display_name?: string | null
+          floor?: string | null
+          id?: string
+          is_active?: boolean
+          max_occupancy?: number
+          n3_stock_code?: string
+          n3_stock_id?: string
+          n3_stock_name?: string | null
+          room_number?: string
+          room_type?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_rooms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_settings: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          n3_walk_in_customer_code: string | null
+          n3_walk_in_customer_id: string | null
+          n3_walk_in_customer_name: string | null
+          standard_check_in_time: string
+          standard_check_out_time: string
+          tenant_id: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          n3_walk_in_customer_code?: string | null
+          n3_walk_in_customer_id?: string | null
+          n3_walk_in_customer_name?: string | null
+          standard_check_in_time?: string
+          standard_check_out_time?: string
+          tenant_id: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          n3_walk_in_customer_code?: string | null
+          n3_walk_in_customer_id?: string | null
+          n3_walk_in_customer_name?: string | null
+          standard_check_in_time?: string
+          standard_check_out_time?: string
+          tenant_id?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_tenants: {
         Row: {
           company_name: string | null

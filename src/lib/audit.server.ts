@@ -10,7 +10,12 @@ export type AuditEventType =
   | "probe.executed"
   | "probe.denied"
   | "role.assigned"
-  | "role.revoked";
+  | "role.revoked"
+  | "hotel.settings.updated"
+  | "hotel.walk_in_customer.mapped"
+  | "hotel.room.created"
+  | "hotel.room.updated"
+  | "hotel.room.deactivated";
 
 const SENSITIVE_KEYS = new Set([
   "token",
