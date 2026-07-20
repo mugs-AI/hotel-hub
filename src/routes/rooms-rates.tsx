@@ -702,7 +702,7 @@ function N3Picker<T extends "customers" | "stocks">({
         </button>
         <button
           onClick={() => setSkip((s) => s + top)}
-          disabled={!canNext || state.kind === "loading"}
+          disabled={!canNext || isLoading}
           className="rounded-md border border-input px-2 py-1.5 text-xs disabled:opacity-50"
         >
           Next →
