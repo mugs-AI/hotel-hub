@@ -69,7 +69,6 @@ export async function handleSetWalkInCustomer({
   }
 }
 
-
 // N3 401 during any inline call is possible; we do not aggressively probe
 // here. If the caller's session is stale, the next probe/list request will
 // surface 401 and destroy it. Keep unused import guard silent:

@@ -7,7 +7,6 @@ import { verifyN3StockByCode } from "@/lib/n3-gateway.server";
 import { createRoom, listRooms } from "@/lib/hotel-store.server";
 import { logAudit } from "@/lib/audit.server";
 
-
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
@@ -54,7 +53,6 @@ export async function handleCreateRoom({ request }: { request: Request }): Promi
   if (result.status === "limit_reached") return deny(504, "n3_verification_limit_reached");
   if (result.status === "not_found") return deny(404, "stock_code_not_found_in_n3");
   const verified = result.item;
-
 
   const displayName = typeof body.displayName === "string" ? body.displayName.trim() || null : null;
   const roomType =

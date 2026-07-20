@@ -675,7 +675,8 @@ function N3Picker<T extends "customers" | "stocks">({
 
   const rangeLabel = (() => {
     if (state.kind !== "ok") return null;
-    if (state.items.length === 0) return state.total != null ? `0 of ${state.total.toLocaleString()}` : "0 records";
+    if (state.items.length === 0)
+      return state.total != null ? `0 of ${state.total.toLocaleString()}` : "0 records";
     const from = state.skip + 1;
     const to = state.skip + state.items.length;
     if (state.total != null) {
@@ -708,9 +709,7 @@ function N3Picker<T extends "customers" | "stocks">({
           Next →
         </button>
       </div>
-      {rangeLabel ? (
-        <p className="text-xs text-muted-foreground">{rangeLabel}</p>
-      ) : null}
+      {rangeLabel ? <p className="text-xs text-muted-foreground">{rangeLabel}</p> : null}
       {state.kind === "loading" ? (
         <p className="text-xs text-muted-foreground">Loading from N3…</p>
       ) : null}
@@ -750,4 +749,3 @@ function N3Picker<T extends "customers" | "stocks">({
     </div>
   );
 }
-

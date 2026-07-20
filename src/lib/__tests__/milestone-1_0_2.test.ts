@@ -310,7 +310,6 @@ describe("/api/hotel/walk-in-customer", () => {
   });
 });
 
-
 // ================= Task 2/3/5: rooms =================
 describe("/api/hotel/rooms POST", () => {
   it("housekeeper → 403", async () => {
@@ -427,7 +426,6 @@ describe("/api/hotel/rooms POST", () => {
     expect(sessionState.cleared).toBeGreaterThan(0);
   });
 });
-
 
 describe("/api/hotel/rooms GET", () => {
   it("housekeeper → 403", async () => {
@@ -655,7 +653,10 @@ describe("verifyN3CustomerByCode paging", () => {
         code: "0000",
         data: {
           count: total,
-          value: Array.from({ length: 100 }, (_, i) => ({ id: 100 + i + 1, code: `C-${100 + i + 1}` })),
+          value: Array.from({ length: 100 }, (_, i) => ({
+            id: 100 + i + 1,
+            code: `C-${100 + i + 1}`,
+          })),
         },
       },
     });
@@ -665,7 +666,10 @@ describe("verifyN3CustomerByCode paging", () => {
         code: "0000",
         data: {
           count: total,
-          value: Array.from({ length: 50 }, (_, i) => ({ id: 200 + i + 1, code: `C-${200 + i + 1}` })),
+          value: Array.from({ length: 50 }, (_, i) => ({
+            id: 200 + i + 1,
+            code: `C-${200 + i + 1}`,
+          })),
         },
       },
     });
@@ -682,7 +686,6 @@ describe("verifyN3CustomerByCode paging", () => {
     expect(r.status).toBe("unauthorized");
   });
 });
-
 
 // ================= start.ts still N3-only =================
 describe("start.ts regression", () => {

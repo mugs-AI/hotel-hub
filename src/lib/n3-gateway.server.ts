@@ -205,7 +205,12 @@ export type N3ListPage<T> = {
   durationMs: number;
 };
 
-function computeHasMore(total: number | null, skip: number, top: number, returned: number): boolean {
+function computeHasMore(
+  total: number | null,
+  skip: number,
+  top: number,
+  returned: number,
+): boolean {
   if (typeof total === "number") return skip + returned < total;
   // Unknown total: assume more only if the page came back full.
   return returned >= top && returned > 0;
@@ -321,10 +326,7 @@ export function verifyN3CustomerByCode(
   token: string,
   code: string,
 ): Promise<VerifyResult<N3CustomerSummary>> {
-  return verifyByCodePaged<N3CustomerSummary>(
-    (o) => listN3Customers(token, o),
-    code,
-  );
+  return verifyByCodePaged<N3CustomerSummary>((o) => listN3Customers(token, o), code);
 }
 
 export function verifyN3StockByCode(
@@ -333,7 +335,6 @@ export function verifyN3StockByCode(
 ): Promise<VerifyResult<N3StockSummary>> {
   return verifyByCodePaged<N3StockSummary>((o) => listN3Stocks(token, o), code);
 }
-
 
 const DEV_KEY_TIMEOUT_MS = 10_000;
 
