@@ -5,6 +5,10 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { matchesQuery } from "@/lib/n3-gateway.browser";
 import { paginate, pageWindow, PAGE_SIZE_OPTIONS, type PageSize } from "@/lib/search-pagination";
+import { buildMappedStockSet, isStockMapped, selectIfAllowed } from "@/lib/room-picker";
+
+const MAX_GUESTS_TOOLTIP = "Maximum number of guests allowed to stay in this room.";
+const MAPPED_STOCK_TOOLTIP = "This N3 Stock Code is already mapped to a room.";
 
 export const Route = createFileRoute("/rooms-rates")({
   head: () => ({
@@ -456,6 +460,7 @@ function RoomsCard({
           </p>
           <N3Picker
             kind="stocks"
+            disabledCodes={buildMappedStockSet(rooms)}
             onPick={async (row) => {
               try {
                 await j("/api/hotel/rooms", {
@@ -481,7 +486,9 @@ function RoomsCard({
               <th className="py-2 pr-4">Stock name</th>
               <th className="py-2 pr-4">Type</th>
               <th className="py-2 pr-4">Floor</th>
-              <th className="py-2 pr-4">Occ.</th>
+              <th className="py-2 pr-4" title={MAX_GUESTS_TOOLTIP}>
+                Max guests
+              </th>
               <th className="py-2 pr-4">Base rate</th>
               <th className="py-2 pr-4">Active</th>
               <th className="py-2 pr-4"></th>
@@ -596,6 +603,8 @@ function RoomRow({
             min={1}
             value={occ}
             onChange={(e) => setOcc(e.target.value)}
+            aria-label="Maximum guests"
+            title={MAX_GUESTS_TOOLTIP}
             className="w-16 rounded border border-input bg-background px-1.5 py-1 text-sm"
           />
         ) : (
@@ -680,9 +689,11 @@ type PickerLoad<Row> =
 function N3Picker<T extends "customers" | "stocks">({
   kind,
   onPick,
+  disabledCodes,
 }: {
   kind: T;
   onPick: (row: T extends "customers" ? CustomerRow : StockRow) => void;
+  disabledCodes?: ReadonlySet<string>;
 }) {
   type Row = CustomerRow | StockRow;
   const [state, setState] = useState<PickerLoad<Row>>({ kind: "loading" });
@@ -794,31 +805,56 @@ function N3Picker<T extends "customers" | "stocks">({
         className="max-h-72 overflow-auto rounded-md border bg-white divide-y divide-border"
         style={{ borderColor: `${NAVY}22` }}
       >
-        {paged.pageItems.map((row, i) => (
-          <li
-            key={row.id}
-            className="flex items-center justify-between gap-2 px-3 py-2 text-sm transition-colors"
-            style={{ backgroundColor: i % 2 === 1 ? `${TEAL}08` : "white" }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${TEAL}1F`)}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = i % 2 === 1 ? `${TEAL}08` : "white")
-            }
-          >
-            <span>
-              <span className="font-mono" style={{ color: NAVY }}>
-                {row.code}
-              </span>
-              <span className="text-muted-foreground"> — {row.name ?? "—"}</span>
-            </span>
-            <button
-              onClick={() => onPick(row as never)}
-              className="rounded-md px-2 py-1 text-xs font-medium text-white"
-              style={{ backgroundColor: TEAL }}
+        {paged.pageItems.map((row, i) => {
+          const mapped = disabledCodes ? isStockMapped(row.code, disabledCodes) : false;
+          return (
+            <li
+              key={row.id}
+              className="flex items-center justify-between gap-2 px-3 py-2 text-sm transition-colors"
+              style={{ backgroundColor: i % 2 === 1 ? `${TEAL}08` : "white" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${TEAL}1F`)}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = i % 2 === 1 ? `${TEAL}08` : "white")
+              }
             >
-              Select
-            </button>
-          </li>
-        ))}
+              <span>
+                <span className="font-mono" style={{ color: NAVY }}>
+                  {row.code}
+                </span>
+                <span className="text-muted-foreground"> — {row.name ?? "—"}</span>
+                {mapped ? (
+                  <span
+                    className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    style={{ backgroundColor: `${NAVY}1A`, color: NAVY }}
+                  >
+                    Mapped
+                  </span>
+                ) : null}
+              </span>
+              <button
+                onClick={() => {
+                  if (mapped || !disabledCodes) {
+                    if (mapped) return;
+                    onPick(row as never);
+                    return;
+                  }
+                  selectIfAllowed(row, disabledCodes, (r) => onPick(r as never));
+                }}
+                disabled={mapped}
+                aria-disabled={mapped || undefined}
+                title={mapped ? MAPPED_STOCK_TOOLTIP : undefined}
+                className="rounded-md px-2 py-1 text-xs font-medium text-white disabled:cursor-not-allowed"
+                style={
+                  mapped
+                    ? { backgroundColor: `${NAVY}55`, color: "white", opacity: 0.75 }
+                    : { backgroundColor: TEAL }
+                }
+              >
+                {mapped ? "Added" : "Select"}
+              </button>
+            </li>
+          );
+        })}
         {state.kind === "ok" && paged.pageItems.length === 0 ? (
           <li className="px-3 py-4 text-center text-xs text-muted-foreground">
             {query.trim() ? `No matches for "${query}".` : "N3 returned no records."}
