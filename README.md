@@ -207,13 +207,18 @@ Covers:
   - `lookupRole` filters by both `tenant_id` and `n3_user_key`, so a
     role assignment scoped to tenant B cannot authorize a user in tenant A.
 
-**Last run:** 58 passed, 0 failed, 0 skipped across 6 files (5 of the
-58 are conditional live-DB tests in `provision-owner.sql.test.ts` and
-only run when `SUPABASE_DB_URL` is set; skipped runs are reported
-separately by vitest and are never counted as passed).
+**Test suite:** The suite contains 58 tests across 6 files. Five of
+those tests live in `src/lib/__tests__/provision-owner.sql.test.ts` and
+require a live PostgreSQL connection: they run only when both `PGHOST`
+and `PGUSER` are available in the environment (they invoke the local
+`psql` client). Without those variables the five live-DB tests are
+reported as skipped by vitest and are never counted as passed. In an
+environment with `PGHOST` and `PGUSER` set, the last run reported all
+58 tests as passed; without those variables the expected result is
+53 passed / 0 failed / 5 skipped.
 **Lint:** 0 errors, 6 warnings — all pre-existing shadcn UI
 `react-refresh/only-export-components` warnings unrelated to this milestone.
-**Typecheck (`tsgo --noEmit`) and production build (`bun run build`):** both pass.
+**Typecheck (`bunx tsgo --noEmit`) and production build (`bun run build`):** both pass.
 
 ## Confirmed Cloud secrets
 
