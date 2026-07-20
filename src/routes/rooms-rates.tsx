@@ -460,6 +460,7 @@ function RoomsCard({
           </p>
           <N3Picker
             kind="stocks"
+            disabledCodes={buildMappedStockSet(rooms)}
             onPick={async (row) => {
               try {
                 await j("/api/hotel/rooms", {
