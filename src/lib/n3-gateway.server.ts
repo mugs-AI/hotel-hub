@@ -144,18 +144,47 @@ function pickBool(row: Record<string, unknown>, keys: string[]): boolean | null 
   return null;
 }
 
-function extractItems(body: unknown): unknown[] {
-  if (!body || typeof body !== "object") return [];
+/**
+ * Extract a page from the real N3 envelope. Priority:
+ *   1. data.value / data.count   (verified production contract)
+ *   2. data.Value / data.Count   (casing-tolerant fallback)
+ *   3. data.items / data.Items   (compatibility fallback)
+ *   4. data as array             (compatibility fallback)
+ *   5. top-level value / items   (compatibility fallback)
+ *   6. anything else             ({ items: [], total: null })
+ *
+ * When the envelope has a `code` field, only "0000" is treated as a
+ * successful page. Any other code returns an empty page (never throws).
+ */
+export function extractPage(body: unknown): { items: unknown[]; total: number | null } {
+  if (!body || typeof body !== "object") return { items: [], total: null };
   const b = body as Record<string, unknown>;
-  const data = b.data ?? b.Data;
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === "object") {
-    const inner =
-      (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Items;
-    if (Array.isArray(inner)) return inner;
+  const codeField = b.code ?? b.Code;
+  if (typeof codeField === "string" && codeField && codeField !== "0000") {
+    return { items: [], total: null };
   }
-  if (Array.isArray(b.items)) return b.items;
-  return [];
+  const data = b.data ?? b.Data;
+
+  function coerceTotal(v: unknown): number | null {
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) return Math.floor(v);
+    if (typeof v === "string" && v.trim() !== "") {
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+    }
+    return null;
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const d = data as Record<string, unknown>;
+    const value = d.value ?? d.Value;
+    if (Array.isArray(value)) return { items: value, total: coerceTotal(d.count ?? d.Count) };
+    const items = d.items ?? d.Items;
+    if (Array.isArray(items)) return { items, total: coerceTotal(d.count ?? d.Count) };
+  }
+  if (Array.isArray(data)) return { items: data, total: null };
+  if (Array.isArray(b.value)) return { items: b.value, total: coerceTotal(b.count) };
+  if (Array.isArray(b.items)) return { items: b.items, total: coerceTotal(b.count) };
+  return { items: [], total: null };
 }
 
 export type N3CustomerSummary = { id: string; code: string; name: string | null };
@@ -166,22 +195,33 @@ export type N3StockSummary = {
   isActive: boolean | null;
 };
 
+export type N3ListPage<T> = {
+  status: number;
+  items: T[];
+  total: number | null;
+  top: number;
+  skip: number;
+  hasMore: boolean;
+  durationMs: number;
+};
+
+function computeHasMore(total: number | null, skip: number, top: number, returned: number): boolean {
+  if (typeof total === "number") return skip + returned < total;
+  // Unknown total: assume more only if the page came back full.
+  return returned >= top && returned > 0;
+}
+
 export async function listN3Customers(
   token: string,
   opts: { top?: unknown; skip?: unknown; filter?: unknown } = {},
-): Promise<{
-  status: number;
-  items: N3CustomerSummary[];
-  top: number;
-  skip: number;
-  durationMs: number;
-}> {
+): Promise<N3ListPage<N3CustomerSummary>> {
   const { top, skip } = boundedPagination(opts);
   const path = `/api/customers/list?$top=${top}&$skip=${skip}`;
   const res = await callN3Path(token, path);
+  const page = extractPage(res.body);
   const filterStr = typeof opts.filter === "string" ? opts.filter.trim().toLowerCase() : "";
   const items: N3CustomerSummary[] = [];
-  for (const raw of extractItems(res.body)) {
+  for (const raw of page.items) {
     if (!raw || typeof raw !== "object") continue;
     const row = raw as Record<string, unknown>;
     const id = pickString(row, ["Id", "id", "CustomerId", "customerId", "Guid", "guid"]);
@@ -194,25 +234,28 @@ export async function listN3Customers(
     }
     items.push({ id, code, name });
   }
-  return { status: res.status, items, top, skip, durationMs: res.durationMs };
+  return {
+    status: res.status,
+    items,
+    total: page.total,
+    top,
+    skip,
+    hasMore: computeHasMore(page.total, skip, top, page.items.length),
+    durationMs: res.durationMs,
+  };
 }
 
 export async function listN3Stocks(
   token: string,
   opts: { top?: unknown; skip?: unknown; filter?: unknown } = {},
-): Promise<{
-  status: number;
-  items: N3StockSummary[];
-  top: number;
-  skip: number;
-  durationMs: number;
-}> {
+): Promise<N3ListPage<N3StockSummary>> {
   const { top, skip } = boundedPagination(opts);
   const path = `/api/stocks/list?$top=${top}&$skip=${skip}`;
   const res = await callN3Path(token, path);
+  const page = extractPage(res.body);
   const filterStr = typeof opts.filter === "string" ? opts.filter.trim().toLowerCase() : "";
   const items: N3StockSummary[] = [];
-  for (const raw of extractItems(res.body)) {
+  for (const raw of page.items) {
     if (!raw || typeof raw !== "object") continue;
     const row = raw as Record<string, unknown>;
     const id = pickString(row, ["Id", "id", "StockId", "stockId", "Guid", "guid"]);
@@ -226,47 +269,71 @@ export async function listN3Stocks(
     }
     items.push({ id, code, name, isActive });
   }
-  return { status: res.status, items, top, skip, durationMs: res.durationMs };
+  return {
+    status: res.status,
+    items,
+    total: page.total,
+    top,
+    skip,
+    hasMore: computeHasMore(page.total, skip, top, page.items.length),
+    durationMs: res.durationMs,
+  };
 }
 
-/**
- * Verify a single N3 customer by code exists for the authenticated tenant.
- * Returns the canonical summary or null. Used before persisting the
- * walk-in customer mapping — never trust browser-supplied name/id.
- */
-export async function verifyN3CustomerByCode(
-  token: string,
+// Safety cap for full-list verification scans. The verified customer
+// tenant already carries >1,400 records, so 500 is unsafe. 5,000 provides
+// headroom without unbounded paging.
+const VERIFY_SAFETY_CAP = 5000;
+
+export type VerifyResult<T> =
+  | { status: "found"; item: T }
+  | { status: "not_found" }
+  | { status: "unauthorized" }
+  | { status: "unavailable" }
+  | { status: "limit_reached" };
+
+async function verifyByCodePaged<T extends { code: string }>(
+  fetcher: (opts: { top: number; skip: number }) => Promise<N3ListPage<T>>,
   code: string,
-): Promise<N3CustomerSummary | null> {
-  // N3 filter syntax is not independently verified in this repo, so we scan
-  // pages via bounded pagination and match by code.
+): Promise<VerifyResult<T>> {
   const wanted = code.trim().toUpperCase();
-  if (!wanted) return null;
-  for (let skip = 0; skip < 500; skip += MAX_TOP) {
-    const page = await listN3Customers(token, { top: MAX_TOP, skip });
-    if (page.status < 200 || page.status >= 300) return null;
-    const hit = page.items.find((c) => c.code.trim().toUpperCase() === wanted);
-    if (hit) return hit;
-    if (page.items.length < MAX_TOP) return null;
+  if (!wanted) return { status: "not_found" };
+  let skip = 0;
+  const top = MAX_TOP;
+  while (skip < VERIFY_SAFETY_CAP) {
+    let page: N3ListPage<T>;
+    try {
+      page = await fetcher({ top, skip });
+    } catch {
+      return { status: "unavailable" };
+    }
+    if (page.status === 401) return { status: "unauthorized" };
+    if (page.status < 200 || page.status >= 300) return { status: "unavailable" };
+    const hit = page.items.find((x) => x.code.trim().toUpperCase() === wanted);
+    if (hit) return { status: "found", item: hit };
+    if (!page.hasMore) return { status: "not_found" };
+    skip += top;
   }
-  return null;
+  return { status: "limit_reached" };
 }
 
-export async function verifyN3StockByCode(
+export function verifyN3CustomerByCode(
   token: string,
   code: string,
-): Promise<N3StockSummary | null> {
-  const wanted = code.trim().toUpperCase();
-  if (!wanted) return null;
-  for (let skip = 0; skip < 2000; skip += MAX_TOP) {
-    const page = await listN3Stocks(token, { top: MAX_TOP, skip });
-    if (page.status < 200 || page.status >= 300) return null;
-    const hit = page.items.find((s) => s.code.trim().toUpperCase() === wanted);
-    if (hit) return hit;
-    if (page.items.length < MAX_TOP) return null;
-  }
-  return null;
+): Promise<VerifyResult<N3CustomerSummary>> {
+  return verifyByCodePaged<N3CustomerSummary>(
+    (o) => listN3Customers(token, o),
+    code,
+  );
 }
+
+export function verifyN3StockByCode(
+  token: string,
+  code: string,
+): Promise<VerifyResult<N3StockSummary>> {
+  return verifyByCodePaged<N3StockSummary>((o) => listN3Stocks(token, o), code);
+}
+
 
 const DEV_KEY_TIMEOUT_MS = 10_000;
 
