@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
+import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
@@ -21,6 +22,11 @@ import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$prob
 const VerificationRoute = VerificationRouteImport.update({
   id: '/verification',
   path: '/verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaunchErrorRoute = LaunchErrorRouteImport.update({
+  id: '/launch-error',
+  path: '/launch-error',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -61,6 +67,7 @@ const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/launch-error': typeof LaunchErrorRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/launch-error': typeof LaunchErrorRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/launch-error': typeof LaunchErrorRoute
   '/verification': typeof VerificationRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/launch-error'
     | '/verification'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/launch-error'
     | '/verification'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/launch-error'
     | '/verification'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LaunchErrorRoute: typeof LaunchErrorRoute
   VerificationRoute: typeof VerificationRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
   ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/verification'
       fullPath: '/verification'
       preLoaderRoute: typeof VerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/launch-error': {
+      id: '/launch-error'
+      path: '/launch-error'
+      fullPath: '/launch-error'
+      preLoaderRoute: typeof LaunchErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LaunchErrorRoute: LaunchErrorRoute,
   VerificationRoute: VerificationRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
   ApiAuthLaunchRoute: ApiAuthLaunchRoute,

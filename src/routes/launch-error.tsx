@@ -47,7 +47,8 @@ const BG = "#F5F7FA";
 const ERROR = "#C2413B";
 
 function LaunchErrorPage() {
-  const { code } = Route.useSearch();
+  const search = Route.useSearch() as { code: SafeCode };
+  const code: SafeCode = search.code;
   const message = MESSAGES[code];
 
   return (
