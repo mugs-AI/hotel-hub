@@ -119,12 +119,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </ul>
         </nav>
-        <main className="min-w-0 flex-1">
-          {session.roleStatus === "role_unassigned" ? (
-            <RoleUnassignedBanner session={session} />
-          ) : null}
-          {children}
-        </main>
+        <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>
   );
@@ -138,23 +133,64 @@ function FullScreenLoader({ label }: { label: string }) {
   );
 }
 
-function RoleUnassignedBanner({
+/**
+ * Full-page gate shown to authenticated N3 users who do not yet have a
+ * HotelHub role. Replaces the entire application shell — no navigation,
+ * no dashboard, no verification console — and surfaces the immutable
+ * identifiers a server operator (MUGS) needs to provision the first
+ * Owner via the documented SQL runbook.
+ */
+function RoleUnassignedShell({
   session,
+  onSignOut,
+  signingOut,
 }: {
   session: Extract<SessionMe, { authenticated: true }>;
+  onSignOut: () => void;
+  signingOut: boolean;
 }) {
   return (
-    <div className="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
-      <p className="font-semibold">HotelHub role not assigned</p>
-      <p className="mt-1 text-muted-foreground">
-        Your N3 identity has been verified for tenant{" "}
-        <span className="font-mono">
-          {session.tenant.tenantCode ?? session.tenant.companyName ?? "—"}
-        </span>
-        , but no HotelHub role (<code>owner</code>, <code>front_desk</code>, or{" "}
-        <code>housekeeper</code>) is assigned yet. All hotel features are denied by default until a
-        role is granted.
-      </p>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-2xl rounded-lg border border-amber-500/40 bg-amber-500/10 p-6">
+        <p className="text-sm font-semibold">HotelHub role not assigned</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your N3 identity has been verified, but no HotelHub role (<code>owner</code>,{" "}
+          <code>front_desk</code>, <code>housekeeper</code>) is assigned yet. All application
+          content is denied by default until a server administrator grants a role via the
+          first-Owner provisioning runbook.
+        </p>
+        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-background/60 p-4 text-xs sm:grid-cols-[max-content_1fr]">
+          <dt className="text-muted-foreground">Company</dt>
+          <dd className="font-mono break-all">{session.tenant.companyName ?? "—"}</dd>
+          <dt className="text-muted-foreground">Tenant code</dt>
+          <dd className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</dd>
+          <dt className="text-muted-foreground">hotel_tenants.id</dt>
+          <dd className="font-mono break-all">{session.tenant.tenantId}</dd>
+          <dt className="text-muted-foreground">n3_tenant_key</dt>
+          <dd className="font-mono break-all">{session.tenant.n3TenantKey}</dd>
+          <dt className="text-muted-foreground">n3_user_key</dt>
+          <dd className="font-mono break-all">{session.user.n3UserKey}</dd>
+          <dt className="text-muted-foreground">User email</dt>
+          <dd className="font-mono break-all">{session.user.userEmail ?? "—"}</dd>
+        </dl>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Provide these identifiers to your server administrator. They will run{" "}
+          <code>
+            SELECT public.hotelhub_provision_owner(&lt;n3_tenant_key&gt;,
+            &lt;n3_user_key&gt;)
+          </code>{" "}
+          in the Cloud SQL editor to assign the first Owner role.
+        </p>
+        <div className="mt-5 flex justify-end">
+          <button
+            onClick={onSignOut}
+            disabled={signingOut}
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+          >
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
