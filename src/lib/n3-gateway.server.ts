@@ -424,25 +424,9 @@ export function listAllN3Stocks(token: string, hooks?: { onActive?: (active: num
 }
 
 // ---- Search normalization (Correction B) --------------------------------
-// Pure helpers, safe to import from the browser bundle.
+// Re-exported from the browser-safe module for server-side callers.
+export { normalizeSearchText, matchesQuery } from "./n3-gateway.browser";
 
-export function normalizeSearchText(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function matchesQuery(query: string, code: string, name: string | null): boolean {
-  const q = normalizeSearchText(query);
-  if (!q) return true;
-  const hay = normalizeSearchText(`${code} ${name ?? ""}`);
-  const words = q.split(" ");
-  return words.every((w) => hay.includes(w));
-}
 
 
 const DEV_KEY_TIMEOUT_MS = 10_000;
