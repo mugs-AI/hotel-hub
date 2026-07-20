@@ -224,9 +224,10 @@ function SessionBadge({
         </dd>
         <dd
           className="font-medium text-foreground truncate max-w-[180px]"
-          title={session.user.userEmail ?? session.user.userName ?? undefined}
+          title={session.user.userEmail ?? undefined}
+          data-testid="session-user-email"
         >
-          {session.user.userEmail ?? session.user.userName ?? "—"}
+          {session.user.userEmail ?? "—"}
         </dd>
         <dd className="font-medium text-foreground truncate max-w-[120px]">
           {session.role ?? <span className="text-amber-500">unassigned</span>}
