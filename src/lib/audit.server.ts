@@ -15,7 +15,11 @@ export type AuditEventType =
   | "hotel.walk_in_customer.mapped"
   | "hotel.room.created"
   | "hotel.room.updated"
-  | "hotel.room.deactivated";
+  | "hotel.room.deactivated"
+  | "hotel.reservation.created"
+  | "hotel.reservation.rate_overridden"
+  | "hotel.reservation.create_failed"
+  | "hotel.availability.checked";
 
 const SENSITIVE_KEYS = new Set([
   "token",

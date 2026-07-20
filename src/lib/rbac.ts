@@ -12,6 +12,8 @@ export type Permission =
   | "n3:list_stocks" // fetch N3 stock list for setup
   | "hotel:setup" // change tenant settings, walk-in customer, or rooms
   | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
+  | "hotel:reservations:view" // read reservation list / detail / availability
+  | "hotel:reservations:create" // create new reservations
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
@@ -26,6 +28,8 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // Front desk needs to see rates for future check-in flows; housekeeper
   // is excluded from rate values in this milestone.
   "hotel:rooms:view": new Set(["owner", "front_desk"]),
+  "hotel:reservations:view": new Set(["owner", "front_desk"]),
+  "hotel:reservations:create": new Set(["owner", "front_desk"]),
   "roles:manage": new Set(["owner"]),
 };
 
