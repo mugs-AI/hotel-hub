@@ -33,8 +33,29 @@ export function pickAuthoritativeEmail(
   const p = (profile ?? {}) as Record<string, unknown>;
   const c = (claims ?? {}) as Record<string, unknown>;
   const fromProfile = pick<string>(p, ["Email", "email", "UserEmail", "userEmail"]);
-  if (fromProfile) return fromProfile;
-  return pick<string>(c, ["email", "Email", "preferred_username"]) ?? null;
+  const fromClaims = pick<string>(c, ["email", "Email", "preferred_username"]);
+  return normalizeEmail(fromProfile) ?? normalizeEmail(fromClaims) ?? null;
+}
+
+// Loose email shape check — good enough to reject "not an email at all"
+// without pulling in a full validator. Requires `local@domain.tld`.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Trim whitespace and collapse a value that is exactly two identical valid
+ * email halves (e.g. `"a@x.coma@x.co"` -> `"a@x.co"`). Returns null if the
+ * result is not a valid single email address.
+ */
+export function normalizeEmail(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (EMAIL_RE.test(trimmed)) return trimmed;
+  if (trimmed.length % 2 === 0) {
+    const half = trimmed.slice(0, trimmed.length / 2);
+    if (trimmed === half + half && EMAIL_RE.test(half)) return half;
+  }
+  return null;
 }
 
 /**

@@ -20,6 +20,23 @@ export async function readRequestContext(): Promise<RequestContext> {
   if (!data?.n3Token || !data.tenantId || !data.n3UserKey) {
     return { authenticated: false };
   }
+  // If the stored session carries a verified JWT expiration, deny + destroy
+  // once we're past it. Sessions without a verified numeric `exp` fall back
+  // to the fixed cookie `maxAge` in session.server.ts (currently 8h) —
+  // documented in the README.
+  if (data.n3TokenExpiration) {
+    const expMs = Date.parse(data.n3TokenExpiration);
+    if (Number.isFinite(expMs) && expMs <= Date.now()) {
+      await logAudit({
+        tenantId: data.tenantId ?? null,
+        n3UserKey: data.n3UserKey ?? null,
+        eventType: "session.destroyed",
+        detail: { reason: "n3_token_expired" },
+      });
+      await session.clear();
+      return { authenticated: false };
+    }
+  }
   const roleLookup = await lookupRole(data.tenantId, data.n3UserKey);
   if (roleLookup.status === "assigned" && roleLookup.isActive) {
     return {

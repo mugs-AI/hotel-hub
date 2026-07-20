@@ -46,10 +46,13 @@ function Home() {
               · Secure N3 launch/auth (Path A: <code>?token=</code> from My Apps)
             </li>
             <li>· Dev-only API-key sign-in (Path B), stripped from production</li>
-            <li>· Same-origin proxy — browser never calls N3 hosts directly</li>
-            <li>· Live session header (company, tenant, user) refreshed from N3 every load</li>
+            <li>· Same-origin gateway — browser never calls N3 hosts directly</li>
+            <li>
+              · Session header (company, tenant, user) captured at launch and read from the
+              encrypted HttpOnly session cookie on each page load — not re-fetched from N3.
+            </li>
             <li>· Empty navigation shell for future modules</li>
-            <li>· N3 verification console for capability probing</li>
+            <li>· N3 verification console (Owner-only) for capability probing</li>
           </ul>
         </section>
       </div>
