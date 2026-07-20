@@ -219,18 +219,20 @@ describe("/api/hotel/walk-in-customer", () => {
   });
   it("owner: verifies via N3 then persists ONLY N3-returned name/id", async () => {
     await seedAuthed("owner");
-    // Verify N3 list returns a page containing 700-W001 with name "Walk In".
+    // Verified production envelope shape.
     enqFetch({
       status: 200,
       body: {
         code: "0000",
-        data: [
-          { Id: "c-uuid-1", Code: "700-W001", Name: "Walk In Guest (verified)" },
-          { Id: "c-uuid-2", Code: "700-OTHER", Name: "Other" },
-        ],
+        data: {
+          count: 2,
+          value: [
+            { id: "c-uuid-1", code: "700-W001", name: "Walk In Guest (verified)" },
+            { id: "c-uuid-2", code: "700-OTHER", name: "Other" },
+          ],
+        },
       },
     });
-    // getOrCreateHotelSettings: existing row lookup returns row
     supaEnqueue("hotel_settings", {
       data: {
         tenant_id: "T1",
@@ -244,7 +246,6 @@ describe("/api/hotel/walk-in-customer", () => {
       },
       error: null,
     });
-    // Then update returns updated row
     supaEnqueue("hotel_settings", {
       data: {
         tenant_id: "T1",
@@ -259,7 +260,6 @@ describe("/api/hotel/walk-in-customer", () => {
       error: null,
     });
     const { handleSetWalkInCustomer } = await import("@/routes/api/hotel/walk-in-customer");
-    // Client sends attacker-supplied id/name — server must ignore them.
     const res = await handleSetWalkInCustomer({
       request: new Request("http://x.test/x", {
         method: "POST",
@@ -275,10 +275,12 @@ describe("/api/hotel/walk-in-customer", () => {
   });
   it("owner: unknown/unverified code is refused (404) and nothing is persisted", async () => {
     await seedAuthed("owner");
-    // List returns items that do NOT include 700-FAKE
     enqFetch({
       status: 200,
-      body: { code: "0000", data: [{ Id: "x", Code: "700-OTHER", Name: "O" }] },
+      body: {
+        code: "0000",
+        data: { count: 1, value: [{ id: "x", code: "700-OTHER", name: "O" }] },
+      },
     });
     const { handleSetWalkInCustomer } = await import("@/routes/api/hotel/walk-in-customer");
     const res = await handleSetWalkInCustomer({
@@ -291,6 +293,20 @@ describe("/api/hotel/walk-in-customer", () => {
     expect(supaCalls.filter((c) => c.table === "hotel_settings" && c.op === "update")).toHaveLength(
       0,
     );
+  });
+  it("owner: N3 401 during verification → 401 n3_unauthorized (never 404) and destroys session", async () => {
+    await seedAuthed("owner");
+    enqFetch({ status: 401, body: {} });
+    const { handleSetWalkInCustomer } = await import("@/routes/api/hotel/walk-in-customer");
+    const res = await handleSetWalkInCustomer({
+      request: new Request("http://x.test/x", {
+        method: "POST",
+        body: JSON.stringify({ code: "700-W001" }),
+      }),
+    });
+    expect(res.status).toBe(401);
+    expect(sessionState.cleared).toBeGreaterThan(0);
+    expect(auditEvents.some((e) => e.eventType === "session.n3_401")).toBe(true);
   });
 });
 
@@ -313,7 +329,10 @@ describe("/api/hotel/rooms POST", () => {
       status: 200,
       body: {
         code: "0000",
-        data: [{ Id: "s1", Code: "R-101", Description: "Deluxe Twin", IsActive: true }],
+        data: {
+          count: 1,
+          value: [{ id: "s1", code: "R-101", description: "Deluxe Twin", isActive: true }],
+        },
       },
     });
     supaEnqueue("hotel_rooms", {
@@ -340,7 +359,6 @@ describe("/api/hotel/rooms POST", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           code: "R-101",
-          // Attacker overrides — must be dropped by server:
           roomNumber: "PWN",
           n3StockCode: "PWN",
           baseRate: 180,
@@ -362,7 +380,10 @@ describe("/api/hotel/rooms POST", () => {
     await seedAuthed("owner");
     enqFetch({
       status: 200,
-      body: { code: "0000", data: [{ Id: "s1", Code: "R-101", Description: "T" }] },
+      body: {
+        code: "0000",
+        data: { count: 1, value: [{ id: "s1", code: "R-101", description: "T" }] },
+      },
     });
     supaEnqueue("hotel_rooms", {
       data: null,
@@ -380,7 +401,7 @@ describe("/api/hotel/rooms POST", () => {
   });
   it("owner: unverified stock code → 404, no DB write", async () => {
     await seedAuthed("owner");
-    enqFetch({ status: 200, body: { code: "0000", data: [] } });
+    enqFetch({ status: 200, body: { code: "0000", data: { count: 0, value: [] } } });
     const { handleCreateRoom } = await import("@/routes/api/hotel/rooms");
     const res = await handleCreateRoom({
       request: new Request("http://x.test/x", {
@@ -390,6 +411,19 @@ describe("/api/hotel/rooms POST", () => {
     });
     expect(res.status).toBe(404);
     expect(supaCalls.some((c) => c.table === "hotel_rooms" && c.op === "insert")).toBe(false);
+  });
+  it("owner: N3 401 on stock verify → 401 n3_unauthorized (not 404)", async () => {
+    await seedAuthed("owner");
+    enqFetch({ status: 401, body: {} });
+    const { handleCreateRoom } = await import("@/routes/api/hotel/rooms");
+    const res = await handleCreateRoom({
+      request: new Request("http://x.test/x", {
+        method: "POST",
+        body: JSON.stringify({ code: "R-101" }),
+      }),
+    });
+    expect(res.status).toBe(401);
+    expect(sessionState.cleared).toBeGreaterThan(0);
   });
 });
 
@@ -440,28 +474,54 @@ describe("hotel-store cross-tenant isolation", () => {
 
 // ================= Task 4: N3 list access =================
 describe("/api/n3/customers", () => {
-  it("owner: paginates & returns minimal shape", async () => {
+  it("owner: paginates & returns minimal shape with total/hasMore", async () => {
+    await seedAuthed("owner");
+    // Verified N3 production envelope (numeric ids, data.value/data.count).
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          count: 1465,
+          value: [
+            { id: 250787, code: "703-H0007", name: "Hanabil Biz Online Centre" },
+            { id: 250788, code: "700-A001", name: "Alpha" },
+          ],
+        },
+      },
+    });
+    const { handleListCustomers } = await import("@/routes/api/n3/customers");
+    const res = await handleListCustomers({
+      request: new Request("http://x.test/api/n3/customers?top=25&skip=0"),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.top).toBe(25);
+    expect(body.total).toBe(1465);
+    expect(body.hasMore).toBe(true);
+    // Numeric IDs are stringified.
+    expect(body.items[0]).toEqual({
+      id: "250787",
+      code: "703-H0007",
+      name: "Hanabil Biz Online Centre",
+    });
+    expect(fetchCalls[0].url).toContain("/api/customers/list?$top=25&$skip=0");
+  });
+  it("owner: last page → hasMore=false", async () => {
     await seedAuthed("owner");
     enqFetch({
       status: 200,
       body: {
         code: "0000",
-        data: [
-          { Id: "c1", Code: "700-W001", Name: "Walk In" },
-          { Id: "c2", Code: "700-A001", Name: "Alpha" },
-        ],
+        data: { count: 1465, value: [{ id: 1, code: "Z-END", name: "End" }] },
       },
     });
     const { handleListCustomers } = await import("@/routes/api/n3/customers");
     const res = await handleListCustomers({
-      request: new Request("http://x.test/api/n3/customers?top=5&skip=0"),
+      request: new Request("http://x.test/api/n3/customers?top=25&skip=1464"),
     });
-    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.top).toBe(5);
-    expect(body.items).toHaveLength(2);
-    expect(body.items[0]).toEqual({ id: "c1", code: "700-W001", name: "Walk In" });
-    expect(fetchCalls[0].url).toContain("/api/customers/list?$top=5&$skip=0");
+    expect(body.hasMore).toBe(false);
   });
   it("front_desk → 403", async () => {
     await seedAuthed("front_desk");
@@ -475,6 +535,30 @@ describe("/api/n3/customers", () => {
 });
 
 describe("/api/n3/stocks", () => {
+  it("owner: verified stock envelope", async () => {
+    await seedAuthed("owner");
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          count: 554,
+          value: [{ id: 153691, code: "365-Install", description: "Installation" }],
+        },
+      },
+    });
+    const { handleListStocks } = await import("@/routes/api/n3/stocks");
+    const res = await handleListStocks({
+      request: new Request("http://x.test/api/n3/stocks?top=25&skip=0"),
+    });
+    const body = await res.json();
+    expect(body.total).toBe(554);
+    expect(body.items[0]).toMatchObject({
+      id: "153691",
+      code: "365-Install",
+      name: "Installation",
+    });
+  });
   it("survives non-array / unexpected N3 shapes without throwing", async () => {
     await seedAuthed("owner");
     enqFetch({ status: 200, body: { code: "0000", data: "not-an-array" } });
@@ -483,6 +567,123 @@ describe("/api/n3/stocks", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items).toEqual([]);
+    expect(body.total).toBe(null);
+    expect(body.hasMore).toBe(false);
+  });
+});
+
+// ================= extractPage envelope contract =================
+describe("extractPage envelope", () => {
+  it("reads real data.value / data.count", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    const p = extractPage({ code: "0000", data: { count: 1465, value: [{ id: 1 }] } });
+    expect(p.total).toBe(1465);
+    expect(p.items).toHaveLength(1);
+  });
+  it("casing-tolerant Value/Count fallback", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    const p = extractPage({ code: "0000", data: { Count: 3, Value: [{ id: 1 }, { id: 2 }] } });
+    expect(p.total).toBe(3);
+    expect(p.items).toHaveLength(2);
+  });
+  it("compat items array", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    const p = extractPage({ code: "0000", data: { items: [{ id: 1 }] } });
+    expect(p.items).toHaveLength(1);
+  });
+  it("compat top-level array", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    const p = extractPage({ code: "0000", data: [{ id: 1 }] });
+    expect(p.items).toHaveLength(1);
+    expect(p.total).toBe(null);
+  });
+  it("non-'0000' envelope code → empty page (not throw)", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    const p = extractPage({ code: "9999", data: { count: 5, value: [{ id: 1 }] } });
+    expect(p.items).toEqual([]);
+    expect(p.total).toBe(null);
+  });
+  it("unexpected shape → empty, does not throw", async () => {
+    const { extractPage } = await import("@/lib/n3-gateway.server");
+    expect(extractPage(null)).toEqual({ items: [], total: null });
+    expect(extractPage("garbage")).toEqual({ items: [], total: null });
+    expect(extractPage({ data: 42 })).toEqual({ items: [], total: null });
+  });
+});
+
+// ================= Verification pages past 500 records =================
+describe("verifyN3CustomerByCode paging", () => {
+  it("finds a customer after record 500 (contract cap must be well beyond 500)", async () => {
+    await seedAuthed("owner");
+    // Pages of MAX_TOP=100 each. Match at skip=500 (record #501).
+    const total = 1465;
+    for (let s = 0; s <= 500; s += 100) {
+      const value =
+        s === 500
+          ? [{ id: 999, code: "703-H0007", name: "Hanabil Biz Online Centre" }]
+          : Array.from({ length: 100 }, (_, i) => ({
+              id: s + i + 1,
+              code: `C-${s + i + 1}`,
+              name: null,
+            }));
+      enqFetch({ status: 200, body: { code: "0000", data: { count: total, value } } });
+    }
+    const { verifyN3CustomerByCode } = await import("@/lib/n3-gateway.server");
+    const r = await verifyN3CustomerByCode("tok", "703-H0007");
+    expect(r.status).toBe("found");
+    if (r.status === "found") expect(r.item.code).toBe("703-H0007");
+  });
+  it("genuine not-found scans until total is exhausted, then returns not_found", async () => {
+    await seedAuthed("owner");
+    const total = 250;
+    // page1: 100 items, page2: 100 items, page3: 50 items. None match.
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          count: total,
+          value: Array.from({ length: 100 }, (_, i) => ({ id: i + 1, code: `C-${i + 1}` })),
+        },
+      },
+    });
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          count: total,
+          value: Array.from({ length: 100 }, (_, i) => ({
+            id: 100 + i + 1,
+            code: `C-${100 + i + 1}`,
+          })),
+        },
+      },
+    });
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          count: total,
+          value: Array.from({ length: 50 }, (_, i) => ({
+            id: 200 + i + 1,
+            code: `C-${200 + i + 1}`,
+          })),
+        },
+      },
+    });
+    const { verifyN3CustomerByCode } = await import("@/lib/n3-gateway.server");
+    const r = await verifyN3CustomerByCode("tok", "NOPE");
+    expect(r.status).toBe("not_found");
+    expect(fetchCalls).toHaveLength(3);
+  });
+  it("N3 401 mid-scan → unauthorized (never coerced to not_found)", async () => {
+    await seedAuthed("owner");
+    enqFetch({ status: 401, body: {} });
+    const { verifyN3CustomerByCode } = await import("@/lib/n3-gateway.server");
+    const r = await verifyN3CustomerByCode("tok", "703-H0007");
+    expect(r.status).toBe("unauthorized");
   });
 });
 

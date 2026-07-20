@@ -617,36 +617,73 @@ function N3Picker<T extends "customers" | "stocks">({
   kind: T;
   onPick: (row: T extends "customers" ? CustomerRow : StockRow) => void;
 }) {
-  const [skip, setSkip] = useState(0);
+  type Row = CustomerRow | StockRow;
+  type LoadState =
+    | { kind: "idle" }
+    | { kind: "loading" }
+    | { kind: "ok"; items: Row[]; total: number | null; hasMore: boolean; skip: number }
+    | { kind: "error"; code: string };
   const top = 25;
-  const [items, setItems] = useState<Array<CustomerRow | StockRow>>([]);
+  const [skip, setSkip] = useState(0);
+  const [state, setState] = useState<LoadState>({ kind: "idle" });
   const [filter, setFilter] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    async (opts: { skip: number; filter: string }) => {
-      setLoading(true);
-      setError(null);
+    async (nextSkip: number) => {
+      setState({ kind: "loading" });
       try {
-        const qs = new URLSearchParams({ top: String(top), skip: String(opts.skip) });
-        if (opts.filter) qs.set("filter", opts.filter);
-        const r = await j<{ items: Array<CustomerRow | StockRow> }>(
-          `/api/n3/${kind}?${qs.toString()}`,
-        );
-        setItems(r.items);
+        const qs = new URLSearchParams({ top: String(top), skip: String(nextSkip) });
+        const r = await j<{
+          items: Row[];
+          total: number | null;
+          hasMore: boolean;
+          skip: number;
+        }>(`/api/n3/${kind}?${qs.toString()}`);
+        setState({
+          kind: "ok",
+          items: r.items,
+          total: r.total ?? null,
+          hasMore: !!r.hasMore,
+          skip: r.skip ?? nextSkip,
+        });
       } catch (e) {
-        setError((e as Error).message);
-      } finally {
-        setLoading(false);
+        const msg = (e as Error).message;
+        setState({ kind: "error", code: msg });
       }
     },
     [kind],
   );
 
+  // Fetch only when the page (skip) changes — filter is applied in memory.
   useEffect(() => {
-    void load({ skip, filter });
-  }, [load, skip, filter]);
+    void load(skip);
+  }, [load, skip]);
+
+  const filtered = useMemo(() => {
+    if (state.kind !== "ok") return [];
+    const f = filter.trim().toLowerCase();
+    if (!f) return state.items;
+    return state.items.filter((row) => {
+      const hay = `${row.code} ${row.name ?? ""}`.toLowerCase();
+      return hay.includes(f);
+    });
+  }, [state, filter]);
+
+  const canPrev = skip > 0;
+  const isLoading = state.kind === "loading";
+  const canNext = state.kind === "ok" && state.hasMore;
+
+  const rangeLabel = (() => {
+    if (state.kind !== "ok") return null;
+    if (state.items.length === 0)
+      return state.total != null ? `0 of ${state.total.toLocaleString()}` : "0 records";
+    const from = state.skip + 1;
+    const to = state.skip + state.items.length;
+    if (state.total != null) {
+      return `Showing ${from.toLocaleString()}–${to.toLocaleString()} of ${state.total.toLocaleString()}`;
+    }
+    return `Showing ${from.toLocaleString()}–${to.toLocaleString()}`;
+  })();
 
   return (
     <div className="mt-3 space-y-2">
@@ -655,33 +692,38 @@ function N3Picker<T extends "customers" | "stocks">({
           placeholder="Filter loaded page…"
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={filter}
-          onChange={(e) => {
-            setSkip(0);
-            setFilter(e.target.value);
-          }}
+          onChange={(e) => setFilter(e.target.value)}
         />
         <button
           onClick={() => setSkip((s) => Math.max(0, s - top))}
-          disabled={skip === 0}
+          disabled={!canPrev || isLoading}
           className="rounded-md border border-input px-2 py-1.5 text-xs disabled:opacity-50"
         >
           ← Prev
         </button>
         <button
           onClick={() => setSkip((s) => s + top)}
-          className="rounded-md border border-input px-2 py-1.5 text-xs"
+          disabled={!canNext || isLoading}
+          className="rounded-md border border-input px-2 py-1.5 text-xs disabled:opacity-50"
         >
           Next →
         </button>
       </div>
-      {loading ? <p className="text-xs text-muted-foreground">Loading from N3…</p> : null}
-      {error ? (
+      {rangeLabel ? <p className="text-xs text-muted-foreground">{rangeLabel}</p> : null}
+      {state.kind === "loading" ? (
+        <p className="text-xs text-muted-foreground">Loading from N3…</p>
+      ) : null}
+      {state.kind === "error" ? (
         <p className="text-xs" style={{ color: "#C2413B" }}>
-          {error}
+          {state.code === "n3_unauthorized"
+            ? "N3 session expired. Please re-launch from N3."
+            : state.code === "n3_unavailable"
+              ? "N3 is currently unavailable. Please retry."
+              : state.code}
         </p>
       ) : null}
       <ul className="max-h-64 overflow-auto rounded-md border border-border divide-y divide-border">
-        {items.map((row) => (
+        {filtered.map((row) => (
           <li key={row.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
             <span>
               <span className="font-mono">{row.code}</span>
@@ -696,9 +738,11 @@ function N3Picker<T extends "customers" | "stocks">({
             </button>
           </li>
         ))}
-        {!loading && items.length === 0 ? (
+        {state.kind === "ok" && filtered.length === 0 ? (
           <li className="px-3 py-2 text-xs text-muted-foreground">
-            No matching records on this page.
+            {state.items.length === 0
+              ? "N3 returned no records for this page."
+              : "No matches for this filter on the loaded page."}
           </li>
         ) : null}
       </ul>
