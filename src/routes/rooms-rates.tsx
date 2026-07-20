@@ -5,6 +5,10 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { matchesQuery } from "@/lib/n3-gateway.browser";
 import { paginate, pageWindow, PAGE_SIZE_OPTIONS, type PageSize } from "@/lib/search-pagination";
+import { buildMappedStockSet, isStockMapped, selectIfAllowed } from "@/lib/room-picker";
+
+const MAX_GUESTS_TOOLTIP = "Maximum number of guests allowed to stay in this room.";
+const MAPPED_STOCK_TOOLTIP = "This N3 Stock Code is already mapped to a room.";
 
 export const Route = createFileRoute("/rooms-rates")({
   head: () => ({
