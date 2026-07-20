@@ -695,7 +695,7 @@ function N3Picker<T extends "customers" | "stocks">({
         />
         <button
           onClick={() => setSkip((s) => Math.max(0, s - top))}
-          disabled={!canPrev || state.kind === "loading"}
+          disabled={!canPrev || isLoading}
           className="rounded-md border border-input px-2 py-1.5 text-xs disabled:opacity-50"
         >
           ← Prev
