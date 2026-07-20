@@ -838,11 +838,7 @@ function N3Picker<T extends "customers" | "stocks">({
                     onPick(row as never);
                     return;
                   }
-                  selectIfAllowed(
-                    row,
-                    disabledCodes,
-                    (r) => onPick(r as never),
-                  );
+                  selectIfAllowed(row, disabledCodes, (r) => onPick(r as never));
                 }}
                 disabled={mapped}
                 aria-disabled={mapped || undefined}

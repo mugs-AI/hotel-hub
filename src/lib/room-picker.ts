@@ -7,9 +7,7 @@ export function normalizeStockCode(value: unknown): string {
   return value.trim().toLowerCase();
 }
 
-export function buildMappedStockSet(
-  rooms: ReadonlyArray<{ n3StockCode: string }>,
-): Set<string> {
+export function buildMappedStockSet(rooms: ReadonlyArray<{ n3StockCode: string }>): Set<string> {
   const set = new Set<string>();
   for (const r of rooms) {
     const n = normalizeStockCode(r.n3StockCode);

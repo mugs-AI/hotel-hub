@@ -22,15 +22,9 @@ import {
   selectIfAllowed,
 } from "@/lib/room-picker";
 
-const ROOMS_RATES_SRC = readFileSync(
-  resolve(__dirname, "../../routes/rooms-rates.tsx"),
-  "utf8",
-);
+const ROOMS_RATES_SRC = readFileSync(resolve(__dirname, "../../routes/rooms-rates.tsx"), "utf8");
 const START_SRC = readFileSync(resolve(__dirname, "../../start.ts"), "utf8");
-const GATEWAY_SRC = readFileSync(
-  resolve(__dirname, "../n3-gateway.server.ts"),
-  "utf8",
-);
+const GATEWAY_SRC = readFileSync(resolve(__dirname, "../n3-gateway.server.ts"), "utf8");
 
 // ---------- Task 1: OCC. → MAX GUESTS ----------
 describe("Rooms table heading", () => {
@@ -42,13 +36,9 @@ describe("Rooms table heading", () => {
   it("renders a Max guests heading with the explanatory tooltip", () => {
     // JSX text is 'Max guests'; CSS uppercase renders it as MAX GUESTS in the browser.
     expect(ROOMS_RATES_SRC).toMatch(/Max guests/);
-    expect(ROOMS_RATES_SRC).toMatch(
-      /Maximum number of guests allowed to stay in this room\./,
-    );
+    expect(ROOMS_RATES_SRC).toMatch(/Maximum number of guests allowed to stay in this room\./);
     // The heading uses the tooltip constant on a <th title=...> element.
-    expect(ROOMS_RATES_SRC).toMatch(
-      /<th[^>]*title=\{MAX_GUESTS_TOOLTIP\}[^>]*>\s*Max guests/,
-    );
+    expect(ROOMS_RATES_SRC).toMatch(/<th[^>]*title=\{MAX_GUESTS_TOOLTIP\}[^>]*>\s*Max guests/);
     // The <th> in question still lives inside an `uppercase` <tr>, so the
     // rendered heading text is MAX GUESTS.
     expect(ROOMS_RATES_SRC).toMatch(/text-xs uppercase/);
@@ -75,10 +65,7 @@ describe("buildMappedStockSet / isStockMapped", () => {
   });
 
   it("matches case-insensitively and ignores surrounding whitespace", () => {
-    const mapped = buildMappedStockSet([
-      { n3StockCode: "R-101" },
-      { n3StockCode: "  r-102 " },
-    ]);
+    const mapped = buildMappedStockSet([{ n3StockCode: "R-101" }, { n3StockCode: "  r-102 " }]);
     expect(isStockMapped("r-101", mapped)).toBe(true);
     expect(isStockMapped("R-102", mapped)).toBe(true);
     expect(isStockMapped(" r-102 ", mapped)).toBe(true);
@@ -104,18 +91,12 @@ describe("buildMappedStockSet / isStockMapped", () => {
   it("adding a room updates the mapped state (new code now blocks selection)", () => {
     const before = buildMappedStockSet([{ n3StockCode: "R-101" }]);
     expect(isStockMapped("R-102", before)).toBe(false);
-    const after = buildMappedStockSet([
-      { n3StockCode: "R-101" },
-      { n3StockCode: "R-102" },
-    ]);
+    const after = buildMappedStockSet([{ n3StockCode: "R-101" }, { n3StockCode: "R-102" }]);
     expect(isStockMapped("r-102", after)).toBe(true);
   });
 
   it("removing a room makes the stock code selectable again", () => {
-    const before = buildMappedStockSet([
-      { n3StockCode: "R-101" },
-      { n3StockCode: "R-102" },
-    ]);
+    const before = buildMappedStockSet([{ n3StockCode: "R-101" }, { n3StockCode: "R-102" }]);
     expect(isStockMapped("R-102", before)).toBe(true);
     const after = buildMappedStockSet([{ n3StockCode: "R-101" }]);
     expect(isStockMapped("R-102", after)).toBe(false);
@@ -134,12 +115,8 @@ describe("N3 stock picker UI", () => {
     expect(ROOMS_RATES_SRC).toMatch(/\{mapped \? "Added" : "Select"\}/);
     expect(ROOMS_RATES_SRC).toMatch(/>\s*Mapped\s*</);
     expect(ROOMS_RATES_SRC).toMatch(/disabled=\{mapped\}/);
-    expect(ROOMS_RATES_SRC).toMatch(
-      /title=\{mapped \? MAPPED_STOCK_TOOLTIP : undefined\}/,
-    );
-    expect(ROOMS_RATES_SRC).toMatch(
-      /This N3 Stock Code is already mapped to a room\./,
-    );
+    expect(ROOMS_RATES_SRC).toMatch(/title=\{mapped \? MAPPED_STOCK_TOOLTIP : undefined\}/);
+    expect(ROOMS_RATES_SRC).toMatch(/This N3 Stock Code is already mapped to a room\./);
   });
 
   it("does NOT hide mapped rows from search results (they are just disabled)", () => {
@@ -211,8 +188,7 @@ function makeBuilder(table: string) {
     order: () => chain,
     eq: () => chain,
     single: async () => supaQueue.get(table)?.shift() ?? { data: null, error: null },
-    maybeSingle: async () =>
-      supaQueue.get(table)?.shift() ?? { data: null, error: null },
+    maybeSingle: async () => supaQueue.get(table)?.shift() ?? { data: null, error: null },
     then: (resolve: (v: SupaResult) => unknown) =>
       resolve(supaQueue.get(table)?.shift() ?? { data: null, error: null }),
   };
