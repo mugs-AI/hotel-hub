@@ -418,7 +418,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("ignores browser-supplied tenantId, base_rate_snapshot, booking_reference, status", async () => {
     await seedAuthenticated("owner");
-    let received: any = null;
+    let received: Record<string, unknown> = {};
     setRpcHandler(async (args) => {
       received = args[1];
       return {
