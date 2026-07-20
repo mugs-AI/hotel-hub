@@ -8,6 +8,10 @@ export const HOTEL_ROLES: readonly HotelRole[] = ["owner", "front_desk", "housek
 export type Permission =
   | "app:view" // load the authenticated shell at all
   | "n3:verify" // run the read-only N3 verification probes
+  | "n3:list_customers" // fetch N3 customer list for setup
+  | "n3:list_stocks" // fetch N3 stock list for setup
+  | "hotel:setup" // change tenant settings, walk-in customer, or rooms
+  | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
@@ -16,6 +20,12 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // Housekeeper must not receive N3 accounting data. Front desk should not
   // inspect accounting integration health — that is an Owner-only tool.
   "n3:verify": new Set(["owner"]),
+  "n3:list_customers": new Set(["owner"]),
+  "n3:list_stocks": new Set(["owner"]),
+  "hotel:setup": new Set(["owner"]),
+  // Front desk needs to see rates for future check-in flows; housekeeper
+  // is excluded from rate values in this milestone.
+  "hotel:rooms:view": new Set(["owner", "front_desk"]),
   "roles:manage": new Set(["owner"]),
 };
 

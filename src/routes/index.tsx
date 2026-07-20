@@ -51,7 +51,9 @@ function Home() {
               · Session header (company, tenant, user) captured at launch and read from the
               encrypted HttpOnly session cookie on each page load — not re-fetched from N3.
             </li>
-            <li>· Empty navigation shell for future modules</li>
+            <li>
+              · Rooms &amp; Rates setup — map N3 Stock Codes to rooms with local MYR base rates
+            </li>
             <li>· N3 verification console (Owner-only) for capability probing</li>
           </ul>
         </section>
