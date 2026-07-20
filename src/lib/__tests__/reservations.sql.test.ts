@@ -10,8 +10,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 
-const hasPg = Boolean(process.env.PGHOST && process.env.PGUSER);
-const d = hasPg ? describe : describe.skip;
 
 function psqlRaw(sql: string): { stdout: string; ok: boolean; err?: string } {
   try {
