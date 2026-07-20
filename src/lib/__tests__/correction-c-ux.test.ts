@@ -156,7 +156,7 @@ describe("Global N3 search preserved", () => {
   });
 
   it("gateway still exposes listAllN3Stocks with paged multi-request coverage", () => {
-    expect(GATEWAY_SRC).toMatch(/export async function listAllN3Stocks/);
+    expect(GATEWAY_SRC).toMatch(/export function listAllN3Stocks/);
   });
 });
 
