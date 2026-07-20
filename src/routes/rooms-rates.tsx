@@ -670,7 +670,9 @@ function N3Picker<T extends "customers" | "stocks">({
   }, [state, filter]);
 
   const canPrev = skip > 0;
+  const isLoading = state.kind === "loading";
   const canNext = state.kind === "ok" && state.hasMore;
+
   const rangeLabel = (() => {
     if (state.kind !== "ok") return null;
     if (state.items.length === 0) return state.total != null ? `0 of ${state.total.toLocaleString()}` : "0 records";
