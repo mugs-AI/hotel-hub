@@ -159,13 +159,44 @@ bun run test
 
 Covers:
 
-- BasicInfo normalization across PascalCase / camelCase / claim-fallback
-  variants.
+- BasicInfo normalization across PascalCase / camelCase / claim-fallback variants.
 - RBAC matrix (three-role guard, deny-by-default, permission scoping).
-- N3 gateway allowlist (path allowlist, traversal / absolute-URL / other
-  probe-name rejection).
+- N3 gateway allowlist (path allowlist, traversal / absolute-URL / other probe-name rejection).
+- Route/session security (`src/lib/__tests__/route-handlers.test.ts`):
+  - `POST /api/auth/connect` returns 404 in production and never calls N3.
+  - `performN3Launch` (shared handler for `/?token=` and
+    `/api/auth/launch`) verifies via BasicInfo, opens a
+    Secure/HttpOnly/SameSite session, redirects to a clean URL, and
+    never echoes the token in the response body.
+  - Failed BasicInfo verification returns 401 and opens no session.
+  - Unrelated query params are preserved on the clean redirect.
+  - `GET /api/session/me` never returns the N3 token.
+  - `POST /api/auth/logout` clears the session and audits it.
+  - N3 401 during a probe destroys the session.
+  - Unknown probes return 403; write methods (POST/PUT/PATCH/DELETE) return 405.
+  - Probe metadata (`GET /api/n3/probe`) and probe execution both
+    reject `front_desk`, `housekeeper`, and role-unassigned users with 403.
+  - `lookupRole` filters by both `tenant_id` and `n3_user_key`, so a
+    role assignment scoped to tenant B cannot authorize a user in tenant A.
 
-Result of last run: **18 tests passing**.
+**Last run:** 35 tests passing (0 failing) across 4 files.
+**Lint:** 0 errors, 6 warnings — all pre-existing shadcn UI
+`react-refresh/only-export-components` warnings unrelated to this milestone.
+**Typecheck (`tsgo --noEmit`) and production build (`bun run build`):** both pass.
+
+## Confirmed Cloud secrets
+
+The following secrets are configured in Lovable Cloud (names only, no
+values are shown or logged):
+
+- `HOTELHUB_SESSION_SECRET`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+N3 base URL: no secret is required. `OPEN_API_BASE_URL` is optional and
+defaults to `https://openapi.account.qne.cloud`.
+
 
 ## Manual verification
 
