@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
@@ -27,16 +27,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
 
-  // Clean the launch URL if it still shows ?token= after Path A redirect.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("token")) {
-      params.delete("token");
-      const clean = window.location.pathname + (params.size ? "?" + params.toString() : "");
-      window.history.replaceState({}, "", clean);
-    }
-  }, []);
+  // Note: the N3 launch token is consumed server-side by the root-URL
+  // interceptor in `src/start.ts` and the `/api/auth/launch` handler, then
+  // stripped via a 302 redirect. Client code never sees the token, so no
+  // browser-side URL cleanup is performed here.
 
   if (sessionQuery.isLoading) {
     return <FullScreenLoader label="Loading session…" />;
@@ -45,6 +39,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const session = sessionQuery.data;
   if (!session || session.authenticated === false) {
     return <UnauthenticatedGate devConnectAvailable={session?.devConnectAvailable ?? false} />;
+  }
+
+  // Enforce the RBAC gate at the shell: role-unassigned / inactive users
+  // never render authenticated page content or navigation, only the
+  // provisioning banner.
+  if (session.roleStatus === "role_unassigned" || session.role === null) {
+    return (
+      <RoleUnassignedShell
+        session={session}
+        onSignOut={() => signOut.mutate()}
+        signingOut={signOut.isPending}
+      />
+    );
   }
 
   const role = session.role;
