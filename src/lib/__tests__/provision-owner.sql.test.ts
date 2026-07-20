@@ -45,9 +45,7 @@ d("hotelhub_provision_owner (live DB)", () => {
   });
 
   it("is idempotent — rerunning does not create a duplicate role row", () => {
-    psql(
-      `SELECT out_role FROM public.hotelhub_provision_owner('${tenantKey}', '${testUser}');`,
-    );
+    psql(`SELECT out_role FROM public.hotelhub_provision_owner('${tenantKey}', '${testUser}');`);
     const count = psql(
       `SELECT count(*) FROM public.hotel_user_roles WHERE n3_user_key = '${testUser}' AND is_active = true;`,
     );

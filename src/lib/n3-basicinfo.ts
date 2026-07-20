@@ -70,7 +70,6 @@ export function normalizeBasicInfo(raw: unknown, claims: Record<string, unknown>
 
   const userEmail = pickAuthoritativeEmail(src, claim);
 
-
   const userName =
     pick<string>(src, ["UserName", "userName", "DisplayName", "displayName"]) ??
     pick<string>(claim, ["name", "unique_name", "sub"]);
