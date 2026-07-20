@@ -47,12 +47,14 @@ const tenantStore = vi.hoisted(() => ({
   upsertTenant: vi.fn(),
   lookupRole: vi.fn(),
 }));
-vi.mock("@/lib/tenant-store.server", () => tenantStore);
-
-const gateway = vi.hoisted(() => ({
+vi.mock("@/lib/tenant-store.server", () => ({
+  upsertTenant: vi.fn(),
+  lookupRole: vi.fn(),
+}));
+vi.mock("@/lib/n3-gateway.server", () => ({
   callN3Path: vi.fn(),
   runProbe: vi.fn(),
-  isProbeName: (v: unknown): v is "companyprofile" | "customers" | "stocks" =>
+  isProbeName: (v: unknown) =>
     v === "companyprofile" || v === "customers" || v === "stocks",
   listProbes: () => [
     { name: "companyprofile", label: "", description: "" },
@@ -61,7 +63,19 @@ const gateway = vi.hoisted(() => ({
   ],
   exchangeApiKey: vi.fn(),
 }));
-vi.mock("@/lib/n3-gateway.server", () => gateway);
+
+// Grab handles to the mocked exports so tests can configure return values.
+const { upsertTenant, lookupRole } = await import("@/lib/tenant-store.server");
+const { callN3Path, runProbe, exchangeApiKey } = await import("@/lib/n3-gateway.server");
+const tenantStore = {
+  upsertTenant: upsertTenant as unknown as ReturnType<typeof vi.fn>,
+  lookupRole: lookupRole as unknown as ReturnType<typeof vi.fn>,
+};
+const gateway = {
+  callN3Path: callN3Path as unknown as ReturnType<typeof vi.fn>,
+  runProbe: runProbe as unknown as ReturnType<typeof vi.fn>,
+  exchangeApiKey: exchangeApiKey as unknown as ReturnType<typeof vi.fn>,
+};
 
 beforeEach(() => {
   resetSession();
