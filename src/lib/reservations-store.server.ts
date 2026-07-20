@@ -392,9 +392,7 @@ export async function getReservationById(
     .eq("reservation_id", id);
   const guests = await sb
     .from("hotel_reservation_guests")
-    .select(
-      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality)",
-    )
+    .select("id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality)")
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
   const roomRows = (rooms.data ?? []) as any[];

@@ -11,11 +11,7 @@ function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
 
-export async function handleAvailability({
-  request,
-}: {
-  request: Request;
-}): Promise<Response> {
+export async function handleAvailability({ request }: { request: Request }): Promise<Response> {
   const { ctx, decision } = await requirePermission("hotel:reservations:view");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
@@ -30,7 +26,8 @@ export async function handleAvailability({
   const childrenRaw = url.searchParams.get("children");
   const adults = adultsRaw != null ? Number(adultsRaw) : null;
   const children = childrenRaw != null ? Number(childrenRaw) : null;
-  if (adults != null && (!Number.isFinite(adults) || adults < 0)) return deny(400, "invalid_occupancy");
+  if (adults != null && (!Number.isFinite(adults) || adults < 0))
+    return deny(400, "invalid_occupancy");
   if (children != null && (!Number.isFinite(children) || children < 0))
     return deny(400, "invalid_occupancy");
   try {

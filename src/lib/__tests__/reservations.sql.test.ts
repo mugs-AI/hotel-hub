@@ -10,7 +10,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 
-
 function psqlRaw(sql: string): { stdout: string; ok: boolean; err?: string } {
   try {
     const stdout = execFileSync("psql", ["-Atqc", sql], { encoding: "utf8" });
@@ -30,8 +29,6 @@ const canWrite = Boolean(
   process.env.PGHOST && process.env.PGUSER && process.env.HOTELHUB_LIVE_WRITE === "1",
 );
 const d = canWrite ? describe : describe.skip;
-
-
 
 const tag = `mile111_${Date.now()}`;
 const tenantAKey = `${tag}_A`;
@@ -78,7 +75,9 @@ d("Milestone 1.1.1 — schema & RPC (live)", () => {
 
   afterAll(() => {
     // Delete children first
-    psqlRaw(`DELETE FROM public.hotel_tenants WHERE n3_tenant_key IN ('${tenantAKey}','${tenantBKey}');`);
+    psqlRaw(
+      `DELETE FROM public.hotel_tenants WHERE n3_tenant_key IN ('${tenantAKey}','${tenantBKey}');`,
+    );
   });
 
   function createRes(
@@ -96,7 +95,10 @@ d("Milestone 1.1.1 — schema & RPC (live)", () => {
         rate_override_reason: r.reason ?? null,
       })),
     ).replace(/'/g, "''");
-    const guestsJson = JSON.stringify([{ full_name: "Test", is_primary: true }]).replace(/'/g, "''");
+    const guestsJson = JSON.stringify([{ full_name: "Test", is_primary: true }]).replace(
+      /'/g,
+      "''",
+    );
     return psqlRaw(
       `SELECT out_booking_reference FROM public.hotelhub_create_reservation('${tenantId}'::uuid, 'tester', 'walk_in', '${arrival}'::date, '${departure}'::date, NULL, '${roomsJson}'::jsonb, '${guestsJson}'::jsonb);`,
     );
@@ -150,10 +152,7 @@ d("Milestone 1.1.1 — schema & RPC (live)", () => {
   });
 
   it("rejects duplicate room in same payload", () => {
-    const res = createRes(tenantAId, "2026-09-01", "2026-09-03", [
-      { id: roomA1 },
-      { id: roomA1 },
-    ]);
+    const res = createRes(tenantAId, "2026-09-01", "2026-09-03", [{ id: roomA1 }, { id: roomA1 }]);
     expect(res.ok).toBe(false);
     expect(res.err ?? "").toMatch(/duplicate_room/);
   });

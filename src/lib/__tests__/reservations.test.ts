@@ -136,7 +136,9 @@ describe("GET /api/hotel/availability", () => {
     await seedAuthenticated("housekeeper");
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
-      request: new Request("http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22"),
+      request: new Request(
+        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22",
+      ),
     });
     expect(res.status).toBe(403);
   });
@@ -144,7 +146,9 @@ describe("GET /api/hotel/availability", () => {
     resetSession();
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
-      request: new Request("http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22"),
+      request: new Request(
+        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22",
+      ),
     });
     expect(res.status).toBe(401);
   });
@@ -152,7 +156,9 @@ describe("GET /api/hotel/availability", () => {
     await seedAuthenticated("owner");
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
-      request: new Request("http://x.test/api/hotel/availability?arrival=2026-07-22&departure=2026-07-20"),
+      request: new Request(
+        "http://x.test/api/hotel/availability?arrival=2026-07-22&departure=2026-07-20",
+      ),
     });
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("invalid_stay_dates");
@@ -257,7 +263,13 @@ describe("POST /api/hotel/reservations", () => {
   it("owner can create", async () => {
     await seedAuthenticated("owner");
     setRpcHandler(async () => ({
-      data: [{ out_reservation_id: "res-2", out_booking_reference: "BK260720002", out_status: "confirmed" }],
+      data: [
+        {
+          out_reservation_id: "res-2",
+          out_booking_reference: "BK260720002",
+          out_status: "confirmed",
+        },
+      ],
       error: null,
     }));
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
@@ -298,7 +310,10 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({
       request: post({
         ...validBody(),
-        guests: [{ fullName: "A", isPrimary: false }, { fullName: "B", isPrimary: false }],
+        guests: [
+          { fullName: "A", isPrimary: false },
+          { fullName: "B", isPrimary: false },
+        ],
       }),
     });
     expect((await res.json()).error).toBe("primary_guest_required");
@@ -309,7 +324,10 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({
       request: post({
         ...validBody(),
-        guests: [{ fullName: "A", isPrimary: true }, { fullName: "B", isPrimary: true }],
+        guests: [
+          { fullName: "A", isPrimary: true },
+          { fullName: "B", isPrimary: true },
+        ],
       }),
     });
     expect((await res.json()).error).toBe("multiple_primary_guests");
@@ -334,7 +352,11 @@ describe("POST /api/hotel/reservations", () => {
     await seedAuthenticated("owner");
     setRpcHandler(async () => ({
       data: [
-        { out_reservation_id: "res-3", out_booking_reference: "BK260720003", out_status: "confirmed" },
+        {
+          out_reservation_id: "res-3",
+          out_booking_reference: "BK260720003",
+          out_status: "confirmed",
+        },
       ],
       error: null,
     }));
@@ -498,7 +520,9 @@ describe("N3 write / accounting integration boundary", () => {
   it("reservation source references no N3 write helpers", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync("src/routes/api/hotel/reservations.ts", "utf8");
-    expect(source).not.toMatch(/CashSale|CashMemo|SalesOrder|ReceivePayment|CustomerRefund|Knockoff/);
+    expect(source).not.toMatch(
+      /CashSale|CashMemo|SalesOrder|ReceivePayment|CustomerRefund|Knockoff/,
+    );
     // No N3 gateway call at all from this route (accounting boundary).
     expect(source).not.toMatch(/from ['"]@\/lib\/n3-gateway/);
   });

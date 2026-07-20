@@ -17,11 +17,7 @@ function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
 
-export async function handleListReservations({
-  request,
-}: {
-  request: Request;
-}): Promise<Response> {
+export async function handleListReservations({ request }: { request: Request }): Promise<Response> {
   const { ctx, decision } = await requirePermission("hotel:reservations:view");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
@@ -83,7 +79,11 @@ export async function handleCreateReservation({
   if (!isBookingSource(source)) return deny(400, "invalid_booking_source");
   const arrival = body.arrivalDate ?? body.arrival_date;
   const departure = body.departureDate ?? body.departure_date;
-  if (!isIsoDate(arrival) || !isIsoDate(departure) || (departure as string) <= (arrival as string)) {
+  if (
+    !isIsoDate(arrival) ||
+    !isIsoDate(departure) ||
+    (departure as string) <= (arrival as string)
+  ) {
     return deny(400, "invalid_stay_dates");
   }
   const notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
@@ -102,7 +102,8 @@ export async function handleCreateReservation({
       typeof (r.rateOverrideReason ?? r.rate_override_reason) === "string"
         ? ((r.rateOverrideReason ?? r.rate_override_reason) as string).trim() || null
         : null;
-    if (typeof hotelRoomId !== "string" || hotelRoomId.length === 0) return deny(400, "room_required");
+    if (typeof hotelRoomId !== "string" || hotelRoomId.length === 0)
+      return deny(400, "room_required");
     if (!Number.isFinite(agreed) || agreed < 0) return deny(400, "invalid_rate");
     if (!Number.isFinite(adults) || adults < 1) return deny(400, "invalid_occupancy");
     if (!Number.isFinite(children) || children < 0) return deny(400, "invalid_occupancy");
