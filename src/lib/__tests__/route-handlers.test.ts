@@ -66,12 +66,29 @@ vi.mock("@/lib/n3-gateway.server", () => gateway);
 beforeEach(() => {
   resetSession();
   auditEvents.length = 0;
-  tenantStore.upsertTenant.mockClear();
+  tenantStore.upsertTenant.mockReset();
+  tenantStore.upsertTenant.mockResolvedValue({
+    id: "tenant-uuid-1",
+    n3TenantKey: "n3-tenant-1",
+    tenantCode: "T-001",
+    companyName: "Test Hotel Sdn Bhd",
+  });
   tenantStore.lookupRole.mockReset();
   tenantStore.lookupRole.mockResolvedValue({ status: "role_unassigned" });
-  gateway.callN3Path.mockClear();
-  gateway.runProbe.mockClear();
-  gateway.exchangeApiKey.mockClear();
+  gateway.callN3Path.mockReset();
+  gateway.callN3Path.mockResolvedValue({
+    status: 200,
+    body: { code: "0000", data: { CompanyName: "Test Hotel", TenantId: "n3-tenant-1" } },
+    durationMs: 5,
+  });
+  gateway.runProbe.mockReset();
+  gateway.runProbe.mockResolvedValue({
+    status: 200,
+    body: { code: "0000", data: [] },
+    durationMs: 5,
+  });
+  gateway.exchangeApiKey.mockReset();
+  gateway.exchangeApiKey.mockResolvedValue({ token: "eyJ.tok.en", expiration: null });
 });
 
 // ---------- performN3Launch ----------
