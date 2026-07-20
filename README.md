@@ -179,7 +179,10 @@ Covers:
   - `lookupRole` filters by both `tenant_id` and `n3_user_key`, so a
     role assignment scoped to tenant B cannot authorize a user in tenant A.
 
-**Last run:** 35 tests passing (0 failing) across 4 files.
+**Last run:** 58 passed, 0 failed, 0 skipped across 6 files (5 of the
+58 are conditional live-DB tests in `provision-owner.sql.test.ts` and
+only run when `SUPABASE_DB_URL` is set; skipped runs are reported
+separately by vitest and are never counted as passed).
 **Lint:** 0 errors, 6 warnings — all pre-existing shadcn UI
 `react-refresh/only-export-components` warnings unrelated to this milestone.
 **Typecheck (`tsgo --noEmit`) and production build (`bun run build`):** both pass.
