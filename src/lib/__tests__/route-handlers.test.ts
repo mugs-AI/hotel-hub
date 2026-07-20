@@ -43,10 +43,6 @@ vi.mock("@/lib/audit.server", () => ({
   },
 }));
 
-const tenantStore = vi.hoisted(() => ({
-  upsertTenant: vi.fn(),
-  lookupRole: vi.fn(),
-}));
 vi.mock("@/lib/tenant-store.server", () => ({
   upsertTenant: vi.fn(),
   lookupRole: vi.fn(),
