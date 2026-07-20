@@ -23,6 +23,21 @@ function psqlRaw(sql: string): { stdout: string; ok: boolean; err?: string } {
   }
 }
 
+// Live-DB tests require write access to hotel_tenants (service_role or
+// equivalent). CI shells with read-only creds are silently skipped.
+function canWrite(): boolean {
+  if (!process.env.PGHOST || !process.env.PGUSER) return false;
+  const probeTag = `__probe_${Date.now()}`;
+  const ins = psqlRaw(
+    `INSERT INTO public.hotel_tenants(n3_tenant_key, tenant_code, company_name) VALUES ('${probeTag}', 'P', 'probe') RETURNING id;`,
+  );
+  if (!ins.ok) return false;
+  psqlRaw(`DELETE FROM public.hotel_tenants WHERE n3_tenant_key = '${probeTag}';`);
+  return true;
+}
+const d = canWrite() ? describe : describe.skip;
+
+
 const tag = `mile111_${Date.now()}`;
 const tenantAKey = `${tag}_A`;
 const tenantBKey = `${tag}_B`;
