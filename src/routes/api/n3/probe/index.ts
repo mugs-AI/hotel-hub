@@ -21,10 +21,7 @@ export async function handleProbeMetadata(): Promise<Response> {
       { status, headers: { "cache-control": "no-store" } },
     );
   }
-  return Response.json(
-    { probes: listProbes() },
-    { headers: { "cache-control": "no-store" } },
-  );
+  return Response.json({ probes: listProbes() }, { headers: { "cache-control": "no-store" } });
 }
 
 export const Route = createFileRoute("/api/n3/probe/")({

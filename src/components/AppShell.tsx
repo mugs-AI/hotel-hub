@@ -176,8 +176,7 @@ function RoleUnassignedShell({
         <p className="mt-4 text-xs text-muted-foreground">
           Provide these identifiers to your server administrator. They will run{" "}
           <code>
-            SELECT public.hotelhub_provision_owner(&lt;n3_tenant_key&gt;,
-            &lt;n3_user_key&gt;)
+            SELECT public.hotelhub_provision_owner(&lt;n3_tenant_key&gt;, &lt;n3_user_key&gt;)
           </code>{" "}
           in the Cloud SQL editor to assign the first Owner role.
         </p>

@@ -73,9 +73,8 @@ function makeBuilder(table: string) {
       filters.push([col, val]);
       return chain;
     },
-    single: async () => (supabaseQueue.get(table)?.shift() ?? { data: null, error: null }),
-    maybeSingle: async () =>
-      supabaseQueue.get(table)?.shift() ?? { data: null, error: null },
+    single: async () => supabaseQueue.get(table)?.shift() ?? { data: null, error: null },
+    maybeSingle: async () => supabaseQueue.get(table)?.shift() ?? { data: null, error: null },
     then: (resolve: (v: SupabaseResult) => unknown) =>
       resolve(supabaseQueue.get(table)?.shift() ?? { data: null, error: null }),
   };
@@ -171,10 +170,7 @@ describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", (
     seedBasicInfoOK();
     seedTenantUpsert();
     const { performN3Launch } = await import("@/lib/launch.server");
-    const res = await performN3Launch(
-      "eyJraWQiOiJ4In0.eyJzdWIiOiJ1c2VyLTEifQ.sig",
-      "/",
-    );
+    const res = await performN3Launch("eyJraWQiOiJ4In0.eyJzdWIiOiJ1c2VyLTEifQ.sig", "/");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/");
     const body = await res.text();
@@ -201,9 +197,7 @@ describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", (
     seedBasicInfoOK();
     seedTenantUpsert();
     const { performN3Launch, stripTokenFromUrl } = await import("@/lib/launch.server");
-    const clean = stripTokenFromUrl(
-      new URL("http://x.test/?token=abc&next=welcome&lang=en"),
-    );
+    const clean = stripTokenFromUrl(new URL("http://x.test/?token=abc&next=welcome&lang=en"));
     expect(clean).toBe("/?next=welcome&lang=en");
     const res = await performN3Launch("eyJ.a.b", clean);
     expect(res.headers.get("location")).toBe("/?next=welcome&lang=en");
