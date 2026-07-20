@@ -20,7 +20,10 @@ function methodNotAllowed() {
 }
 
 /** Reduce arbitrary upstream bodies to a safe, bounded shape. */
-function sanitizeUpstream(status: number, body: unknown): {
+function sanitizeUpstream(
+  status: number,
+  body: unknown,
+): {
   kind: "json" | "non_json" | "truncated" | "empty";
   body: unknown;
 } {

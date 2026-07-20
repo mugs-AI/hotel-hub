@@ -158,13 +158,12 @@ describe("Task 2: performN3Launch is fail-closed", () => {
 // ============= Task 3 — Doubled email defect =============
 describe("Task 3: doubled email input collapses to one address", () => {
   it("literal LKS.MUGS@GMAIL.COMLKS.MUGS@GMAIL.COM → LKS.MUGS@GMAIL.COM", async () => {
-    const { pickAuthoritativeEmail, normalizeEmail, normalizeBasicInfo } = await import(
-      "@/lib/n3-basicinfo"
-    );
+    const { pickAuthoritativeEmail, normalizeEmail, normalizeBasicInfo } =
+      await import("@/lib/n3-basicinfo");
     expect(normalizeEmail("LKS.MUGS@GMAIL.COMLKS.MUGS@GMAIL.COM")).toBe("LKS.MUGS@GMAIL.COM");
-    expect(
-      pickAuthoritativeEmail({ Email: "LKS.MUGS@GMAIL.COMLKS.MUGS@GMAIL.COM" }, {}),
-    ).toBe("LKS.MUGS@GMAIL.COM");
+    expect(pickAuthoritativeEmail({ Email: "LKS.MUGS@GMAIL.COMLKS.MUGS@GMAIL.COM" }, {})).toBe(
+      "LKS.MUGS@GMAIL.COM",
+    );
     const info = normalizeBasicInfo({ Email: "LKS.MUGS@GMAIL.COMLKS.MUGS@GMAIL.COM" });
     expect(info.userEmail).toBe("LKS.MUGS@GMAIL.COM");
   });
@@ -263,7 +262,11 @@ describe("Task 5: probe execute authorizes BEFORE disclosing allowlist", () => {
 
   it("hides upstream non-JSON/HTML error bodies (e.g. stack trace pages)", async () => {
     seedAuthenticatedOwner();
-    fetchEnqueue({ status: 502, asText: "<html><body>UPSTREAM STACK TRACE secret=abc</body></html>", body: null });
+    fetchEnqueue({
+      status: 502,
+      asText: "<html><body>UPSTREAM STACK TRACE secret=abc</body></html>",
+      body: null,
+    });
     const { handleProbeExecute } = await import("@/routes/api/n3/probe/$probe");
     const res = await handleProbeExecute({
       request: new Request("http://x.test/api/n3/probe/customers"),

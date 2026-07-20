@@ -70,6 +70,5 @@ export const startInstance = createStart(() => ({
   // function requires `requireSupabaseAuth`; the server uses the
   // service-role client directly for tenant/role/audit access.
   functionMiddleware: [],
-  functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
