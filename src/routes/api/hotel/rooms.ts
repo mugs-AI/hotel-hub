@@ -2,10 +2,11 @@
 // POST /api/hotel/rooms   — Owner only. Body: { code, displayName?, roomType?, floor?, maxOccupancy?, baseRate? }
 //                            Server verifies `code` against N3 stock list; room_number always = verified code.
 import { createFileRoute } from "@tanstack/react-router";
-import { requirePermission } from "@/lib/session-context.server";
+import { requirePermission, destroySession } from "@/lib/session-context.server";
 import { verifyN3StockByCode } from "@/lib/n3-gateway.server";
 import { createRoom, listRooms } from "@/lib/hotel-store.server";
 import { logAudit } from "@/lib/audit.server";
+
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -33,13 +34,27 @@ export async function handleCreateRoom({ request }: { request: Request }): Promi
   }
   const code = typeof body.code === "string" ? body.code.trim() : "";
   if (!code) return deny(400, "code_required");
-  let verified;
+  let result;
   try {
-    verified = await verifyN3StockByCode(ctx.session.n3Token, code);
+    result = await verifyN3StockByCode(ctx.session.n3Token, code);
   } catch {
     return deny(502, "n3_unavailable");
   }
-  if (!verified) return deny(404, "stock_code_not_found_in_n3");
+  if (result.status === "unauthorized") {
+    await destroySession("n3_401");
+    await logAudit({
+      tenantId: ctx.session.tenantId,
+      n3UserKey: ctx.session.n3UserKey,
+      eventType: "session.n3_401",
+      detail: { endpoint: "stocks/list", origin: "room_create" },
+    });
+    return deny(401, "n3_unauthorized");
+  }
+  if (result.status === "unavailable") return deny(502, "n3_unavailable");
+  if (result.status === "limit_reached") return deny(504, "n3_verification_limit_reached");
+  if (result.status === "not_found") return deny(404, "stock_code_not_found_in_n3");
+  const verified = result.item;
+
 
   const displayName = typeof body.displayName === "string" ? body.displayName.trim() || null : null;
   const roomType =

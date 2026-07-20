@@ -30,20 +30,26 @@ export async function handleSetWalkInCustomer({
   }
   const code = typeof body.code === "string" ? body.code.trim() : "";
   if (!code) return deny(400, "code_required");
-  let verified;
+  let result;
   try {
-    verified = await verifyN3CustomerByCode(ctx.session.n3Token, code);
+    result = await verifyN3CustomerByCode(ctx.session.n3Token, code);
   } catch {
     return deny(502, "n3_unavailable");
   }
-  if (verified === null) {
-    // A page fetch may still return 401 — surface it explicitly.
-    // (verifyN3CustomerByCode returns null on any non-2xx page too, which
-    // is safe: without confirmed identity we refuse to persist.)
-    return deny(404, "customer_not_found_in_n3");
+  if (result.status === "unauthorized") {
+    await destroySession("n3_401");
+    await logAudit({
+      tenantId: ctx.session.tenantId,
+      n3UserKey: ctx.session.n3UserKey,
+      eventType: "session.n3_401",
+      detail: { endpoint: "customers/list", origin: "walk_in_customer" },
+    });
+    return deny(401, "n3_unauthorized");
   }
-  // If the underlying gateway returned 401, subsequent fetches will still
-  // fail; we treat unknown-customer safely by refusing to save.
+  if (result.status === "unavailable") return deny(502, "n3_unavailable");
+  if (result.status === "limit_reached") return deny(504, "n3_verification_limit_reached");
+  if (result.status === "not_found") return deny(404, "customer_not_found_in_n3");
+  const verified = result.item;
   try {
     const settings = await setWalkInCustomer(ctx.session.tenantId!, {
       n3Id: verified.id,
@@ -62,6 +68,7 @@ export async function handleSetWalkInCustomer({
     return deny(500, "save_failed");
   }
 }
+
 
 // N3 401 during any inline call is possible; we do not aggressively probe
 // here. If the caller's session is stale, the next probe/list request will
