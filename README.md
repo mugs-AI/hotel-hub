@@ -33,38 +33,81 @@ no access to any N3 secret.
 
 ## N3 launch and session flow
 
-1. **Path A — production launch (My Apps).**
-   N3 opens `GET /api/auth/launch?token=<jwt>` on the HotelHub server.
-   The server:
-   - calls `GET /api/companyprofile/BasicInfo` at N3 with the token to
-     verify identity;
-   - resolves the immutable tenant key (N3 tenant/company id, falling
-     back to tenant code) and the immutable user key (JWT `sub` → email);
-   - upserts the tenant in `hotel_tenants`;
-   - opens a `Secure`, `HttpOnly`, `SameSite=Lax` session cookie
-     (`hotelhub_session`);
-   - redirects to `/` on a clean URL (no token in the address bar).
-2. **Path B — developer sign-in (non-production).**
+Two server entry points are supported. Both go through the same
+`performN3Launch()` server handler in `src/lib/launch.server.ts`, so
+verification, tenant upsert, session creation, and clean-URL redirect
+are guaranteed to be identical.
+
+1. **Path A1 — N3 My Apps launch (root URL).**
+   The N3 My Apps configuration URL for HotelHub is:
+
+   ```
+   https://hotelrooms.lovable.app/?token={token}
+   ```
+
+   `rootTokenInterceptor` in `src/start.ts` catches the incoming
+   `GET /?token=…` on the server before any React or client code runs.
+   The token is consumed server-side, verified against
+   `GET /api/companyprofile/BasicInfo` at N3, used to upsert the tenant
+   and open an encrypted `HttpOnly` session cookie, and then a `302`
+   redirect strips it from the URL. The launch token is visible only to
+   the initial HTTP request line and the very first browser address bar
+   entry (it is a query parameter, by protocol construction); it never
+   enters client JavaScript, `localStorage`, `sessionStorage`, rendered
+   HTML, or application logs.
+2. **Path A2 — explicit launch endpoint.**
+   `GET /api/auth/launch?token=<jwt>` behaves identically to Path A1 and
+   is available for programmatic re-launch and testing.
+3. **Path B — developer sign-in (non-production).**
    `POST /api/auth/connect { apiKey }` exchanges the key with N3 and
    creates the same session. Returns `{ ok: true }` — never the token.
    Returns **404** in production.
-3. **Sign-out.** `POST /api/auth/logout` clears the session cookie.
-4. **N3 401.** Any 401 from the N3 gateway destroys the session
+4. **Sign-out.** `POST /api/auth/logout` clears the session cookie.
+5. **N3 401.** Any 401 from the N3 gateway destroys the session
    immediately and forces the UI back to the relaunch/dev-connect gate.
 
-## Tenant and role boundaries
+Preserved query parameters: `stripTokenFromUrl()` removes only `token`
+from the incoming URL and preserves everything else, so the clean
+redirect target keeps unrelated N3 launch parameters intact.
 
-- The **canonical tenant** is the `hotel_tenants.id` UUID keyed by the
-  immutable N3 tenant/company identifier (`n3_tenant_key`).
-  Tenant code and company name are **display values only**.
-- **Roles** live in `hotel_user_roles(tenant_id, n3_user_key, role)` and
-  are limited to `owner | front_desk | housekeeper`. Assignment is
-  performed by server code only — no browser client can self-assign role
-  or tenant.
-- No automatic Owner provisioning has been implemented. New N3 users
-  land in the `role_unassigned` state until an operator grants a role.
-  The rule that will decide first-Owner assignment is an open decision
-  (see “Unresolved assumptions” below).
+## First-Owner provisioning runbook (MUGS-only)
+
+There is no browser-facing self-service Owner assignment and no public
+bootstrap endpoint. The first Owner for a new tenant is provisioned
+server-side by a MUGS operator using the security-definer function
+`public.hotelhub_provision_owner`, which requires the `service_role`
+(available inside Lovable Cloud SQL) and cannot be reached from an
+authenticated browser session.
+
+Steps:
+
+1. The end user launches HotelHub from N3 via Path A1. Their identity
+   is verified, `hotel_tenants` is upserted, and the app shows the
+   role-unassigned gate that surfaces four identifiers:
+   `hotel_tenants.id`, `n3_tenant_key`, `n3_user_key`, and
+   `user_email`.
+2. The user shares those identifiers with the MUGS operator (e.g. via
+   support ticket / call).
+3. The operator opens the Lovable Cloud → Backend → SQL editor (which
+   runs as `service_role`) and executes:
+
+   ```sql
+   SELECT public.hotelhub_provision_owner(
+     '<n3_tenant_key>',
+     '<n3_user_key>'
+   );
+   ```
+
+   The function verifies the tenant exists, inserts (or activates) an
+   `owner` row in `hotel_user_roles`, and writes a `role.assigned`
+   audit event with `source = 'first_owner_runbook'`.
+4. The user refreshes the app. `/api/session/me` now resolves the role
+   as `owner` and the full shell renders.
+
+Future role management (adding another Owner, granting front_desk /
+housekeeper) is Owner-only and will ship in a later milestone; the
+runbook is intentionally the only path to bootstrap the initial Owner.
+
 
 ## Allowed N3 verification endpoints
 
@@ -116,13 +159,44 @@ bun run test
 
 Covers:
 
-- BasicInfo normalization across PascalCase / camelCase / claim-fallback
-  variants.
+- BasicInfo normalization across PascalCase / camelCase / claim-fallback variants.
 - RBAC matrix (three-role guard, deny-by-default, permission scoping).
-- N3 gateway allowlist (path allowlist, traversal / absolute-URL / other
-  probe-name rejection).
+- N3 gateway allowlist (path allowlist, traversal / absolute-URL / other probe-name rejection).
+- Route/session security (`src/lib/__tests__/route-handlers.test.ts`):
+  - `POST /api/auth/connect` returns 404 in production and never calls N3.
+  - `performN3Launch` (shared handler for `/?token=` and
+    `/api/auth/launch`) verifies via BasicInfo, opens a
+    Secure/HttpOnly/SameSite session, redirects to a clean URL, and
+    never echoes the token in the response body.
+  - Failed BasicInfo verification returns 401 and opens no session.
+  - Unrelated query params are preserved on the clean redirect.
+  - `GET /api/session/me` never returns the N3 token.
+  - `POST /api/auth/logout` clears the session and audits it.
+  - N3 401 during a probe destroys the session.
+  - Unknown probes return 403; write methods (POST/PUT/PATCH/DELETE) return 405.
+  - Probe metadata (`GET /api/n3/probe`) and probe execution both
+    reject `front_desk`, `housekeeper`, and role-unassigned users with 403.
+  - `lookupRole` filters by both `tenant_id` and `n3_user_key`, so a
+    role assignment scoped to tenant B cannot authorize a user in tenant A.
 
-Result of last run: **18 tests passing**.
+**Last run:** 35 tests passing (0 failing) across 4 files.
+**Lint:** 0 errors, 6 warnings — all pre-existing shadcn UI
+`react-refresh/only-export-components` warnings unrelated to this milestone.
+**Typecheck (`tsgo --noEmit`) and production build (`bun run build`):** both pass.
+
+## Confirmed Cloud secrets
+
+The following secrets are configured in Lovable Cloud (names only, no
+values are shown or logged):
+
+- `HOTELHUB_SESSION_SECRET`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+N3 base URL: no secret is required. `OPEN_API_BASE_URL` is optional and
+defaults to `https://openapi.account.qne.cloud`.
+
 
 ## Manual verification
 
@@ -151,9 +225,11 @@ Result of last run: **18 tests passing**.
 ## Unresolved assumptions
 
 - **First-Owner provisioning rule.** N3 does not expose a canonical
-  “hotel owner” flag. HotelHub currently treats every new user as
-  `role_unassigned` until an operator grants a role explicitly. A
-  future milestone must define who grants the initial Owner (invitation
+  "hotel owner" flag. HotelHub keeps every new user in the
+  `role_unassigned` state until MUGS runs the runbook above. A future
+  milestone may replace the runbook with a Marketplace subscription
+  callback or an N3-side invitation flow.
+
   link, Marketplace subscription callback, manual N3 support step).
 - **N3 user identity key.** The current build derives the immutable
   user key from the JWT `sub` claim, falling back to email or display
