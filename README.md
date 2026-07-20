@@ -225,9 +225,11 @@ defaults to `https://openapi.account.qne.cloud`.
 ## Unresolved assumptions
 
 - **First-Owner provisioning rule.** N3 does not expose a canonical
-  “hotel owner” flag. HotelHub currently treats every new user as
-  `role_unassigned` until an operator grants a role explicitly. A
-  future milestone must define who grants the initial Owner (invitation
+  "hotel owner" flag. HotelHub keeps every new user in the
+  `role_unassigned` state until MUGS runs the runbook above. A future
+  milestone may replace the runbook with a Marketplace subscription
+  callback or an N3-side invitation flow.
+
   link, Marketplace subscription callback, manual N3 support step).
 - **N3 user identity key.** The current build derives the immutable
   user key from the JWT `sub` claim, falling back to email or display
