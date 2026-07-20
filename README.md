@@ -65,10 +65,38 @@ are guaranteed to be identical.
 4. **Sign-out.** `POST /api/auth/logout` clears the session cookie.
 5. **N3 401.** Any 401 from the N3 gateway destroys the session
    immediately and forces the UI back to the relaunch/dev-connect gate.
+6. **Fail-closed root token handling.** Once the root-URL interceptor
+   observes `?token=…`, it never falls through to the app: any
+   exception (including verification errors) clears the pre-existing
+   HotelHub session cookie and returns a token-free `302` back to `/`.
 
 Preserved query parameters: `stripTokenFromUrl()` removes only `token`
 from the incoming URL and preserves everything else, so the clean
 redirect target keeps unrelated N3 launch parameters intact.
+
+## Session behavior (actual)
+
+- On launch the server verifies the token against
+  `GET /api/companyprofile/BasicInfo`, upserts `hotel_tenants`, and
+  writes the resolved identity fields (company, tenant, user email,
+  user name, `n3TenantKey`, `n3UserKey`, and — when the JWT carries a
+  numeric `exp` claim — `n3TokenExpiration`) into the encrypted
+  HttpOnly session cookie.
+- On subsequent page loads `/api/session/me` reads those fields from
+  the cookie. It does **not** re-fetch BasicInfo from N3 on every
+  page load. Any N3 401 from a probe destroys the session immediately.
+- **Expiry.** If the launch JWT carries a valid numeric `exp`, that
+  timestamp is stored and enforced: `readRequestContext` destroys the
+  session as soon as the expiry passes, and a re-launch with an
+  already-expired token is rejected before it is ever sent to N3.
+- **Fallback lifetime.** JWTs without a verified numeric `exp` fall
+  back to the fixed cookie `maxAge` in `src/lib/session.server.ts`
+  (currently **8 hours**). This is the current documented maximum
+  session lifetime for such tokens; no other expiry is invented.
+- **User identity key.** `n3UserKey` is derived from the immutable JWT
+  `sub` claim, falling back to email or display name only when `sub`
+  is absent. Role management is keyed on this value; email/username
+  fallback is documented as unresolved under "Unresolved assumptions".
 
 ## First-Owner provisioning runbook (MUGS-only)
 
