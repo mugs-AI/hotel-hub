@@ -486,7 +486,9 @@ function RoomsCard({
               <th className="py-2 pr-4">Stock name</th>
               <th className="py-2 pr-4">Type</th>
               <th className="py-2 pr-4">Floor</th>
-              <th className="py-2 pr-4">Occ.</th>
+              <th className="py-2 pr-4" title={MAX_GUESTS_TOOLTIP}>
+                Max guests
+              </th>
               <th className="py-2 pr-4">Base rate</th>
               <th className="py-2 pr-4">Active</th>
               <th className="py-2 pr-4"></th>
@@ -601,6 +603,8 @@ function RoomRow({
             min={1}
             value={occ}
             onChange={(e) => setOcc(e.target.value)}
+            aria-label="Maximum guests"
+            title={MAX_GUESTS_TOOLTIP}
             className="w-16 rounded border border-input bg-background px-1.5 py-1 text-sm"
           />
         ) : (
@@ -685,9 +689,11 @@ type PickerLoad<Row> =
 function N3Picker<T extends "customers" | "stocks">({
   kind,
   onPick,
+  disabledCodes,
 }: {
   kind: T;
   onPick: (row: T extends "customers" ? CustomerRow : StockRow) => void;
+  disabledCodes?: ReadonlySet<string>;
 }) {
   type Row = CustomerRow | StockRow;
   const [state, setState] = useState<PickerLoad<Row>>({ kind: "loading" });
