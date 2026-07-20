@@ -23,7 +23,9 @@ import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
 import { Route as ApiAuthConnectRouteImport } from './routes/api/auth/connect'
 import { Route as ApiN3ProbeIndexRouteImport } from './routes/api/n3/probe/index'
+import { Route as ApiN3StocksAllRouteImport } from './routes/api/n3/stocks.all'
 import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$probe'
+import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
 
 const VerificationRoute = VerificationRouteImport.update({
@@ -96,10 +98,20 @@ const ApiN3ProbeIndexRoute = ApiN3ProbeIndexRouteImport.update({
   path: '/api/n3/probe/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiN3StocksAllRoute = ApiN3StocksAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => ApiN3StocksRoute,
+} as any)
 const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
   id: '/api/n3/probe/$probe',
   path: '/api/n3/probe/$probe',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiN3CustomersAllRoute = ApiN3CustomersAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => ApiN3CustomersRoute,
 } as any)
 const ApiHotelRoomsIdRoute = ApiHotelRoomsIdRouteImport.update({
   id: '/$id',
@@ -118,11 +130,13 @@ export interface FileRoutesByFullPath {
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
-  '/api/n3/customers': typeof ApiN3CustomersRoute
-  '/api/n3/stocks': typeof ApiN3StocksRoute
+  '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
+  '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
+  '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRoutesByTo {
@@ -136,11 +150,13 @@ export interface FileRoutesByTo {
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
-  '/api/n3/customers': typeof ApiN3CustomersRoute
-  '/api/n3/stocks': typeof ApiN3StocksRoute
+  '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
+  '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
+  '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRoutesById {
@@ -155,11 +171,13 @@ export interface FileRoutesById {
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
-  '/api/n3/customers': typeof ApiN3CustomersRoute
-  '/api/n3/stocks': typeof ApiN3StocksRoute
+  '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
+  '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
+  '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
 }
 export interface FileRouteTypes {
@@ -179,7 +197,9 @@ export interface FileRouteTypes {
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/api/hotel/rooms/$id'
+    | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/stocks/all'
     | '/api/n3/probe/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -197,7 +217,9 @@ export interface FileRouteTypes {
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/api/hotel/rooms/$id'
+    | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/stocks/all'
     | '/api/n3/probe'
   id:
     | '__root__'
@@ -215,7 +237,9 @@ export interface FileRouteTypes {
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/api/hotel/rooms/$id'
+    | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/stocks/all'
     | '/api/n3/probe/'
   fileRoutesById: FileRoutesById
 }
@@ -230,8 +254,8 @@ export interface RootRouteChildren {
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
   ApiHotelSettingsRoute: typeof ApiHotelSettingsRoute
   ApiHotelWalkInCustomerRoute: typeof ApiHotelWalkInCustomerRoute
-  ApiN3CustomersRoute: typeof ApiN3CustomersRoute
-  ApiN3StocksRoute: typeof ApiN3StocksRoute
+  ApiN3CustomersRoute: typeof ApiN3CustomersRouteWithChildren
+  ApiN3StocksRoute: typeof ApiN3StocksRouteWithChildren
   ApiSessionMeRoute: typeof ApiSessionMeRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
@@ -337,12 +361,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiN3ProbeIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/n3/stocks/all': {
+      id: '/api/n3/stocks/all'
+      path: '/all'
+      fullPath: '/api/n3/stocks/all'
+      preLoaderRoute: typeof ApiN3StocksAllRouteImport
+      parentRoute: typeof ApiN3StocksRoute
+    }
     '/api/n3/probe/$probe': {
       id: '/api/n3/probe/$probe'
       path: '/api/n3/probe/$probe'
       fullPath: '/api/n3/probe/$probe'
       preLoaderRoute: typeof ApiN3ProbeProbeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/customers/all': {
+      id: '/api/n3/customers/all'
+      path: '/all'
+      fullPath: '/api/n3/customers/all'
+      preLoaderRoute: typeof ApiN3CustomersAllRouteImport
+      parentRoute: typeof ApiN3CustomersRoute
     }
     '/api/hotel/rooms/$id': {
       id: '/api/hotel/rooms/$id'
@@ -366,6 +404,30 @@ const ApiHotelRoomsRouteWithChildren = ApiHotelRoomsRoute._addFileChildren(
   ApiHotelRoomsRouteChildren,
 )
 
+interface ApiN3CustomersRouteChildren {
+  ApiN3CustomersAllRoute: typeof ApiN3CustomersAllRoute
+}
+
+const ApiN3CustomersRouteChildren: ApiN3CustomersRouteChildren = {
+  ApiN3CustomersAllRoute: ApiN3CustomersAllRoute,
+}
+
+const ApiN3CustomersRouteWithChildren = ApiN3CustomersRoute._addFileChildren(
+  ApiN3CustomersRouteChildren,
+)
+
+interface ApiN3StocksRouteChildren {
+  ApiN3StocksAllRoute: typeof ApiN3StocksAllRoute
+}
+
+const ApiN3StocksRouteChildren: ApiN3StocksRouteChildren = {
+  ApiN3StocksAllRoute: ApiN3StocksAllRoute,
+}
+
+const ApiN3StocksRouteWithChildren = ApiN3StocksRoute._addFileChildren(
+  ApiN3StocksRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LaunchErrorRoute: LaunchErrorRoute,
@@ -377,8 +439,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,
   ApiHotelSettingsRoute: ApiHotelSettingsRoute,
   ApiHotelWalkInCustomerRoute: ApiHotelWalkInCustomerRoute,
-  ApiN3CustomersRoute: ApiN3CustomersRoute,
-  ApiN3StocksRoute: ApiN3StocksRoute,
+  ApiN3CustomersRoute: ApiN3CustomersRouteWithChildren,
+  ApiN3StocksRoute: ApiN3StocksRouteWithChildren,
   ApiSessionMeRoute: ApiSessionMeRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,

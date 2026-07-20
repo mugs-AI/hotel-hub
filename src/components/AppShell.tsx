@@ -57,15 +57,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const role = session.role;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
+    <div className="min-h-screen text-foreground" style={{ backgroundColor: "#F4F8FC" }}>
+      <header className="border-b border-border bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-semibold">
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
+              style={{ backgroundColor: "#102A43" }}
+            >
               H
             </div>
             <div>
-              <div className="text-sm font-semibold leading-tight">HotelHub</div>
+              <div className="text-sm font-semibold leading-tight" style={{ color: "#102A43" }}>
+                HotelHub
+              </div>
               <div className="text-xs text-muted-foreground leading-tight">
                 Boutique Hotel System · N3 integration
               </div>
@@ -79,7 +84,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className="mx-auto flex max-w-7xl gap-6 px-6 py-6">
-        <nav aria-label="Primary" className="w-56 shrink-0">
+        <nav
+          aria-label="Primary"
+          className="w-56 shrink-0 rounded-lg p-3 shadow-sm"
+          style={{ backgroundColor: "#102A43" }}
+        >
           <ul className="space-y-1">
             {NAV_ITEMS.map((item, i) => {
               const active = !item.disabled && location.pathname === item.to;
@@ -91,7 +100,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 return (
                   <li key={`${item.label}-${i}`}>
                     <span
-                      className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground/60 cursor-not-allowed"
+                      className="flex items-center justify-between rounded-md px-3 py-2 text-sm cursor-not-allowed"
+                      style={{ color: "rgba(255,255,255,0.45)" }}
                       title={title}
                     >
                       <span>{item.label}</span>
@@ -106,11 +116,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <li key={`${item.label}-${i}`}>
                   <Link
                     to={item.to}
-                    className={`block rounded-md px-3 py-2 text-sm transition-colors ${
-                      active
-                        ? "bg-primary text-primary-foreground"
-                        : "text-foreground hover:bg-accent hover:text-accent-foreground"
-                    }`}
+                    className="block rounded-md px-3 py-2 text-sm transition-colors"
+                    style={{
+                      backgroundColor: active ? "#0F9D8A" : "transparent",
+                      color: "white",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!active) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!active) e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                   >
                     {item.label}
                   </Link>
