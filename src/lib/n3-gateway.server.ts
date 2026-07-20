@@ -336,6 +336,115 @@ export function verifyN3StockByCode(
   return verifyByCodePaged<N3StockSummary>((o) => listN3Stocks(token, o), code);
 }
 
+// ---- Global list access (Milestone 1.0.2 — Correction B) ---------------
+// Full-tenant Customer/Stock fetch so the UI can search the ENTIRE list
+// (not just the currently displayed N3 page). Server-only; only exposed
+// through Owner-authorized fixed endpoints.
+
+export type N3GlobalError = "unauthorized" | "unavailable" | "incomplete";
+export class N3ListError extends Error {
+  constructor(public code: N3GlobalError) {
+    super(code);
+  }
+}
+
+const FULL_LIST_TOP = 100;
+const FULL_LIST_CAP = 10_000;
+const FULL_LIST_CONCURRENCY = 3;
+
+function dedupeById<T extends { id: string; code: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const it of items) {
+    const key = it.id || it.code;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+async function fetchAllPages<T extends { id: string; code: string }>(
+  fetcher: (opts: { top: number; skip: number }) => Promise<N3ListPage<T>>,
+  hooks?: { onActive?: (active: number) => void },
+): Promise<{ items: T[]; total: number; pagesFetched: number }> {
+  let first: N3ListPage<T>;
+  try {
+    first = await fetcher({ top: FULL_LIST_TOP, skip: 0 });
+  } catch {
+    throw new N3ListError("unavailable");
+  }
+  if (first.status === 401) throw new N3ListError("unauthorized");
+  if (first.status < 200 || first.status >= 300) throw new N3ListError("unavailable");
+  const rawTotal = typeof first.total === "number" ? first.total : first.items.length;
+  const total = Math.min(rawTotal, FULL_LIST_CAP);
+  const remaining: number[] = [];
+  for (let s = FULL_LIST_TOP; s < total; s += FULL_LIST_TOP) remaining.push(s);
+  const pageResults: T[][] = new Array(remaining.length);
+
+  let active = 0;
+  let cursor = 0;
+  const worker = async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= remaining.length) return;
+      active++;
+      hooks?.onActive?.(active);
+      try {
+        let page: N3ListPage<T>;
+        try {
+          page = await fetcher({ top: FULL_LIST_TOP, skip: remaining[i] });
+        } catch {
+          throw new N3ListError("incomplete");
+        }
+        if (page.status === 401) throw new N3ListError("unauthorized");
+        if (page.status < 200 || page.status >= 300) throw new N3ListError("incomplete");
+        pageResults[i] = page.items;
+      } finally {
+        active--;
+      }
+    }
+  };
+  const workerCount = Math.min(FULL_LIST_CONCURRENCY, Math.max(1, remaining.length));
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  // Order-preserving merge of the sequential first page + parallel remaining pages.
+  const merged: T[] = [...first.items];
+  for (const chunk of pageResults) if (chunk) merged.push(...chunk);
+  return { items: dedupeById(merged), total, pagesFetched: 1 + remaining.length };
+}
+
+export function listAllN3Customers(
+  token: string,
+  hooks?: { onActive?: (active: number) => void },
+) {
+  return fetchAllPages<N3CustomerSummary>((o) => listN3Customers(token, o), hooks);
+}
+export function listAllN3Stocks(token: string, hooks?: { onActive?: (active: number) => void }) {
+  return fetchAllPages<N3StockSummary>((o) => listN3Stocks(token, o), hooks);
+}
+
+// ---- Search normalization (Correction B) --------------------------------
+// Pure helpers, safe to import from the browser bundle.
+
+export function normalizeSearchText(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function matchesQuery(query: string, code: string, name: string | null): boolean {
+  const q = normalizeSearchText(query);
+  if (!q) return true;
+  const hay = normalizeSearchText(`${code} ${name ?? ""}`);
+  const words = q.split(" ");
+  return words.every((w) => hay.includes(w));
+}
+
+
 const DEV_KEY_TIMEOUT_MS = 10_000;
 
 /**
