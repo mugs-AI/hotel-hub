@@ -66,9 +66,10 @@ const rootTokenInterceptor = createMiddleware().server(async ({ next, request })
 
 export const startInstance = createStart(() => ({
   // HotelHub does not use Supabase Auth — N3 is the sole identity source.
-  // No `attachSupabaseAuth` client middleware is registered because no
-  // server function requires `requireSupabaseAuth`; the server uses the
+  // No Supabase browser-auth middleware is registered because no server
+  // function requires `requireSupabaseAuth`; the server uses the
   // service-role client directly for tenant/role/audit access.
+  functionMiddleware: [],
   functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
