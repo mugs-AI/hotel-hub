@@ -13,7 +13,13 @@ function methodNotAllowed() {
   });
 }
 
-async function handle({ request, params }: { request: Request; params: { probe?: string } }) {
+export async function handleProbeExecute({
+  request,
+  params,
+}: {
+  request: Request;
+  params: { probe?: string };
+}): Promise<Response> {
   const method = request.method.toUpperCase();
   if (method !== "GET") return methodNotAllowed();
 
@@ -63,14 +69,12 @@ async function handle({ request, params }: { request: Request; params: { probe?:
         probe: probeName,
         status: result.status,
         durationMs: result.durationMs,
-        // Return the sanitized upstream body (already JSON-parsed when possible).
         body: result.body,
       },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (err) {
     console.error("[probe] failed", (err as Error).message);
-    // Never leak upstream error text.
     return Response.json({ error: "probe_failed", probe: probeName }, { status: 502 });
   }
 }
@@ -78,7 +82,7 @@ async function handle({ request, params }: { request: Request; params: { probe?:
 export const Route = createFileRoute("/api/n3/probe/$probe")({
   server: {
     handlers: {
-      GET: handle,
+      GET: handleProbeExecute,
       POST: methodNotAllowed,
       PUT: methodNotAllowed,
       PATCH: methodNotAllowed,
