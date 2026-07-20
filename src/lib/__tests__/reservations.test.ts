@@ -420,7 +420,7 @@ describe("POST /api/hotel/reservations", () => {
     await seedAuthenticated("owner");
     let received: Record<string, unknown> = {};
     setRpcHandler(async (args) => {
-      received = args[1];
+      received = args[1] as Record<string, unknown>;
       return {
         data: [{ out_reservation_id: "r", out_booking_reference: "BK", out_status: "confirmed" }],
         error: null,
