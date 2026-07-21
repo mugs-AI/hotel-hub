@@ -1,19 +1,14 @@
 // Pure browser-safe helpers for the Reservations UI.
 // Extracted from route components so they can be unit-tested directly.
 // No React, no I/O, no side-effects.
+//
+// Booking sources are tenant-configurable and served by
+// `/api/hotel/booking-sources`. The constants below are ONLY a
+// presentation fallback for known default codes — they are NOT the
+// authoritative source list and must never be used to validate input.
 
-import type { BookingSource } from "@/lib/reservations-store.server";
-
-export const BOOKING_SOURCE_VALUES: readonly BookingSource[] = [
-  "walk_in",
-  "phone",
-  "whatsapp",
-  "hotel_website",
-  "agoda",
-  "booking_com",
-] as const;
-
-export const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
+/** Presentation-only labels for the six default source codes. */
+export const BOOKING_SOURCE_LABELS: Record<string, string> = {
   walk_in: "Walk-in",
   phone: "Phone",
   whatsapp: "WhatsApp",
@@ -22,8 +17,19 @@ export const BOOKING_SOURCE_LABELS: Record<BookingSource, string> = {
   booking_com: "Booking.com",
 };
 
+function titleFromCode(code: string): string {
+  return code
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/** Fall back to a snake→Title-case rendering when a display name is missing. */
 export function bookingSourceLabel(v: string): string {
-  return v in BOOKING_SOURCE_LABELS ? BOOKING_SOURCE_LABELS[v as BookingSource] : v;
+  if (!v) return "";
+  if (v in BOOKING_SOURCE_LABELS) return BOOKING_SOURCE_LABELS[v];
+  return titleFromCode(v);
 }
 
 /**
@@ -170,7 +176,7 @@ export function rateOverrideRequired(baseRate: number, agreedRate: number): bool
 
 /** Whitelist-only payload — never sends tenant, status, reference, snapshot, timestamps. */
 export function buildCreatePayload(input: {
-  bookingSource: BookingSource;
+  bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string;

@@ -19,7 +19,12 @@ export type AuditEventType =
   | "hotel.reservation.created"
   | "hotel.reservation.rate_overridden"
   | "hotel.reservation.create_failed"
-  | "hotel.availability.checked";
+  | "hotel.availability.checked"
+  | "hotel.booking_source.created"
+  | "hotel.booking_source.renamed"
+  | "hotel.booking_source.activated"
+  | "hotel.booking_source.deactivated"
+  | "hotel.booking_source.reordered";
 
 const SENSITIVE_KEYS = new Set([
   "token",

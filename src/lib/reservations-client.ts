@@ -7,7 +7,6 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useSessionMe } from "@/lib/session-client";
-import type { BookingSource } from "@/lib/reservations-store.server";
 import { buildListQuery, type ListFilters } from "@/lib/reservations-ui";
 
 export class ReservationApiError extends Error {
@@ -65,6 +64,17 @@ export function reservationDetailKey(tenantId: string | null, id: string) {
 export function availabilityKey(tenantId: string | null, arrival: string, departure: string) {
   return ["reservations", "availability", tenantId, arrival, departure] as const;
 }
+export function bookingSourcesKey(tenantId: string | null, activeOnly: boolean) {
+  return ["reservations", "booking-sources", tenantId, activeOnly] as const;
+}
+
+export type BookingSourceDTO = {
+  id: string;
+  sourceCode: string;
+  displayName: string;
+  isActive: boolean;
+  sortOrder: number;
+};
 
 const _tk = tenantKey;
 
@@ -132,7 +142,7 @@ export type ReservationDetailDTO = {
 };
 
 export type CreateReservationPayload = {
-  bookingSource: BookingSource;
+  bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string | null;
@@ -229,6 +239,73 @@ export function useCreateReservation() {
         predicate: (q) => {
           const k = q.queryKey as unknown[];
           return k[0] === "reservations" && k[1] === "list" && k[2] === tenantId;
+        },
+      });
+    },
+  });
+}
+
+export function useBookingSources(opts: { activeOnly?: boolean } = {}) {
+  const tenantId = useTenantId();
+  const activeOnly = opts.activeOnly === true;
+  return useQuery<{ sources: BookingSourceDTO[] }, ReservationApiError>({
+    queryKey: bookingSourcesKey(tenantId, activeOnly),
+    queryFn: () =>
+      jsonFetch<{ sources: BookingSourceDTO[] }>(
+        `/api/hotel/booking-sources${activeOnly ? "?active=true" : ""}`,
+      ),
+    enabled: Boolean(tenantId),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateBookingSource() {
+  const qc = useQueryClient();
+  const tenantId = useTenantId();
+  return useMutation<
+    { source: BookingSourceDTO },
+    ReservationApiError,
+    { displayName: string; sourceCode?: string | null }
+  >({
+    mutationFn: (payload) =>
+      jsonFetch<{ source: BookingSourceDTO }>("/api/hotel/booking-sources", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey as unknown[];
+          return k[0] === "reservations" && k[1] === "booking-sources" && k[2] === tenantId;
+        },
+      });
+    },
+  });
+}
+
+export function useUpdateBookingSource() {
+  const qc = useQueryClient();
+  const tenantId = useTenantId();
+  return useMutation<
+    { source: BookingSourceDTO },
+    ReservationApiError,
+    {
+      id: string;
+      displayName?: string;
+      isActive?: boolean;
+      direction?: "up" | "down";
+    }
+  >({
+    mutationFn: ({ id, ...body }) =>
+      jsonFetch<{ source: BookingSourceDTO }>(`/api/hotel/booking-sources/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey as unknown[];
+          return k[0] === "reservations" && k[1] === "booking-sources" && k[2] === tenantId;
         },
       });
     },
