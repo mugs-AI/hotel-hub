@@ -134,7 +134,10 @@ export async function handleCreateReservation({
   const body = parsed as Record<string, unknown>;
 
   const source = body.bookingSource ?? body.booking_source;
-  if (!isBookingSource(source)) return deny(400, "invalid_booking_source");
+  // Format-shape check only. The authoritative check happens against the
+  // tenant's `hotel_booking_sources` rows just before the RPC call.
+  if (typeof source !== "string" || !isSourceCodeFormat(source))
+    return deny(400, "invalid_booking_source");
   const arrival = body.arrivalDate ?? body.arrival_date;
   const departure = body.departureDate ?? body.departure_date;
   if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) {
@@ -191,11 +194,24 @@ export async function handleCreateReservation({
   if (primaryCount === 0) return deny(400, "primary_guest_required");
   if (primaryCount > 1) return deny(400, "multiple_primary_guests");
 
+  // Authoritative booking-source check: must exist for this tenant AND be active.
+  let sourceRow;
+  try {
+    sourceRow = await findBookingSourceByCode(ctx.session.tenantId!, source);
+  } catch (err) {
+    console.error(
+      "[reservations.create] source lookup failed",
+      (err as Error).message?.slice(0, 200),
+    );
+    return deny(500, "reservation_create_failed");
+  }
+  if (!sourceRow || !sourceRow.isActive) return deny(400, "invalid_booking_source");
+
   try {
     const result = await createReservationAtomic({
       tenantId: ctx.session.tenantId!,
       createdByN3UserKey: ctx.session.n3UserKey,
-      bookingSource: source as BookingSource,
+      bookingSource: source,
       arrivalDate: arrival,
       departureDate: departure,
       notes,
