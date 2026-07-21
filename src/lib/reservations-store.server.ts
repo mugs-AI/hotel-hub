@@ -17,18 +17,41 @@ export function isBookingSource(v: unknown): v is BookingSource {
   return typeof v === "string" && (BOOKING_SOURCES as readonly string[]).includes(v);
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Strict `YYYY-MM-DD` calendar validator.
+ *
+ * `Date.parse("2026-02-31")` succeeds (rolls to March 3). We reject that
+ * kind of silent rollover by re-serialising the parsed UTC date and
+ * checking every component still matches the input. Leap years are handled
+ * automatically because they follow standard UTC calendar rules.
+ */
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 export function isIsoDate(v: unknown): v is string {
-  if (typeof v !== "string" || !ISO_DATE_RE.test(v)) return false;
-  const t = Date.parse(v + "T00:00:00Z");
-  return Number.isFinite(t);
+  if (typeof v !== "string") return false;
+  const m = ISO_DATE_RE.exec(v);
+  if (!m) return false;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (mo < 1 || mo > 12) return false;
+  if (d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return (
+    dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d
+  );
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v);
 }
 
 export type CreateReservationInput = {
   tenantId: string;
   createdByN3UserKey: string;
   bookingSource: BookingSource;
-  arrivalDate: string; // ISO yyyy-mm-dd
+  arrivalDate: string;
   departureDate: string;
   notes: string | null;
   rooms: Array<{
@@ -54,8 +77,6 @@ export type CreateReservationResult = {
   status: "confirmed";
 };
 
-// Stable safe error codes surfaced to the API. The RPC raises these via
-// MESSAGE=<code>; anything else collapses to `reservation_create_failed`.
 export const RESERVATION_ERROR_CODES = new Set([
   "invalid_stay_dates",
   "invalid_booking_source",
@@ -83,6 +104,13 @@ export class ReservationCreateError extends Error {
     super(code);
     this.code = code;
     this.name = "ReservationCreateError";
+  }
+}
+
+export class ReservationReadError extends Error {
+  constructor(msg: string) {
+    super(msg);
+    this.name = "ReservationReadError";
   }
 }
 
@@ -121,8 +149,6 @@ export async function createReservationAtomic(
   const res = await sb.rpc("hotelhub_create_reservation", rpcArgs);
   if (res.error) {
     const msg = (res.error.message ?? "").toString();
-    // The RPC raises with MESSAGE=<stable code>. Extract exactly that code
-    // and never leak SQL, stack traces or Postgres details.
     const match = msg.match(/[a-z_]+/g)?.find((w: string) => RESERVATION_ERROR_CODES.has(w));
     throw new ReservationCreateError(match ?? "reservation_create_failed");
   }
@@ -156,7 +182,6 @@ export async function checkAvailability(input: {
   children?: number | null;
 }): Promise<AvailabilityRoom[]> {
   const sb = await admin();
-  // Currency from settings (already provisioned per tenant on first read).
   const settingsRes = await sb
     .from("hotel_settings")
     .select("currency")
@@ -164,7 +189,6 @@ export async function checkAvailability(input: {
     .maybeSingle();
   const currency = (settingsRes?.data as { currency?: string } | null)?.currency ?? "MYR";
 
-  // Active rooms for the tenant.
   const roomsRes = await sb
     .from("hotel_rooms")
     .select(
@@ -186,7 +210,6 @@ export async function checkAvailability(input: {
   }>;
   if (rooms.length === 0) return [];
 
-  // Blocking allocations overlapping [arrival, departure).
   const roomIds = rooms.map((r) => r.id);
   const allocRes = await sb
     .from("hotel_reservation_rooms")
@@ -248,6 +271,35 @@ export async function listReservations(input: {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const offset = Math.max(input.offset ?? 0, 0);
 
+  // Guest search resolves ALL matching reservation IDs first (across the
+  // full authenticated-tenant dataset, matching primary OR non-primary
+  // guests), then reservation pagination is applied to that filtered set.
+  // Never page reservations first and filter guests inside the page.
+  let restrictIds: string[] | null = null;
+  const guestNeedle = input.guestName?.trim() ?? "";
+  if (guestNeedle) {
+    const g = await sb
+      .from("hotel_guests")
+      .select("id")
+      .eq("tenant_id", input.tenantId)
+      .ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
+    if (g.error) throw new ReservationReadError(`guest search failed: ${g.error.message}`);
+    const guestIds = ((g.data ?? []) as Array<{ id: string }>).map((r) => r.id);
+    if (guestIds.length === 0) return { items: [], total: 0 };
+    const link = await sb
+      .from("hotel_reservation_guests")
+      .select("reservation_id")
+      .eq("tenant_id", input.tenantId)
+      .in("guest_id", guestIds);
+    if (link.error) throw new ReservationReadError(`guest link failed: ${link.error.message}`);
+    restrictIds = Array.from(
+      new Set(
+        ((link.data ?? []) as Array<{ reservation_id: string }>).map((r) => r.reservation_id),
+      ),
+    );
+    if (restrictIds.length === 0) return { items: [], total: 0 };
+  }
+
   let q = sb
     .from("hotel_reservations")
     .select(
@@ -255,8 +307,10 @@ export async function listReservations(input: {
       { count: "exact" },
     )
     .eq("tenant_id", input.tenantId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
 
+  if (restrictIds) q = q.in("id", restrictIds);
   if (input.bookingReference)
     q = q.ilike("booking_reference", `%${input.bookingReference.replace(/[%_]/g, "")}%`);
   if (input.status) q = q.eq("status", input.status);
@@ -266,7 +320,7 @@ export async function listReservations(input: {
 
   q = q.range(offset, offset + limit - 1);
   const res = await q;
-  if (res.error) throw new Error(`reservations list failed: ${res.error.message}`);
+  if (res.error) throw new ReservationReadError(`reservations list failed: ${res.error.message}`);
   const rows = (res.data ?? []) as Array<{
     id: string;
     booking_reference: string;
@@ -288,7 +342,8 @@ export async function listReservations(input: {
       .select("reservation_id, is_primary, guest_id, hotel_guests(full_name)")
       .eq("tenant_id", input.tenantId)
       .in("reservation_id", ids);
-    if (rgRes.error) throw new Error(`reservation guests failed: ${rgRes.error.message}`);
+    if (rgRes.error)
+      throw new ReservationReadError(`reservation guests failed: ${rgRes.error.message}`);
     for (const g of (rgRes.data ?? []) as Array<{
       reservation_id: string;
       is_primary: boolean;
@@ -305,13 +360,14 @@ export async function listReservations(input: {
       .select("reservation_id")
       .eq("tenant_id", input.tenantId)
       .in("reservation_id", ids);
-    if (rrRes.error) throw new Error(`reservation rooms failed: ${rrRes.error.message}`);
+    if (rrRes.error)
+      throw new ReservationReadError(`reservation rooms failed: ${rrRes.error.message}`);
     for (const r of (rrRes.data ?? []) as Array<{ reservation_id: string }>) {
       roomCounts.set(r.reservation_id, (roomCounts.get(r.reservation_id) ?? 0) + 1);
     }
   }
 
-  let items = rows.map((r) => ({
+  const items = rows.map((r) => ({
     id: r.id,
     bookingReference: r.booking_reference,
     primaryGuestName: primaries.get(r.id) ?? null,
@@ -324,11 +380,6 @@ export async function listReservations(input: {
     createdAt: r.created_at,
     createdByN3UserKey: r.created_by_n3_user_key,
   }));
-
-  if (input.guestName) {
-    const q2 = input.guestName.trim().toLowerCase();
-    items = items.filter((i) => (i.primaryGuestName ?? "").toLowerCase().includes(q2));
-  }
 
   return { items, total: (res.count as number) ?? items.length };
 }
@@ -380,7 +431,7 @@ export async function getReservationById(
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
-  if (head.error) throw new Error(`reservation read failed: ${head.error.message}`);
+  if (head.error) throw new ReservationReadError(`reservation read failed: ${head.error.message}`);
   if (!head.data) return null;
   const r = head.data as any;
   const rooms = await sb
@@ -390,11 +441,14 @@ export async function getReservationById(
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
+  if (rooms.error) throw new ReservationReadError(`reservation rooms failed: ${rooms.error.message}`);
   const guests = await sb
     .from("hotel_reservation_guests")
     .select("id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality)")
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
+  if (guests.error)
+    throw new ReservationReadError(`reservation guests failed: ${guests.error.message}`);
   const roomRows = (rooms.data ?? []) as any[];
   const guestRows = (guests.data ?? []) as any[];
   return {

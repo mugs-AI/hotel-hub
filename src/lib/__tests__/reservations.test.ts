@@ -216,12 +216,14 @@ describe("GET /api/hotel/availability", () => {
 // Create reservation
 // ================================================================
 describe("POST /api/hotel/reservations", () => {
+  const ROOM_UUID_1 = "11111111-1111-4111-8111-111111111111";
+  const ROOM_UUID_2 = "22222222-2222-4222-8222-222222222222";
   const validBody = () => ({
     bookingSource: "walk_in",
     arrivalDate: "2026-07-20",
     departureDate: "2026-07-22",
     notes: "VIP",
-    rooms: [{ hotelRoomId: "room-uuid-1", agreedRate: 200, adults: 2, children: 0 }],
+    rooms: [{ hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 }],
     guests: [{ fullName: "John Doe", isPrimary: true }],
   });
   const post = (body: unknown) =>
@@ -258,7 +260,8 @@ describe("POST /api/hotel/reservations", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.bookingReference).toBe("BK260720001");
-    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(true);
+    // Success audit is written inside the RPC transaction — not by the API.
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(false);
   });
   it("owner can create", async () => {
     await seedAuthenticated("owner");
@@ -348,7 +351,7 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({ request: post(body) });
     expect((await res.json()).error).toBe("invalid_rate");
   });
-  it("multi-room + multi-guest with rate override reason succeeds and audits override", async () => {
+  it("multi-room + multi-guest with rate override reason succeeds; API emits no created/override audit (RPC does it atomically)", async () => {
     await seedAuthenticated("owner");
     setRpcHandler(async () => ({
       data: [
@@ -363,9 +366,9 @@ describe("POST /api/hotel/reservations", () => {
     const body = {
       ...validBody(),
       rooms: [
-        { hotelRoomId: "room-1", agreedRate: 200, adults: 2, children: 0 },
+        { hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 },
         {
-          hotelRoomId: "room-2",
+          hotelRoomId: ROOM_UUID_2,
           agreedRate: 150,
           adults: 1,
           children: 1,
@@ -380,7 +383,11 @@ describe("POST /api/hotel/reservations", () => {
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const res = await handleCreateReservation({ request: post(body) });
     expect(res.status).toBe(201);
-    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.rate_overridden")).toBe(true);
+    // API must NOT double-log success audits. RPC handles them atomically.
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.rate_overridden")).toBe(
+      false,
+    );
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(false);
   });
   it("maps RPC room_not_available to 409", async () => {
     await seedAuthenticated("owner");
@@ -434,7 +441,7 @@ describe("POST /api/hotel/reservations", () => {
         bookingReference: "HACK",
         status: "checked_out",
         rooms: [
-          { hotelRoomId: "room-1", agreedRate: 200, adults: 2, children: 0, base_rate_snapshot: 1 },
+          { hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0, base_rate_snapshot: 1 },
         ],
       }),
     });
@@ -508,7 +515,9 @@ describe("GET /api/hotel/reservations/:id", () => {
     await seedAuthenticated("owner");
     supabaseEnqueue("hotel_reservations", { data: null, error: null });
     const { handleReservationDetail } = await import("@/routes/api/hotel/reservations.$id");
-    const res = await handleReservationDetail({ params: { id: "other-tenant-reservation" } });
+    const res = await handleReservationDetail({
+      params: { id: "99999999-9999-4999-8999-999999999999" },
+    });
     expect(res.status).toBe(404);
   });
 });
