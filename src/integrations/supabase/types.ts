@@ -87,37 +87,111 @@ export type Database = {
           },
         ]
       }
-      hotel_guests: {
+      hotel_booking_sources: {
         Row: {
           created_at: string
-          email: string | null
-          full_name: string
+          display_name: string
           id: string
-          mobile: string | null
-          nationality: string | null
-          notes: string | null
+          is_active: boolean
+          sort_order: number
+          source_code: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          email?: string | null
-          full_name: string
+          display_name: string
           id?: string
-          mobile?: string | null
-          nationality?: string | null
-          notes?: string | null
+          is_active?: boolean
+          sort_order?: number
+          source_code: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          source_code?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_booking_sources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_guests: {
+        Row: {
+          address_line_1: string | null
+          address_line_2: string | null
+          address_line_3: string | null
+          city: string | null
+          country_code: string | null
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          identity_number: string | null
+          identity_type: string | null
+          mobile: string | null
+          nationality: string | null
+          nationality_code: string | null
+          notes: string | null
+          postcode: string | null
+          state_code: string | null
+          state_province: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          address_line_3?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          identity_number?: string | null
+          identity_type?: string | null
+          mobile?: string | null
+          nationality?: string | null
+          nationality_code?: string | null
+          notes?: string | null
+          postcode?: string | null
+          state_code?: string | null
+          state_province?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          address_line_1?: string | null
+          address_line_2?: string | null
+          address_line_3?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
           email?: string | null
           full_name?: string
           id?: string
+          identity_number?: string | null
+          identity_type?: string | null
           mobile?: string | null
           nationality?: string | null
+          nationality_code?: string | null
           notes?: string | null
+          postcode?: string | null
+          state_code?: string | null
+          state_province?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -265,6 +339,7 @@ export type Database = {
           created_by_n3_user_key: string
           currency: string
           departure_date: string
+          external_booking_reference: string | null
           id: string
           notes: string | null
           status: string
@@ -279,6 +354,7 @@ export type Database = {
           created_by_n3_user_key: string
           currency: string
           departure_date: string
+          external_booking_reference?: string | null
           id?: string
           notes?: string | null
           status?: string
@@ -293,6 +369,7 @@ export type Database = {
           created_by_n3_user_key?: string
           currency?: string
           departure_date?: string
+          external_booking_reference?: string | null
           id?: string
           notes?: string | null
           status?: string
@@ -300,6 +377,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hotel_reservations_booking_source_fk"
+            columns: ["tenant_id", "booking_source"]
+            isOneToOne: false
+            referencedRelation: "hotel_booking_sources"
+            referencedColumns: ["tenant_id", "source_code"]
+          },
           {
             foreignKeyName: "hotel_reservations_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -497,6 +581,7 @@ export type Database = {
           p_booking_source: string
           p_created_by_n3_user_key: string
           p_departure_date: string
+          p_external_booking_reference: string
           p_guests: Json
           p_notes: string
           p_rooms: Json
