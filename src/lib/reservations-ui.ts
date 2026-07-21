@@ -284,6 +284,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   unauthenticated: "Your session has expired. Please relaunch from N3.",
   forbidden: "You don’t have permission to view this.",
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
+  // Booking Sources (Settings)
+  display_name_required: "Enter a display name.",
+  display_name_too_long: "Display name must be 60 characters or fewer.",
+  duplicate_source_code: "A booking source with this code already exists.",
+  source_not_found: "That booking source could not be found.",
+  cannot_reorder: "That source is already at the edge of the list.",
+  cannot_deactivate_last_source: "You must keep at least one active booking source.",
+  invalid_source_code: "Booking source code is invalid.",
+  booking_source_update_failed: "Unable to update the booking source. Please try again.",
+  booking_source_create_failed: "Unable to add the booking source. Please try again.",
 };
 
 export function friendlyError(
