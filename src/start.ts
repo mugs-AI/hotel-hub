@@ -46,6 +46,6 @@ export const startInstance = createStart(() => ({
   // No Supabase browser-auth middleware is registered because no server
   // function requires `requireSupabaseAuth`; the server uses the
   // service-role client directly for tenant/role/audit access.
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
