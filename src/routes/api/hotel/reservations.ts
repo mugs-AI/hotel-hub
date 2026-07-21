@@ -40,7 +40,9 @@ function toStrictInt(v: unknown): number | null {
 }
 
 /** Strict pagination parser — see Milestone 1.1.2 Task 6. */
-export function parsePagination(sp: URLSearchParams): { limit: number; offset: number } | "invalid" {
+export function parsePagination(
+  sp: URLSearchParams,
+): { limit: number; offset: number } | "invalid" {
   const lRaw = sp.get("limit");
   const oRaw = sp.get("offset");
   let limit = 25;
@@ -74,8 +76,7 @@ export async function handleListReservations({ request }: { request: Request }):
     return deny(400, "invalid_date_filter");
   if (arrivalTo !== null && arrivalTo !== "" && !isIsoDate(arrivalTo))
     return deny(400, "invalid_date_filter");
-  if (arrivalFrom && arrivalTo && arrivalFrom > arrivalTo)
-    return deny(400, "invalid_date_filter");
+  if (arrivalFrom && arrivalTo && arrivalFrom > arrivalTo) return deny(400, "invalid_date_filter");
   const bookingSource = url.searchParams.get("bookingSource");
   if (bookingSource !== null && bookingSource !== "" && !isBookingSource(bookingSource))
     return deny(400, "invalid_booking_source");

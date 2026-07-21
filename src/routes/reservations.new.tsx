@@ -39,7 +39,10 @@ export const Route = createFileRoute("/reservations/new")({
   head: () => ({
     meta: [
       { title: "New Reservation — HotelHub" },
-      { name: "description", content: "Create a new hotel reservation with multi-room and multi-guest support." },
+      {
+        name: "description",
+        content: "Create a new hotel reservation with multi-room and multi-guest support.",
+      },
     ],
   }),
   component: NewReservationPage,
@@ -56,11 +59,7 @@ function NewReservationPage() {
     <AppShell>
       <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
         <Header />
-        {!isAuthed ? null : !canCreate ? (
-          <NoAccess />
-        ) : (
-          <NewReservationForm />
-        )}
+        {!isAuthed ? null : !canCreate ? <NoAccess /> : <NewReservationForm />}
       </div>
     </AppShell>
   );
@@ -142,14 +141,26 @@ function Card({
   );
 }
 
-function Field({ label, children, error }: { label: string; children: React.ReactNode; error?: string | null }) {
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string | null;
+}) {
   return (
     <label className="block text-xs">
       <span className="mb-1 block font-medium" style={{ color: NAVY }}>
         {label}
       </span>
       {children}
-      {error ? <span className="mt-1 block text-[11px]" style={{ color: ERR }}>{error}</span> : null}
+      {error ? (
+        <span className="mt-1 block text-[11px]" style={{ color: ERR }}>
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -188,18 +199,16 @@ function NewReservationForm() {
     setRooms((prev) => {
       const kept = prev.filter((r) => availIds.has(r.hotelRoomId));
       if (kept.length !== prev.length) {
-        setAvailabilityMsg("Some previously selected rooms are no longer available and were removed.");
+        setAvailabilityMsg(
+          "Some previously selected rooms are no longer available and were removed.",
+        );
       }
       return kept;
     });
   }, [availability.data]);
 
   const canSubmit =
-    stayValid.ok &&
-    !!bookingSource &&
-    rooms.length > 0 &&
-    guests.length > 0 &&
-    !create.isPending;
+    stayValid.ok && !!bookingSource && rooms.length > 0 && guests.length > 0 && !create.isPending;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -255,13 +264,7 @@ function NewReservationForm() {
           </Field>
           <Field
             label="Departure date"
-            error={
-              !departure
-                ? null
-                : stayValid.ok
-                  ? null
-                  : "Departure must be after arrival"
-            }
+            error={!departure ? null : stayValid.ok ? null : "Departure must be after arrival"}
           >
             <input
               type="date"
@@ -299,7 +302,9 @@ function NewReservationForm() {
 
       <Card title="Available rooms" accent={TEAL} tag="Step 2">
         {!stayValid.ok ? (
-          <p className="text-xs text-muted-foreground">Enter valid arrival and departure dates to load availability.</p>
+          <p className="text-xs text-muted-foreground">
+            Enter valid arrival and departure dates to load availability.
+          </p>
         ) : availability.isPending ? (
           <p className="text-xs text-muted-foreground">Loading availability…</p>
         ) : availability.error ? (
@@ -395,8 +400,11 @@ function AvailabilityList({
       <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
         <p>No rooms are available for those dates.</p>
         <p className="mt-1 text-xs">
-          Check <Link to="/rooms-rates" className="underline" style={{ color: NAVY }}>Rooms &amp; Rates</Link> to
-          ensure active rooms are configured.
+          Check{" "}
+          <Link to="/rooms-rates" className="underline" style={{ color: NAVY }}>
+            Rooms &amp; Rates
+          </Link>{" "}
+          to ensure active rooms are configured.
         </p>
       </div>
     );
@@ -433,7 +441,11 @@ function AvailabilityList({
                     disabled={already}
                     className="rounded-md px-2 py-1 text-xs font-medium text-white disabled:opacity-40"
                     style={{ backgroundColor: TEAL }}
-                    aria-label={already ? `Room ${r.roomNumber} already selected` : `Select room ${r.roomNumber}`}
+                    aria-label={
+                      already
+                        ? `Room ${r.roomNumber} already selected`
+                        : `Select room ${r.roomNumber}`
+                    }
                   >
                     {already ? "Selected" : "Select"}
                   </button>
@@ -460,10 +472,7 @@ function SelectedRoomRow({
   const v = validateRoom(room);
   const err = v.ok ? null : v;
   return (
-    <div
-      className="rounded-md border p-3"
-      style={{ borderColor: `${NAVY}22` }}
-    >
+    <div className="rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-semibold" style={{ color: NAVY }}>
           Room {room.roomNumber} — {room.roomType} · Max {room.maxOccupancy}
@@ -480,10 +489,7 @@ function SelectedRoomRow({
         </button>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field
-          label="Adults"
-          error={err?.field === "adults" ? friendlyError(err.code) : null}
-        >
+        <Field label="Adults" error={err?.field === "adults" ? friendlyError(err.code) : null}>
           <input
             type="number"
             min={1}
@@ -493,10 +499,7 @@ function SelectedRoomRow({
             onChange={(e) => onChange({ ...room, adults: parseInt(e.target.value, 10) || 0 })}
           />
         </Field>
-        <Field
-          label="Children"
-          error={err?.field === "children" ? friendlyError(err.code) : null}
-        >
+        <Field label="Children" error={err?.field === "children" ? friendlyError(err.code) : null}>
           <input
             type="number"
             min={0}
@@ -538,9 +541,7 @@ function SelectedRoomRow({
         <div className="mt-3">
           <Field
             label="Reason for rate change"
-            error={
-              err?.field === "rateOverrideReason" ? friendlyError(err.code) : null
-            }
+            error={err?.field === "rateOverrideReason" ? friendlyError(err.code) : null}
           >
             <input
               required
@@ -625,7 +626,9 @@ function GuestList({
                 className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
                 value={g.nationality}
                 onChange={(e) =>
-                  onChange(guests.map((x, j) => (j === i ? { ...x, nationality: e.target.value } : x)))
+                  onChange(
+                    guests.map((x, j) => (j === i ? { ...x, nationality: e.target.value } : x)),
+                  )
                 }
               />
             </Field>
@@ -690,7 +693,8 @@ function Review({
               return (
                 <li key={r.hotelRoomId}>
                   <span className="font-mono">{r.roomNumber}</span> · {r.adults}A/{r.children}C ·{" "}
-                  base {r.currency} {r.baseRate.toFixed(2)} · rate {r.currency} {r.agreedRate.toFixed(2)}
+                  base {r.currency} {r.baseRate.toFixed(2)} · rate {r.currency}{" "}
+                  {r.agreedRate.toFixed(2)}
                   {overridden ? ` · reason: ${r.rateOverrideReason || "—"}` : ""}
                 </li>
               );
