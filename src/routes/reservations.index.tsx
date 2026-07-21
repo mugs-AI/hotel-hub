@@ -65,8 +65,9 @@ export const Route = createFileRoute("/reservations/")({
 
 function ReservationsListPage() {
   const session = useSessionMe();
-  const authed = session.data?.authenticated === true ? session.data : null;
-  const role = authed?.role ?? null;
+  const data = session.data;
+  const authed = data && data.authenticated === true ? data : null;
+  const role = authed ? authed.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
   const canCreate = hasPermission(role, "hotel:reservations:create");
 
@@ -166,15 +167,15 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const currentPage = Math.floor(offset / limit) + 1;
 
-  function apply(next: Partial<typeof search>) {
-    navigate({ search: (prev) => ({ ...prev, ...next, offset: 0 }) });
+  function apply(next: Partial<ListSearch>) {
+    navigate({ search: (prev: ListSearch) => ({ ...prev, ...next, offset: 0 }) });
   }
   function setPage(page: number) {
     const clamped = Math.min(totalPages, Math.max(1, page));
-    navigate({ search: (prev) => ({ ...prev, offset: (clamped - 1) * limit }) });
+    navigate({ search: (prev: ListSearch) => ({ ...prev, offset: (clamped - 1) * limit }) });
   }
   function setLimit(l: number) {
-    navigate({ search: (prev) => ({ ...prev, limit: l, offset: 0 })  });
+    navigate({ search: (prev: ListSearch) => ({ ...prev, limit: l, offset: 0 }) });
   }
 
   return (
