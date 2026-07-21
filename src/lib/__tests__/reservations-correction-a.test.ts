@@ -497,6 +497,7 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
     ).toHaveLength(0);
 
     // Failure path still audits once.
+    enqueue("hotel_user_roles", { data: { role: "owner", is_active: true }, error: null });
     rpcHandler = async () => ({ data: null, error: { message: "room_not_available" } });
     const res2 = await handleCreateReservation({ request: post(validBody()) });
     expect(res2.status).toBe(409);
