@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
@@ -39,6 +40,11 @@ import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel
 const VerificationRoute = VerificationRouteImport.update({
   id: '/verification',
   path: '/verification',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomsRatesRoute = RoomsRatesRouteImport.update({
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/new': typeof ReservationsNewRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/new': typeof ReservationsNewRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/new': typeof ReservationsNewRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
     | '/'
     | '/launch-error'
     | '/rooms-rates'
+    | '/settings'
     | '/verification'
     | '/reservations/$id'
     | '/reservations/new'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/'
     | '/launch-error'
     | '/rooms-rates'
+    | '/settings'
     | '/verification'
     | '/reservations/$id'
     | '/reservations/new'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/'
     | '/launch-error'
     | '/rooms-rates'
+    | '/settings'
     | '/verification'
     | '/reservations/$id'
     | '/reservations/new'
@@ -344,6 +356,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
+  SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
   ReservationsIdRoute: typeof ReservationsIdRoute
   ReservationsNewRoute: typeof ReservationsNewRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       path: '/verification'
       fullPath: '/verification'
       preLoaderRoute: typeof VerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rooms-rates': {
@@ -616,6 +636,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LaunchErrorRoute: LaunchErrorRoute,
   RoomsRatesRoute: RoomsRatesRoute,
+  SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
   ReservationsIdRoute: ReservationsIdRoute,
   ReservationsNewRoute: ReservationsNewRoute,
