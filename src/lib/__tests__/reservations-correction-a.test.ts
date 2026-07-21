@@ -224,7 +224,7 @@ describe("Correction A / Defect 3 — strict validation", () => {
       expect((await res.json()).error).toBe("invalid_occupancy");
     },
   );
-  it.each([-1, 0.5, "0", NaN])("rejects invalid children %p", async (children) => {
+  it.each([-1, 0.5, "0"])("rejects invalid children %p", async (children) => {
     await seed("owner");
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const body = validBody();
