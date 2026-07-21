@@ -479,6 +479,7 @@ describe("Correction A / Defect 1 — global guest search", () => {
 describe("Correction A / Defect 6 — no duplicate success audits from API", () => {
   it("success writes zero API audits; failure still writes one create_failed", async () => {
     await seed("owner");
+    seedActiveWalkIn();
     rpcHandler = async () => ({
       data: [
         {
