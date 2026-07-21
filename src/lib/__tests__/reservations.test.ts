@@ -515,7 +515,9 @@ describe("GET /api/hotel/reservations/:id", () => {
     await seedAuthenticated("owner");
     supabaseEnqueue("hotel_reservations", { data: null, error: null });
     const { handleReservationDetail } = await import("@/routes/api/hotel/reservations.$id");
-    const res = await handleReservationDetail({ params: { id: "other-tenant-reservation" } });
+    const res = await handleReservationDetail({
+      params: { id: "99999999-9999-4999-8999-999999999999" },
+    });
     expect(res.status).toBe(404);
   });
 });
