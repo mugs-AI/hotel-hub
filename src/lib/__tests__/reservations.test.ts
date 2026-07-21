@@ -101,9 +101,11 @@ async function seedAuthenticated(role: "owner" | "front_desk" | "housekeeper" | 
     createdAt: 1,
   });
   seedRole(role);
-  // Correction B Turn A: booking sources are DB-backed; auto-enqueue an
-  // active `walk_in` row so tests that reach the source-lookup succeed.
-  // Unused enqueues are cleared in beforeEach.
+}
+
+// Correction B Turn A: booking sources are DB-backed. Success-path create
+// tests must enqueue an active `walk_in` row so the pre-RPC lookup passes.
+function seedActiveWalkIn() {
   supabaseEnqueue("hotel_booking_sources", {
     data: {
       id: "src-uuid-1",
