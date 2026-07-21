@@ -101,6 +101,20 @@ async function seedAuthenticated(role: "owner" | "front_desk" | "housekeeper" | 
     createdAt: 1,
   });
   seedRole(role);
+  // Correction B Turn A: booking sources are DB-backed; auto-enqueue an
+  // active `walk_in` row so tests that reach the source-lookup succeed.
+  // Unused enqueues are cleared in beforeEach.
+  supabaseEnqueue("hotel_booking_sources", {
+    data: {
+      id: "src-uuid-1",
+      tenant_id: "tenant-uuid-1",
+      source_code: "walk_in",
+      display_name: "Walk-in",
+      is_active: true,
+      sort_order: 10,
+    },
+    error: null,
+  });
 }
 
 beforeEach(() => {

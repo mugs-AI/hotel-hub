@@ -105,6 +105,18 @@ async function seed(role: "owner" | "front_desk" | "housekeeper" | null = "owner
     data: role === null ? null : { role, is_active: true },
     error: null,
   });
+  // Correction B Turn A: booking sources are DB-backed.
+  enqueue("hotel_booking_sources", {
+    data: {
+      id: "src-uuid-1",
+      tenant_id: "tenant-uuid-1",
+      source_code: "walk_in",
+      display_name: "Walk-in",
+      is_active: true,
+      sort_order: 10,
+    },
+    error: null,
+  });
 }
 
 beforeEach(() => {
@@ -496,6 +508,17 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
 
     // Failure path still audits once.
     enqueue("hotel_user_roles", { data: { role: "owner", is_active: true }, error: null });
+    enqueue("hotel_booking_sources", {
+      data: {
+        id: "src-uuid-1",
+        tenant_id: "tenant-uuid-1",
+        source_code: "walk_in",
+        display_name: "Walk-in",
+        is_active: true,
+        sort_order: 10,
+      },
+      error: null,
+    });
     rpcHandler = async () => ({ data: null, error: { message: "room_not_available" } });
     const res2 = await handleCreateReservation({ request: post(validBody()) });
     expect(res2.status).toBe(409);
