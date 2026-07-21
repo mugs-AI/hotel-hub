@@ -216,12 +216,14 @@ describe("GET /api/hotel/availability", () => {
 // Create reservation
 // ================================================================
 describe("POST /api/hotel/reservations", () => {
+  const ROOM_UUID_1 = "11111111-1111-4111-8111-111111111111";
+  const ROOM_UUID_2 = "22222222-2222-4222-8222-222222222222";
   const validBody = () => ({
     bookingSource: "walk_in",
     arrivalDate: "2026-07-20",
     departureDate: "2026-07-22",
     notes: "VIP",
-    rooms: [{ hotelRoomId: "room-uuid-1", agreedRate: 200, adults: 2, children: 0 }],
+    rooms: [{ hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 }],
     guests: [{ fullName: "John Doe", isPrimary: true }],
   });
   const post = (body: unknown) =>
