@@ -4,7 +4,7 @@ import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/s
 import { hasPermission, type Permission } from "@/lib/rbac";
 
 type NavItem = {
-  to: "/" | "/verification" | "/rooms-rates" | "/reservations";
+  to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings";
   label: string;
   permission?: Permission;
   disabled?: boolean;
@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
     matchPrefix: "/reservations",
   },
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
+  { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
   { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
   { to: "/", label: "Guests", disabled: true },

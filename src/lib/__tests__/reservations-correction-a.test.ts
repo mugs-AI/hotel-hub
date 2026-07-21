@@ -107,6 +107,22 @@ async function seed(role: "owner" | "front_desk" | "housekeeper" | null = "owner
   });
 }
 
+// Correction B Turn A: booking sources are DB-backed. Success-path create
+// tests must enqueue an active `walk_in` row so the pre-RPC lookup passes.
+function seedActiveWalkIn() {
+  enqueue("hotel_booking_sources", {
+    data: {
+      id: "src-uuid-1",
+      tenant_id: "tenant-uuid-1",
+      source_code: "walk_in",
+      display_name: "Walk-in",
+      is_active: true,
+      sort_order: 10,
+    },
+    error: null,
+  });
+}
+
 beforeEach(() => {
   resetSession();
   auditEvents.length = 0;
@@ -463,6 +479,7 @@ describe("Correction A / Defect 1 — global guest search", () => {
 describe("Correction A / Defect 6 — no duplicate success audits from API", () => {
   it("success writes zero API audits; failure still writes one create_failed", async () => {
     await seed("owner");
+    seedActiveWalkIn();
     rpcHandler = async () => ({
       data: [
         {
@@ -496,6 +513,17 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
 
     // Failure path still audits once.
     enqueue("hotel_user_roles", { data: { role: "owner", is_active: true }, error: null });
+    enqueue("hotel_booking_sources", {
+      data: {
+        id: "src-uuid-1",
+        tenant_id: "tenant-uuid-1",
+        source_code: "walk_in",
+        display_name: "Walk-in",
+        is_active: true,
+        sort_order: 10,
+      },
+      error: null,
+    });
     rpcHandler = async () => ({ data: null, error: { message: "room_not_available" } });
     const res2 = await handleCreateReservation({ request: post(validBody()) });
     expect(res2.status).toBe(409);

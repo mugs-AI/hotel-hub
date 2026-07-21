@@ -112,23 +112,18 @@ afterEach(() => vi.restoreAllMocks());
 // Pure UI helpers
 // ================================================================
 describe("reservations-ui — pure helpers", () => {
-  it("all six booking sources map to friendly labels", async () => {
-    const { BOOKING_SOURCE_VALUES, BOOKING_SOURCE_LABELS, bookingSourceLabel } =
-      await import("@/lib/reservations-ui");
-    expect(BOOKING_SOURCE_VALUES).toEqual([
-      "walk_in",
-      "phone",
-      "whatsapp",
-      "hotel_website",
-      "agoda",
-      "booking_com",
-    ]);
+  it("bookingSourceLabel maps default codes and Title-cases unknown codes", async () => {
+    const { BOOKING_SOURCE_LABELS, bookingSourceLabel } = await import("@/lib/reservations-ui");
+    // Presentation-only fallback labels for the known default codes.
     expect(BOOKING_SOURCE_LABELS.walk_in).toBe("Walk-in");
     expect(BOOKING_SOURCE_LABELS.hotel_website).toBe("Hotel website");
     expect(BOOKING_SOURCE_LABELS.booking_com).toBe("Booking.com");
     expect(bookingSourceLabel("phone")).toBe("Phone");
     expect(bookingSourceLabel("agoda")).toBe("Agoda");
     expect(bookingSourceLabel("whatsapp")).toBe("WhatsApp");
+    // Unknown tenant-configured codes fall back to a snake→Title rendering.
+    expect(bookingSourceLabel("corporate_travel")).toBe("Corporate Travel");
+    expect(bookingSourceLabel("")).toBe("");
   });
 
   it("formatIsoDate never timezone-shifts YYYY-MM-DD", async () => {

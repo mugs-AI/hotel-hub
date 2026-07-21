@@ -5,14 +5,13 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
   useAvailability,
+  useBookingSources,
   useCreateReservation,
   type AvailabilityRoomDTO,
 } from "@/lib/reservations-client";
-import type { BookingSource } from "@/lib/reservations-store.server";
 import {
-  BOOKING_SOURCE_LABELS,
-  BOOKING_SOURCE_VALUES,
   addRoomIfNew,
+  bookingSourceLabel,
   buildCreatePayload,
   emptyGuestDraft,
   formatIsoDate,
@@ -171,7 +170,7 @@ function NewReservationForm() {
 
   const [arrival, setArrival] = useState("");
   const [departure, setDeparture] = useState("");
-  const [bookingSource, setBookingSource] = useState<"" | BookingSource>("");
+  const [bookingSource, setBookingSource] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [rooms, setRooms] = useState<RoomDraft[]>([]);
   const [guests, setGuests] = useState<GuestDraft[]>([emptyGuestDraft(true)]);
@@ -275,19 +274,7 @@ function NewReservationForm() {
             />
           </Field>
           <Field label="Booking source">
-            <select
-              required
-              className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-              value={bookingSource}
-              onChange={(e) => setBookingSource(e.target.value as "" | BookingSource)}
-            >
-              <option value="">Select a source…</option>
-              {BOOKING_SOURCE_VALUES.map((v) => (
-                <option key={v} value={v}>
-                  {BOOKING_SOURCE_LABELS[v]}
-                </option>
-              ))}
-            </select>
+            <ActiveBookingSourceSelect value={bookingSource} onChange={setBookingSource} />
           </Field>
           <Field label="Internal notes (optional)">
             <input
@@ -657,6 +644,35 @@ function GuestList({
   );
 }
 
+function ActiveBookingSourceSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const q = useBookingSources({ activeOnly: true });
+  const sources = q.data?.sources ?? [];
+  return (
+    <select
+      required
+      className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={q.isPending}
+    >
+      <option value="">
+        {q.isPending ? "Loading…" : sources.length === 0 ? "No active sources" : "Select a source…"}
+      </option>
+      {sources.map((s) => (
+        <option key={s.id} value={s.sourceCode}>
+          {s.displayName}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function Review({
   arrival,
   departure,
@@ -667,7 +683,7 @@ function Review({
 }: {
   arrival: string;
   departure: string;
-  bookingSource: "" | BookingSource;
+  bookingSource: string;
   rooms: RoomDraft[];
   guests: GuestDraft[];
   notes: string;
@@ -681,7 +697,7 @@ function Review({
         {formatIsoDate(arrival)} → {formatIsoDate(departure)}
       </dd>
       <dt className="text-muted-foreground">Source</dt>
-      <dd>{bookingSource ? BOOKING_SOURCE_LABELS[bookingSource] : "—"}</dd>
+      <dd>{bookingSource ? bookingSourceLabel(bookingSource) : "—"}</dd>
       <dt className="text-muted-foreground">Rooms</dt>
       <dd>
         {rooms.length === 0 ? (

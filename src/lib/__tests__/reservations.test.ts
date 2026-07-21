@@ -103,6 +103,22 @@ async function seedAuthenticated(role: "owner" | "front_desk" | "housekeeper" | 
   seedRole(role);
 }
 
+// Correction B Turn A: booking sources are DB-backed. Success-path create
+// tests must enqueue an active `walk_in` row so the pre-RPC lookup passes.
+function seedActiveWalkIn() {
+  supabaseEnqueue("hotel_booking_sources", {
+    data: {
+      id: "src-uuid-1",
+      tenant_id: "tenant-uuid-1",
+      source_code: "walk_in",
+      display_name: "Walk-in",
+      is_active: true,
+      sort_order: 10,
+    },
+    error: null,
+  });
+}
+
 beforeEach(() => {
   resetSession();
   auditEvents.length = 0;
@@ -245,6 +261,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("front_desk can create", async () => {
     await seedAuthenticated("front_desk");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({
       data: [
         {
@@ -265,6 +282,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("owner can create", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({
       data: [
         {
@@ -353,6 +371,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("multi-room + multi-guest with rate override reason succeeds; API emits no created/override audit (RPC does it atomically)", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({
       data: [
         {
@@ -391,6 +410,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("maps RPC room_not_available to 409", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({ data: null, error: { message: "room_not_available" } }));
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const res = await handleCreateReservation({ request: post(validBody()) });
@@ -400,6 +420,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("maps RPC setup_incomplete", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({ data: null, error: { message: "setup_incomplete" } }));
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const res = await handleCreateReservation({ request: post(validBody()) });
@@ -408,6 +429,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("collapses unknown RPC error to reservation_create_failed and never leaks SQL", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     setRpcHandler(async () => ({
       data: null,
       error: {
@@ -425,6 +447,7 @@ describe("POST /api/hotel/reservations", () => {
   });
   it("ignores browser-supplied tenantId, base_rate_snapshot, booking_reference, status", async () => {
     await seedAuthenticated("owner");
+    seedActiveWalkIn();
     let received: Record<string, unknown> = {};
     setRpcHandler(async (args) => {
       received = (args[1] ?? {}) as Record<string, unknown>;

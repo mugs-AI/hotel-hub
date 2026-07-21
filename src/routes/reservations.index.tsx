@@ -4,8 +4,6 @@ import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
-  BOOKING_SOURCE_LABELS,
-  BOOKING_SOURCE_VALUES,
   EMPTY_FILTERS,
   bookingSourceLabel,
   formatCreatedAt,
@@ -13,7 +11,7 @@ import {
   friendlyError,
   type ListFilters,
 } from "@/lib/reservations-ui";
-import { useReservationList } from "@/lib/reservations-client";
+import { useBookingSources, useReservationList } from "@/lib/reservations-client";
 import { CalendarClock, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
 
 const NAVY = "#102A43";
@@ -207,6 +205,36 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   );
 }
 
+function BookingSourceSelect({
+  value,
+  onChange,
+  emptyLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  emptyLabel: string;
+}) {
+  // List filter must show ALL sources (active + inactive) so historic
+  // reservations remain filterable after a source is deactivated.
+  const q = useBookingSources({ activeOnly: false });
+  const sources = q.data?.sources ?? [];
+  return (
+    <select
+      className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{emptyLabel}</option>
+      {sources.map((s) => (
+        <option key={s.id} value={s.sourceCode}>
+          {s.displayName}
+          {s.isActive ? "" : " (inactive)"}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function FiltersCard({
   draft,
   onChange,
@@ -251,18 +279,11 @@ function FiltersCard({
           />
         </Field>
         <Field label="Booking source">
-          <select
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          <BookingSourceSelect
             value={draft.bookingSource}
-            onChange={(e) => onChange({ ...draft, bookingSource: e.target.value })}
-          >
-            <option value="">All sources</option>
-            {BOOKING_SOURCE_VALUES.map((v) => (
-              <option key={v} value={v}>
-                {BOOKING_SOURCE_LABELS[v]}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onChange({ ...draft, bookingSource: v })}
+            emptyLabel="All sources"
+          />
         </Field>
         <Field label="Status">
           <select
