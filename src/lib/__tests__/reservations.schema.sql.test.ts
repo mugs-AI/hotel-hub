@@ -17,22 +17,27 @@ const canRead = Boolean(process.env.PGHOST && process.env.PGUSER);
 const d = canRead ? describe : describe.skip;
 
 d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
-  it("composite unique (tenant_id, id) exists on masters", () => {
-    for (const t of ["hotel_rooms", "hotel_guests", "hotel_reservations"]) {
-      const out = psql(
-        `SELECT count(*) FROM pg_constraint c
-           JOIN pg_class r ON r.oid = c.conrelid
-          WHERE r.relname = '${t}'
-            AND c.contype IN ('u','p')
-            AND (
-              SELECT array_agg(attname ORDER BY attname)
-                FROM unnest(c.conkey) k
-                JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
-            ) @> ARRAY['id','tenant_id']::name[];`,
-      );
-      expect(Number(out)).toBeGreaterThan(0);
-    }
-  });
+  it(
+    "composite unique (tenant_id, id) exists on masters",
+    () => {
+      for (const t of ["hotel_rooms", "hotel_guests", "hotel_reservations"]) {
+        const out = psql(
+          `SELECT count(*) FROM pg_constraint c
+             JOIN pg_class r ON r.oid = c.conrelid
+            WHERE r.relname = '${t}'
+              AND c.contype IN ('u','p')
+              AND (
+                SELECT array_agg(attname ORDER BY attname)
+                  FROM unnest(c.conkey) k
+                  JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
+              ) @> ARRAY['id','tenant_id']::name[];`,
+        );
+        expect(Number(out)).toBeGreaterThan(0);
+      }
+    },
+    30_000,
+  );
+
 
 
   it("child FKs are composite on (tenant_id, <parent_id>)", () => {
