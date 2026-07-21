@@ -5,7 +5,7 @@ import { renderErrorPage } from "./lib/error-page";
 // `attachSupabaseAuth` here — no server function uses `requireSupabaseAuth`,
 // so adding it would trigger `supabase.auth.getSession()` on every RPC and
 // leak a client-side Supabase session into the request path.
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+
 
 // Error boundary for uncaught server errors — must run outermost.
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
