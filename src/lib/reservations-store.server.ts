@@ -47,10 +47,11 @@ export function isUuid(v: unknown): v is string {
 export type CreateReservationInput = {
   tenantId: string;
   createdByN3UserKey: string;
-  bookingSource: BookingSource;
+  bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string | null;
+  externalBookingReference?: string | null;
   rooms: Array<{
     hotelRoomId: string;
     agreedRate: number;
@@ -65,6 +66,17 @@ export type CreateReservationInput = {
     nationality?: string | null;
     notes?: string | null;
     isPrimary: boolean;
+    identityType?: string | null;
+    identityNumber?: string | null;
+    nationalityCode?: string | null;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    addressLine3?: string | null;
+    city?: string | null;
+    postcode?: string | null;
+    countryCode?: string | null;
+    stateCode?: string | null;
+    stateProvince?: string | null;
   }>;
 };
 
@@ -93,6 +105,9 @@ export const RESERVATION_ERROR_CODES = new Set([
   "guest_full_name_required",
   "tenant_required",
   "creator_required",
+  "identity_pair_required",
+  "invalid_identity_type",
+  "invalid_identity_number",
 ]);
 
 export class ReservationCreateError extends Error {
@@ -127,6 +142,7 @@ export async function createReservationAtomic(
     p_arrival_date: input.arrivalDate,
     p_departure_date: input.departureDate,
     p_notes: input.notes,
+    p_external_booking_reference: input.externalBookingReference ?? null,
     p_rooms: input.rooms.map((r) => ({
       hotel_room_id: r.hotelRoomId,
       agreed_rate: r.agreedRate,
@@ -141,6 +157,17 @@ export async function createReservationAtomic(
       nationality: g.nationality ?? null,
       notes: g.notes ?? null,
       is_primary: g.isPrimary,
+      identity_type: g.identityType ?? null,
+      identity_number: g.identityNumber ?? null,
+      nationality_code: g.nationalityCode ?? null,
+      address_line_1: g.addressLine1 ?? null,
+      address_line_2: g.addressLine2 ?? null,
+      address_line_3: g.addressLine3 ?? null,
+      city: g.city ?? null,
+      postcode: g.postcode ?? null,
+      country_code: g.countryCode ?? null,
+      state_code: g.stateCode ?? null,
+      state_province: g.stateProvince ?? null,
     })),
   };
   const res = await sb.rpc("hotelhub_create_reservation", rpcArgs);
