@@ -158,18 +158,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "hotel_reservation_guests_guest_id_fkey"
-            columns: ["guest_id"]
+            foreignKeyName: "hotel_reservation_guests_tenant_guest_fkey"
+            columns: ["tenant_id", "guest_id"]
             isOneToOne: false
             referencedRelation: "hotel_guests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hotel_reservation_guests_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: false
-            referencedRelation: "hotel_reservations"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "hotel_reservation_guests_tenant_id_fkey"
@@ -177,6 +170,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "hotel_tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_guests_tenant_reservation_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -234,25 +234,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "hotel_reservation_rooms_hotel_room_id_fkey"
-            columns: ["hotel_room_id"]
-            isOneToOne: false
-            referencedRelation: "hotel_rooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "hotel_reservation_rooms_reservation_id_fkey"
-            columns: ["reservation_id"]
-            isOneToOne: false
-            referencedRelation: "hotel_reservations"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "hotel_reservation_rooms_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "hotel_tenants"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_tenant_reservation_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_rooms_tenant_room_fkey"
+            columns: ["tenant_id", "hotel_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
