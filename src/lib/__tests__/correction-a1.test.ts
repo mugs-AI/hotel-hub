@@ -52,10 +52,13 @@ describe("Correction A.1 — N3-only identity", () => {
   });
 
   it("no production file imports requireSupabaseAuth", () => {
-    expect(rg("requireSupabaseAuth")).toBe("");
+    // Match import statements only — narrative comments about the removed
+    // middleware are fine.
+    expect(rg("import[^\\n]*requireSupabaseAuth")).toBe("");
   });
 
   it("no production file imports the browser Supabase client", () => {
     expect(rg("from ['\"]@/integrations/supabase/client['\"]")).toBe("");
   });
+
 });
