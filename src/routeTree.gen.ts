@@ -14,6 +14,8 @@ import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
+import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
+import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
 import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
@@ -55,6 +57,16 @@ const IndexRoute = IndexRouteImport.update({
 const ReservationsIndexRoute = ReservationsIndexRouteImport.update({
   id: '/reservations/',
   path: '/reservations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsNewRoute = ReservationsNewRouteImport.update({
+  id: '/reservations/new',
+  path: '/reservations/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdRoute = ReservationsIdRouteImport.update({
+  id: '/reservations/$id',
+  path: '/reservations/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
@@ -148,6 +160,8 @@ export interface FileRoutesByFullPath {
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/verification': typeof VerificationRoute
+  '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -172,6 +186,8 @@ export interface FileRoutesByTo {
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/verification': typeof VerificationRoute
+  '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/new': typeof ReservationsNewRoute
   '/reservations': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -197,6 +213,8 @@ export interface FileRoutesById {
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/verification': typeof VerificationRoute
+  '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -223,6 +241,8 @@ export interface FileRouteTypes {
     | '/launch-error'
     | '/rooms-rates'
     | '/verification'
+    | '/reservations/$id'
+    | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -247,6 +267,8 @@ export interface FileRouteTypes {
     | '/launch-error'
     | '/rooms-rates'
     | '/verification'
+    | '/reservations/$id'
+    | '/reservations/new'
     | '/reservations'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -271,6 +293,8 @@ export interface FileRouteTypes {
     | '/launch-error'
     | '/rooms-rates'
     | '/verification'
+    | '/reservations/$id'
+    | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -296,6 +320,8 @@ export interface RootRouteChildren {
   LaunchErrorRoute: typeof LaunchErrorRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
   VerificationRoute: typeof VerificationRoute
+  ReservationsIdRoute: typeof ReservationsIdRoute
+  ReservationsNewRoute: typeof ReservationsNewRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
   ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
@@ -347,6 +373,20 @@ declare module '@tanstack/react-router' {
       path: '/reservations'
       fullPath: '/reservations/'
       preLoaderRoute: typeof ReservationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/new': {
+      id: '/reservations/new'
+      path: '/reservations/new'
+      fullPath: '/reservations/new'
+      preLoaderRoute: typeof ReservationsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id': {
+      id: '/reservations/$id'
+      path: '/reservations/$id'
+      fullPath: '/reservations/$id'
+      preLoaderRoute: typeof ReservationsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/session/me': {
@@ -523,6 +563,8 @@ const rootRouteChildren: RootRouteChildren = {
   LaunchErrorRoute: LaunchErrorRoute,
   RoomsRatesRoute: RoomsRatesRoute,
   VerificationRoute: VerificationRoute,
+  ReservationsIdRoute: ReservationsIdRoute,
+  ReservationsNewRoute: ReservationsNewRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
   ApiAuthLaunchRoute: ApiAuthLaunchRoute,
