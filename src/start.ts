@@ -1,6 +1,10 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+// NOTE: HotelHub is intentionally N3-only. Do NOT reintroduce
+// `attachSupabaseAuth` here — no server function uses `requireSupabaseAuth`,
+// so adding it would trigger `supabase.auth.getSession()` on every RPC and
+// leak a client-side Supabase session into the request path.
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 // Error boundary for uncaught server errors — must run outermost.
