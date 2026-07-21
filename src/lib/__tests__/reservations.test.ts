@@ -351,7 +351,7 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({ request: post(body) });
     expect((await res.json()).error).toBe("invalid_rate");
   });
-  it("multi-room + multi-guest with rate override reason succeeds and audits override", async () => {
+  it("multi-room + multi-guest with rate override reason succeeds; API emits no created/override audit (RPC does it atomically)", async () => {
     await seedAuthenticated("owner");
     setRpcHandler(async () => ({
       data: [
@@ -366,9 +366,9 @@ describe("POST /api/hotel/reservations", () => {
     const body = {
       ...validBody(),
       rooms: [
-        { hotelRoomId: "room-1", agreedRate: 200, adults: 2, children: 0 },
+        { hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 },
         {
-          hotelRoomId: "room-2",
+          hotelRoomId: ROOM_UUID_2,
           agreedRate: 150,
           adults: 1,
           children: 1,
@@ -383,7 +383,11 @@ describe("POST /api/hotel/reservations", () => {
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const res = await handleCreateReservation({ request: post(body) });
     expect(res.status).toBe(201);
-    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.rate_overridden")).toBe(true);
+    // API must NOT double-log success audits. RPC handles them atomically.
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.rate_overridden")).toBe(
+      false,
+    );
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(false);
   });
   it("maps RPC room_not_available to 409", async () => {
     await seedAuthenticated("owner");
