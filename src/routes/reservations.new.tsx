@@ -683,7 +683,7 @@ function Review({
 }: {
   arrival: string;
   departure: string;
-  bookingSource: "" | BookingSource;
+  bookingSource: string;
   rooms: RoomDraft[];
   guests: GuestDraft[];
   notes: string;
@@ -697,7 +697,7 @@ function Review({
         {formatIsoDate(arrival)} → {formatIsoDate(departure)}
       </dd>
       <dt className="text-muted-foreground">Source</dt>
-      <dd>{bookingSource ? BOOKING_SOURCE_LABELS[bookingSource] : "—"}</dd>
+      <dd>{bookingSource ? bookingSourceLabel(bookingSource) : "—"}</dd></dd>
       <dt className="text-muted-foreground">Rooms</dt>
       <dd>
         {rooms.length === 0 ? (
