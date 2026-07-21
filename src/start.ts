@@ -1,13 +1,11 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 // NOTE: HotelHub is intentionally N3-only. Do NOT reintroduce Supabase
 // browser-auth middleware here — no server function uses
 // `requireSupabaseAuth`, so adding it would trigger
 // `supabase.auth.getSession()` on every RPC and leak a client-side
 // Supabase session into the request path.
-
 
 // Error boundary for uncaught server errors — must run outermost.
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
@@ -48,6 +46,6 @@ export const startInstance = createStart(() => ({
   // No Supabase browser-auth middleware is registered because no server
   // function requires `requireSupabaseAuth`; the server uses the
   // service-role client directly for tenant/role/audit access.
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));

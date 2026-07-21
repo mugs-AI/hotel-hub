@@ -441,7 +441,13 @@ describe("POST /api/hotel/reservations", () => {
         bookingReference: "HACK",
         status: "checked_out",
         rooms: [
-          { hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0, base_rate_snapshot: 1 },
+          {
+            hotelRoomId: ROOM_UUID_1,
+            agreedRate: 200,
+            adults: 2,
+            children: 0,
+            base_rate_snapshot: 1,
+          },
         ],
       }),
     });

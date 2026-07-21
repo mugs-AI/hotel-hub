@@ -54,12 +54,10 @@ function enqueue(table: string, r: Result) {
 function builder(table: string) {
   const call: Call = { table, filters: [] };
   calls.push(call);
-  const record =
-    (op: string) =>
-    (column?: string, value?: unknown) => {
-      call.filters.push({ op, column, value });
-      return chain;
-    };
+  const record = (op: string) => (column?: string, value?: unknown) => {
+    call.filters.push({ op, column, value });
+    return chain;
+  };
   const chain: Record<string, unknown> = {
     select: () => chain,
     insert: () => chain,
@@ -365,11 +363,7 @@ describe("Correction A / Defect 1 — global guest search", () => {
     // Link resolution — 3 reservation IDs match, well beyond the first
     // reservation page limit.
     enqueue("hotel_reservation_guests", {
-      data: [
-        { reservation_id: "res-A" },
-        { reservation_id: "res-B" },
-        { reservation_id: "res-C" },
-      ],
+      data: [{ reservation_id: "res-A" }, { reservation_id: "res-B" }, { reservation_id: "res-C" }],
       error: null,
     });
     // Reservations page: server returns just the filtered subset with the
@@ -408,9 +402,7 @@ describe("Correction A / Defect 1 — global guest search", () => {
     });
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
-      request: new Request(
-        "http://x.test/api/hotel/reservations?guestName=jane&limit=1&offset=0",
-      ),
+      request: new Request("http://x.test/api/hotel/reservations?guestName=jane&limit=1&offset=0"),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -458,7 +450,9 @@ describe("Correction A / Defect 1 — global guest search", () => {
     // The very first call for `hotel_guests` must include eq tenant_id filter.
     const guestCall = calls.find((c) => c.table === "hotel_guests")!;
     expect(
-      guestCall.filters.some((f) => f.op === "eq" && f.column === "tenant_id" && f.value === "tenant-uuid-1"),
+      guestCall.filters.some(
+        (f) => f.op === "eq" && f.column === "tenant_id" && f.value === "tenant-uuid-1",
+      ),
     ).toBe(true);
   });
 });
@@ -471,7 +465,11 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
     await seed("owner");
     rpcHandler = async () => ({
       data: [
-        { out_reservation_id: RES_UUID, out_booking_reference: "BK260720099", out_status: "confirmed" },
+        {
+          out_reservation_id: RES_UUID,
+          out_booking_reference: "BK260720099",
+          out_status: "confirmed",
+        },
       ],
       error: null,
     });
