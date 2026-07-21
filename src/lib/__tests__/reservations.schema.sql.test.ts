@@ -17,12 +17,10 @@ const canRead = Boolean(process.env.PGHOST && process.env.PGUSER);
 const d = canRead ? describe : describe.skip;
 
 d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
-  it(
-    "composite unique (tenant_id, id) exists on masters",
-    () => {
-      for (const t of ["hotel_rooms", "hotel_guests", "hotel_reservations"]) {
-        const out = psql(
-          `SELECT count(*) FROM pg_constraint c
+  it("composite unique (tenant_id, id) exists on masters", () => {
+    for (const t of ["hotel_rooms", "hotel_guests", "hotel_reservations"]) {
+      const out = psql(
+        `SELECT count(*) FROM pg_constraint c
              JOIN pg_class r ON r.oid = c.conrelid
             WHERE r.relname = '${t}'
               AND c.contype IN ('u','p')
@@ -31,14 +29,10 @@ d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
                   FROM unnest(c.conkey) k
                   JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
               ) @> ARRAY['id','tenant_id']::name[];`,
-        );
-        expect(Number(out)).toBeGreaterThan(0);
-      }
-    },
-    30_000,
-  );
-
-
+      );
+      expect(Number(out)).toBeGreaterThan(0);
+    }
+  }, 30_000);
 
   it("child FKs are composite on (tenant_id, <parent_id>)", () => {
     // Every reservation-scoped child must FK back into the parent by BOTH
@@ -86,19 +80,17 @@ d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
     expect(Number(out)).toBeGreaterThan(0);
   });
 
-  it(
-    "RLS enabled and no public policies exist on reservation tables",
-    () => {
-      const tables = [
-        "hotel_reservations",
-        "hotel_reservation_rooms",
-        "hotel_reservation_guests",
-        "hotel_guests",
-      ];
-      const list = tables.map((t) => `'${t}'`).join(",");
-      // One consolidated catalog query: per table, return `rls|publicPolicyCount`.
-      const out = psql(
-        `SELECT c.relname || '|' ||
+  it("RLS enabled and no public policies exist on reservation tables", () => {
+    const tables = [
+      "hotel_reservations",
+      "hotel_reservation_rooms",
+      "hotel_reservation_guests",
+      "hotel_guests",
+    ];
+    const list = tables.map((t) => `'${t}'`).join(",");
+    // One consolidated catalog query: per table, return `rls|publicPolicyCount`.
+    const out = psql(
+      `SELECT c.relname || '|' ||
                 (CASE WHEN c.relrowsecurity THEN 't' ELSE 'f' END) || '|' ||
                 COALESCE((
                   SELECT count(*) FROM pg_policies p
@@ -110,16 +102,13 @@ d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
           WHERE c.relnamespace = 'public'::regnamespace
             AND c.relname IN (${list})
           ORDER BY c.relname;`,
-      );
-      const rows = out.split("\n").filter(Boolean);
-      expect(rows.length).toBe(tables.length);
-      for (const row of rows) {
-        const [, rls, publicPolicies] = row.split("|");
-        expect(rls).toBe("t");
-        expect(Number(publicPolicies)).toBe(0);
-      }
-    },
-    30_000,
-  );
-
+    );
+    const rows = out.split("\n").filter(Boolean);
+    expect(rows.length).toBe(tables.length);
+    for (const row of rows) {
+      const [, rls, publicPolicies] = row.split("|");
+      expect(rls).toBe("t");
+      expect(Number(publicPolicies)).toBe(0);
+    }
+  }, 30_000);
 });

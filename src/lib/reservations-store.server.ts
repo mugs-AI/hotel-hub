@@ -36,13 +36,10 @@ export function isIsoDate(v: unknown): v is string {
   if (mo < 1 || mo > 12) return false;
   if (d < 1 || d > 31) return false;
   const dt = new Date(Date.UTC(y, mo - 1, d));
-  return (
-    dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d
-  );
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
 }
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isUuid(v: unknown): v is string {
   return typeof v === "string" && UUID_RE.test(v);
 }
@@ -441,7 +438,8 @@ export async function getReservationById(
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
-  if (rooms.error) throw new ReservationReadError(`reservation rooms failed: ${rooms.error.message}`);
+  if (rooms.error)
+    throw new ReservationReadError(`reservation rooms failed: ${rooms.error.message}`);
   const guests = await sb
     .from("hotel_reservation_guests")
     .select("id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality)")
