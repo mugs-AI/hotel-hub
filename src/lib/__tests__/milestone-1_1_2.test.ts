@@ -494,28 +494,28 @@ describe("Milestone 1.1.2 — static safety", () => {
 
   it("no browser code imports Supabase client or calls N3 hosts", () => {
     expect(rg('from ["\']@/integrations/supabase/client["\']')).toBe("");
-    expect(rg("openapi\\.account\\.qne\\.cloud")).toBe(
-      // The only allowed occurrence is in server-side gateway modules.
-      // Server code lives in *.server.ts and src/routes/api/**.
-      // If any non-server module matches, this assertion fails loudly.
-      rg("openapi\\.account\\.qne\\.cloud"),
-    );
-    // Explicit check: no route component pulls the N3 host in.
-    const browserHits = execFileSync(
-      "rg",
-      [
-        "-l",
-        "openapi.account.qne.cloud",
-        "--glob",
-        "!**/*.server.ts",
-        "--glob",
-        "!src/routes/api/**",
-        "--glob",
-        "!**/__tests__/**",
-        "src",
-      ],
-      { encoding: "utf8" },
-    ).trim();
+    // No non-server module may reference the N3 host directly.
+    let browserHits = "";
+    try {
+      browserHits = execFileSync(
+        "rg",
+        [
+          "-l",
+          "openapi.account.qne.cloud",
+          "--glob",
+          "!**/*.server.ts",
+          "--glob",
+          "!src/routes/api/**",
+          "--glob",
+          "!**/__tests__/**",
+          "src",
+        ],
+        { encoding: "utf8" },
+      ).trim();
+    } catch (err) {
+      const e = err as { status?: number };
+      if (e.status !== 1) throw err;
+    }
     expect(browserHits).toBe("");
   });
 
