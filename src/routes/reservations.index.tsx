@@ -66,8 +66,8 @@ export const Route = createFileRoute("/reservations/")({
 function ReservationsListPage() {
   const session = useSessionMe();
   const data = session.data;
-  const authed = data && data.authenticated === true ? data : null;
-  const role = authed ? authed.role : null;
+  const role = data && data.authenticated === true ? data.role : null;
+  const isAuthed = data?.authenticated === true;
   const canView = hasPermission(role, "hotel:reservations:view");
   const canCreate = hasPermission(role, "hotel:reservations:create");
 
@@ -75,7 +75,7 @@ function ReservationsListPage() {
     <AppShell>
       <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
         <Header canCreate={canCreate} />
-        {!authed ? null : !canView ? <NoAccess /> : <ListInner canCreate={canCreate} />}
+        {!isAuthed ? null : !canView ? <NoAccess /> : <ListInner canCreate={canCreate} />}
       </div>
     </AppShell>
   );
