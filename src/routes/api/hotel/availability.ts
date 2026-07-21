@@ -11,6 +11,20 @@ function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
 
+/**
+ * Strict non-negative integer parse for availability query params.
+ * Rejects empty strings, decimals ("1.5"), non-numeric text, `NaN`,
+ * `Infinity`, and negatives. `null` (param absent) returns `null`.
+ */
+export function parseOptionalNonNegInt(raw: string | null): number | null | "invalid" {
+  if (raw === null) return null;
+  if (raw === "") return "invalid";
+  if (!/^\d+$/.test(raw)) return "invalid";
+  const n = Number(raw);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return "invalid";
+  return n;
+}
+
 export async function handleAvailability({ request }: { request: Request }): Promise<Response> {
   const { ctx, decision } = await requirePermission("hotel:reservations:view");
   if (!decision.ok) {
@@ -22,14 +36,9 @@ export async function handleAvailability({ request }: { request: Request }): Pro
   if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) {
     return deny(400, "invalid_stay_dates");
   }
-  const adultsRaw = url.searchParams.get("adults");
-  const childrenRaw = url.searchParams.get("children");
-  const adults = adultsRaw != null ? Number(adultsRaw) : null;
-  const children = childrenRaw != null ? Number(childrenRaw) : null;
-  if (adults != null && (!Number.isFinite(adults) || adults < 0))
-    return deny(400, "invalid_occupancy");
-  if (children != null && (!Number.isFinite(children) || children < 0))
-    return deny(400, "invalid_occupancy");
+  const adults = parseOptionalNonNegInt(url.searchParams.get("adults"));
+  const children = parseOptionalNonNegInt(url.searchParams.get("children"));
+  if (adults === "invalid" || children === "invalid") return deny(400, "invalid_occupancy");
   try {
     const rooms = await checkAvailability({
       tenantId: ctx.session.tenantId!,
