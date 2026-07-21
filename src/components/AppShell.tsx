@@ -4,18 +4,24 @@ import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/s
 import { hasPermission, type Permission } from "@/lib/rbac";
 
 type NavItem = {
-  to: "/" | "/verification" | "/rooms-rates";
+  to: "/" | "/verification" | "/rooms-rates" | "/reservations";
   label: string;
   permission?: Permission;
   disabled?: boolean;
+  matchPrefix?: string;
 };
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", permission: "app:view" },
+  {
+    to: "/reservations",
+    label: "Reservations",
+    permission: "hotel:reservations:view",
+    matchPrefix: "/reservations",
+  },
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
   { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
-  { to: "/", label: "Reservations", disabled: true },
   { to: "/", label: "Guests", disabled: true },
   { to: "/", label: "Housekeeping", disabled: true },
   { to: "/", label: "Folios & AR", disabled: true },
@@ -91,7 +97,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <ul className="space-y-1">
             {NAV_ITEMS.map((item, i) => {
-              const active = !item.disabled && location.pathname === item.to;
+              const path = location.pathname;
+              const active =
+                !item.disabled &&
+                (path === item.to ||
+                  (item.matchPrefix
+                    ? path === item.matchPrefix || path.startsWith(item.matchPrefix + "/")
+                    : false));
               const visible = !item.permission || hasPermission(role, item.permission);
               if (item.disabled || !visible) {
                 const title = item.disabled

@@ -3,6 +3,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import {
+  BOOKING_SOURCES,
   createReservationAtomic,
   isBookingSource,
   isIsoDate,
@@ -38,25 +39,57 @@ function toStrictInt(v: unknown): number | null {
   return v;
 }
 
+/** Strict pagination parser — see Milestone 1.1.2 Task 6. */
+export function parsePagination(sp: URLSearchParams): { limit: number; offset: number } | "invalid" {
+  const lRaw = sp.get("limit");
+  const oRaw = sp.get("offset");
+  let limit = 25;
+  let offset = 0;
+  if (lRaw !== null) {
+    if (!/^\d+$/.test(lRaw)) return "invalid";
+    const n = Number(lRaw);
+    if (!Number.isInteger(n) || n < 1 || n > 100) return "invalid";
+    limit = n;
+  }
+  if (oRaw !== null) {
+    if (!/^\d+$/.test(oRaw)) return "invalid";
+    const n = Number(oRaw);
+    if (!Number.isInteger(n) || n < 0) return "invalid";
+    offset = n;
+  }
+  return { limit, offset };
+}
+
 export async function handleListReservations({ request }: { request: Request }): Promise<Response> {
   const { ctx, decision } = await requirePermission("hotel:reservations:view");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
   const url = new URL(request.url);
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 25), 1), 100);
-  const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
+  const pag = parsePagination(url.searchParams);
+  if (pag === "invalid") return deny(400, "invalid_pagination");
+  const arrivalFrom = url.searchParams.get("arrivalFrom");
+  const arrivalTo = url.searchParams.get("arrivalTo");
+  if (arrivalFrom !== null && arrivalFrom !== "" && !isIsoDate(arrivalFrom))
+    return deny(400, "invalid_date_filter");
+  if (arrivalTo !== null && arrivalTo !== "" && !isIsoDate(arrivalTo))
+    return deny(400, "invalid_date_filter");
+  if (arrivalFrom && arrivalTo && arrivalFrom > arrivalTo)
+    return deny(400, "invalid_date_filter");
+  const bookingSource = url.searchParams.get("bookingSource");
+  if (bookingSource !== null && bookingSource !== "" && !isBookingSource(bookingSource))
+    return deny(400, "invalid_booking_source");
   try {
     const result = await listReservations({
       tenantId: ctx.session.tenantId!,
       bookingReference: url.searchParams.get("bookingReference") ?? undefined,
       guestName: url.searchParams.get("guestName") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
-      bookingSource: url.searchParams.get("bookingSource") ?? undefined,
-      arrivalFrom: url.searchParams.get("arrivalFrom") ?? undefined,
-      arrivalTo: url.searchParams.get("arrivalTo") ?? undefined,
-      limit,
-      offset,
+      bookingSource: bookingSource ?? undefined,
+      arrivalFrom: arrivalFrom ?? undefined,
+      arrivalTo: arrivalTo ?? undefined,
+      limit: pag.limit,
+      offset: pag.offset,
     });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
@@ -64,6 +97,9 @@ export async function handleListReservations({ request }: { request: Request }):
     return deny(500, "reservations_list_failed");
   }
 }
+
+// Re-export for tests that want to enumerate valid sources.
+export { BOOKING_SOURCES };
 
 type IncomingRoom = Record<string, unknown>;
 type IncomingGuest = Record<string, unknown>;
