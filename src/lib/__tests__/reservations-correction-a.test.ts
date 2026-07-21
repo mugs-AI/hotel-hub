@@ -105,7 +105,11 @@ async function seed(role: "owner" | "front_desk" | "housekeeper" | null = "owner
     data: role === null ? null : { role, is_active: true },
     error: null,
   });
-  // Correction B Turn A: booking sources are DB-backed.
+}
+
+// Correction B Turn A: booking sources are DB-backed. Success-path create
+// tests must enqueue an active `walk_in` row so the pre-RPC lookup passes.
+function seedActiveWalkIn() {
   enqueue("hotel_booking_sources", {
     data: {
       id: "src-uuid-1",
