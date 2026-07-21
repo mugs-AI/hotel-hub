@@ -79,8 +79,17 @@ export async function handleListReservations({ request }: { request: Request }):
     return deny(400, "invalid_date_filter");
   if (arrivalFrom && arrivalTo && arrivalFrom > arrivalTo) return deny(400, "invalid_date_filter");
   const bookingSource = url.searchParams.get("bookingSource");
-  if (bookingSource !== null && bookingSource !== "" && !isBookingSource(bookingSource))
-    return deny(400, "invalid_booking_source");
+  if (bookingSource !== null && bookingSource !== "") {
+    if (!isSourceCodeFormat(bookingSource)) return deny(400, "invalid_booking_source");
+    let found;
+    try {
+      found = await findBookingSourceByCode(ctx.session.tenantId!, bookingSource);
+    } catch (err) {
+      console.error("[reservations.list] source lookup failed", (err as Error).message?.slice(0, 200));
+      return deny(500, "reservations_list_failed");
+    }
+    if (!found) return deny(400, "invalid_booking_source");
+  }
   try {
     const result = await listReservations({
       tenantId: ctx.session.tenantId!,
@@ -100,8 +109,8 @@ export async function handleListReservations({ request }: { request: Request }):
   }
 }
 
-// Re-export for tests that want to enumerate valid sources.
-export { BOOKING_SOURCES };
+// (Tenant-configurable booking sources are validated per request against
+// the tenant's `hotel_booking_sources` rows — there is no hardcoded list.)
 
 type IncomingRoom = Record<string, unknown>;
 type IncomingGuest = Record<string, unknown>;
