@@ -60,5 +60,4 @@ describe("Correction A.1 — N3-only identity", () => {
   it("no production file imports the browser Supabase client", () => {
     expect(rg("from ['\"]@/integrations/supabase/client['\"]")).toBe("");
   });
-
 });

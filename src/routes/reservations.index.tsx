@@ -378,7 +378,11 @@ function ResultsCard(props: {
             Reservations
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {loading ? "Loading…" : total === 0 ? "No reservations found." : `Showing ${from}–${to} of ${total}`}
+            {loading
+              ? "Loading…"
+              : total === 0
+                ? "No reservations found."
+                : `Showing ${from}–${to} of ${total}`}
             {refreshing ? " · refreshing…" : ""}
           </p>
         </div>

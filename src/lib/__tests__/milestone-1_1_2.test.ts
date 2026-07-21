@@ -113,11 +113,8 @@ afterEach(() => vi.restoreAllMocks());
 // ================================================================
 describe("reservations-ui — pure helpers", () => {
   it("all six booking sources map to friendly labels", async () => {
-    const {
-      BOOKING_SOURCE_VALUES,
-      BOOKING_SOURCE_LABELS,
-      bookingSourceLabel,
-    } = await import("@/lib/reservations-ui");
+    const { BOOKING_SOURCE_VALUES, BOOKING_SOURCE_LABELS, bookingSourceLabel } =
+      await import("@/lib/reservations-ui");
     expect(BOOKING_SOURCE_VALUES).toEqual([
       "walk_in",
       "phone",
@@ -220,9 +217,10 @@ describe("reservations-ui — pure helpers", () => {
     // non-integer
     expect(validateRoom({ ...base, adults: 1.5, agreedRate: 200 }).ok).toBe(false);
     // occupancy exceeded
-    expect(
-      validateRoom({ ...base, adults: 2, children: 1, agreedRate: 200 }),
-    ).toMatchObject({ ok: false, code: "occupancy_exceeded" });
+    expect(validateRoom({ ...base, adults: 2, children: 1, agreedRate: 200 })).toMatchObject({
+      ok: false,
+      code: "occupancy_exceeded",
+    });
     // negative rate
     expect(validateRoom({ ...base, adults: 1, agreedRate: -1 })).toMatchObject({
       ok: false,
@@ -233,17 +231,18 @@ describe("reservations-ui — pure helpers", () => {
       validateRoom({ ...base, adults: 1, agreedRate: 150, rateOverrideReason: "" }),
     ).toMatchObject({ ok: false, code: "rate_override_reason_required" });
     // unchanged rate does NOT require reason
-    expect(
-      validateRoom({ ...base, adults: 1, agreedRate: 200, rateOverrideReason: "" }),
-    ).toEqual({ ok: true });
+    expect(validateRoom({ ...base, adults: 1, agreedRate: 200, rateOverrideReason: "" })).toEqual({
+      ok: true,
+    });
   });
 
   it("validateGuests enforces exactly-one-primary and non-empty name", async () => {
     const { validateGuests, emptyGuestDraft } = await import("@/lib/reservations-ui");
     expect(validateGuests([]).ok).toBe(false);
-    expect(
-      validateGuests([{ ...emptyGuestDraft(true), fullName: "" }]),
-    ).toMatchObject({ ok: false, code: "guest_full_name_required" });
+    expect(validateGuests([{ ...emptyGuestDraft(true), fullName: "" }])).toMatchObject({
+      ok: false,
+      code: "guest_full_name_required",
+    });
     expect(
       validateGuests([
         { ...emptyGuestDraft(false), fullName: "A" },
@@ -256,15 +255,12 @@ describe("reservations-ui — pure helpers", () => {
         { ...emptyGuestDraft(true), fullName: "B" },
       ]),
     ).toMatchObject({ ok: false, code: "multiple_primary_guests" });
-    expect(
-      validateGuests([{ ...emptyGuestDraft(true), fullName: "A" }]),
-    ).toEqual({ ok: true });
+    expect(validateGuests([{ ...emptyGuestDraft(true), fullName: "A" }])).toEqual({ ok: true });
   });
 
   it("buildCreatePayload strips server-controlled fields and omits reason when rate unchanged", async () => {
-    const { buildCreatePayload, makeRoomDraft, emptyGuestDraft } = await import(
-      "@/lib/reservations-ui"
-    );
+    const { buildCreatePayload, makeRoomDraft, emptyGuestDraft } =
+      await import("@/lib/reservations-ui");
     const room = {
       ...makeRoomDraft({
         hotelRoomId: "r1",
@@ -289,7 +285,9 @@ describe("reservations-ui — pure helpers", () => {
     });
     // Nothing server-controlled leaks
     const serialized = JSON.stringify(payload);
-    expect(serialized).not.toMatch(/tenantId|tenant_id|n3Token|n3UserKey|bookingReference|status|baseRateSnapshot|base_rate_snapshot|currency|maxOccupancy|roomNumber|createdAt/);
+    expect(serialized).not.toMatch(
+      /tenantId|tenant_id|n3Token|n3UserKey|bookingReference|status|baseRateSnapshot|base_rate_snapshot|currency|maxOccupancy|roomNumber|createdAt/,
+    );
     expect(Object.keys(payload)).toEqual([
       "bookingSource",
       "arrivalDate",
@@ -493,7 +491,7 @@ describe("Milestone 1.1.2 — static safety", () => {
   });
 
   it("no browser code imports Supabase client or calls N3 hosts", () => {
-    expect(rg('from ["\']@/integrations/supabase/client["\']')).toBe("");
+    expect(rg("from [\"']@/integrations/supabase/client[\"']")).toBe("");
     // No non-server module may reference the N3 host directly.
     let browserHits = "";
     try {
@@ -522,14 +520,15 @@ describe("Milestone 1.1.2 — static safety", () => {
   it("AppShell enables Reservations with hotel:reservations:view and matches sub-paths", () => {
     const s = readFileSync("src/components/AppShell.tsx", "utf8");
     // Reservations is a real link with the correct permission
-    expect(s).toMatch(
-      /to:\s*"\/reservations"[^}]*permission:\s*"hotel:reservations:view"/s,
-    );
+    expect(s).toMatch(/to:\s*"\/reservations"[^}]*permission:\s*"hotel:reservations:view"/s);
     // matchPrefix drives active state on /reservations, /reservations/new, /reservations/$id
     expect(s).toMatch(/matchPrefix:\s*"\/reservations"/);
     // Other deferred items remain disabled
     for (const label of ["Guests", "Housekeeping", "Folios & AR", "Reports"]) {
-      const re = new RegExp(`label:\\s*"${label.replace(/[&]/g, "\\$&")}"[^}]*disabled:\\s*true`, "s");
+      const re = new RegExp(
+        `label:\\s*"${label.replace(/[&]/g, "\\$&")}"[^}]*disabled:\\s*true`,
+        "s",
+      );
       expect(s).toMatch(re);
     }
     // Reservations must NOT be listed as disabled/soon
@@ -559,23 +558,15 @@ describe("Milestone 1.1.2 — static safety", () => {
   });
 
   it("reservations-client tenant-aware keys include tenantId", async () => {
-    const {
-      reservationsListKey,
-      reservationDetailKey,
-      availabilityKey,
-    } = await import("@/lib/reservations-client");
+    const { reservationsListKey, reservationDetailKey, availabilityKey } =
+      await import("@/lib/reservations-client");
     expect(reservationsListKey("t-1", new URLSearchParams("limit=25"))).toEqual([
       "reservations",
       "list",
       "t-1",
       "limit=25",
     ]);
-    expect(reservationDetailKey("t-1", "abc")).toEqual([
-      "reservations",
-      "detail",
-      "t-1",
-      "abc",
-    ]);
+    expect(reservationDetailKey("t-1", "abc")).toEqual(["reservations", "detail", "t-1", "abc"]);
     expect(availabilityKey("t-1", "2026-07-20", "2026-07-22")).toEqual([
       "reservations",
       "availability",

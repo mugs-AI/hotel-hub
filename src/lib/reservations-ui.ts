@@ -280,7 +280,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
 };
 
-export function friendlyError(code: string | undefined | null, fallback = "Something went wrong."): string {
+export function friendlyError(
+  code: string | undefined | null,
+  fallback = "Something went wrong.",
+): string {
   if (!code) return fallback;
   return ERROR_MESSAGES[code] ?? fallback;
 }

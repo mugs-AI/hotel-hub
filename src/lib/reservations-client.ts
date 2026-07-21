@@ -5,12 +5,7 @@
 //   returned from `/api/session/me`. Never derived from browser storage.
 // - Hides raw server error bodies; exposes a stable `code` + HTTP status.
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type UseQueryOptions,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useSessionMe } from "@/lib/session-client";
 import type { BookingSource } from "@/lib/reservations-store.server";
 import { buildListQuery, type ListFilters } from "@/lib/reservations-ui";
@@ -67,14 +62,10 @@ export function reservationsListKey(tenantId: string | null, params: URLSearchPa
 export function reservationDetailKey(tenantId: string | null, id: string) {
   return ["reservations", "detail", tenantId, id] as const;
 }
-export function availabilityKey(
-  tenantId: string | null,
-  arrival: string,
-  departure: string,
-) {
+export function availabilityKey(tenantId: string | null, arrival: string, departure: string) {
   return ["reservations", "availability", tenantId, arrival, departure] as const;
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 const _tk = tenantKey;
 
 // ---------- Types (browser DTOs) ----------
@@ -206,7 +197,8 @@ export function useAvailability(
       jsonFetch<{ rooms: AvailabilityRoomDTO[] }>(
         `/api/hotel/availability?arrival=${encodeURIComponent(arrival)}&departure=${encodeURIComponent(departure)}`,
       ),
-    enabled: Boolean(tenantId) && Boolean(arrival) && Boolean(departure) && (options?.enabled ?? true),
+    enabled:
+      Boolean(tenantId) && Boolean(arrival) && Boolean(departure) && (options?.enabled ?? true),
     staleTime: 0,
   });
 }
@@ -215,7 +207,8 @@ export function useReservationDetail(id: string) {
   const tenantId = useTenantId();
   return useQuery<{ reservation: ReservationDetailDTO }, ReservationApiError>({
     queryKey: reservationDetailKey(tenantId, id),
-    queryFn: () => jsonFetch<{ reservation: ReservationDetailDTO }>(`/api/hotel/reservations/${id}`),
+    queryFn: () =>
+      jsonFetch<{ reservation: ReservationDetailDTO }>(`/api/hotel/reservations/${id}`),
     enabled: Boolean(tenantId) && Boolean(id),
     retry: false,
   });

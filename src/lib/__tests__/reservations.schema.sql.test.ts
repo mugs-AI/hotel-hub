@@ -63,7 +63,7 @@ d("Milestone 1.1.1 Correction A — schema invariants (read-only)", () => {
     );
     expect(secDef).toBe("t");
     const publicExec = psql(
-      `SELECT has_function_privilege('public', 'public.hotelhub_create_reservation(uuid,text,text,date,date,text,jsonb,jsonb)', 'EXECUTE');`,
+      `SELECT has_function_privilege('public', 'public.hotelhub_create_reservation(uuid,text,text,date,date,text,text,jsonb,jsonb)', 'EXECUTE');`,
     );
     // Either the grant is absent (query errors out and psql exits non-zero,
     // caught by execFileSync) or the boolean is 'f'. We only assert the

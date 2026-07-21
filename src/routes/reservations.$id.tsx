@@ -3,7 +3,12 @@ import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { useReservationDetail } from "@/lib/reservations-client";
-import { bookingSourceLabel, formatCreatedAt, formatIsoDate, friendlyError } from "@/lib/reservations-ui";
+import {
+  bookingSourceLabel,
+  formatCreatedAt,
+  formatIsoDate,
+  friendlyError,
+} from "@/lib/reservations-ui";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
 
 const NAVY = "#102A43";
@@ -108,15 +113,21 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
   if (code === "not_found") {
     return (
       <div className="rounded-md border bg-white p-6 text-sm">
-        <h2 className="font-semibold" style={{ color: NAVY }}>Reservation not found</h2>
-        <p className="mt-1 text-muted-foreground">This reservation may have been removed or belongs to another property.</p>
+        <h2 className="font-semibold" style={{ color: NAVY }}>
+          Reservation not found
+        </h2>
+        <p className="mt-1 text-muted-foreground">
+          This reservation may have been removed or belongs to another property.
+        </p>
       </div>
     );
   }
   if (code === "invalid_id") {
     return (
       <div className="rounded-md border bg-white p-6 text-sm">
-        <h2 className="font-semibold" style={{ color: NAVY }}>Invalid link</h2>
+        <h2 className="font-semibold" style={{ color: NAVY }}>
+          Invalid link
+        </h2>
         <p className="mt-1 text-muted-foreground">The reservation link is not valid.</p>
       </div>
     );
