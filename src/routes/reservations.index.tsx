@@ -1,7 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { zodValidator, fallback } from "@tanstack/zod-adapter";
-import { z } from "zod";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -23,19 +21,36 @@ const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 const SOFT_BG = "#F4F8FC";
 
-const searchSchema = z.object({
-  bookingReference: fallback(z.string(), "").default(""),
-  guestName: fallback(z.string(), "").default(""),
-  bookingSource: fallback(z.string(), "").default(""),
-  status: fallback(z.string(), "").default(""),
-  arrivalFrom: fallback(z.string(), "").default(""),
-  arrivalTo: fallback(z.string(), "").default(""),
-  limit: fallback(z.number().int(), 25).default(25),
-  offset: fallback(z.number().int(), 0).default(0),
-});
+type ListSearch = {
+  bookingReference: string;
+  guestName: string;
+  bookingSource: string;
+  status: string;
+  arrivalFrom: string;
+  arrivalTo: string;
+  limit: number;
+  offset: number;
+};
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+function int(v: unknown, def: number): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) && Number.isInteger(n) ? n : def;
+}
 
 export const Route = createFileRoute("/reservations/")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (raw: Record<string, unknown>): ListSearch => ({
+    bookingReference: str(raw.bookingReference),
+    guestName: str(raw.guestName),
+    bookingSource: str(raw.bookingSource),
+    status: str(raw.status),
+    arrivalFrom: str(raw.arrivalFrom),
+    arrivalTo: str(raw.arrivalTo),
+    limit: int(raw.limit, 25),
+    offset: int(raw.offset, 0),
+  }),
   head: () => ({
     meta: [
       { title: "Reservations — HotelHub" },
