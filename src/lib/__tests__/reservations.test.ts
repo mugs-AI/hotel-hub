@@ -260,7 +260,8 @@ describe("POST /api/hotel/reservations", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.bookingReference).toBe("BK260720001");
-    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(true);
+    // Success audit is written inside the RPC transaction — not by the API.
+    expect(auditEvents.some((e) => e.eventType === "hotel.reservation.created")).toBe(false);
   });
   it("owner can create", async () => {
     await seedAuthenticated("owner");
