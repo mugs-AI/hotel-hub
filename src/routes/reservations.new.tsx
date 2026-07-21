@@ -697,7 +697,7 @@ function Review({
         {formatIsoDate(arrival)} → {formatIsoDate(departure)}
       </dd>
       <dt className="text-muted-foreground">Source</dt>
-      <dd>{bookingSource ? bookingSourceLabel(bookingSource) : "—"}</dd></dd>
+      <dd>{bookingSource ? bookingSourceLabel(bookingSource) : "—"}</dd>
       <dt className="text-muted-foreground">Rooms</dt>
       <dd>
         {rooms.length === 0 ? (
