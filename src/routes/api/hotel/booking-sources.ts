@@ -53,6 +53,7 @@ export async function handleListBookingSources({
           displayName: s.displayName,
           isActive: s.isActive,
           sortOrder: s.sortOrder,
+          usedCount: s.usedCount,
         })),
       },
       { headers: { "cache-control": "no-store" } },

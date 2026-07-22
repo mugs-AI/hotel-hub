@@ -74,6 +74,7 @@ export type BookingSourceDTO = {
   displayName: string;
   isActive: boolean;
   sortOrder: number;
+  usedCount: number;
 };
 
 const _tk = tenantKey;
