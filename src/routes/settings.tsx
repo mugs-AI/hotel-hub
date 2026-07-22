@@ -39,12 +39,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
@@ -147,9 +142,9 @@ function BookingSourcesScreen() {
             Booking Sources
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Booking sources appear in the New Reservation form and the Reservations filter.
-            Only active sources can be assigned to new reservations; deactivated sources are
-            retained on historical reservations and remain visible as filter options.
+            Booking sources appear in the New Reservation form and the Reservations filter. Only
+            active sources can be assigned to new reservations; deactivated sources are retained on
+            historical reservations and remain visible as filter options.
           </p>
         </div>
         <Button
@@ -297,11 +292,7 @@ function StatusPill({ active }: { active: boolean }) {
         className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
         style={{ backgroundColor: `${TEAL}1A`, color: "#0B7A6B" }}
       >
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ backgroundColor: TEAL }}
-          aria-hidden
-        />
+        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: TEAL }} aria-hidden />
         Active
       </span>
     );
@@ -311,11 +302,7 @@ function StatusPill({ active }: { active: boolean }) {
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
       style={{ backgroundColor: `${GOLD}22`, color: "#8A5B00" }}
     >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: GOLD }}
-        aria-hidden
-      />
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: GOLD }} aria-hidden />
       Inactive
     </span>
   );
@@ -481,16 +468,8 @@ function SourceTableRow({
           </div>
         </td>
       </tr>
-      <EditSourceDialog
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        source={source}
-      />
-      <DeactivateDialog
-        open={deactivateOpen}
-        onOpenChange={setDeactivateOpen}
-        source={source}
-      />
+      <EditSourceDialog open={editOpen} onOpenChange={setEditOpen} source={source} />
+      <DeactivateDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} source={source} />
     </>
   );
 }
@@ -568,22 +547,14 @@ function SourceMobileCard({
               Deactivate
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={activate}
-              style={{ backgroundColor: TEAL, color: "white" }}
-            >
+            <Button size="sm" onClick={activate} style={{ backgroundColor: TEAL, color: "white" }}>
               Restore
             </Button>
           )}
         </div>
       </div>
       <EditSourceDialog open={editOpen} onOpenChange={setEditOpen} source={source} />
-      <DeactivateDialog
-        open={deactivateOpen}
-        onOpenChange={setDeactivateOpen}
-        source={source}
-      />
+      <DeactivateDialog open={deactivateOpen} onOpenChange={setDeactivateOpen} source={source} />
     </li>
   );
 }
@@ -643,9 +614,7 @@ function AddSourceDialog({
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle style={{ color: NAVY }}>Add booking source</DialogTitle>
-            <DialogDescription>
-              Create a new source for your reservation intake.
-            </DialogDescription>
+            <DialogDescription>Create a new source for your reservation intake.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <div className="space-y-1.5">
@@ -826,8 +795,8 @@ function DeactivateDialog({
                 <span className="font-medium" style={{ color: NAVY }}>
                   {source.displayName}
                 </span>{" "}
-                will no longer be available for new reservations. Existing reservation history
-                will be preserved.
+                will no longer be available for new reservations. Existing reservation history will
+                be preserved.
               </p>
               {source.usedCount > 0 ? (
                 <p className="text-muted-foreground">

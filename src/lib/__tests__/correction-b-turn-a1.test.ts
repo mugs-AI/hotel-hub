@@ -44,8 +44,22 @@ describe("Booking sources store — usedCount", () => {
     const { listBookingSources } = await import("@/lib/booking-sources-store.server");
     enqueue("hotel_booking_sources", {
       data: [
-        { id: "s1", tenant_id: "T1", source_code: "walk_in", display_name: "Walk-in", is_active: true, sort_order: 10 },
-        { id: "s2", tenant_id: "T1", source_code: "phone", display_name: "Phone", is_active: false, sort_order: 20 },
+        {
+          id: "s1",
+          tenant_id: "T1",
+          source_code: "walk_in",
+          display_name: "Walk-in",
+          is_active: true,
+          sort_order: 10,
+        },
+        {
+          id: "s2",
+          tenant_id: "T1",
+          source_code: "phone",
+          display_name: "Phone",
+          is_active: false,
+          sort_order: 20,
+        },
       ],
       error: null,
     });
@@ -69,7 +83,14 @@ describe("Booking sources store — usedCount", () => {
     const { listBookingSources } = await import("@/lib/booking-sources-store.server");
     enqueue("hotel_booking_sources", {
       data: [
-        { id: "s1", tenant_id: "T1", source_code: "agoda", display_name: "Agoda", is_active: true, sort_order: 10 },
+        {
+          id: "s1",
+          tenant_id: "T1",
+          source_code: "agoda",
+          display_name: "Agoda",
+          is_active: true,
+          sort_order: 10,
+        },
       ],
       error: null,
     });

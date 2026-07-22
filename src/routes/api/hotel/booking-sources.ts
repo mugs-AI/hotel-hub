@@ -24,7 +24,8 @@ function mapErrorStatus(code: string): number {
     code === "duplicate_source"
   )
     return 409;
-  if (code === "booking_source_create_failed" || code === "booking_source_update_failed") return 500;
+  if (code === "booking_source_create_failed" || code === "booking_source_update_failed")
+    return 500;
   return 400;
 }
 
@@ -105,10 +106,7 @@ export async function handleCreateBookingSource({
         ? err.code
         : "booking_source_create_failed";
     if (code === "booking_source_create_failed") {
-      console.error(
-        "[booking-sources.create] failed",
-        (err as Error).message?.slice(0, 200),
-      );
+      console.error("[booking-sources.create] failed", (err as Error).message?.slice(0, 200));
     }
     return deny(mapErrorStatus(code), code);
   }

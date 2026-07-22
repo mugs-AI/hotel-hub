@@ -203,9 +203,7 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
       .select("id, sort_order")
       .eq("tenant_id", input.tenantId);
     q = asc ? q.gt("sort_order", row.sort_order) : q.lt("sort_order", row.sort_order);
-    const neighbourRes = await q
-      .order("sort_order", { ascending: asc })
-      .limit(1);
+    const neighbourRes = await q.order("sort_order", { ascending: asc }).limit(1);
     if (neighbourRes.error) throw new BookingSourceError("booking_source_update_failed");
     const neigh = (neighbourRes.data ?? [])[0] as { id: string; sort_order: number } | undefined;
     if (!neigh) throw new BookingSourceError("cannot_reorder");
