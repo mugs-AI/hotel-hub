@@ -10,10 +10,7 @@ import {
   ReservationCreateError,
   RESERVATION_ERROR_CODES,
 } from "@/lib/reservations-store.server";
-import {
-  findBookingSourceByCode,
-  isSourceCodeFormat,
-} from "@/lib/booking-sources-store.server";
+import { findBookingSourceByCode, isSourceCodeFormat } from "@/lib/booking-sources-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
@@ -85,7 +82,10 @@ export async function handleListReservations({ request }: { request: Request }):
     try {
       found = await findBookingSourceByCode(ctx.session.tenantId!, bookingSource);
     } catch (err) {
-      console.error("[reservations.list] source lookup failed", (err as Error).message?.slice(0, 200));
+      console.error(
+        "[reservations.list] source lookup failed",
+        (err as Error).message?.slice(0, 200),
+      );
       return deny(500, "reservations_list_failed");
     }
     if (!found) return deny(400, "invalid_booking_source");

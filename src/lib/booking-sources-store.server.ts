@@ -10,6 +10,7 @@ export type BookingSource = {
   displayName: string;
   isActive: boolean;
   sortOrder: number;
+  usedCount: number;
 };
 
 type Row = {
@@ -21,7 +22,7 @@ type Row = {
   sort_order: number;
 };
 
-function toDto(row: Row): BookingSource {
+function toDto(row: Row, usedCount = 0): BookingSource {
   return {
     id: row.id,
     tenantId: row.tenant_id,
@@ -29,6 +30,7 @@ function toDto(row: Row): BookingSource {
     displayName: row.display_name,
     isActive: row.is_active,
     sortOrder: row.sort_order,
+    usedCount,
   };
 }
 
@@ -69,7 +71,28 @@ export async function listBookingSources(
   if (opts.activeOnly) q = q.eq("is_active", true);
   const res = await q.order("sort_order", { ascending: true });
   if (res.error) throw new Error(`booking_sources read failed`);
-  return (res.data as Row[] | null | undefined)?.map(toDto) ?? [];
+  const rows = (res.data as Row[] | null | undefined) ?? [];
+  // Tenant-scoped aggregate — one query, no N+1.
+  const counts = await getUsageCounts(tenantId);
+  return rows.map((r) => toDto(r, counts.get(r.source_code) ?? 0));
+}
+
+/** Return a map of source_code -> reservation count for this tenant. */
+async function getUsageCounts(tenantId: string): Promise<Map<string, number>> {
+  const supa = await admin();
+  const res = await supa
+    .from("hotel_reservations")
+    .select("booking_source")
+    .eq("tenant_id", tenantId);
+  const out = new Map<string, number>();
+  if (res.error) return out;
+  const rows = (res.data as Array<{ booking_source: string | null }> | null) ?? [];
+  for (const row of rows) {
+    const code = row.booking_source;
+    if (!code) continue;
+    out.set(code, (out.get(code) ?? 0) + 1);
+  }
+  return out;
 }
 
 /** Lookup a single source by code within a tenant. Returns null if absent. */
@@ -180,9 +203,7 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
       .select("id, sort_order")
       .eq("tenant_id", input.tenantId);
     q = asc ? q.gt("sort_order", row.sort_order) : q.lt("sort_order", row.sort_order);
-    const neighbourRes = await q
-      .order("sort_order", { ascending: asc })
-      .limit(1);
+    const neighbourRes = await q.order("sort_order", { ascending: asc }).limit(1);
     if (neighbourRes.error) throw new BookingSourceError("booking_source_update_failed");
     const neigh = (neighbourRes.data ?? [])[0] as { id: string; sort_order: number } | undefined;
     if (!neigh) throw new BookingSourceError("cannot_reorder");
