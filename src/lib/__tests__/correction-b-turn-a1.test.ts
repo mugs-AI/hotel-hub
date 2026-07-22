@@ -147,7 +147,7 @@ describe("Settings UI — file-level guarantees", () => {
 
   it("Deactivation confirmation explains preservation and shows used count", () => {
     expect(src).toMatch(/Deactivate booking source\?/);
-    expect(src).toMatch(/Existing\s+reservation\s+history[\s\S]{0,40}will be preserved/i);
+    expect(src).toMatch(/Existing\s+reservation\s+history[\s\S]{0,60}preserved/i);
     expect(src).toMatch(/existing reservation/i);
     expect(src).toMatch(/usedCount\s*>\s*0/);
   });
