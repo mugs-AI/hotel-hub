@@ -581,16 +581,27 @@ function CountryPicker({
     setText(value ? countryName(value) : "");
   }, [value]);
 
+  /**
+   * Resolve text to a country code. Only an exact name / alpha-3 match
+   * commits a country. Any non-empty text that doesn't match clears the
+   * hidden code so a stale value from a previous selection can never be
+   * submitted while the visible input shows unrelated text.
+   */
   function resolve(next: string) {
     const trimmed = next.trim().toLowerCase();
     if (!trimmed) {
-      onChange("");
+      if (value) onChange("");
       return;
     }
     const exact = COUNTRIES.find(
       (c) => c.name.toLowerCase() === trimmed || c.alpha3.toLowerCase() === trimmed,
     );
-    if (exact) onChange(exact.alpha3);
+    if (exact) {
+      if (exact.alpha3 !== value) onChange(exact.alpha3);
+      return;
+    }
+    // Partial / unmatched text — never keep a stale code.
+    if (value) onChange("");
   }
 
   const listId = `${id}-list`;
@@ -617,6 +628,7 @@ function CountryPicker({
     </>
   );
 }
+
 
 function GuestCard({
   guest,
