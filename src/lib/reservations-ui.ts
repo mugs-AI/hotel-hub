@@ -33,24 +33,12 @@ export function bookingSourceLabel(v: string): string {
 }
 
 /**
- * Format an ISO `YYYY-MM-DD` string for display WITHOUT triggering any
- * timezone shift. `new Date("2026-07-20")` is interpreted as UTC midnight,
- * which renders as "2026-07-19" in negative-offset timezones.
+ * Format an ISO `YYYY-MM-DD` string for display as Malaysian `dd/mm/yyyy`.
+ * Re-exported from `@/lib/malaysia-date` for backwards compatibility with
+ * existing call sites.
  */
-export function formatIsoDate(v: string | null | undefined): string {
-  if (!v) return "—";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-  if (!m) return v;
-  return `${m[1]}-${m[2]}-${m[3]}`;
-}
+export { formatMyDate as formatIsoDate, formatMyTimestamp as formatCreatedAt } from "@/lib/malaysia-date";
 
-/** Formats a created-at ISO timestamp using the browser locale (safe — real timestamp). */
-export function formatCreatedAt(v: string | null | undefined): string {
-  if (!v) return "—";
-  const t = Date.parse(v);
-  if (!Number.isFinite(t)) return v;
-  return new Date(t).toLocaleString();
-}
 
 // ---------- List filters ----------
 export type ListFilters = {
@@ -94,17 +82,52 @@ export function buildListQuery(
 }
 
 // ---------- Guest helpers ----------
+// Correction B extends the guest draft with Malaysian identity, address and
+// date-of-birth fields. All fields except `fullName` and `isPrimary` are
+// optional; server-side validation is authoritative.
+import { normalizeIdentity, type IdentityType } from "@/lib/guest-identity";
+import { isValidIsoDate } from "@/lib/malaysia-date";
+import { isValidCountryCode } from "@/lib/iso-countries";
+import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
+
 export type GuestDraft = {
   fullName: string;
   mobile: string;
   email: string;
-  nationality: string;
+  nationality: string; // ISO 3166-1 alpha-3 or ""
   notes: string;
   isPrimary: boolean;
+  // Identity
+  identityType: "" | IdentityType;
+  identityNumber: string;
+  dateOfBirth: string; // ISO yyyy-mm-dd or ""
+  // Address
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string; // Malaysian state code when addressCountry === "MYS"
+  postalCode: string;
+  addressCountry: string; // ISO 3166-1 alpha-3 or ""
 };
 
 export function emptyGuestDraft(isPrimary = false): GuestDraft {
-  return { fullName: "", mobile: "", email: "", nationality: "", notes: "", isPrimary };
+  return {
+    fullName: "",
+    mobile: "",
+    email: "",
+    nationality: "",
+    notes: "",
+    isPrimary,
+    identityType: "",
+    identityNumber: "",
+    dateOfBirth: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    addressCountry: "",
+  };
 }
 
 /** Enforce exactly-one-primary invariant when selecting a new primary guest. */
@@ -123,6 +146,7 @@ export function removeGuestSafe(guests: GuestDraft[], index: number): GuestDraft
   if (!next.some((g) => g.isPrimary)) next[0] = { ...next[0], isPrimary: true };
   return next;
 }
+
 
 // ---------- Room selection ----------
 export type RoomDraft = {
@@ -174,20 +198,39 @@ export function rateOverrideRequired(baseRate: number, agreedRate: number): bool
   return Number.isFinite(baseRate) && Number.isFinite(agreedRate) && agreedRate !== baseRate;
 }
 
+/**
+ * Trim + length-cap an optional external booking reference (max 80 chars).
+ * Returns `null` for empty; returns a special sentinel for over-length so
+ * form validation can surface a clear message.
+ */
+export const EXTERNAL_REF_MAX = 80;
+export function normalizeExternalBookingReference(
+  raw: string | null | undefined,
+): { ok: true; value: string | null } | { ok: false; code: "external_ref_too_long" } {
+  if (raw == null) return { ok: true, value: null };
+  const t = String(raw).trim();
+  if (!t) return { ok: true, value: null };
+  if (t.length > EXTERNAL_REF_MAX) return { ok: false, code: "external_ref_too_long" };
+  return { ok: true, value: t };
+}
+
 /** Whitelist-only payload — never sends tenant, status, reference, snapshot, timestamps. */
 export function buildCreatePayload(input: {
   bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string;
+  externalBookingReference?: string;
   rooms: RoomDraft[];
   guests: GuestDraft[];
 }) {
+  const extRef = normalizeExternalBookingReference(input.externalBookingReference ?? "");
   return {
     bookingSource: input.bookingSource,
     arrivalDate: input.arrivalDate,
     departureDate: input.departureDate,
     notes: input.notes.trim() || null,
+    externalBookingReference: extRef.ok ? extRef.value : null,
     rooms: input.rooms.map((r) => {
       const overridden = rateOverrideRequired(r.baseRate, r.agreedRate);
       return {
@@ -198,14 +241,26 @@ export function buildCreatePayload(input: {
         rateOverrideReason: overridden ? r.rateOverrideReason.trim() || null : null,
       };
     }),
-    guests: input.guests.map((g) => ({
-      fullName: g.fullName.trim(),
-      mobile: g.mobile.trim() || null,
-      email: g.email.trim() || null,
-      nationality: g.nationality.trim() || null,
-      notes: g.notes.trim() || null,
-      isPrimary: g.isPrimary === true,
-    })),
+    guests: input.guests.map((g) => {
+      const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
+      return {
+        fullName: g.fullName.trim(),
+        mobile: g.mobile.trim() || null,
+        email: g.email.trim() || null,
+        nationality: g.nationality.trim() || null,
+        notes: g.notes.trim() || null,
+        isPrimary: g.isPrimary === true,
+        identityType: identity.ok ? identity.type : null,
+        identityNumber: identity.ok ? identity.number : null,
+        dateOfBirth: g.dateOfBirth && isValidIsoDate(g.dateOfBirth) ? g.dateOfBirth : null,
+        addressLine1: g.addressLine1.trim() || null,
+        addressLine2: g.addressLine2.trim() || null,
+        city: g.city.trim() || null,
+        state: g.state.trim() || null,
+        postalCode: g.postalCode.trim() || null,
+        addressCountry: g.addressCountry.trim() || null,
+      };
+    }),
   };
 }
 
@@ -247,12 +302,36 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   if (guests.length === 0) return { ok: false, code: "guest_required" };
   for (const g of guests) {
     if (!g.fullName.trim()) return { ok: false, code: "guest_full_name_required" };
+    // Optional identity pair — validate only when either side is set.
+    const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
+    if (!identity.ok) return { ok: false, code: identity.code, field: "identityNumber" };
+    // Optional DOB.
+    if (g.dateOfBirth && !isValidIsoDate(g.dateOfBirth))
+      return { ok: false, code: "invalid_date_of_birth", field: "dateOfBirth" };
+    // Optional nationality.
+    if (g.nationality && !isValidCountryCode(g.nationality))
+      return { ok: false, code: "invalid_nationality", field: "nationality" };
+    // Optional address country.
+    if (g.addressCountry && !isValidCountryCode(g.addressCountry))
+      return { ok: false, code: "invalid_address_country", field: "addressCountry" };
+    // Malaysian state required only when address is in Malaysia AND any
+    // other address field is set.
+    const hasAddress = Boolean(
+      g.addressLine1.trim() ||
+        g.addressLine2.trim() ||
+        g.city.trim() ||
+        g.postalCode.trim() ||
+        g.state.trim(),
+    );
+    if (g.addressCountry === "MYS" && hasAddress && g.state && !isValidMalaysianStateCode(g.state))
+      return { ok: false, code: "invalid_state", field: "state" };
   }
   const primaries = guests.filter((g) => g.isPrimary === true).length;
   if (primaries === 0) return { ok: false, code: "primary_guest_required" };
   if (primaries > 1) return { ok: false, code: "multiple_primary_guests" };
   return { ok: true };
 }
+
 
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
@@ -284,6 +363,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   unauthenticated: "Your session has expired. Please relaunch from N3.",
   forbidden: "You don’t have permission to view this.",
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
+  // Correction B — guest identity and address
+  external_ref_too_long: "External booking reference must be 80 characters or fewer.",
+  identity_pair_required: "Enter both an identity type and identity number.",
+  invalid_identity_type: "Select a valid identity type.",
+  invalid_mykad: "MyKad/MyPR number must be 12 digits.",
+  invalid_passport: "Passport number is invalid.",
+  invalid_date_of_birth: "Date of birth is invalid.",
+  invalid_nationality: "Select a valid nationality.",
+  invalid_address_country: "Select a valid country.",
+  invalid_state: "Select a valid Malaysian state.",
   // Booking Sources (Settings)
   display_name_required: "Enter a display name.",
   display_name_too_long: "Display name must be 60 characters or fewer.",

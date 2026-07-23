@@ -126,13 +126,14 @@ describe("reservations-ui — pure helpers", () => {
     expect(bookingSourceLabel("")).toBe("");
   });
 
-  it("formatIsoDate never timezone-shifts YYYY-MM-DD", async () => {
+  it("formatIsoDate renders Malaysian dd/mm/yyyy (Correction B)", async () => {
     const { formatIsoDate } = await import("@/lib/reservations-ui");
-    expect(formatIsoDate("2026-07-20")).toBe("2026-07-20");
-    expect(formatIsoDate("2026-02-28")).toBe("2026-02-28");
-    expect(formatIsoDate("2026-12-31T00:00:00Z")).toBe("2026-12-31");
+    expect(formatIsoDate("2026-07-20")).toBe("20/07/2026");
+    expect(formatIsoDate("2026-02-28")).toBe("28/02/2026");
     expect(formatIsoDate(null)).toBe("—");
+    expect(formatIsoDate("")).toBe("—");
   });
+
 
   it("buildListQuery encodes filters without tenant, omits empty, encodes limit/offset", async () => {
     const { buildListQuery } = await import("@/lib/reservations-ui");
@@ -288,9 +289,11 @@ describe("reservations-ui — pure helpers", () => {
       "arrivalDate",
       "departureDate",
       "notes",
+      "externalBookingReference",
       "rooms",
       "guests",
     ]);
+    expect(payload.externalBookingReference).toBeNull();
     expect(Object.keys(payload.rooms[0])).toEqual([
       "hotelRoomId",
       "agreedRate",
@@ -306,7 +309,17 @@ describe("reservations-ui — pure helpers", () => {
       "nationality",
       "notes",
       "isPrimary",
+      "identityType",
+      "identityNumber",
+      "dateOfBirth",
+      "addressLine1",
+      "addressLine2",
+      "city",
+      "state",
+      "postalCode",
+      "addressCountry",
     ]);
+
     expect(payload.guests[0].fullName).toBe("John");
     expect(payload.guests[0].isPrimary).toBe(true);
     expect(payload.notes).toBe("vip");
