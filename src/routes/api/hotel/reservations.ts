@@ -36,6 +36,14 @@ function toStrictInt(v: unknown): number | null {
   if (!Number.isFinite(v) || !Number.isInteger(v)) return null;
   return v;
 }
+function normStr(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t.length === 0 ? null : t;
+}
+const ALPHA3_RE = /^[A-Z]{3}$/;
+const IDENTITY_TYPES = new Set(["mykad", "mypr", "passport", "other"]);
+
 
 /** Strict pagination parser — see Milestone 1.1.2 Task 6. */
 export function parsePagination(
