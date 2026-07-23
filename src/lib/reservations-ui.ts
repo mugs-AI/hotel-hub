@@ -363,6 +363,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   unauthenticated: "Your session has expired. Please relaunch from N3.",
   forbidden: "You don’t have permission to view this.",
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
+  // Correction B — guest identity and address
+  external_ref_too_long: "External booking reference must be 80 characters or fewer.",
+  identity_pair_required: "Enter both an identity type and identity number.",
+  invalid_identity_type: "Select a valid identity type.",
+  invalid_mykad: "MyKad/MyPR number must be 12 digits.",
+  invalid_passport: "Passport number is invalid.",
+  invalid_date_of_birth: "Date of birth is invalid.",
+  invalid_nationality: "Select a valid nationality.",
+  invalid_address_country: "Select a valid country.",
+  invalid_state: "Select a valid Malaysian state.",
   // Booking Sources (Settings)
   display_name_required: "Enter a display name.",
   display_name_too_long: "Display name must be 60 characters or fewer.",
