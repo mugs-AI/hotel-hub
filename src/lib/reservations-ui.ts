@@ -302,12 +302,36 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   if (guests.length === 0) return { ok: false, code: "guest_required" };
   for (const g of guests) {
     if (!g.fullName.trim()) return { ok: false, code: "guest_full_name_required" };
+    // Optional identity pair — validate only when either side is set.
+    const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
+    if (!identity.ok) return { ok: false, code: identity.code, field: "identityNumber" };
+    // Optional DOB.
+    if (g.dateOfBirth && !isValidIsoDate(g.dateOfBirth))
+      return { ok: false, code: "invalid_date_of_birth", field: "dateOfBirth" };
+    // Optional nationality.
+    if (g.nationality && !isValidCountryCode(g.nationality))
+      return { ok: false, code: "invalid_nationality", field: "nationality" };
+    // Optional address country.
+    if (g.addressCountry && !isValidCountryCode(g.addressCountry))
+      return { ok: false, code: "invalid_address_country", field: "addressCountry" };
+    // Malaysian state required only when address is in Malaysia AND any
+    // other address field is set.
+    const hasAddress = Boolean(
+      g.addressLine1.trim() ||
+        g.addressLine2.trim() ||
+        g.city.trim() ||
+        g.postalCode.trim() ||
+        g.state.trim(),
+    );
+    if (g.addressCountry === "MYS" && hasAddress && g.state && !isValidMalaysianStateCode(g.state))
+      return { ok: false, code: "invalid_state", field: "state" };
   }
   const primaries = guests.filter((g) => g.isPrimary === true).length;
   if (primaries === 0) return { ok: false, code: "primary_guest_required" };
   if (primaries > 1) return { ok: false, code: "multiple_primary_guests" };
   return { ok: true };
 }
+
 
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
