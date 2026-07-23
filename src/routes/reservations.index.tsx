@@ -5,14 +5,15 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
   EMPTY_FILTERS,
-  bookingSourceLabel,
   formatCreatedAt,
   formatIsoDate,
   friendlyError,
   type ListFilters,
 } from "@/lib/reservations-ui";
-import { useBookingSources, useReservationList } from "@/lib/reservations-client";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
+import { tenantSourceLabel, useBookingSources, useReservationList } from "@/lib/reservations-client";
 import { CalendarClock, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -145,7 +146,6 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   const limit = Math.min(100, Math.max(1, search.limit));
   const offset = Math.max(0, search.offset);
 
-  // Local, uncommitted edits — applied on "Apply filters"
   const [draft, setDraft] = useState<ListFilters>(filters);
   useEffect(() => {
     setDraft(filters);
@@ -160,6 +160,8 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   ]);
 
   const query = useReservationList(filters, { limit, offset });
+  const sourcesQ = useBookingSources({ activeOnly: false });
+  const sources = sourcesQ.data?.sources ?? [];
   const rows = query.data?.items ?? [];
   const total = query.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -200,10 +202,12 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
         onPage={setPage}
         onRetry={() => query.refetch()}
         canCreate={canCreate}
+        sourceLabel={(code) => tenantSourceLabel(sources, code)}
       />
     </>
   );
 }
+
 
 function BookingSourceSelect({
   value,
@@ -296,21 +300,18 @@ function FiltersCard({
           </select>
         </Field>
         <Field label="Arrival from">
-          <input
-            type="date"
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          <MalaysianDateInput
             value={draft.arrivalFrom}
-            onChange={(e) => onChange({ ...draft, arrivalFrom: e.target.value })}
+            onChange={(iso) => onChange({ ...draft, arrivalFrom: iso })}
           />
         </Field>
         <Field label="Arrival to">
-          <input
-            type="date"
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+          <MalaysianDateInput
             value={draft.arrivalTo}
-            onChange={(e) => onChange({ ...draft, arrivalTo: e.target.value })}
+            onChange={(iso) => onChange({ ...draft, arrivalTo: iso })}
           />
         </Field>
+
         <div className="col-span-full flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
@@ -369,6 +370,7 @@ function ResultsCard(props: {
   onPage: (n: number) => void;
   onRetry: () => void;
   canCreate: boolean;
+  sourceLabel: (code: string) => string;
 }) {
   const {
     loading,
@@ -383,7 +385,9 @@ function ResultsCard(props: {
     onPage,
     onRetry,
     canCreate,
+    sourceLabel,
   } = props;
+
 
   const from = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const to = Math.min(total, currentPage * limit);
@@ -498,7 +502,7 @@ function ResultsCard(props: {
                   <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.departureDate)}</td>
                   <td className="py-2 pr-4 text-center">{r.roomCount}</td>
                   <td className="py-2 pr-4 text-center">{r.guestCount}</td>
-                  <td className="py-2 pr-4">{bookingSourceLabel(r.bookingSource)}</td>
+                  <td className="py-2 pr-4">{sourceLabel(r.bookingSource)}</td>
                   <td className="py-2 pr-4">
                     <span
                       className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
