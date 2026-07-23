@@ -3,21 +3,17 @@ import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
+  tenantSourceLabel,
+  useBookingSources,
   useReservationDetail,
   type ReservationDetailDTO,
   type ReservationDetailGuestDTO,
 } from "@/lib/reservations-client";
-import {
-  bookingSourceLabel,
-  formatCreatedAt,
-  formatIsoDate,
-  friendlyError,
-} from "@/lib/reservations-ui";
+import { formatCreatedAt, formatIsoDate, friendlyError } from "@/lib/reservations-ui";
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
-
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -160,6 +156,10 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
 }
 
 function Detail({ data }: { data: ReservationDetailDTO }) {
+  // Prefer the tenant-configured display name; fall back to a snake→Title
+  // rendering only when a historical code no longer has a source record.
+  const sourcesQ = useBookingSources({ activeOnly: false });
+  const sources = sourcesQ.data?.sources ?? [];
   return (
     <div className="space-y-6">
       <section
@@ -182,7 +182,7 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
         </div>
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-[max-content_1fr]">
           <dt className="text-muted-foreground">Source</dt>
-          <dd>{bookingSourceLabel(data.bookingSource)}</dd>
+          <dd>{tenantSourceLabel(sources, data.bookingSource)}</dd>
           <dt className="text-muted-foreground">External reference</dt>
           <dd>{data.externalBookingReference ?? "—"}</dd>
           <dt className="text-muted-foreground">Arrival</dt>
@@ -265,8 +265,7 @@ function nationalityDisplay(g: ReservationDetailGuestDTO): string {
 }
 
 function addressDisplay(g: ReservationDetailGuestDTO): string {
-  const state =
-    g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : g.stateProvince ?? "";
+  const state = g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : (g.stateProvince ?? "");
   const country = g.countryCode ? countryName(g.countryCode) : "";
   return (
     [
@@ -329,4 +328,3 @@ function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
     </li>
   );
 }
-

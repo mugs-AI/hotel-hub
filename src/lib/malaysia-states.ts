@@ -22,9 +22,7 @@ export const MALAYSIAN_STATES: readonly MalaysianState[] = [
   { code: "16", name: "W.P. Putrajaya" },
 ] as const;
 
-const BY_CODE: Map<string, MalaysianState> = new Map(
-  MALAYSIAN_STATES.map((s) => [s.code, s]),
-);
+const BY_CODE: Map<string, MalaysianState> = new Map(MALAYSIAN_STATES.map((s) => [s.code, s]));
 
 export function isValidMalaysianStateCode(v: unknown): v is string {
   return typeof v === "string" && BY_CODE.has(v);

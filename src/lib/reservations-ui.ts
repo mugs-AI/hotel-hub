@@ -37,8 +37,10 @@ export function bookingSourceLabel(v: string): string {
  * Re-exported from `@/lib/malaysia-date` for backwards compatibility with
  * existing call sites.
  */
-export { formatMyDate as formatIsoDate, formatMyTimestamp as formatCreatedAt } from "@/lib/malaysia-date";
-
+export {
+  formatMyDate as formatIsoDate,
+  formatMyTimestamp as formatCreatedAt,
+} from "@/lib/malaysia-date";
 
 // ---------- List filters ----------
 export type ListFilters = {
@@ -160,7 +162,6 @@ export function applyGuestCountryChange(g: GuestDraft, nextCountry: string): Gue
   return { ...g, countryCode: cc, stateCode: "", stateProvince: "" };
 }
 
-
 // ---------- Room selection ----------
 export type RoomDraft = {
   hotelRoomId: string;
@@ -261,8 +262,8 @@ export function buildCreatePayload(input: {
       const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
       const cc = normalizeCountryCode(g.countryCode) ?? null;
       const isMy = cc === "MYS";
-      const stateCode = isMy ? (g.stateCode.trim() || null) : null;
-      const stateProvince = !isMy && cc ? (g.stateProvince.trim() || null) : null;
+      const stateCode = isMy ? g.stateCode.trim() || null : null;
+      const stateProvince = !isMy && cc ? g.stateProvince.trim() || null : null;
       return {
         fullName: g.fullName.trim(),
         mobile: g.mobile.trim() || null,
@@ -342,7 +343,6 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   return { ok: true };
 }
 
-
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_stay_dates: "Arrival and departure dates are invalid.",
@@ -383,16 +383,30 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_nationality: "Select a valid nationality.",
   invalid_address_country: "Select a valid country.",
   invalid_state: "Select a valid Malaysian state.",
-  // Booking Sources (Settings)
+  unknown_field: "That request contains a field the server does not accept.",
+  invalid_primary_flag: "The primary-guest flag must be true or false.",
+  invalid_room: "One of the rooms is not valid.",
+  invalid_guest: "One of the guests is not valid.",
+  invalid_room_id: "One of the selected rooms is invalid.",
+  invalid_external_reference: "External booking reference is invalid.",
+  invalid_notes: "Notes must be text.",
+  // Booking Sources (Settings) — Correction B Turn 3
+  invalid_source_name: "Enter a valid source name (1–80 characters).",
+  source_name_exists: "A booking source with that name already exists.",
+  booking_source_not_found: "That booking source could not be found.",
+  last_active_booking_source: "You must keep at least one active booking source.",
+  invalid_source_update: "That booking source update isn’t valid.",
+  booking_source_update_failed: "Unable to update the booking source. Please try again.",
+  booking_source_create_failed: "Unable to add the booking source. Please try again.",
+  // Legacy Booking Source aliases (still emitted by older client paths).
   display_name_required: "Enter a display name.",
-  display_name_too_long: "Display name must be 60 characters or fewer.",
+  display_name_too_long: "Display name must be 80 characters or fewer.",
   duplicate_source_code: "A booking source with this code already exists.",
+  duplicate_display_name: "A booking source with that name already exists.",
   source_not_found: "That booking source could not be found.",
   cannot_reorder: "That source is already at the edge of the list.",
   cannot_deactivate_last_source: "You must keep at least one active booking source.",
   invalid_source_code: "Booking source code is invalid.",
-  booking_source_update_failed: "Unable to update the booking source. Please try again.",
-  booking_source_create_failed: "Unable to add the booking source. Please try again.",
 };
 
 export function friendlyError(

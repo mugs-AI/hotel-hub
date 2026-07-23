@@ -445,40 +445,29 @@ describe("POST /api/hotel/reservations", () => {
     expect(text).not.toContain("secret");
     expect(JSON.parse(text).error).toBe("reservation_create_failed");
   });
-  it("ignores browser-supplied tenantId, base_rate_snapshot, booking_reference, status", async () => {
+  it("rejects browser-supplied server-controlled fields (Turn 3 strict allow-list)", async () => {
     await seedAuthenticated("owner");
     seedActiveWalkIn();
-    let received: Record<string, unknown> = {};
-    setRpcHandler(async (args) => {
-      received = (args[1] ?? {}) as Record<string, unknown>;
+    let rpcCalled = false;
+    setRpcHandler(async () => {
+      rpcCalled = true;
       return {
         data: [{ out_reservation_id: "r", out_booking_reference: "BK", out_status: "confirmed" }],
         error: null,
       };
     });
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
-    await handleCreateReservation({
+    const res = await handleCreateReservation({
       request: post({
         ...validBody(),
         tenantId: "attacker-tenant",
         bookingReference: "HACK",
         status: "checked_out",
-        rooms: [
-          {
-            hotelRoomId: ROOM_UUID_1,
-            agreedRate: 200,
-            adults: 2,
-            children: 0,
-            base_rate_snapshot: 1,
-          },
-        ],
       }),
     });
-    expect(received.p_tenant_id).toBe("tenant-uuid-1"); // server-controlled
-    expect(received.p_created_by_n3_user_key).toBe("user-1");
-    expect(JSON.stringify(received)).not.toContain("base_rate_snapshot");
-    expect(JSON.stringify(received)).not.toContain("HACK");
-    expect(JSON.stringify(received)).not.toContain("checked_out");
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("unknown_field");
+    expect(rpcCalled).toBe(false);
   });
 });
 

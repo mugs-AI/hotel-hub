@@ -1,5 +1,11 @@
 // GET  /api/hotel/reservations — Owner + Front Desk. Tenant-scoped list.
 // POST /api/hotel/reservations — Owner + Front Desk. Atomic create.
+//
+// The POST body is validated with a **strict allow-list**: only the exact
+// camelCase fields below are accepted; snake_case aliases and every
+// server-controlled field (tenantId, n3Token, n3UserKey, role,
+// bookingReference, status, createdAt, audit, raw identity) are rejected
+// with the stable `unknown_field` code.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import {
@@ -11,6 +17,8 @@ import {
   RESERVATION_ERROR_CODES,
 } from "@/lib/reservations-store.server";
 import { findBookingSourceByCode, isSourceCodeFormat } from "@/lib/booking-sources-store.server";
+import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
+import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
@@ -20,14 +28,8 @@ function deny(status: number, error: string) {
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
-/**
- * Strict boolean: accepts JSON booleans only. The previous
- * `Boolean("false")` coercion returned `true`. We now reject non-boolean
- * values with a stable error code so no client can smuggle in the primary
- * flag via `"false"` / `0` / `1` / `"true"`.
- */
 function toStrictBoolean(v: unknown, def: boolean): boolean | null {
-  if (v === undefined || v === null) return def;
+  if (v === undefined) return def;
   if (v === true || v === false) return v;
   return null;
 }
@@ -37,15 +39,57 @@ function toStrictInt(v: unknown): number | null {
   return v;
 }
 function normStr(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t.length === 0 ? null : t;
 }
-const ALPHA3_RE = /^[A-Z]{3}$/;
 const IDENTITY_TYPES = new Set(["mykad", "mypr", "passport", "other"]);
 
+// Strict allow-lists — any key outside these sets is rejected.
+const ALLOWED_TOP = new Set([
+  "bookingSource",
+  "arrivalDate",
+  "departureDate",
+  "notes",
+  "externalBookingReference",
+  "rooms",
+  "guests",
+]);
+const ALLOWED_ROOM = new Set([
+  "hotelRoomId",
+  "agreedRate",
+  "adults",
+  "children",
+  "rateOverrideReason",
+]);
+const ALLOWED_GUEST = new Set([
+  "fullName",
+  "mobile",
+  "email",
+  "notes",
+  "isPrimary",
+  "identityType",
+  "identityNumber",
+  "nationalityCode",
+  "addressLine1",
+  "addressLine2",
+  "addressLine3",
+  "city",
+  "postcode",
+  "countryCode",
+  "stateCode",
+  "stateProvince",
+]);
 
-/** Strict pagination parser — see Milestone 1.1.2 Task 6. */
+function rejectUnknown(obj: Record<string, unknown>, allowed: ReadonlySet<string>): string | null {
+  for (const k of Object.keys(obj)) {
+    if (!allowed.has(k)) return k;
+  }
+  return null;
+}
+
+/** Strict pagination parser. */
 export function parsePagination(
   sp: URLSearchParams,
 ): { limit: number; offset: number } | "invalid" {
@@ -96,6 +140,7 @@ export async function handleListReservations({ request }: { request: Request }):
       );
       return deny(500, "reservations_list_failed");
     }
+    // For historical filtering: allow ANY tenant-scoped source (active or inactive).
     if (!found) return deny(400, "invalid_booking_source");
   }
   try {
@@ -117,12 +162,6 @@ export async function handleListReservations({ request }: { request: Request }):
   }
 }
 
-// (Tenant-configurable booking sources are validated per request against
-// the tenant's `hotel_booking_sources` rows — there is no hardcoded list.)
-
-type IncomingRoom = Record<string, unknown>;
-type IncomingGuest = Record<string, unknown>;
-
 export async function handleCreateReservation({
   request,
 }: {
@@ -141,20 +180,31 @@ export async function handleCreateReservation({
   if (!isPlainObject(parsed)) return deny(400, "invalid_body");
   const body = parsed as Record<string, unknown>;
 
-  const source = body.bookingSource ?? body.booking_source;
-  // Format-shape check only. The authoritative check happens against the
-  // tenant's `hotel_booking_sources` rows just before the RPC call.
+  // Strict top-level allow-list — reject snake_case aliases and every
+  // server-controlled field (tenantId, n3Token, n3UserKey, role,
+  // bookingReference, status, createdAt, ...).
+  const unknownTop = rejectUnknown(body, ALLOWED_TOP);
+  if (unknownTop !== null) return deny(400, "unknown_field");
+
+  const source = body.bookingSource;
   if (typeof source !== "string" || !isSourceCodeFormat(source))
     return deny(400, "invalid_booking_source");
-  const arrival = body.arrivalDate ?? body.arrival_date;
-  const departure = body.departureDate ?? body.departure_date;
+  const arrival = body.arrivalDate;
+  const departure = body.departureDate;
   if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) {
     return deny(400, "invalid_stay_dates");
   }
-  const notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
+  const notes =
+    body.notes === undefined || body.notes === null
+      ? null
+      : typeof body.notes === "string"
+        ? body.notes.trim() || null
+        : null;
+  if (body.notes !== undefined && body.notes !== null && typeof body.notes !== "string")
+    return deny(400, "invalid_notes");
 
   // External booking reference — optional; trimmed; max 100 chars.
-  const extRaw = body.externalBookingReference ?? body.external_booking_reference;
+  const extRaw = body.externalBookingReference;
   let externalBookingReference: string | null = null;
   if (extRaw !== undefined && extRaw !== null && extRaw !== "") {
     if (typeof extRaw !== "string") return deny(400, "invalid_external_reference");
@@ -163,25 +213,29 @@ export async function handleCreateReservation({
     externalBookingReference = t || null;
   }
 
-  const roomsRaw = Array.isArray(body.rooms) ? (body.rooms as IncomingRoom[]) : [];
-  const guestsRaw = Array.isArray(body.guests) ? (body.guests as IncomingGuest[]) : [];
+  if (!Array.isArray(body.rooms)) return deny(400, "room_required");
+  if (!Array.isArray(body.guests)) return deny(400, "guest_required");
+  const roomsRaw = body.rooms as unknown[];
+  const guestsRaw = body.guests as unknown[];
   if (roomsRaw.length === 0) return deny(400, "room_required");
   if (guestsRaw.length === 0) return deny(400, "guest_required");
 
   const rooms: Parameters<typeof createReservationAtomic>[0]["rooms"] = [];
   for (const r of roomsRaw) {
     if (!isPlainObject(r)) return deny(400, "invalid_room");
-    const hotelRoomId = (r.hotelRoomId ?? r.hotel_room_id) as unknown;
+    const unk = rejectUnknown(r as Record<string, unknown>, ALLOWED_ROOM);
+    if (unk !== null) return deny(400, "unknown_field");
+    const hotelRoomId = (r as Record<string, unknown>).hotelRoomId;
     if (!isUuid(hotelRoomId)) return deny(400, "invalid_room_id");
-    const agreed = r.agreedRate ?? r.agreed_rate;
+    const agreed = (r as Record<string, unknown>).agreedRate;
     if (typeof agreed !== "number" || !Number.isFinite(agreed) || agreed < 0)
       return deny(400, "invalid_rate");
-    const adults = toStrictInt(r.adults);
+    const adults = toStrictInt((r as Record<string, unknown>).adults);
     if (adults === null || adults < 1) return deny(400, "invalid_occupancy");
-    const childrenRaw = r.children ?? 0;
+    const childrenRaw = (r as Record<string, unknown>).children ?? 0;
     const children = toStrictInt(childrenRaw);
     if (children === null || children < 0) return deny(400, "invalid_occupancy");
-    const reasonRaw = r.rateOverrideReason ?? r.rate_override_reason;
+    const reasonRaw = (r as Record<string, unknown>).rateOverrideReason;
     const reason = typeof reasonRaw === "string" ? reasonRaw.trim() || null : null;
     rooms.push({
       hotelRoomId,
@@ -195,20 +249,31 @@ export async function handleCreateReservation({
   const guests: Parameters<typeof createReservationAtomic>[0]["guests"] = [];
   for (const g of guestsRaw) {
     if (!isPlainObject(g)) return deny(400, "invalid_guest");
-    const fullNameRaw = g.fullName ?? g.full_name;
+    const unk = rejectUnknown(g as Record<string, unknown>, ALLOWED_GUEST);
+    if (unk !== null) return deny(400, "unknown_field");
+    const gg = g as Record<string, unknown>;
+
+    const fullNameRaw = gg.fullName;
     if (typeof fullNameRaw !== "string" || fullNameRaw.trim().length === 0)
       return deny(400, "guest_full_name_required");
-    const primary = toStrictBoolean(g.isPrimary ?? g.is_primary, false);
+    const primary = toStrictBoolean(gg.isPrimary, false);
     if (primary === null) return deny(400, "invalid_primary_flag");
 
-    // ---- Independent server-side validation of the extended guest fields.
-    // Never accept legacy `nationality` for a NEW guest — it is read-only.
-    const nationalityCode = normStr(g.nationalityCode ?? g.nationality_code);
-    if (nationalityCode !== null && !ALPHA3_RE.test(nationalityCode))
-      return deny(400, "invalid_nationality");
+    // Nationality — controlled ISO alpha-3.
+    let nationalityCode: string | null = null;
+    if (
+      gg.nationalityCode !== undefined &&
+      gg.nationalityCode !== null &&
+      gg.nationalityCode !== ""
+    ) {
+      if (typeof gg.nationalityCode !== "string") return deny(400, "invalid_nationality");
+      const nc = normalizeCountryCode(gg.nationalityCode);
+      if (!nc || !isValidCountryCode(nc)) return deny(400, "invalid_nationality");
+      nationalityCode = nc;
+    }
 
-    const identityType = normStr(g.identityType ?? g.identity_type);
-    const identityNumberRaw = normStr(g.identityNumber ?? g.identity_number);
+    const identityType = normStr(gg.identityType);
+    const identityNumberRaw = normStr(gg.identityNumber);
     if ((identityType === null) !== (identityNumberRaw === null))
       return deny(400, "identity_pair_required");
     let identityNumber: string | null = identityNumberRaw;
@@ -224,37 +289,41 @@ export async function handleCreateReservation({
       }
     }
 
-    const countryCode = normStr(g.countryCode ?? g.country_code);
-    if (countryCode !== null && !ALPHA3_RE.test(countryCode))
-      return deny(400, "invalid_address_country");
+    let countryCode: string | null = null;
+    if (gg.countryCode !== undefined && gg.countryCode !== null && gg.countryCode !== "") {
+      if (typeof gg.countryCode !== "string") return deny(400, "invalid_address_country");
+      const cc = normalizeCountryCode(gg.countryCode);
+      if (!cc || !isValidCountryCode(cc)) return deny(400, "invalid_address_country");
+      countryCode = cc;
+    }
 
-    let stateCode = normStr(g.stateCode ?? g.state_code);
-    let stateProvince = normStr(g.stateProvince ?? g.state_province);
+    let stateCode = normStr(gg.stateCode);
+    let stateProvince = normStr(gg.stateProvince);
     if (countryCode === "MYS") {
-      // Ignore any stray stateProvince for Malaysian addresses.
+      // Malaysian: only stateCode is allowed; ignore any stray stateProvince.
       stateProvince = null;
-      if (stateCode !== null && !/^\d{2}$/.test(stateCode))
+      if (stateCode !== null && !isValidMalaysianStateCode(stateCode))
         return deny(400, "invalid_state");
     } else {
-      // Non-Malaysian: ignore any stray stateCode.
+      // Non-Malaysian: only stateProvince is allowed; ignore any stray stateCode.
       stateCode = null;
     }
 
     guests.push({
       fullName: fullNameRaw.trim(),
-      mobile: typeof g.mobile === "string" ? g.mobile.trim() || null : null,
-      email: typeof g.email === "string" ? g.email.trim() || null : null,
-      nationality: null,
-      notes: typeof g.notes === "string" ? g.notes.trim() || null : null,
+      mobile: typeof gg.mobile === "string" ? gg.mobile.trim() || null : null,
+      email: typeof gg.email === "string" ? gg.email.trim() || null : null,
+      nationality: null, // legacy field never accepted for new guests
+      notes: typeof gg.notes === "string" ? gg.notes.trim() || null : null,
       isPrimary: primary,
       identityType,
       identityNumber,
       nationalityCode,
-      addressLine1: normStr(g.addressLine1 ?? g.address_line_1),
-      addressLine2: normStr(g.addressLine2 ?? g.address_line_2),
-      addressLine3: normStr(g.addressLine3 ?? g.address_line_3),
-      city: normStr(g.city),
-      postcode: normStr(g.postcode),
+      addressLine1: normStr(gg.addressLine1),
+      addressLine2: normStr(gg.addressLine2),
+      addressLine3: normStr(gg.addressLine3),
+      city: normStr(gg.city),
+      postcode: normStr(gg.postcode),
       countryCode,
       stateCode,
       stateProvince,
@@ -263,7 +332,6 @@ export async function handleCreateReservation({
   const primaryCount = guests.filter((g) => g.isPrimary).length;
   if (primaryCount === 0) return deny(400, "primary_guest_required");
   if (primaryCount > 1) return deny(400, "multiple_primary_guests");
-
 
   // Authoritative booking-source check: must exist for this tenant AND be active.
   let sourceRow;
@@ -289,13 +357,7 @@ export async function handleCreateReservation({
       externalBookingReference,
       rooms,
       guests,
-
     });
-    // NOTE: success audits (`hotel.reservation.created` and
-    // `hotel.reservation.rate_overridden`) are written atomically inside
-    // the RPC transaction so they can never disagree with the reservation.
-    // Only failure auditing is done here — a failure audit inserted inside
-    // the failed transaction would roll back with it.
     return Response.json(
       {
         reservationId: result.reservationId,

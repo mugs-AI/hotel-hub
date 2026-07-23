@@ -134,7 +134,6 @@ describe("reservations-ui — pure helpers", () => {
     expect(formatIsoDate("")).toBe("—");
   });
 
-
   it("buildListQuery encodes filters without tenant, omits empty, encodes limit/offset", async () => {
     const { buildListQuery } = await import("@/lib/reservations-ui");
     const p = buildListQuery(
@@ -320,7 +319,6 @@ describe("reservations-ui — pure helpers", () => {
       "stateCode",
       "stateProvince",
     ]);
-
 
     expect(payload.guests[0].fullName).toBe("John");
     expect(payload.guests[0].isPrimary).toBe(true);

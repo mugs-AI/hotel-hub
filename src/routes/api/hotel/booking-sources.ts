@@ -1,7 +1,9 @@
-// GET  /api/hotel/booking-sources         — any authenticated role may read
-//                                            (Reservations dropdown needs it).
-//                                            ?active=true filters to enabled.
-// POST /api/hotel/booking-sources         — Owner only. Creates a source.
+// GET  /api/hotel/booking-sources          — Owner + Front Desk. Housekeeper 403.
+//                                             ?active=true filters to enabled.
+// POST /api/hotel/booking-sources          — Owner only.
+//   Body: { displayName: string }
+//   The source_code is derived server-side and is immutable — the browser
+//   never supplies it.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import {
@@ -17,13 +19,9 @@ function deny(status: number, error: string) {
 }
 
 function mapErrorStatus(code: string): number {
-  if (code === "not_found") return 404;
-  if (
-    code === "duplicate_source_code" ||
-    code === "duplicate_display_name" ||
-    code === "duplicate_source"
-  )
-    return 409;
+  if (code === "booking_source_not_found") return 404;
+  if (code === "source_name_exists") return 409;
+  if (code === "last_active_booking_source") return 409;
   if (code === "booking_source_create_failed" || code === "booking_source_update_failed")
     return 500;
   return 400;
@@ -33,12 +31,16 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+const ALLOWED_CREATE_KEYS = new Set(["displayName"]);
+
 export async function handleListBookingSources({
   request,
 }: {
   request: Request;
 }): Promise<Response> {
-  const { ctx, decision } = await requirePermission("app:view");
+  // Booking source metadata is only useful to reservation-capable roles.
+  // Housekeeper receives 403.
+  const { ctx, decision } = await requirePermission("hotel:reservations:view");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
@@ -82,16 +84,18 @@ export async function handleCreateBookingSource({
   }
   if (!isPlainObject(parsed)) return deny(400, "invalid_body");
   const body = parsed as Record<string, unknown>;
-  const displayName = body.displayName ?? body.display_name;
-  const sourceCode = body.sourceCode ?? body.source_code;
-  if (typeof displayName !== "string") return deny(400, "display_name_required");
-  if (sourceCode !== undefined && sourceCode !== null && typeof sourceCode !== "string")
-    return deny(400, "invalid_source_code");
+
+  // Strict allow-list — browser cannot supply sourceCode.
+  for (const k of Object.keys(body)) {
+    if (!ALLOWED_CREATE_KEYS.has(k)) return deny(400, "invalid_source_update");
+  }
+  const displayName = body.displayName;
+  if (typeof displayName !== "string") return deny(400, "invalid_source_name");
+
   try {
     const source = await createBookingSource({
       tenantId: ctx.session.tenantId!,
       displayName,
-      sourceCode: (sourceCode as string | undefined | null) ?? null,
     });
     await logAudit({
       tenantId: ctx.session.tenantId,

@@ -35,7 +35,7 @@ function toDto(row: Row, usedCount = 0): BookingSource {
 }
 
 const CODE_RE = /^[a-z][a-z0-9_]{0,47}$/;
-export const NAME_MAX = 60;
+export const NAME_MAX = 80;
 
 export function isSourceCodeFormat(v: unknown): v is string {
   return typeof v === "string" && CODE_RE.test(v);
@@ -47,10 +47,9 @@ export function slugifyDisplayName(name: string): string | null {
   const trimmed = name.trim().toLowerCase();
   if (!trimmed) return null;
   let s = trimmed.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  // Must start with a letter — strip leading digits.
   s = s.replace(/^[0-9_]+/, "");
   if (!s) return null;
-  s = s.slice(0, 48);
+  s = s.slice(0, 45);
   return CODE_RE.test(s) ? s : null;
 }
 
@@ -72,12 +71,10 @@ export async function listBookingSources(
   const res = await q.order("sort_order", { ascending: true });
   if (res.error) throw new Error(`booking_sources read failed`);
   const rows = (res.data as Row[] | null | undefined) ?? [];
-  // Tenant-scoped aggregate — one query, no N+1.
   const counts = await getUsageCounts(tenantId);
   return rows.map((r) => toDto(r, counts.get(r.source_code) ?? 0));
 }
 
-/** Return a map of source_code -> reservation count for this tenant. */
 async function getUsageCounts(tenantId: string): Promise<Map<string, number>> {
   const supa = await admin();
   const res = await supa
@@ -95,7 +92,6 @@ async function getUsageCounts(tenantId: string): Promise<Map<string, number>> {
   return out;
 }
 
-/** Lookup a single source by code within a tenant. Returns null if absent. */
 export async function findBookingSourceByCode(
   tenantId: string,
   sourceCode: string,
@@ -114,7 +110,6 @@ export async function findBookingSourceByCode(
 export type CreateSourceInput = {
   tenantId: string;
   displayName: string;
-  sourceCode?: string | null;
 };
 
 export type UpdateSourceInput = {
@@ -134,30 +129,49 @@ export class BookingSourceError extends Error {
   }
 }
 
+/** Case-insensitive dedupe check for tenant-scoped display names. */
+async function displayNameTakenByOther(
+  tenantId: string,
+  candidate: string,
+  excludeId: string | null,
+): Promise<boolean> {
+  const supa = await admin();
+  const res = await supa
+    .from("hotel_booking_sources")
+    .select("id, display_name")
+    .eq("tenant_id", tenantId);
+  if (res.error) return false;
+  const rows = (res.data ?? []) as Array<{ id: string; display_name: string }>;
+  const needle = candidate.trim().toLowerCase();
+  return rows.some((r) => r.id !== excludeId && r.display_name.trim().toLowerCase() === needle);
+}
+
 export async function createBookingSource(input: CreateSourceInput): Promise<BookingSource> {
   const supa = await admin();
   const displayName = input.displayName?.trim() ?? "";
-  if (!displayName) throw new BookingSourceError("display_name_required");
-  if (displayName.length > NAME_MAX) throw new BookingSourceError("display_name_too_long");
+  if (!displayName) throw new BookingSourceError("invalid_source_name");
+  if (displayName.length > NAME_MAX) throw new BookingSourceError("invalid_source_name");
 
-  let code = (input.sourceCode ?? "").trim().toLowerCase();
-  if (!code) {
-    const derived = slugifyDisplayName(displayName);
-    if (!derived) throw new BookingSourceError("invalid_source_code");
-    code = derived;
+  if (await displayNameTakenByOther(input.tenantId, displayName, null)) {
+    throw new BookingSourceError("source_name_exists");
   }
-  if (!isSourceCodeFormat(code)) throw new BookingSourceError("invalid_source_code");
 
-  // Determine next sort_order (max + 10, defaulting to 10).
+  const base = slugifyDisplayName(displayName);
+  if (!base) throw new BookingSourceError("invalid_source_name");
+
+  // Deterministic collision resolution: base, base_2, base_3, ...
+  // Read once and pick the smallest unused suffix among that tenant's codes.
   const existing = await supa
     .from("hotel_booking_sources")
-    .select("sort_order")
-    .eq("tenant_id", input.tenantId)
-    .order("sort_order", { ascending: false })
-    .limit(1);
+    .select("source_code, sort_order")
+    .eq("tenant_id", input.tenantId);
   if (existing.error) throw new BookingSourceError("booking_source_create_failed");
-  const rows = (existing.data ?? []) as Array<{ sort_order: number }>;
-  const nextOrder = rows.length > 0 ? Number(rows[0].sort_order) + 10 : 10;
+  const rows = (existing.data ?? []) as Array<{ source_code: string; sort_order: number }>;
+  const codes = new Set(rows.map((r) => r.source_code));
+  let code = base;
+  for (let i = 2; codes.has(code); i++) code = `${base.slice(0, 45)}_${i}`;
+  if (!CODE_RE.test(code)) throw new BookingSourceError("booking_source_create_failed");
+  const nextOrder = rows.length > 0 ? Math.max(...rows.map((r) => Number(r.sort_order))) + 10 : 10;
 
   const inserted = await supa
     .from("hotel_booking_sources")
@@ -173,9 +187,10 @@ export async function createBookingSource(input: CreateSourceInput): Promise<Boo
   if (inserted.error) {
     const msg = String(inserted.error.message ?? "").toLowerCase();
     if (msg.includes("duplicate") || msg.includes("unique")) {
-      if (msg.includes("source_code")) throw new BookingSourceError("duplicate_source_code");
-      if (msg.includes("display_name")) throw new BookingSourceError("duplicate_display_name");
-      throw new BookingSourceError("duplicate_source");
+      if (msg.includes("display_name")) throw new BookingSourceError("source_name_exists");
+      // Concurrent code collision — surface as create failed; the retry
+      // path is manual (user re-submits and slugify picks a new suffix).
+      throw new BookingSourceError("booking_source_create_failed");
     }
     throw new BookingSourceError("booking_source_create_failed");
   }
@@ -184,7 +199,6 @@ export async function createBookingSource(input: CreateSourceInput): Promise<Boo
 
 export async function updateBookingSource(input: UpdateSourceInput): Promise<BookingSource> {
   const supa = await admin();
-  // Read current row (tenant scoped).
   const current = await supa
     .from("hotel_booking_sources")
     .select("id, tenant_id, source_code, display_name, is_active, sort_order")
@@ -192,10 +206,11 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
     .eq("id", input.id)
     .maybeSingle();
   if (current.error) throw new BookingSourceError("booking_source_update_failed");
-  if (!current.data) throw new BookingSourceError("not_found");
+  if (!current.data) throw new BookingSourceError("booking_source_not_found");
   const row = current.data as Row;
 
-  // Reorder is a swap with the neighbour (up/down) — sort_order gaps of 10.
+  // Reorder = neighbour swap. Edge attempts (first-up, last-down) succeed
+  // as a no-op so the UI never needs to disable the button conditionally.
   if (input.direction) {
     const asc = input.direction === "down";
     let q = supa
@@ -206,9 +221,10 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
     const neighbourRes = await q.order("sort_order", { ascending: asc }).limit(1);
     if (neighbourRes.error) throw new BookingSourceError("booking_source_update_failed");
     const neigh = (neighbourRes.data ?? [])[0] as { id: string; sort_order: number } | undefined;
-    if (!neigh) throw new BookingSourceError("cannot_reorder");
-    // Swap sort_orders via a temporary large value to avoid unique clash (no
-    // unique on sort_order in schema, but we play safe).
+    if (!neigh) {
+      // Safe no-op at the edge.
+      return toDto(row, 0);
+    }
     const tempOrder = row.sort_order + neigh.sort_order + 1_000_000;
     const s1 = await supa
       .from("hotel_booking_sources")
@@ -234,14 +250,28 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
   const patch: Record<string, unknown> = {};
   if (input.displayName !== undefined) {
     const dn = input.displayName.trim();
-    if (!dn) throw new BookingSourceError("display_name_required");
-    if (dn.length > NAME_MAX) throw new BookingSourceError("display_name_too_long");
+    if (!dn) throw new BookingSourceError("invalid_source_name");
+    if (dn.length > NAME_MAX) throw new BookingSourceError("invalid_source_name");
+    if (await displayNameTakenByOther(input.tenantId, dn, row.id))
+      throw new BookingSourceError("source_name_exists");
     patch.display_name = dn;
   }
   if (input.isActive !== undefined) {
+    if (input.isActive === false && row.is_active === true) {
+      // Never allow deactivation of the LAST active source.
+      const active = await supa
+        .from("hotel_booking_sources")
+        .select("id")
+        .eq("tenant_id", input.tenantId)
+        .eq("is_active", true);
+      if (active.error) throw new BookingSourceError("booking_source_update_failed");
+      const activeRows = (active.data ?? []) as Array<{ id: string }>;
+      const otherActive = activeRows.filter((r) => r.id !== row.id).length;
+      if (otherActive === 0) throw new BookingSourceError("last_active_booking_source");
+    }
     patch.is_active = input.isActive === true;
   }
-  if (Object.keys(patch).length === 0) throw new BookingSourceError("no_valid_fields");
+  if (Object.keys(patch).length === 0) throw new BookingSourceError("invalid_source_update");
 
   const updated = await supa
     .from("hotel_booking_sources")
@@ -253,19 +283,23 @@ export async function updateBookingSource(input: UpdateSourceInput): Promise<Boo
   if (updated.error) {
     const msg = String(updated.error.message ?? "").toLowerCase();
     if (msg.includes("duplicate") || msg.includes("unique"))
-      throw new BookingSourceError("duplicate_display_name");
-    if (msg.includes("source_code"))
-      // Code-immutability trigger fired — should not happen since we never patch source_code.
-      throw new BookingSourceError("source_code_immutable");
+      throw new BookingSourceError("source_name_exists");
     throw new BookingSourceError("booking_source_update_failed");
   }
   return toDto(updated.data as Row);
 }
 
 export const BOOKING_SOURCE_ERROR_CODES = new Set<string>([
+  "invalid_source_name",
+  "source_name_exists",
+  "booking_source_not_found",
+  "last_active_booking_source",
+  "invalid_source_update",
+  "booking_source_create_failed",
+  "booking_source_update_failed",
+  // Legacy aliases kept for older callers still in the tree:
   "display_name_required",
   "display_name_too_long",
-  "invalid_source_code",
   "duplicate_source_code",
   "duplicate_display_name",
   "duplicate_source",
@@ -273,6 +307,5 @@ export const BOOKING_SOURCE_ERROR_CODES = new Set<string>([
   "no_valid_fields",
   "cannot_reorder",
   "source_code_immutable",
-  "booking_source_create_failed",
-  "booking_source_update_failed",
+  "invalid_source_code",
 ]);

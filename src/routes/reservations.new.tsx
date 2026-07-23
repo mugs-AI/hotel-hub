@@ -12,7 +12,6 @@ import {
 import {
   addRoomIfNew,
   applyGuestCountryChange,
-  bookingSourceLabel,
   buildCreatePayload,
   emptyGuestDraft,
   EXTERNAL_REF_MAX,
@@ -29,6 +28,8 @@ import {
   type GuestDraft,
   type RoomDraft,
 } from "@/lib/reservations-ui";
+import { tenantSourceLabel } from "@/lib/reservations-client";
+
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { COUNTRIES, countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
@@ -581,16 +582,27 @@ function CountryPicker({
     setText(value ? countryName(value) : "");
   }, [value]);
 
+  /**
+   * Resolve text to a country code. Only an exact name / alpha-3 match
+   * commits a country. Any non-empty text that doesn't match clears the
+   * hidden code so a stale value from a previous selection can never be
+   * submitted while the visible input shows unrelated text.
+   */
   function resolve(next: string) {
     const trimmed = next.trim().toLowerCase();
     if (!trimmed) {
-      onChange("");
+      if (value) onChange("");
       return;
     }
     const exact = COUNTRIES.find(
       (c) => c.name.toLowerCase() === trimmed || c.alpha3.toLowerCase() === trimmed,
     );
-    if (exact) onChange(exact.alpha3);
+    if (exact) {
+      if (exact.alpha3 !== value) onChange(exact.alpha3);
+      return;
+    }
+    // Partial / unmatched text — never keep a stale code.
+    if (value) onChange("");
   }
 
   const listId = `${id}-list`;
@@ -794,9 +806,7 @@ function GuestCard({
             <input
               className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               value={guest.stateProvince}
-              onChange={(e) =>
-                onChange({ ...guest, stateProvince: e.target.value, stateCode: "" })
-              }
+              onChange={(e) => onChange({ ...guest, stateProvince: e.target.value, stateCode: "" })}
               maxLength={100}
             />
           </Field>
@@ -876,6 +886,12 @@ function ActiveBookingSourceSelect({
   );
 }
 
+/** Render the tenant-configured display name for a booking source code. */
+function SourceLabel({ code }: { code: string }) {
+  const q = useBookingSources({ activeOnly: false });
+  return <>{tenantSourceLabel(q.data?.sources, code) || "—"}</>;
+}
+
 function Review({
   arrival,
   departure,
@@ -896,7 +912,7 @@ function Review({
   const primary = guests.find((g) => g.isPrimary === true);
   const additional = guests.length - (primary ? 1 : 0);
   const extNorm = normalizeExternalBookingReference(externalRef);
-  const extDisplay = extNorm.ok ? extNorm.value ?? "—" : "—";
+  const extDisplay = extNorm.ok ? (extNorm.value ?? "—") : "—";
   return (
     <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-[max-content_1fr]">
       <dt className="text-muted-foreground">Stay</dt>
@@ -904,7 +920,8 @@ function Review({
         {formatIsoDate(arrival)} → {formatIsoDate(departure)}
       </dd>
       <dt className="text-muted-foreground">Source</dt>
-      <dd>{bookingSource ? bookingSourceLabel(bookingSource) : "—"}</dd>
+      <dd>{bookingSource ? <SourceLabel code={bookingSource} /> : "—"}</dd>
+
       <dt className="text-muted-foreground">External reference</dt>
       <dd>{extDisplay}</dd>
       <dt className="text-muted-foreground">Rooms</dt>

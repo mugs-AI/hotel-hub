@@ -625,7 +625,7 @@ function AddSourceDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Corporate Travel"
-                maxLength={60}
+                maxLength={80}
                 autoComplete="off"
               />
               <p className="text-[11px] text-muted-foreground">
@@ -719,7 +719,7 @@ function EditSourceDialog({
                 ref={inputRef}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                maxLength={60}
+                maxLength={80}
                 autoComplete="off"
               />
             </div>
