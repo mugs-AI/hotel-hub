@@ -12,7 +12,6 @@ import {
 import {
   addRoomIfNew,
   applyGuestCountryChange,
-  bookingSourceLabel,
   buildCreatePayload,
   emptyGuestDraft,
   EXTERNAL_REF_MAX,
@@ -29,6 +28,8 @@ import {
   type GuestDraft,
   type RoomDraft,
 } from "@/lib/reservations-ui";
+import { tenantSourceLabel } from "@/lib/reservations-client";
+
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { COUNTRIES, countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
