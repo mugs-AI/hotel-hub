@@ -294,12 +294,14 @@ export function useCreateBookingSource() {
   return useMutation<
     { source: BookingSourceDTO },
     ReservationApiError,
-    { displayName: string; sourceCode?: string | null }
+    { displayName: string }
   >({
     mutationFn: (payload) =>
       jsonFetch<{ source: BookingSourceDTO }>("/api/hotel/booking-sources", {
         method: "POST",
-        body: JSON.stringify(payload),
+        // Strict allow-list — only displayName is ever sent. `sourceCode` is
+        // generated server-side and immutable.
+        body: JSON.stringify({ displayName: payload.displayName }),
       }),
     onSuccess: () => {
       qc.invalidateQueries({
@@ -322,14 +324,20 @@ export function useUpdateBookingSource() {
       id: string;
       displayName?: string;
       isActive?: boolean;
+      /** Reorder direction. Server accepts `move: "up" | "down"`. */
       direction?: "up" | "down";
     }
   >({
-    mutationFn: ({ id, ...body }) =>
-      jsonFetch<{ source: BookingSourceDTO }>(`/api/hotel/booking-sources/${id}`, {
+    mutationFn: ({ id, direction, ...rest }) => {
+      const body: Record<string, unknown> = {};
+      if (rest.displayName !== undefined) body.displayName = rest.displayName;
+      if (rest.isActive !== undefined) body.isActive = rest.isActive;
+      if (direction !== undefined) body.move = direction;
+      return jsonFetch<{ source: BookingSourceDTO }>(`/api/hotel/booking-sources/${id}`, {
         method: "PATCH",
         body: JSON.stringify(body),
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({
         predicate: (q) => {
@@ -340,3 +348,24 @@ export function useUpdateBookingSource() {
     },
   });
 }
+
+/**
+ * Resolve the display name for a booking source code, preferring the
+ * tenant-configured `displayName` and falling back to a snake→Title
+ * rendering only when the historical code no longer has a source record
+ * (e.g. deleted before the tenant-configured store existed).
+ */
+export function tenantSourceLabel(
+  sources: readonly BookingSourceDTO[] | null | undefined,
+  code: string | null | undefined,
+): string {
+  if (!code) return "";
+  const hit = (sources ?? []).find((s) => s.sourceCode === code);
+  if (hit) return hit.displayName;
+  return code
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
