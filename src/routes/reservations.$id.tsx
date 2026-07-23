@@ -2,14 +2,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
-import { useReservationDetail } from "@/lib/reservations-client";
+import {
+  useReservationDetail,
+  type ReservationDetailDTO,
+  type ReservationDetailGuestDTO,
+} from "@/lib/reservations-client";
 import {
   bookingSourceLabel,
   formatCreatedAt,
   formatIsoDate,
   friendlyError,
 } from "@/lib/reservations-ui";
+import { countryName } from "@/lib/iso-countries";
+import { malaysianStateName } from "@/lib/malaysia-states";
+import { identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -151,40 +159,7 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
   );
 }
 
-function Detail({
-  data,
-}: {
-  data: {
-    id: string;
-    bookingReference: string;
-    bookingSource: string;
-    status: string;
-    arrivalDate: string;
-    departureDate: string;
-    currency: string;
-    notes: string | null;
-    createdAt: string;
-    createdByN3UserKey: string;
-    rooms: Array<{
-      id: string;
-      roomNumber: string;
-      baseRateSnapshot: number;
-      agreedRate: number;
-      adults: number;
-      children: number;
-      allocationStatus: string;
-      rateOverrideReason: string | null;
-    }>;
-    guests: Array<{
-      id: string;
-      fullName: string;
-      mobile: string | null;
-      email: string | null;
-      nationality: string | null;
-      isPrimary: boolean;
-    }>;
-  };
-}) {
+function Detail({ data }: { data: ReservationDetailDTO }) {
   return (
     <div className="space-y-6">
       <section
@@ -208,6 +183,8 @@ function Detail({
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-[max-content_1fr]">
           <dt className="text-muted-foreground">Source</dt>
           <dd>{bookingSourceLabel(data.bookingSource)}</dd>
+          <dt className="text-muted-foreground">External reference</dt>
+          <dd>{data.externalBookingReference ?? "—"}</dd>
           <dt className="text-muted-foreground">Arrival</dt>
           <dd className="tabular-nums">{formatIsoDate(data.arrivalDate)}</dd>
           <dt className="text-muted-foreground">Departure</dt>
@@ -273,38 +250,83 @@ function Detail({
         </h2>
         <ul className="mt-3 space-y-2 text-sm">
           {data.guests.map((g) => (
-            <li key={g.id} className="rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold" style={{ color: NAVY }}>
-                  {g.fullName}
-                </span>
-                {g.isPrimary ? (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                    style={{ backgroundColor: `${GOLD}22`, color: GOLD }}
-                  >
-                    Primary
-                  </span>
-                ) : null}
-              </div>
-              <dl className="mt-1 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted-foreground">Mobile</dt>
-                  <dd>{g.mobile ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Email</dt>
-                  <dd>{g.email ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Nationality</dt>
-                  <dd>{g.nationality ?? "—"}</dd>
-                </div>
-              </dl>
-            </li>
+            <GuestBlock key={g.id} g={g} />
           ))}
         </ul>
       </section>
     </div>
   );
 }
+
+function nationalityDisplay(g: ReservationDetailGuestDTO): string {
+  if (g.nationalityCode) return countryName(g.nationalityCode) || g.nationalityCode;
+  if (g.nationality) return g.nationality;
+  return "—";
+}
+
+function addressDisplay(g: ReservationDetailGuestDTO): string {
+  const state =
+    g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : g.stateProvince ?? "";
+  const country = g.countryCode ? countryName(g.countryCode) : "";
+  return (
+    [
+      g.addressLine1,
+      g.addressLine2,
+      g.addressLine3,
+      [g.postcode, g.city].filter(Boolean).join(" "),
+      state,
+      country,
+    ]
+      .map((s) => (s ?? "").trim())
+      .filter(Boolean)
+      .join(", ") || "—"
+  );
+}
+
+function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
+  return (
+    <li className="rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold" style={{ color: NAVY }}>
+          {g.fullName}
+        </span>
+        {g.isPrimary ? (
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ backgroundColor: `${GOLD}22`, color: GOLD }}
+          >
+            Primary
+          </span>
+        ) : null}
+      </div>
+      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+        <div>
+          <dt className="text-muted-foreground">Mobile</dt>
+          <dd>{g.mobile ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Email</dt>
+          <dd>{g.email ?? "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Nationality</dt>
+          <dd>{nationalityDisplay(g)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Identity</dt>
+          <dd>
+            {g.identityType ? identityTypeLabel(g.identityType) : "—"}
+            {g.identityNumberMasked ? (
+              <span className="ml-1 font-mono">{g.identityNumberMasked}</span>
+            ) : null}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="text-muted-foreground">Address</dt>
+          <dd>{addressDisplay(g)}</dd>
+        </div>
+      </dl>
+    </li>
+  );
+}
+

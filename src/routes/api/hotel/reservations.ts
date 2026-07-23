@@ -36,6 +36,14 @@ function toStrictInt(v: unknown): number | null {
   if (!Number.isFinite(v) || !Number.isInteger(v)) return null;
   return v;
 }
+function normStr(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t.length === 0 ? null : t;
+}
+const ALPHA3_RE = /^[A-Z]{3}$/;
+const IDENTITY_TYPES = new Set(["mykad", "mypr", "passport", "other"]);
+
 
 /** Strict pagination parser — see Milestone 1.1.2 Task 6. */
 export function parsePagination(
@@ -144,6 +152,17 @@ export async function handleCreateReservation({
     return deny(400, "invalid_stay_dates");
   }
   const notes = typeof body.notes === "string" ? body.notes.trim() || null : null;
+
+  // External booking reference — optional; trimmed; max 100 chars.
+  const extRaw = body.externalBookingReference ?? body.external_booking_reference;
+  let externalBookingReference: string | null = null;
+  if (extRaw !== undefined && extRaw !== null && extRaw !== "") {
+    if (typeof extRaw !== "string") return deny(400, "invalid_external_reference");
+    const t = extRaw.trim();
+    if (t.length > 100) return deny(400, "external_ref_too_long");
+    externalBookingReference = t || null;
+  }
+
   const roomsRaw = Array.isArray(body.rooms) ? (body.rooms as IncomingRoom[]) : [];
   const guestsRaw = Array.isArray(body.guests) ? (body.guests as IncomingGuest[]) : [];
   if (roomsRaw.length === 0) return deny(400, "room_required");
@@ -181,18 +200,70 @@ export async function handleCreateReservation({
       return deny(400, "guest_full_name_required");
     const primary = toStrictBoolean(g.isPrimary ?? g.is_primary, false);
     if (primary === null) return deny(400, "invalid_primary_flag");
+
+    // ---- Independent server-side validation of the extended guest fields.
+    // Never accept legacy `nationality` for a NEW guest — it is read-only.
+    const nationalityCode = normStr(g.nationalityCode ?? g.nationality_code);
+    if (nationalityCode !== null && !ALPHA3_RE.test(nationalityCode))
+      return deny(400, "invalid_nationality");
+
+    const identityType = normStr(g.identityType ?? g.identity_type);
+    const identityNumberRaw = normStr(g.identityNumber ?? g.identity_number);
+    if ((identityType === null) !== (identityNumberRaw === null))
+      return deny(400, "identity_pair_required");
+    let identityNumber: string | null = identityNumberRaw;
+    if (identityType !== null) {
+      if (!IDENTITY_TYPES.has(identityType)) return deny(400, "invalid_identity_type");
+      if (identityType === "mykad" || identityType === "mypr") {
+        const digits = (identityNumberRaw ?? "").replace(/[\s-]/g, "");
+        if (!/^\d{12}$/.test(digits)) return deny(400, "invalid_identity_number");
+        identityNumber = digits;
+      } else {
+        if (!identityNumberRaw || identityNumberRaw.length > 50)
+          return deny(400, "invalid_identity_number");
+      }
+    }
+
+    const countryCode = normStr(g.countryCode ?? g.country_code);
+    if (countryCode !== null && !ALPHA3_RE.test(countryCode))
+      return deny(400, "invalid_address_country");
+
+    let stateCode = normStr(g.stateCode ?? g.state_code);
+    let stateProvince = normStr(g.stateProvince ?? g.state_province);
+    if (countryCode === "MYS") {
+      // Ignore any stray stateProvince for Malaysian addresses.
+      stateProvince = null;
+      if (stateCode !== null && !/^\d{2}$/.test(stateCode))
+        return deny(400, "invalid_state");
+    } else {
+      // Non-Malaysian: ignore any stray stateCode.
+      stateCode = null;
+    }
+
     guests.push({
       fullName: fullNameRaw.trim(),
       mobile: typeof g.mobile === "string" ? g.mobile.trim() || null : null,
       email: typeof g.email === "string" ? g.email.trim() || null : null,
-      nationality: typeof g.nationality === "string" ? g.nationality.trim() || null : null,
+      nationality: null,
       notes: typeof g.notes === "string" ? g.notes.trim() || null : null,
       isPrimary: primary,
+      identityType,
+      identityNumber,
+      nationalityCode,
+      addressLine1: normStr(g.addressLine1 ?? g.address_line_1),
+      addressLine2: normStr(g.addressLine2 ?? g.address_line_2),
+      addressLine3: normStr(g.addressLine3 ?? g.address_line_3),
+      city: normStr(g.city),
+      postcode: normStr(g.postcode),
+      countryCode,
+      stateCode,
+      stateProvince,
     });
   }
   const primaryCount = guests.filter((g) => g.isPrimary).length;
   if (primaryCount === 0) return deny(400, "primary_guest_required");
   if (primaryCount > 1) return deny(400, "multiple_primary_guests");
+
 
   // Authoritative booking-source check: must exist for this tenant AND be active.
   let sourceRow;
@@ -215,8 +286,10 @@ export async function handleCreateReservation({
       arrivalDate: arrival,
       departureDate: departure,
       notes,
+      externalBookingReference,
       rooms,
       guests,
+
     });
     // NOTE: success audits (`hotel.reservation.created` and
     // `hotel.reservation.rate_overridden`) are written atomically inside

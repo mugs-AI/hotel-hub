@@ -156,50 +156,52 @@ describe("guest-identity", () => {
 });
 
 describe("reservations-ui — extended guest draft + payload", () => {
-  it("emptyGuestDraft includes all Correction B fields", () => {
+  it("emptyGuestDraft includes all Correction B fields (no dateOfBirth)", () => {
     const g = emptyGuestDraft(true);
     expect(g.identityType).toBe("");
     expect(g.identityNumber).toBe("");
-    expect(g.dateOfBirth).toBe("");
+    expect(g.nationalityCode).toBe("");
     expect(g.addressLine1).toBe("");
-    expect(g.state).toBe("");
-    expect(g.addressCountry).toBe("");
+    expect(g.addressLine2).toBe("");
+    expect(g.addressLine3).toBe("");
+    expect(g.city).toBe("");
+    expect(g.postcode).toBe("");
+    expect(g.countryCode).toBe("");
+    expect(g.stateCode).toBe("");
+    expect(g.stateProvince).toBe("");
     expect(g.isPrimary).toBe(true);
+    expect("dateOfBirth" in g).toBe(false);
   });
 
-  it("validateGuests catches invalid identity/DOB/nationality/state", () => {
+  it("validateGuests catches invalid identity/nationality/state", () => {
     const base = { ...emptyGuestDraft(true), fullName: "Ali" };
     expect(validateGuests([{ ...base, identityType: "mykad", identityNumber: "" }]))
       .toMatchObject({ ok: false, code: "identity_pair_required" });
-    expect(validateGuests([{ ...base, dateOfBirth: "2026-02-31" }])).toMatchObject({
-      ok: false,
-      code: "invalid_date_of_birth",
-    });
-    expect(validateGuests([{ ...base, nationality: "ZZZ" }])).toMatchObject({
+    expect(validateGuests([{ ...base, nationalityCode: "ZZZ" }])).toMatchObject({
       ok: false,
       code: "invalid_nationality",
     });
     expect(
-      validateGuests([
-        { ...base, addressCountry: "MYS", addressLine1: "1 Jalan", state: "99" },
-      ]),
+      validateGuests([{ ...base, countryCode: "MYS", stateCode: "99" }]),
     ).toMatchObject({ ok: false, code: "invalid_state" });
     expect(validateGuests([base])).toEqual({ ok: true });
   });
 
-  it("buildCreatePayload includes new guest fields + externalBookingReference", () => {
+  it("buildCreatePayload uses migration field names + externalBookingReference", () => {
     const guest = {
       ...emptyGuestDraft(true),
       fullName: " Ali ",
-      nationality: "MYS",
+      nationalityCode: "MYS",
       identityType: "mykad" as const,
       identityNumber: "880101-14-5678",
-      dateOfBirth: "1988-01-01",
       addressLine1: "1 Jalan Bukit",
+      addressLine2: "Bangsar",
+      addressLine3: "",
       city: "Kuala Lumpur",
-      state: "14",
-      postalCode: "50000",
-      addressCountry: "MYS",
+      stateCode: "14",
+      stateProvince: "will-be-dropped",
+      postcode: "50000",
+      countryCode: "MYS",
     };
     const payload = buildCreatePayload({
       bookingSource: "OTA_AGODA",
@@ -213,26 +215,57 @@ describe("reservations-ui — extended guest draft + payload", () => {
     expect(payload.externalBookingReference).toBe("AGD-12345");
     expect(payload.guests[0]).toMatchObject({
       fullName: "Ali",
-      nationality: "MYS",
+      nationalityCode: "MYS",
       identityType: "mykad",
       identityNumber: "880101145678",
-      dateOfBirth: "1988-01-01",
       addressLine1: "1 Jalan Bukit",
+      addressLine2: "Bangsar",
+      addressLine3: null,
       city: "Kuala Lumpur",
-      state: "14",
-      postalCode: "50000",
-      addressCountry: "MYS",
+      postcode: "50000",
+      countryCode: "MYS",
+      stateCode: "14",
+      stateProvince: null,
       isPrimary: true,
     });
+    // Legacy `nationality` is not part of new guest payloads.
+    expect("nationality" in payload.guests[0]).toBe(false);
   });
 
-  it("normalizeExternalBookingReference enforces trim + max length", () => {
+  it("non-Malaysian country uses stateProvince and drops stateCode", () => {
+    const guest = {
+      ...emptyGuestDraft(true),
+      fullName: "Tan",
+      countryCode: "SGP",
+      stateCode: "14", // stale — must be dropped
+      stateProvince: "  Central  ",
+    };
+    const payload = buildCreatePayload({
+      bookingSource: "walk_in",
+      arrivalDate: "2026-07-21",
+      departureDate: "2026-07-23",
+      notes: "",
+      rooms: [],
+      guests: [guest],
+    });
+    expect(payload.guests[0].countryCode).toBe("SGP");
+    expect(payload.guests[0].stateCode).toBeNull();
+    expect(payload.guests[0].stateProvince).toBe("Central");
+  });
+
+  it("normalizeExternalBookingReference enforces trim + max length of 100", () => {
+    expect(EXTERNAL_REF_MAX).toBe(100);
     expect(normalizeExternalBookingReference("")).toEqual({ ok: true, value: null });
     expect(normalizeExternalBookingReference("  ")).toEqual({ ok: true, value: null });
     expect(normalizeExternalBookingReference(" AB ")).toEqual({ ok: true, value: "AB" });
+    expect(normalizeExternalBookingReference("x".repeat(100))).toEqual({
+      ok: true,
+      value: "x".repeat(100),
+    });
     expect(normalizeExternalBookingReference("x".repeat(EXTERNAL_REF_MAX + 1))).toEqual({
       ok: false,
       code: "external_ref_too_long",
     });
   });
 });
+
