@@ -82,32 +82,34 @@ export function buildListQuery(
 }
 
 // ---------- Guest helpers ----------
-// Correction B extends the guest draft with Malaysian identity, address and
-// date-of-birth fields. All fields except `fullName` and `isPrimary` are
-// optional; server-side validation is authoritative.
+// Correction B (Turn 2) — GuestDraft field names match the migration:
+// nationality_code, address_line_{1,2,3}, city, postcode, country_code,
+// state_code, state_province. Legacy `nationality` is READ-ONLY historical
+// fallback surfaced in the Detail DTO; it is never part of a NEW guest
+// payload from the form.
 import { normalizeIdentity, type IdentityType } from "@/lib/guest-identity";
-import { isValidIsoDate } from "@/lib/malaysia-date";
-import { isValidCountryCode } from "@/lib/iso-countries";
+import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 
 export type GuestDraft = {
   fullName: string;
   mobile: string;
   email: string;
-  nationality: string; // ISO 3166-1 alpha-3 or ""
+  nationalityCode: string; // ISO 3166-1 alpha-3 or ""
   notes: string;
   isPrimary: boolean;
   // Identity
   identityType: "" | IdentityType;
   identityNumber: string;
-  dateOfBirth: string; // ISO yyyy-mm-dd or ""
   // Address
   addressLine1: string;
   addressLine2: string;
+  addressLine3: string;
   city: string;
-  state: string; // Malaysian state code when addressCountry === "MYS"
-  postalCode: string;
-  addressCountry: string; // ISO 3166-1 alpha-3 or ""
+  postcode: string;
+  countryCode: string; // ISO 3166-1 alpha-3 or ""
+  stateCode: string; // 2-digit MY state code — only when countryCode === "MYS"
+  stateProvince: string; // free-text — only when countryCode is non-MY
 };
 
 export function emptyGuestDraft(isPrimary = false): GuestDraft {
@@ -115,18 +117,19 @@ export function emptyGuestDraft(isPrimary = false): GuestDraft {
     fullName: "",
     mobile: "",
     email: "",
-    nationality: "",
+    nationalityCode: "",
     notes: "",
     isPrimary,
     identityType: "",
     identityNumber: "",
-    dateOfBirth: "",
     addressLine1: "",
     addressLine2: "",
+    addressLine3: "",
     city: "",
-    state: "",
-    postalCode: "",
-    addressCountry: "",
+    postcode: "",
+    countryCode: "",
+    stateCode: "",
+    stateProvince: "",
   };
 }
 
@@ -145,6 +148,16 @@ export function removeGuestSafe(guests: GuestDraft[], index: number): GuestDraft
   if (next.length === 0) return next;
   if (!next.some((g) => g.isPrimary)) next[0] = { ...next[0], isPrimary: true };
   return next;
+}
+
+/**
+ * Apply a country-change to a guest, clearing the hidden state value that
+ * no longer applies to the newly-selected country. Used by the form so a
+ * stale `stateCode`/`stateProvince` can never be submitted after switching.
+ */
+export function applyGuestCountryChange(g: GuestDraft, nextCountry: string): GuestDraft {
+  const cc = normalizeCountryCode(nextCountry) ?? "";
+  return { ...g, countryCode: cc, stateCode: "", stateProvince: "" };
 }
 
 
@@ -199,11 +212,12 @@ export function rateOverrideRequired(baseRate: number, agreedRate: number): bool
 }
 
 /**
- * Trim + length-cap an optional external booking reference (max 80 chars).
- * Returns `null` for empty; returns a special sentinel for over-length so
- * form validation can surface a clear message.
+ * Trim + length-cap an optional external booking reference (max 100 chars,
+ * matching the migration CHECK constraint). Returns `null` for empty. For
+ * over-length the caller MUST surface a form error and NOT silently coerce
+ * to null.
  */
-export const EXTERNAL_REF_MAX = 80;
+export const EXTERNAL_REF_MAX = 100;
 export function normalizeExternalBookingReference(
   raw: string | null | undefined,
 ): { ok: true; value: string | null } | { ok: false; code: "external_ref_too_long" } {
@@ -230,6 +244,8 @@ export function buildCreatePayload(input: {
     arrivalDate: input.arrivalDate,
     departureDate: input.departureDate,
     notes: input.notes.trim() || null,
+    // On over-length the form MUST have validated first; if not, we omit
+    // rather than silently truncate — the server will independently reject.
     externalBookingReference: extRef.ok ? extRef.value : null,
     rooms: input.rooms.map((r) => {
       const overridden = rateOverrideRequired(r.baseRate, r.agreedRate);
@@ -243,22 +259,27 @@ export function buildCreatePayload(input: {
     }),
     guests: input.guests.map((g) => {
       const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
+      const cc = normalizeCountryCode(g.countryCode) ?? null;
+      const isMy = cc === "MYS";
+      const stateCode = isMy ? (g.stateCode.trim() || null) : null;
+      const stateProvince = !isMy && cc ? (g.stateProvince.trim() || null) : null;
       return {
         fullName: g.fullName.trim(),
         mobile: g.mobile.trim() || null,
         email: g.email.trim() || null,
-        nationality: g.nationality.trim() || null,
         notes: g.notes.trim() || null,
         isPrimary: g.isPrimary === true,
         identityType: identity.ok ? identity.type : null,
         identityNumber: identity.ok ? identity.number : null,
-        dateOfBirth: g.dateOfBirth && isValidIsoDate(g.dateOfBirth) ? g.dateOfBirth : null,
+        nationalityCode: normalizeCountryCode(g.nationalityCode) ?? null,
         addressLine1: g.addressLine1.trim() || null,
         addressLine2: g.addressLine2.trim() || null,
+        addressLine3: g.addressLine3.trim() || null,
         city: g.city.trim() || null,
-        state: g.state.trim() || null,
-        postalCode: g.postalCode.trim() || null,
-        addressCountry: g.addressCountry.trim() || null,
+        postcode: g.postcode.trim() || null,
+        countryCode: cc,
+        stateCode,
+        stateProvince,
       };
     }),
   };
@@ -305,26 +326,15 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
     // Optional identity pair — validate only when either side is set.
     const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
     if (!identity.ok) return { ok: false, code: identity.code, field: "identityNumber" };
-    // Optional DOB.
-    if (g.dateOfBirth && !isValidIsoDate(g.dateOfBirth))
-      return { ok: false, code: "invalid_date_of_birth", field: "dateOfBirth" };
     // Optional nationality.
-    if (g.nationality && !isValidCountryCode(g.nationality))
-      return { ok: false, code: "invalid_nationality", field: "nationality" };
+    if (g.nationalityCode && !isValidCountryCode(g.nationalityCode))
+      return { ok: false, code: "invalid_nationality", field: "nationalityCode" };
     // Optional address country.
-    if (g.addressCountry && !isValidCountryCode(g.addressCountry))
-      return { ok: false, code: "invalid_address_country", field: "addressCountry" };
-    // Malaysian state required only when address is in Malaysia AND any
-    // other address field is set.
-    const hasAddress = Boolean(
-      g.addressLine1.trim() ||
-        g.addressLine2.trim() ||
-        g.city.trim() ||
-        g.postalCode.trim() ||
-        g.state.trim(),
-    );
-    if (g.addressCountry === "MYS" && hasAddress && g.state && !isValidMalaysianStateCode(g.state))
-      return { ok: false, code: "invalid_state", field: "state" };
+    if (g.countryCode && !isValidCountryCode(g.countryCode))
+      return { ok: false, code: "invalid_address_country", field: "countryCode" };
+    // Malaysian address: if a stateCode is set, it must be one of the 16.
+    if (g.countryCode === "MYS" && g.stateCode && !isValidMalaysianStateCode(g.stateCode))
+      return { ok: false, code: "invalid_state", field: "stateCode" };
   }
   const primaries = guests.filter((g) => g.isPrimary === true).length;
   if (primaries === 0) return { ok: false, code: "primary_guest_required" };
@@ -364,12 +374,12 @@ const ERROR_MESSAGES: Record<string, string> = {
   forbidden: "You don’t have permission to view this.",
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
   // Correction B — guest identity and address
-  external_ref_too_long: "External booking reference must be 80 characters or fewer.",
+  external_ref_too_long: "External booking reference must be 100 characters or fewer.",
   identity_pair_required: "Enter both an identity type and identity number.",
   invalid_identity_type: "Select a valid identity type.",
   invalid_mykad: "MyKad/MyPR number must be 12 digits.",
   invalid_passport: "Passport number is invalid.",
-  invalid_date_of_birth: "Date of birth is invalid.",
+  invalid_identity_number: "Identity number is invalid.",
   invalid_nationality: "Select a valid nationality.",
   invalid_address_country: "Select a valid country.",
   invalid_state: "Select a valid Malaysian state.",
