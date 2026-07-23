@@ -2,14 +2,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
-import { useReservationDetail } from "@/lib/reservations-client";
+import {
+  useReservationDetail,
+  type ReservationDetailDTO,
+  type ReservationDetailGuestDTO,
+} from "@/lib/reservations-client";
 import {
   bookingSourceLabel,
   formatCreatedAt,
   formatIsoDate,
   friendlyError,
 } from "@/lib/reservations-ui";
+import { countryName } from "@/lib/iso-countries";
+import { malaysianStateName } from "@/lib/malaysia-states";
+import { identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
