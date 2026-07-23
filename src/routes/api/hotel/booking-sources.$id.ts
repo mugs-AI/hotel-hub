@@ -1,6 +1,8 @@
 // PATCH /api/hotel/booking-sources/:id — Owner only.
-// Supports: rename, activate/deactivate, reorder (direction=up|down).
-// source_code is immutable and never patched here.
+// Body allow-list: { displayName?, isActive?, move? }
+//   - `move: "up" | "down"` — reorder (mutually exclusive with the others)
+//   - unknown / snake_case / legacy `direction` are rejected.
+// source_code is immutable and never accepted here.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import {
@@ -21,18 +23,14 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 
 function mapErrorStatus(code: string): number {
-  if (code === "not_found") return 404;
-  if (
-    code === "duplicate_source_code" ||
-    code === "duplicate_display_name" ||
-    code === "duplicate_source"
-  )
-    return 409;
-  if (code === "cannot_reorder") return 409;
+  if (code === "booking_source_not_found") return 404;
+  if (code === "source_name_exists" || code === "last_active_booking_source") return 409;
   if (code === "booking_source_create_failed" || code === "booking_source_update_failed")
     return 500;
   return 400;
 }
+
+const ALLOWED_PATCH_KEYS = new Set(["displayName", "isActive", "move"]);
 
 export async function handlePatchBookingSource({
   request,
@@ -55,28 +53,40 @@ export async function handlePatchBookingSource({
   if (!isPlainObject(parsed)) return deny(400, "invalid_body");
   const body = parsed as Record<string, unknown>;
 
+  // Strict allow-list — rejects `direction`, snake_case, and everything else.
+  for (const k of Object.keys(body)) {
+    if (!ALLOWED_PATCH_KEYS.has(k)) return deny(400, "invalid_source_update");
+  }
+
   const patch: {
     displayName?: string;
     isActive?: boolean;
     direction?: "up" | "down";
   } = {};
-  if (typeof body.displayName === "string") patch.displayName = body.displayName;
-  else if (typeof body.display_name === "string") patch.displayName = body.display_name;
-  if (typeof body.isActive === "boolean") patch.isActive = body.isActive;
-  else if (typeof body.is_active === "boolean") patch.isActive = body.is_active;
-  if (body.direction === "up" || body.direction === "down") patch.direction = body.direction;
+  if (body.displayName !== undefined) {
+    if (typeof body.displayName !== "string") return deny(400, "invalid_source_name");
+    patch.displayName = body.displayName;
+  }
+  if (body.isActive !== undefined) {
+    if (typeof body.isActive !== "boolean") return deny(400, "invalid_source_update");
+    patch.isActive = body.isActive;
+  }
+  if (body.move !== undefined) {
+    if (body.move !== "up" && body.move !== "down") return deny(400, "invalid_source_update");
+    patch.direction = body.move;
+  }
 
   if (
     patch.displayName === undefined &&
     patch.isActive === undefined &&
     patch.direction === undefined
   ) {
-    return deny(400, "no_valid_fields");
+    return deny(400, "invalid_source_update");
   }
 
-  // Direction is exclusive of other patches — reorder ops don't rename/toggle.
+  // Reorder is exclusive of other patches.
   if (patch.direction && (patch.displayName !== undefined || patch.isActive !== undefined)) {
-    return deny(400, "no_valid_fields");
+    return deny(400, "invalid_source_update");
   }
 
   try {
