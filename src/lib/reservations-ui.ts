@@ -82,17 +82,52 @@ export function buildListQuery(
 }
 
 // ---------- Guest helpers ----------
+// Correction B extends the guest draft with Malaysian identity, address and
+// date-of-birth fields. All fields except `fullName` and `isPrimary` are
+// optional; server-side validation is authoritative.
+import { normalizeIdentity, type IdentityType } from "@/lib/guest-identity";
+import { isValidIsoDate } from "@/lib/malaysia-date";
+import { isValidCountryCode } from "@/lib/iso-countries";
+import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
+
 export type GuestDraft = {
   fullName: string;
   mobile: string;
   email: string;
-  nationality: string;
+  nationality: string; // ISO 3166-1 alpha-3 or ""
   notes: string;
   isPrimary: boolean;
+  // Identity
+  identityType: "" | IdentityType;
+  identityNumber: string;
+  dateOfBirth: string; // ISO yyyy-mm-dd or ""
+  // Address
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string; // Malaysian state code when addressCountry === "MYS"
+  postalCode: string;
+  addressCountry: string; // ISO 3166-1 alpha-3 or ""
 };
 
 export function emptyGuestDraft(isPrimary = false): GuestDraft {
-  return { fullName: "", mobile: "", email: "", nationality: "", notes: "", isPrimary };
+  return {
+    fullName: "",
+    mobile: "",
+    email: "",
+    nationality: "",
+    notes: "",
+    isPrimary,
+    identityType: "",
+    identityNumber: "",
+    dateOfBirth: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    addressCountry: "",
+  };
 }
 
 /** Enforce exactly-one-primary invariant when selecting a new primary guest. */
@@ -111,6 +146,7 @@ export function removeGuestSafe(guests: GuestDraft[], index: number): GuestDraft
   if (!next.some((g) => g.isPrimary)) next[0] = { ...next[0], isPrimary: true };
   return next;
 }
+
 
 // ---------- Room selection ----------
 export type RoomDraft = {
