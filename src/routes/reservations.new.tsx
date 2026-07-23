@@ -889,6 +889,13 @@ function ActiveBookingSourceSelect({
   );
 }
 
+/** Render the tenant-configured display name for a booking source code. */
+function SourceLabel({ code }: { code: string }) {
+  const q = useBookingSources({ activeOnly: false });
+  return <>{tenantSourceLabel(q.data?.sources, code) || "—"}</>;
+}
+
+
 function Review({
   arrival,
   departure,
