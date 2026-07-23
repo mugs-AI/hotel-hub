@@ -198,20 +198,39 @@ export function rateOverrideRequired(baseRate: number, agreedRate: number): bool
   return Number.isFinite(baseRate) && Number.isFinite(agreedRate) && agreedRate !== baseRate;
 }
 
+/**
+ * Trim + length-cap an optional external booking reference (max 80 chars).
+ * Returns `null` for empty; returns a special sentinel for over-length so
+ * form validation can surface a clear message.
+ */
+export const EXTERNAL_REF_MAX = 80;
+export function normalizeExternalBookingReference(
+  raw: string | null | undefined,
+): { ok: true; value: string | null } | { ok: false; code: "external_ref_too_long" } {
+  if (raw == null) return { ok: true, value: null };
+  const t = String(raw).trim();
+  if (!t) return { ok: true, value: null };
+  if (t.length > EXTERNAL_REF_MAX) return { ok: false, code: "external_ref_too_long" };
+  return { ok: true, value: t };
+}
+
 /** Whitelist-only payload — never sends tenant, status, reference, snapshot, timestamps. */
 export function buildCreatePayload(input: {
   bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string;
+  externalBookingReference?: string;
   rooms: RoomDraft[];
   guests: GuestDraft[];
 }) {
+  const extRef = normalizeExternalBookingReference(input.externalBookingReference ?? "");
   return {
     bookingSource: input.bookingSource,
     arrivalDate: input.arrivalDate,
     departureDate: input.departureDate,
     notes: input.notes.trim() || null,
+    externalBookingReference: extRef.ok ? extRef.value : null,
     rooms: input.rooms.map((r) => {
       const overridden = rateOverrideRequired(r.baseRate, r.agreedRate);
       return {
@@ -222,14 +241,26 @@ export function buildCreatePayload(input: {
         rateOverrideReason: overridden ? r.rateOverrideReason.trim() || null : null,
       };
     }),
-    guests: input.guests.map((g) => ({
-      fullName: g.fullName.trim(),
-      mobile: g.mobile.trim() || null,
-      email: g.email.trim() || null,
-      nationality: g.nationality.trim() || null,
-      notes: g.notes.trim() || null,
-      isPrimary: g.isPrimary === true,
-    })),
+    guests: input.guests.map((g) => {
+      const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
+      return {
+        fullName: g.fullName.trim(),
+        mobile: g.mobile.trim() || null,
+        email: g.email.trim() || null,
+        nationality: g.nationality.trim() || null,
+        notes: g.notes.trim() || null,
+        isPrimary: g.isPrimary === true,
+        identityType: identity.ok ? identity.type : null,
+        identityNumber: identity.ok ? identity.number : null,
+        dateOfBirth: g.dateOfBirth && isValidIsoDate(g.dateOfBirth) ? g.dateOfBirth : null,
+        addressLine1: g.addressLine1.trim() || null,
+        addressLine2: g.addressLine2.trim() || null,
+        city: g.city.trim() || null,
+        state: g.state.trim() || null,
+        postalCode: g.postalCode.trim() || null,
+        addressCountry: g.addressCountry.trim() || null,
+      };
+    }),
   };
 }
 
