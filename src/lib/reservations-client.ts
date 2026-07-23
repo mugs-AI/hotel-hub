@@ -108,9 +108,32 @@ export type AvailabilityRoomDTO = {
   isActive: boolean;
 };
 
+export type ReservationDetailGuestDTO = {
+  id: string;
+  guestId: string;
+  fullName: string;
+  mobile: string | null;
+  email: string | null;
+  /** Legacy read-only field kept for historical reservations. */
+  nationality: string | null;
+  /** ISO 3166-1 alpha-3 for new-format guests. */
+  nationalityCode: string | null;
+  identityType: string | null;
+  /** ALWAYS masked server-side. Raw identity numbers never cross this boundary. */
+  identityNumberMasked: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  addressLine3: string | null;
+  city: string | null;
+  postcode: string | null;
+  countryCode: string | null;
+  stateCode: string | null;
+  stateProvince: string | null;
+  isPrimary: boolean;
+};
+
 export type ReservationDetailDTO = {
   id: string;
-  tenantId: string;
   bookingReference: string;
   bookingSource: string;
   status: string;
@@ -118,6 +141,7 @@ export type ReservationDetailDTO = {
   departureDate: string;
   currency: string;
   notes: string | null;
+  externalBookingReference: string | null;
   createdAt: string;
   createdByN3UserKey: string;
   rooms: Array<{
@@ -131,15 +155,7 @@ export type ReservationDetailDTO = {
     allocationStatus: string;
     rateOverrideReason: string | null;
   }>;
-  guests: Array<{
-    id: string;
-    guestId: string;
-    fullName: string;
-    mobile: string | null;
-    email: string | null;
-    nationality: string | null;
-    isPrimary: boolean;
-  }>;
+  guests: ReservationDetailGuestDTO[];
 };
 
 export type CreateReservationPayload = {
@@ -147,6 +163,7 @@ export type CreateReservationPayload = {
   arrivalDate: string;
   departureDate: string;
   notes: string | null;
+  externalBookingReference: string | null;
   rooms: Array<{
     hotelRoomId: string;
     agreedRate: number;
@@ -158,11 +175,22 @@ export type CreateReservationPayload = {
     fullName: string;
     mobile: string | null;
     email: string | null;
-    nationality: string | null;
     notes: string | null;
     isPrimary: boolean;
+    identityType: string | null;
+    identityNumber: string | null;
+    nationalityCode: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    addressLine3: string | null;
+    city: string | null;
+    postcode: string | null;
+    countryCode: string | null;
+    stateCode: string | null;
+    stateProvince: string | null;
   }>;
 };
+
 
 export type CreateReservationResponse = {
   reservationId: string;
