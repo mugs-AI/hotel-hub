@@ -306,19 +306,21 @@ describe("reservations-ui — pure helpers", () => {
       "fullName",
       "mobile",
       "email",
-      "nationality",
       "notes",
       "isPrimary",
       "identityType",
       "identityNumber",
-      "dateOfBirth",
+      "nationalityCode",
       "addressLine1",
       "addressLine2",
+      "addressLine3",
       "city",
-      "state",
-      "postalCode",
-      "addressCountry",
+      "postcode",
+      "countryCode",
+      "stateCode",
+      "stateProvince",
     ]);
+
 
     expect(payload.guests[0].fullName).toBe("John");
     expect(payload.guests[0].isPrimary).toBe(true);
