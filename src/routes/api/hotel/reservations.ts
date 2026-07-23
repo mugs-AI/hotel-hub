@@ -286,8 +286,10 @@ export async function handleCreateReservation({
       arrivalDate: arrival,
       departureDate: departure,
       notes,
+      externalBookingReference,
       rooms,
       guests,
+
     });
     // NOTE: success audits (`hotel.reservation.created` and
     // `hotel.reservation.rate_overridden`) are written atomically inside
