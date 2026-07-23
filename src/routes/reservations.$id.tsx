@@ -9,17 +9,11 @@ import {
   type ReservationDetailDTO,
   type ReservationDetailGuestDTO,
 } from "@/lib/reservations-client";
-import {
-  formatCreatedAt,
-  formatIsoDate,
-  friendlyError,
-} from "@/lib/reservations-ui";
+import { formatCreatedAt, formatIsoDate, friendlyError } from "@/lib/reservations-ui";
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
-
-
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -61,7 +55,6 @@ function ReservationDetailPage() {
         ) : query.data ? (
           <Detail data={query.data.reservation} />
         ) : null}
-
       </div>
     </AppShell>
   );
@@ -205,7 +198,6 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
         </dl>
       </section>
 
-
       <section
         className="rounded-lg border bg-white p-5 shadow-sm"
         style={{ borderColor: `${TEAL}33`, borderLeft: `4px solid ${TEAL}` }}
@@ -273,8 +265,7 @@ function nationalityDisplay(g: ReservationDetailGuestDTO): string {
 }
 
 function addressDisplay(g: ReservationDetailGuestDTO): string {
-  const state =
-    g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : g.stateProvince ?? "";
+  const state = g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : (g.stateProvince ?? "");
   const country = g.countryCode ? countryName(g.countryCode) : "";
   return (
     [
@@ -337,4 +328,3 @@ function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
     </li>
   );
 }
-

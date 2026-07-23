@@ -191,7 +191,6 @@ export type CreateReservationPayload = {
   }>;
 };
 
-
 export type CreateReservationResponse = {
   reservationId: string;
   bookingReference: string;
@@ -291,11 +290,7 @@ export function useBookingSources(opts: { activeOnly?: boolean } = {}) {
 export function useCreateBookingSource() {
   const qc = useQueryClient();
   const tenantId = useTenantId();
-  return useMutation<
-    { source: BookingSourceDTO },
-    ReservationApiError,
-    { displayName: string }
-  >({
+  return useMutation<{ source: BookingSourceDTO }, ReservationApiError, { displayName: string }>({
     mutationFn: (payload) =>
       jsonFetch<{ source: BookingSourceDTO }>("/api/hotel/booking-sources", {
         method: "POST",
@@ -368,4 +363,3 @@ export function tenantSourceLabel(
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
-

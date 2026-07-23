@@ -37,8 +37,10 @@ export function bookingSourceLabel(v: string): string {
  * Re-exported from `@/lib/malaysia-date` for backwards compatibility with
  * existing call sites.
  */
-export { formatMyDate as formatIsoDate, formatMyTimestamp as formatCreatedAt } from "@/lib/malaysia-date";
-
+export {
+  formatMyDate as formatIsoDate,
+  formatMyTimestamp as formatCreatedAt,
+} from "@/lib/malaysia-date";
 
 // ---------- List filters ----------
 export type ListFilters = {
@@ -160,7 +162,6 @@ export function applyGuestCountryChange(g: GuestDraft, nextCountry: string): Gue
   return { ...g, countryCode: cc, stateCode: "", stateProvince: "" };
 }
 
-
 // ---------- Room selection ----------
 export type RoomDraft = {
   hotelRoomId: string;
@@ -261,8 +262,8 @@ export function buildCreatePayload(input: {
       const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
       const cc = normalizeCountryCode(g.countryCode) ?? null;
       const isMy = cc === "MYS";
-      const stateCode = isMy ? (g.stateCode.trim() || null) : null;
-      const stateProvince = !isMy && cc ? (g.stateProvince.trim() || null) : null;
+      const stateCode = isMy ? g.stateCode.trim() || null : null;
+      const stateProvince = !isMy && cc ? g.stateProvince.trim() || null : null;
       return {
         fullName: g.fullName.trim(),
         mobile: g.mobile.trim() || null,
@@ -342,7 +343,6 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   return { ok: true };
 }
 
-
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_stay_dates: "Arrival and departure dates are invalid.",
@@ -408,7 +408,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   cannot_deactivate_last_source: "You must keep at least one active booking source.",
   invalid_source_code: "Booking source code is invalid.",
 };
-
 
 export function friendlyError(
   code: string | undefined | null,

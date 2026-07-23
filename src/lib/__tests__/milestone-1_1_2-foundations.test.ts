@@ -175,15 +175,18 @@ describe("reservations-ui — extended guest draft + payload", () => {
 
   it("validateGuests catches invalid identity/nationality/state", () => {
     const base = { ...emptyGuestDraft(true), fullName: "Ali" };
-    expect(validateGuests([{ ...base, identityType: "mykad", identityNumber: "" }]))
-      .toMatchObject({ ok: false, code: "identity_pair_required" });
+    expect(validateGuests([{ ...base, identityType: "mykad", identityNumber: "" }])).toMatchObject({
+      ok: false,
+      code: "identity_pair_required",
+    });
     expect(validateGuests([{ ...base, nationalityCode: "ZZZ" }])).toMatchObject({
       ok: false,
       code: "invalid_nationality",
     });
-    expect(
-      validateGuests([{ ...base, countryCode: "MYS", stateCode: "99" }]),
-    ).toMatchObject({ ok: false, code: "invalid_state" });
+    expect(validateGuests([{ ...base, countryCode: "MYS", stateCode: "99" }])).toMatchObject({
+      ok: false,
+      code: "invalid_state",
+    });
     expect(validateGuests([base])).toEqual({ ok: true });
   });
 
@@ -268,4 +271,3 @@ describe("reservations-ui — extended guest draft + payload", () => {
     });
   });
 });
-

@@ -82,10 +82,7 @@ const ALLOWED_GUEST = new Set([
   "stateProvince",
 ]);
 
-function rejectUnknown(
-  obj: Record<string, unknown>,
-  allowed: ReadonlySet<string>,
-): string | null {
+function rejectUnknown(obj: Record<string, unknown>, allowed: ReadonlySet<string>): string | null {
   for (const k of Object.keys(obj)) {
     if (!allowed.has(k)) return k;
   }
@@ -264,7 +261,11 @@ export async function handleCreateReservation({
 
     // Nationality — controlled ISO alpha-3.
     let nationalityCode: string | null = null;
-    if (gg.nationalityCode !== undefined && gg.nationalityCode !== null && gg.nationalityCode !== "") {
+    if (
+      gg.nationalityCode !== undefined &&
+      gg.nationalityCode !== null &&
+      gg.nationalityCode !== ""
+    ) {
       if (typeof gg.nationalityCode !== "string") return deny(400, "invalid_nationality");
       const nc = normalizeCountryCode(gg.nationalityCode);
       if (!nc || !isValidCountryCode(nc)) return deny(400, "invalid_nationality");

@@ -630,7 +630,6 @@ function CountryPicker({
   );
 }
 
-
 function GuestCard({
   guest,
   index,
@@ -807,9 +806,7 @@ function GuestCard({
             <input
               className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
               value={guest.stateProvince}
-              onChange={(e) =>
-                onChange({ ...guest, stateProvince: e.target.value, stateCode: "" })
-              }
+              onChange={(e) => onChange({ ...guest, stateProvince: e.target.value, stateCode: "" })}
               maxLength={100}
             />
           </Field>
@@ -895,7 +892,6 @@ function SourceLabel({ code }: { code: string }) {
   return <>{tenantSourceLabel(q.data?.sources, code) || "—"}</>;
 }
 
-
 function Review({
   arrival,
   departure,
@@ -916,7 +912,7 @@ function Review({
   const primary = guests.find((g) => g.isPrimary === true);
   const additional = guests.length - (primary ? 1 : 0);
   const extNorm = normalizeExternalBookingReference(externalRef);
-  const extDisplay = extNorm.ok ? extNorm.value ?? "—" : "—";
+  const extDisplay = extNorm.ok ? (extNorm.value ?? "—") : "—";
   return (
     <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-[max-content_1fr]">
       <dt className="text-muted-foreground">Stay</dt>

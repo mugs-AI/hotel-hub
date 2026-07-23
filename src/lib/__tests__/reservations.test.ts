@@ -469,7 +469,6 @@ describe("POST /api/hotel/reservations", () => {
     expect((await res.json()).error).toBe("unknown_field");
     expect(rpcCalled).toBe(false);
   });
-
 });
 
 // ================================================================
