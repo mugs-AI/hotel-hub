@@ -33,24 +33,12 @@ export function bookingSourceLabel(v: string): string {
 }
 
 /**
- * Format an ISO `YYYY-MM-DD` string for display WITHOUT triggering any
- * timezone shift. `new Date("2026-07-20")` is interpreted as UTC midnight,
- * which renders as "2026-07-19" in negative-offset timezones.
+ * Format an ISO `YYYY-MM-DD` string for display as Malaysian `dd/mm/yyyy`.
+ * Re-exported from `@/lib/malaysia-date` for backwards compatibility with
+ * existing call sites.
  */
-export function formatIsoDate(v: string | null | undefined): string {
-  if (!v) return "—";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
-  if (!m) return v;
-  return `${m[1]}-${m[2]}-${m[3]}`;
-}
+export { formatMyDate as formatIsoDate, formatMyTimestamp as formatCreatedAt } from "@/lib/malaysia-date";
 
-/** Formats a created-at ISO timestamp using the browser locale (safe — real timestamp). */
-export function formatCreatedAt(v: string | null | undefined): string {
-  if (!v) return "—";
-  const t = Date.parse(v);
-  if (!Number.isFinite(t)) return v;
-  return new Date(t).toLocaleString();
-}
 
 // ---------- List filters ----------
 export type ListFilters = {
