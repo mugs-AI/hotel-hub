@@ -408,9 +408,17 @@ export async function listReservations(input: {
   return { items, total: (res.count as number) ?? items.length };
 }
 
+/** Mask an identity number for display; keep the last 4 chars only. */
+export function maskIdentityNumberServer(v: string | null | undefined): string | null {
+  if (v == null) return null;
+  const s = String(v);
+  if (s.length === 0) return null;
+  if (s.length <= 4) return "•".repeat(Math.max(s.length, 1));
+  return "•".repeat(s.length - 4) + s.slice(-4);
+}
+
 export type ReservationDetail = {
   id: string;
-  tenantId: string;
   bookingReference: string;
   bookingSource: string;
   status: string;
@@ -418,6 +426,7 @@ export type ReservationDetail = {
   departureDate: string;
   currency: string;
   notes: string | null;
+  externalBookingReference: string | null;
   createdAt: string;
   createdByN3UserKey: string;
   rooms: Array<{
@@ -437,7 +446,19 @@ export type ReservationDetail = {
     fullName: string;
     mobile: string | null;
     email: string | null;
-    nationality: string | null;
+    nationality: string | null; // legacy fallback
+    nationalityCode: string | null;
+    identityType: string | null;
+    /** ALWAYS masked; raw values never leave the server. */
+    identityNumberMasked: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    addressLine3: string | null;
+    city: string | null;
+    postcode: string | null;
+    countryCode: string | null;
+    stateCode: string | null;
+    stateProvince: string | null;
     isPrimary: boolean;
   }>;
 };
@@ -450,7 +471,7 @@ export async function getReservationById(
   const head = await sb
     .from("hotel_reservations")
     .select(
-      "id, tenant_id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, created_at, created_by_n3_user_key",
+      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, created_by_n3_user_key",
     )
     .eq("tenant_id", tenantId)
     .eq("id", id)
@@ -469,7 +490,9 @@ export async function getReservationById(
     throw new ReservationReadError(`reservation rooms failed: ${rooms.error.message}`);
   const guests = await sb
     .from("hotel_reservation_guests")
-    .select("id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality)")
+    .select(
+      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
+    )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
   if (guests.error)
@@ -478,7 +501,6 @@ export async function getReservationById(
   const guestRows = (guests.data ?? []) as any[];
   return {
     id: r.id,
-    tenantId: r.tenant_id,
     bookingReference: r.booking_reference,
     bookingSource: r.booking_source,
     status: r.status,
@@ -486,6 +508,7 @@ export async function getReservationById(
     departureDate: r.departure_date,
     currency: r.currency,
     notes: r.notes,
+    externalBookingReference: r.external_booking_reference ?? null,
     createdAt: r.created_at,
     createdByN3UserKey: r.created_by_n3_user_key,
     rooms: roomRows.map((row) => {
@@ -514,8 +537,20 @@ export async function getReservationById(
         mobile: nested?.mobile ?? null,
         email: nested?.email ?? null,
         nationality: nested?.nationality ?? null,
+        nationalityCode: nested?.nationality_code ?? null,
+        identityType: nested?.identity_type ?? null,
+        identityNumberMasked: maskIdentityNumberServer(nested?.identity_number ?? null),
+        addressLine1: nested?.address_line_1 ?? null,
+        addressLine2: nested?.address_line_2 ?? null,
+        addressLine3: nested?.address_line_3 ?? null,
+        city: nested?.city ?? null,
+        postcode: nested?.postcode ?? null,
+        countryCode: nested?.country_code ?? null,
+        stateCode: nested?.state_code ?? null,
+        stateProvince: nested?.state_province ?? null,
         isPrimary: !!row.is_primary,
       };
     }),
   };
 }
+
