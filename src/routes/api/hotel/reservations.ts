@@ -63,6 +63,7 @@ const ALLOWED_ROOM = new Set([
   "adults",
   "children",
   "rateOverrideReason",
+  "remark",
 ]);
 const ALLOWED_GUEST = new Set([
   "fullName",
@@ -244,12 +245,21 @@ export async function handleCreateReservation({
     if (children === null || children < 0) return deny(400, "invalid_occupancy");
     const reasonRaw = (r as Record<string, unknown>).rateOverrideReason;
     const reason = typeof reasonRaw === "string" ? reasonRaw.trim() || null : null;
+    const remarkRaw = (r as Record<string, unknown>).remark;
+    let remark: string | null = null;
+    if (remarkRaw !== undefined && remarkRaw !== null && remarkRaw !== "") {
+      if (typeof remarkRaw !== "string") return deny(400, "invalid_room");
+      const t = remarkRaw.trim();
+      if (t.length > 500) return deny(400, "room_remark_too_long");
+      remark = t.length > 0 ? t : null;
+    }
     rooms.push({
       hotelRoomId,
       agreedRate: agreed,
       adults,
       children,
       rateOverrideReason: reason,
+      remark,
     });
   }
 
