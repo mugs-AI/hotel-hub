@@ -1,7 +1,7 @@
 // Read-only Reservation Calendar / Room View.
 // Uses existing rooms + reservations. No mutations, no drag/drop.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { formatMyDate } from "@/lib/malaysia-date";
 import { ViewSwitcher } from "@/routes/reservations.index";
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { groupRoomsByFloor, naturalCompare, roomLabel, UNASSIGNED_FLOOR } from "@/lib/reservations-ui";
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -70,6 +71,8 @@ export const Route = createFileRoute("/reservations/calendar")({
 type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
+  n3StockName: string | null;
   roomType: string;
   floor: string | null;
   isActive: boolean;
