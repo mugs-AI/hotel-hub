@@ -30,6 +30,8 @@ function PrintPage() {
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
+  const companyName =
+    data?.authenticated === true ? (data.tenant.companyName ?? data.tenant.tenantCode ?? "") : "";
   const query = useReservationDetail(id);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ function PrintPage() {
         .letterhead { border-bottom: 1.5px solid #102A43; padding-bottom: 6px; margin-bottom: 10px; }
         .letterhead h1 { font-size: 15px; font-weight: 700; margin: 0; }
         .letterhead p { margin: 2px 0 0; font-size: 10px; color: #4a5568; }
+        .letterhead .company { font-size: 12px; font-weight: 700; color: #0F9D8A; margin: 0 0 2px; letter-spacing: 0.02em; }
         h2.section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
                      color: #0F9D8A; margin: 10px 0 4px; }
         .kv { display: grid; grid-template-columns: 34mm 1fr; gap: 2px 8px; }
@@ -103,6 +106,7 @@ function PrintPage() {
       {r.rooms.map((room, idx) => (
         <section key={room.id} className="a5-page">
           <header className="letterhead">
+            {companyName ? <p className="company">{companyName}</p> : null}
             <h1>Guest Registration Form</h1>
             <p>
               Booking {r.bookingReference}
