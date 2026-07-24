@@ -555,10 +555,12 @@ function RoomRow({
         className="sticky left-0 z-10 border-t bg-white p-2"
         style={{ borderColor: `${NAVY}11` }}
       >
-        <div className="font-mono text-sm font-semibold" style={{ color: NAVY }}>
-          {room.roomNumber}
+        <div className="text-sm font-semibold" style={{ color: NAVY }}>
+          {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
         </div>
         <div className="text-[10px] text-muted-foreground">
+          <span className="font-mono">{room.roomNumber}</span>
+          {" · "}
           {room.roomType}
           {room.floor ? ` · Fl ${room.floor}` : ""}
           {!room.isActive ? " · inactive" : ""}
