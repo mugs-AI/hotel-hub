@@ -59,7 +59,7 @@ function isoToLocalDate(iso: string): Date | undefined {
 
 export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInputProps>(
   function MalaysianDateInput(
-    { value, onChange, className, disabled, required, id, name, pickerLabel, ...aria },
+    { value, onChange, className, disabled, required, id, name, pickerLabel, minIso, maxIso, ...aria },
     ref,
   ) {
     const [display, setDisplay] = useState<string>(() =>
