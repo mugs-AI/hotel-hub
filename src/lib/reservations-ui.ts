@@ -356,6 +356,7 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_stay_dates: "Arrival and departure dates are invalid.",
+  arrival_date_in_past: "Arrival date cannot be earlier than today.",
   invalid_booking_source: "Please choose a valid booking source.",
   room_required: "Select at least one room.",
   guest_required: "Add at least one guest.",
