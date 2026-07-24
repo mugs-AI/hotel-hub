@@ -483,6 +483,7 @@ function RoomsCard({
           <thead>
             <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
               <th className="py-2 pr-4">Room #</th>
+              <th className="py-2 pr-4">Display name</th>
               <th className="py-2 pr-4">Stock name</th>
               <th className="py-2 pr-4">Type</th>
               <th className="py-2 pr-4">Floor</th>
@@ -497,7 +498,7 @@ function RoomsCard({
           <tbody>
             {rooms.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-4 text-center text-muted-foreground">
+                <td colSpan={9} className="py-4 text-center text-muted-foreground">
                   No rooms mapped yet.
                 </td>
               </tr>
@@ -535,8 +536,14 @@ function RoomRow({
   const [occ, setOcc] = useState(String(room.maxOccupancy));
   const [rate, setRate] = useState(String(room.baseRate));
   const [active, setActive] = useState(room.isActive);
+  const [displayName, setDisplayName] = useState(room.displayName ?? "");
 
   async function save() {
+    const trimmed = displayName.trim();
+    if (trimmed.length > 80) {
+      alert("Display name must be 80 characters or fewer.");
+      return;
+    }
     try {
       await j(`/api/hotel/rooms/${encodeURIComponent(room.id)}`, {
         method: "PATCH",
@@ -547,6 +554,7 @@ function RoomRow({
           maxOccupancy: Number(occ),
           baseRate: Number(rate),
           isActive: active,
+          displayName: trimmed.length === 0 ? null : trimmed,
         }),
       });
       setEdit(false);
