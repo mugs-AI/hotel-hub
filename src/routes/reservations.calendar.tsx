@@ -598,6 +598,7 @@ function RoomRow({
             key={a.reservationId + a.hotelRoomId}
             to="/reservations/$id"
             params={{ id: a.reservationId }}
+            search={{ from: "calendar", calStart: rangeStart, calDays: (days as 7 | 14 | 30) }}
             className="absolute flex items-center overflow-hidden rounded px-2 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
             style={{
               left,
