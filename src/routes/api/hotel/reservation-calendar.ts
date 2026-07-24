@@ -62,6 +62,8 @@ async function admin() {
 export type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
+  n3StockName: string | null;
   roomType: string;
   floor: string | null;
   isActive: boolean;
