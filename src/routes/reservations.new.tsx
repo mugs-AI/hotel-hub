@@ -31,7 +31,7 @@ import {
 import { tenantSourceLabel } from "@/lib/reservations-client";
 
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
-import { COUNTRIES, countryName } from "@/lib/iso-countries";
+import { countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
 import { IDENTITY_TYPES, identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
