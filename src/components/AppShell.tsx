@@ -170,6 +170,48 @@ function FullScreenLoader({ label }: { label: string }) {
   );
 }
 
+function DisplayWidthToggle({
+  value,
+  onChange,
+}: {
+  value: DisplayWidth;
+  onChange: (v: DisplayWidth) => void;
+}) {
+  const options: Array<{ v: DisplayWidth; label: string; title: string }> = [
+    { v: "standard", label: "Standard", title: "Centered layout, capped for readability" },
+    { v: "full", label: "Full width", title: "Use the full browser workspace" },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Display width"
+      className="hidden items-center rounded-md border border-input bg-white p-0.5 text-xs md:inline-flex"
+    >
+      {options.map((o) => {
+        const active = o.v === value;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            title={o.title}
+            onClick={() => onChange(o.v)}
+            className="rounded px-2 py-1 font-medium transition-colors"
+            style={{
+              backgroundColor: active ? "#0F9D8A" : "transparent",
+              color: active ? "white" : "#102A43",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
 /**
  * Full-page gate shown to authenticated N3 users who do not yet have a
  * HotelHub role. Replaces the entire application shell — no navigation,
