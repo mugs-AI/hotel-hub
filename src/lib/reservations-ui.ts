@@ -330,12 +330,14 @@ export function buildCreatePayload(input: {
     externalBookingReference: extRef.ok ? extRef.value : null,
     rooms: input.rooms.map((r) => {
       const overridden = rateOverrideRequired(r.baseRate, r.agreedRate);
+      const remark = (r.remark ?? "").trim();
       return {
         hotelRoomId: r.hotelRoomId,
         agreedRate: r.agreedRate,
         adults: r.adults,
         children: r.children,
         rateOverrideReason: overridden ? r.rateOverrideReason.trim() || null : null,
+        remark: remark.length > 0 ? remark : null,
       };
     }),
     guests: input.guests.map((g) => {
@@ -403,6 +405,8 @@ export function validateRoom(r: RoomDraft): ValidationResult {
     return { ok: false, code: "invalid_rate", field: "agreedRate" };
   if (rateOverrideRequired(r.baseRate, r.agreedRate) && !r.rateOverrideReason.trim())
     return { ok: false, code: "rate_override_reason_required", field: "rateOverrideReason" };
+  if ((r.remark ?? "").trim().length > ROOM_REMARK_MAX)
+    return { ok: false, code: "room_remark_too_long", field: "remark" };
   return { ok: true };
 }
 
