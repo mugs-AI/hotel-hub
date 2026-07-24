@@ -157,6 +157,7 @@ export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInpu
                 }
               }}
               initialFocus
+              disabled={disabledMatchers.length > 0 ? disabledMatchers : undefined}
               className={cn("p-3 pointer-events-auto")}
             />
           </PopoverContent>
