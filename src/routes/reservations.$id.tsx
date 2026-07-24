@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -13,7 +14,7 @@ import { formatCreatedAt, formatIsoDate, friendlyError, roomLabel } from "@/lib/
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
-import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
+import { ArrowLeft, CalendarDays, ListOrdered, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -21,7 +22,29 @@ const GOLD = "#E5A93D";
 const SOFT_BG = "#F4F8FC";
 const ERR = "#C2413B";
 
+const detailSearchSchema = z.object({
+  from: z.enum(["list", "calendar"]).optional(),
+  calStart: z.string().optional(),
+  calDays: z.union([z.literal(7), z.literal(14), z.literal(30)]).optional(),
+  calFloor: z.string().optional(),
+});
+type DetailSearch = z.infer<typeof detailSearchSchema>;
+
 export const Route = createFileRoute("/reservations/$id")({
+  validateSearch: (raw: Record<string, unknown>): DetailSearch => {
+    const parsed = detailSearchSchema.safeParse({
+      from: typeof raw.from === "string" ? raw.from : undefined,
+      calStart: typeof raw.calStart === "string" ? raw.calStart : undefined,
+      calDays:
+        typeof raw.calDays === "number"
+          ? raw.calDays
+          : typeof raw.calDays === "string"
+            ? Number(raw.calDays)
+            : undefined,
+      calFloor: typeof raw.calFloor === "string" ? raw.calFloor : undefined,
+    });
+    return parsed.success ? parsed.data : {};
+  },
   head: () => ({
     meta: [
       { title: "Reservation — HotelHub" },
@@ -34,10 +57,12 @@ export const Route = createFileRoute("/reservations/$id")({
 
 function ReservationDetailPage() {
   const { id } = Route.useParams();
+  const search = Route.useSearch();
   const session = useSessionMe();
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
+  const canEdit = hasPermission(role, "hotel:reservations:create");
   const canCreate = hasPermission(role, "hotel:reservations:create");
   const isAuthed = data?.authenticated === true;
   const query = useReservationDetail(id);
@@ -45,7 +70,7 @@ function ReservationDetailPage() {
   return (
     <AppShell>
       <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
-        <Header canCreate={canCreate} />
+        <Header canCreate={canCreate} from={search.from} search={search} />
         {!isAuthed ? null : !canView ? (
           <NoAccess />
         ) : query.isPending ? (
@@ -53,26 +78,56 @@ function ReservationDetailPage() {
         ) : query.error ? (
           <ErrorState code={query.error.code} onRetry={() => query.refetch()} />
         ) : query.data ? (
-          <Detail data={query.data.reservation} />
+          <Detail data={query.data.reservation} canEdit={canEdit} />
         ) : null}
       </div>
     </AppShell>
   );
 }
 
-function Header({ canCreate }: { canCreate: boolean }) {
+function Header({
+  canCreate,
+  from,
+  search,
+}: {
+  canCreate: boolean;
+  from: DetailSearch["from"];
+  search: DetailSearch;
+}) {
   return (
     <section
       className="rounded-lg p-6 text-white shadow-sm"
       style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
     >
-      <Link
-        to="/reservations"
-        className="inline-flex items-center gap-1 text-xs text-white/80 underline underline-offset-2"
-      >
-        <ArrowLeft className="h-3 w-3" aria-hidden />
-        Back to Reservations
-      </Link>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
+        <Link
+          to="/reservations"
+          className="inline-flex items-center gap-1 underline underline-offset-2"
+        >
+          <ListOrdered className="h-3 w-3" aria-hidden />
+          Back to List
+        </Link>
+        <Link
+          to="/reservations/calendar"
+          search={{
+            startDate: search.calStart ?? "",
+            days: (search.calDays ?? 14) as 7 | 14 | 30,
+          }}
+          className="inline-flex items-center gap-1 underline underline-offset-2"
+        >
+          <CalendarDays className="h-3 w-3" aria-hidden />
+          Back to Calendar
+        </Link>
+        {from ? (
+          <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+            Opened from {from}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <ArrowLeft className="h-3 w-3" aria-hidden />
+          </span>
+        )}
+      </div>
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <span
@@ -155,11 +210,12 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
   );
 }
 
-function Detail({ data }: { data: ReservationDetailDTO }) {
-  // Prefer the tenant-configured display name; fall back to a snake→Title
-  // rendering only when a historical code no longer has a source record.
+function Detail({ data, canEdit }: { data: ReservationDetailDTO; canEdit: boolean }) {
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
+  const editable =
+    data.status === "confirmed" &&
+    data.rooms.every((r) => r.allocationStatus === "reserved");
   return (
     <div className="space-y-6">
       <section
@@ -173,12 +229,25 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
               {data.bookingReference}
             </p>
           </div>
-          <span
-            className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: `${TEAL}22`, color: TEAL }}
-          >
-            {data.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
+              style={{ backgroundColor: `${TEAL}22`, color: TEAL }}
+            >
+              {data.status}
+            </span>
+            {canEdit && editable ? (
+              <Link
+                to="/reservations/$id_/edit"
+                params={{ id: data.id }}
+                className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white"
+                style={{ backgroundColor: NAVY }}
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                Edit reservation
+              </Link>
+            ) : null}
+          </div>
         </div>
         <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-[max-content_1fr]">
           <dt className="text-muted-foreground">Source</dt>
@@ -191,6 +260,8 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
           <dd className="tabular-nums">{formatIsoDate(data.departureDate)}</dd>
           <dt className="text-muted-foreground">Created</dt>
           <dd>{formatCreatedAt(data.createdAt)}</dd>
+          <dt className="text-muted-foreground">Last updated</dt>
+          <dd>{formatCreatedAt(data.updatedAt)}</dd>
           <dt className="text-muted-foreground">Created by</dt>
           <dd className="font-mono break-all">{data.createdByN3UserKey}</dd>
           <dt className="text-muted-foreground">Notes</dt>
@@ -242,23 +313,23 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
                   <td className="py-2 pr-4 text-xs text-muted-foreground">
                     {r.rateOverrideReason ?? "—"}
                   </td>
-                  <td className="py-2 pr-4 text-xs whitespace-pre-wrap">
-                    {r.remark ?? "—"}
-                  </td>
+                  <td className="py-2 pr-4 text-xs whitespace-pre-wrap">{r.remark ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="mt-3">
-          <Link
-            to="/reservations/$id/print"
-            params={{ id: data.id }}
+          <a
+            href={`/reservations/${data.id}/print`}
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
             style={{ color: NAVY }}
           >
+            <Printer className="h-3.5 w-3.5" aria-hidden />
             Print registration forms
-          </Link>
+          </a>
         </div>
       </section>
 

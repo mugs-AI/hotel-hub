@@ -146,6 +146,7 @@ export type ReservationDetailDTO = {
   notes: string | null;
   externalBookingReference: string | null;
   createdAt: string;
+  updatedAt: string;
   createdByN3UserKey: string;
   rooms: Array<{
     id: string;
@@ -162,6 +163,28 @@ export type ReservationDetailDTO = {
     remark: string | null;
   }>;
   guests: ReservationDetailGuestDTO[];
+};
+
+export type UpdateReservationPayload = {
+  expectedUpdatedAt: string;
+  bookingSource: string;
+  arrivalDate: string;
+  departureDate: string;
+  notes: string | null;
+  externalBookingReference: string | null;
+  rooms: Array<{
+    id: string;
+    agreedRate: number;
+    adults: number;
+    children: number;
+    rateOverrideReason: string | null;
+    remark: string | null;
+  }>;
+};
+
+export type UpdateReservationResponse = {
+  reservationId: string;
+  updatedAt: string;
 };
 
 export type CreateReservationPayload = {
@@ -369,4 +392,29 @@ export function tenantSourceLabel(
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+export function useUpdateReservation(id: string) {
+  const qc = useQueryClient();
+  const tenantId = (function useTid() {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const s = useSessionMe();
+    return s.data?.authenticated === true ? s.data.tenant.tenantId : null;
+  })();
+  return useMutation<UpdateReservationResponse, ReservationApiError, UpdateReservationPayload>({
+    mutationFn: (payload) =>
+      jsonFetch<UpdateReservationResponse>(`/api/hotel/reservations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reservationDetailKey(tenantId, id) });
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey as unknown[];
+          return k[0] === "reservations" && (k[1] === "list" || k[1] === "availability") && k[2] === tenantId;
+        },
+      });
+    },
+  });
 }

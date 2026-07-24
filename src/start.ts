@@ -2,8 +2,6 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 
-
-
 // NOTE: HotelHub is intentionally N3-only. Do NOT reintroduce Supabase
 // browser-auth middleware here — no server function uses
 // `requireSupabaseAuth`, so adding it would trigger
@@ -40,4 +38,3 @@ export const startInstance = createStart(() => ({
   functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
-
