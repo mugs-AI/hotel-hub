@@ -102,6 +102,12 @@ export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInpu
     }
 
     const selected = isoToLocalDate(value);
+    const minDate = minIso ? isoToLocalDate(minIso) : undefined;
+    const maxDate = maxIso ? isoToLocalDate(maxIso) : undefined;
+    const disabledMatchers = [
+      ...(minDate ? [{ before: minDate }] : []),
+      ...(maxDate ? [{ after: maxDate }] : []),
+    ];
 
     return (
       <div className={cn("relative", className)}>
