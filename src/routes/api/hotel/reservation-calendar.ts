@@ -206,6 +206,8 @@ export async function handleCalendar({ request }: { request: Request }): Promise
     const rooms: CalendarRoom[] = visibleRooms.map((r) => ({
       hotelRoomId: r.id,
       roomNumber: r.room_number,
+      displayName: r.display_name ?? null,
+      n3StockName: r.n3_stock_name ?? null,
       roomType: r.room_type,
       floor: r.floor,
       isActive: r.is_active,
