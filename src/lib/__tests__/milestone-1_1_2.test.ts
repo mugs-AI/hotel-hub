@@ -301,6 +301,7 @@ describe("reservations-ui — pure helpers", () => {
       "adults",
       "children",
       "rateOverrideReason",
+      "remark",
     ]);
     expect(payload.rooms[0].rateOverrideReason).toBeNull();
     expect(Object.keys(payload.guests[0])).toEqual([
