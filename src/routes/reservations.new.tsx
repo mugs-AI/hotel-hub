@@ -302,7 +302,12 @@ function NewReservationWizard({
 
     try {
       const res = await create.mutateAsync(payload);
+      // Order matters: cancel any pending debounced save BEFORE clearing
+      // state, so the newly-empty form isn't re-persisted as the "next"
+      // reservation's starting point.
+      scheduler.current.cancel();
       clearDraft(tenantId, n3UserKey);
+      vaultClearForUser(tenantId, n3UserKey);
       navigate({ to: "/reservations/$id", params: { id: res.reservationId } });
     } catch (err) {
       const code = (err as { code?: string }).code ?? "reservation_create_failed";
@@ -345,7 +350,9 @@ function NewReservationWizard({
         <DiscardConfirm
           onCancel={() => setShowDiscard(false)}
           onConfirm={() => {
+            scheduler.current.cancel();
             clearDraft(tenantId, n3UserKey);
+            vaultClearForUser(tenantId, n3UserKey);
             setStep(1);
             setArrival(today);
             setDeparture(addDaysIso(today, 1));
