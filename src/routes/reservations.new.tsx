@@ -399,7 +399,7 @@ function NewReservationWizard({
           onRefetch={() => availability.refetch()}
         />
       ) : step === 3 ? (
-        <GuestsStep guests={guests} onChange={setGuests} />
+        <GuestsStep guests={guests} onChange={setGuests} tenantId={tenantId} n3UserKey={n3UserKey} />
       ) : (
         <ReviewStep
           arrival={arrival}
