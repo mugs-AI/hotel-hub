@@ -95,6 +95,7 @@ describe("Run 1 — reservation-calendar API contract", () => {
   });
 
   it("denies housekeeper (forbidden)", async () => {
+    vi.resetModules();
     vi.doMock("@/lib/session-context.server", () => ({
       requirePermission: async () => ({
         ctx: { session: { tenantId: "t1", n3UserKey: "u1" } },
@@ -106,6 +107,9 @@ describe("Run 1 — reservation-calendar API contract", () => {
       request: new Request("http://x/api/hotel/reservation-calendar?startDate=2026-08-01&days=14"),
     });
     expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("forbidden");
     vi.doUnmock("@/lib/session-context.server");
+    vi.resetModules();
   });
 });
