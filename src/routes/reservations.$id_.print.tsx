@@ -13,7 +13,7 @@ import { identityTypeLabel } from "@/lib/guest-identity";
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 
-export const Route = createFileRoute("/reservations/$id/print")({
+export const Route = createFileRoute("/reservations/$id_/print")({
   head: () => ({
     meta: [
       { title: "Print Registration Forms — HotelHub" },

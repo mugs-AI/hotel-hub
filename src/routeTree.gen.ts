@@ -18,7 +18,7 @@ import { Route as ReservationsIndexRouteImport } from './routes/reservations.ind
 import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
 import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
-import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id.print'
+import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
 import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
@@ -86,9 +86,9 @@ const ReservationsIdRoute = ReservationsIdRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
-  id: '/print',
-  path: '/print',
-  getParentRoute: () => ReservationsIdRoute,
+  id: '/reservations/$id_/print',
+  path: '/reservations/$id/print',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
   id: '/api/session/me',
@@ -199,7 +199,7 @@ export interface FileRoutesByFullPath {
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
-  '/reservations/$id': typeof ReservationsIdRouteWithChildren
+  '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
@@ -231,7 +231,7 @@ export interface FileRoutesByTo {
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
-  '/reservations/$id': typeof ReservationsIdRouteWithChildren
+  '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations': typeof ReservationsIndexRoute
@@ -264,7 +264,7 @@ export interface FileRoutesById {
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
-  '/reservations/$id': typeof ReservationsIdRouteWithChildren
+  '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
@@ -281,7 +281,7 @@ export interface FileRoutesById {
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
-  '/reservations/$id/print': typeof ReservationsIdPrintRoute
+  '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRoute
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
@@ -379,7 +379,7 @@ export interface FileRouteTypes {
     | '/api/n3/customers'
     | '/api/n3/stocks'
     | '/api/session/me'
-    | '/reservations/$id/print'
+    | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
@@ -395,7 +395,7 @@ export interface RootRouteChildren {
   RoomsRatesRoute: typeof RoomsRatesRoute
   SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
-  ReservationsIdRoute: typeof ReservationsIdRouteWithChildren
+  ReservationsIdRoute: typeof ReservationsIdRoute
   ReservationsCalendarRoute: typeof ReservationsCalendarRoute
   ReservationsNewRoute: typeof ReservationsNewRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
@@ -412,6 +412,7 @@ export interface RootRouteChildren {
   ApiN3CustomersRoute: typeof ApiN3CustomersRouteWithChildren
   ApiN3StocksRoute: typeof ApiN3StocksRouteWithChildren
   ApiSessionMeRoute: typeof ApiSessionMeRoute
+  ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
 }
@@ -481,12 +482,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReservationsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reservations/$id/print': {
-      id: '/reservations/$id/print'
-      path: '/print'
+    '/reservations/$id_/print': {
+      id: '/reservations/$id_/print'
+      path: '/reservations/$id/print'
       fullPath: '/reservations/$id/print'
       preLoaderRoute: typeof ReservationsIdPrintRouteImport
-      parentRoute: typeof ReservationsIdRoute
+      parentRoute: typeof rootRouteImport
     }
     '/api/session/me': {
       id: '/api/session/me'
@@ -631,18 +632,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ReservationsIdRouteChildren {
-  ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
-}
-
-const ReservationsIdRouteChildren: ReservationsIdRouteChildren = {
-  ReservationsIdPrintRoute: ReservationsIdPrintRoute,
-}
-
-const ReservationsIdRouteWithChildren = ReservationsIdRoute._addFileChildren(
-  ReservationsIdRouteChildren,
-)
-
 interface ApiHotelBookingSourcesRouteChildren {
   ApiHotelBookingSourcesIdRoute: typeof ApiHotelBookingSourcesIdRoute
 }
@@ -710,7 +699,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomsRatesRoute: RoomsRatesRoute,
   SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
-  ReservationsIdRoute: ReservationsIdRouteWithChildren,
+  ReservationsIdRoute: ReservationsIdRoute,
   ReservationsCalendarRoute: ReservationsCalendarRoute,
   ReservationsNewRoute: ReservationsNewRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
@@ -727,6 +716,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiN3CustomersRoute: ApiN3CustomersRouteWithChildren,
   ApiN3StocksRoute: ApiN3StocksRouteWithChildren,
   ApiSessionMeRoute: ApiSessionMeRoute,
+  ReservationsIdPrintRoute: ReservationsIdPrintRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
 }
