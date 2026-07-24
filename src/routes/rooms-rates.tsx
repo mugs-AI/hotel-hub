@@ -581,6 +581,22 @@ function RoomRow({
       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = zebra ? `${TEAL}08` : "white")}
     >
       <td className="py-2 pr-4 font-mono">{room.roomNumber}</td>
+      <td className="py-2 pr-4">
+        {edit ? (
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={80}
+            placeholder="Optional local label"
+            aria-label="Display name"
+            className="w-40 rounded border border-input bg-background px-1.5 py-1 text-sm"
+          />
+        ) : (
+          <span className="font-medium" style={{ color: NAVY }}>
+            {(room.displayName ?? "").trim() || <span className="text-muted-foreground">—</span>}
+          </span>
+        )}
+      </td>
       <td className="py-2 pr-4 text-muted-foreground">{room.n3StockName ?? "—"}</td>
       <td className="py-2 pr-4">
         {edit ? (
