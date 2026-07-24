@@ -1593,6 +1593,11 @@ function ReviewStep({
               {overridden && r.rateOverrideReason ? (
                 <span className="text-muted-foreground">— {r.rateOverrideReason}</span>
               ) : null}
+              {r.remark.trim() ? (
+                <div className="mt-0.5 w-full pl-3 text-[11px] text-muted-foreground">
+                  Remark: {r.remark.trim()}
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -1600,31 +1605,7 @@ function ReviewStep({
       <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
         Primary booking contact
       </h3>
-      {primary ? (
-        <div className="text-xs">
-          <div className="font-medium" style={{ color: NAVY }}>
-            {primary.fullName || "—"}
-          </div>
-          <div className="text-muted-foreground">
-            {[primary.mobile, primary.email].filter(Boolean).join(" · ") || "—"}
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {[
-              primary.addressLine1,
-              primary.addressLine2,
-              primary.addressLine3,
-              [primary.postcode, primary.city].filter(Boolean).join(" "),
-              primary.countryCode === "MYS"
-                ? malaysianStateName(primary.stateCode)
-                : primary.stateProvince,
-              countryName(primary.countryCode),
-            ]
-              .map((s) => (s ?? "").trim())
-              .filter(Boolean)
-              .join(", ") || "—"}
-          </div>
-        </div>
-      ) : (
+      {primary ? <GuestReview g={primary} /> : (
         <p className="text-xs text-muted-foreground">No primary guest set.</p>
       )}
       <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
@@ -1633,14 +1614,50 @@ function ReviewStep({
       {additional.length === 0 ? (
         <p className="text-xs text-muted-foreground">None.</p>
       ) : (
-        <ul className="text-xs">
+        <ul className="space-y-2 text-xs">
           {additional.map((g, i) => (
-            <li key={i} className="text-muted-foreground">
-              · {g.fullName || `Guest ${i + 2}`}
+            <li key={g.clientId ?? i} className="rounded border p-2" style={{ borderColor: `${NAVY}22` }}>
+              <GuestReview g={g} />
             </li>
           ))}
         </ul>
       )}
     </Card>
+  );
+}
+
+function GuestReview({ g }: { g: GuestDraft }) {
+  const identityMasked = g.identityNumber ? maskIdentityNumber(g.identityNumber) : null;
+  return (
+    <div className="text-xs">
+      <div className="font-medium" style={{ color: NAVY }}>
+        {g.fullName || "—"}
+      </div>
+      <div className="text-muted-foreground">
+        {[g.mobile, g.email].filter(Boolean).join(" · ") || "—"}
+      </div>
+      {g.identityType || identityMasked ? (
+        <div className="mt-0.5 text-[11px] text-muted-foreground">
+          {identityTypeLabel(g.identityType) || "Identity"}:{" "}
+          <span className="font-mono">{identityMasked ?? "—"}</span>
+        </div>
+      ) : null}
+      <div className="mt-0.5 text-[11px] text-muted-foreground">
+        {[
+          g.addressLine1,
+          g.addressLine2,
+          g.addressLine3,
+          [g.postcode, g.city].filter(Boolean).join(" "),
+          g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : g.stateProvince,
+          countryName(g.countryCode),
+        ]
+          .map((s) => (s ?? "").trim())
+          .filter(Boolean)
+          .join(", ") || "—"}
+      </div>
+      {g.notes.trim() ? (
+        <div className="mt-1 text-[11px] text-muted-foreground">Notes: {g.notes.trim()}</div>
+      ) : null}
+    </div>
   );
 }
