@@ -1209,6 +1209,17 @@ function CompactRoomRow({
           maxLength={200}
         />
       ) : null}
+      <textarea
+        className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-xs"
+        placeholder="Room remark (optional, max 500 chars)"
+        value={room.remark}
+        onChange={(e) => onChange({ ...room, remark: e.target.value })}
+        maxLength={500}
+        rows={2}
+      />
+      <div className="mt-0.5 text-right text-[10px] text-muted-foreground">
+        {room.remark.length}/500
+      </div>
       {err ? (
         <p className="mt-1 text-[11px]" style={{ color: ERR }}>
           {friendlyError(err.code)}
