@@ -197,6 +197,10 @@ export async function handleCreateReservation({
   if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) {
     return deny(400, "invalid_stay_dates");
   }
+  // Server-independent guard: arrival cannot be earlier than today in KL.
+  if (arrival < todayInKualaLumpurIso()) {
+    return deny(400, "arrival_date_in_past");
+  }
   const notes =
     body.notes === undefined || body.notes === null
       ? null
