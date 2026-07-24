@@ -98,6 +98,10 @@ import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 
 export type GuestDraft = {
+  /** Random client-only id used to key the browser-memory identity vault.
+   *  NEVER sent to the server. Optional in the type so pre-clientId
+   *  fixtures still compile; UI code should always set it. */
+  clientId?: string;
   fullName: string;
   mobile: string;
   email: string;
@@ -118,8 +122,20 @@ export type GuestDraft = {
   stateProvince: string; // free-text — only when countryCode is non-MY
 };
 
+function makeClientId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* ignore */
+  }
+  return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function emptyGuestDraft(isPrimary = false): GuestDraft {
   return {
+    clientId: makeClientId(),
     fullName: "",
     mobile: "",
     email: "",
@@ -181,7 +197,12 @@ export type RoomDraft = {
   adults: number;
   children: number;
   rateOverrideReason: string;
+  /** Optional free-text note attached to this room (≤500 chars). */
+  remark: string;
 };
+
+/** Maximum length for a per-room remark (matches DB CHECK). */
+export const ROOM_REMARK_MAX = 500;
 
 export function makeRoomDraft(r: {
   hotelRoomId: string;
@@ -208,6 +229,7 @@ export function makeRoomDraft(r: {
     adults: 1,
     children: 0,
     rateOverrideReason: "",
+    remark: "",
   };
 }
 
