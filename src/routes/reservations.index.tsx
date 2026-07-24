@@ -26,6 +26,7 @@ const SOFT_BG = "#F4F8FC";
 type ListSearch = {
   bookingReference: string;
   guestName: string;
+  guestMobile: string;
   bookingSource: string;
   status: string;
   arrivalFrom: string;
@@ -46,6 +47,7 @@ export const Route = createFileRoute("/reservations/")({
   validateSearch: (raw: Record<string, unknown>): ListSearch => ({
     bookingReference: str(raw.bookingReference),
     guestName: str(raw.guestName),
+    guestMobile: str(raw.guestMobile),
     bookingSource: str(raw.bookingSource),
     status: str(raw.status),
     arrivalFrom: str(raw.arrivalFrom),
@@ -53,6 +55,7 @@ export const Route = createFileRoute("/reservations/")({
     limit: int(raw.limit, 25),
     offset: int(raw.offset, 0),
   }),
+
   head: () => ({
     meta: [
       { title: "Reservations — HotelHub" },
