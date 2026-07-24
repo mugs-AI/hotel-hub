@@ -9,7 +9,7 @@ import {
   type ReservationDetailDTO,
   type ReservationDetailGuestDTO,
 } from "@/lib/reservations-client";
-import { formatCreatedAt, formatIsoDate, friendlyError } from "@/lib/reservations-ui";
+import { formatCreatedAt, formatIsoDate, friendlyError, roomLabel } from "@/lib/reservations-ui";
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
@@ -209,7 +209,7 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
-                <th className="py-2 pr-4">Room #</th>
+                <th className="py-2 pr-4">Room</th>
                 <th className="py-2 pr-4">Base rate</th>
                 <th className="py-2 pr-4">Agreed rate</th>
                 <th className="py-2 pr-4">Adults</th>
@@ -221,7 +221,14 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
             <tbody>
               {data.rooms.map((r) => (
                 <tr key={r.id} className="border-t border-border/60">
-                  <td className="py-2 pr-4 font-mono text-xs">{r.roomNumber}</td>
+                  <td className="py-2 pr-4 text-xs">
+                    <span className="font-semibold" style={{ color: NAVY }}>
+                      {roomLabel(r.displayName, r.n3StockName, r.roomNumber)}
+                    </span>
+                    <span className="ml-2 font-mono text-[10px] text-muted-foreground">
+                      {r.roomNumber}
+                    </span>
+                  </td>
                   <td className="py-2 pr-4 tabular-nums">
                     {data.currency} {Number(r.baseRateSnapshot).toFixed(2)}
                   </td>
