@@ -481,6 +481,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_room_id: "One of the selected rooms is invalid.",
   invalid_external_reference: "External booking reference is invalid.",
   invalid_notes: "Notes must be text.",
+  room_remark_too_long: "Room remark must be 500 characters or fewer.",
   // Booking Sources (Settings) — Correction B Turn 3
   invalid_source_name: "Enter a valid source name (1–80 characters).",
   source_name_exists: "A booking source with that name already exists.",
