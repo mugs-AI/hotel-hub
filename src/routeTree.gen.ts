@@ -16,6 +16,7 @@ import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
 import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
+import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
@@ -71,6 +72,11 @@ const ReservationsIndexRoute = ReservationsIndexRouteImport.update({
 const ReservationsNewRoute = ReservationsNewRouteImport.update({
   id: '/reservations/new',
   path: '/reservations/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsCalendarRoute = ReservationsCalendarRouteImport.update({
+  id: '/reservations/calendar',
+  path: '/reservations/calendar',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReservationsIdRoute = ReservationsIdRouteImport.update({
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -218,6 +225,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations'
     | '/api/auth/connect'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
   ReservationsIdRoute: typeof ReservationsIdRoute
+  ReservationsCalendarRoute: typeof ReservationsCalendarRoute
   ReservationsNewRoute: typeof ReservationsNewRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
@@ -440,6 +453,13 @@ declare module '@tanstack/react-router' {
       path: '/reservations/new'
       fullPath: '/reservations/new'
       preLoaderRoute: typeof ReservationsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/calendar': {
+      id: '/reservations/calendar'
+      path: '/reservations/calendar'
+      fullPath: '/reservations/calendar'
+      preLoaderRoute: typeof ReservationsCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reservations/$id': {
@@ -660,6 +680,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
   ReservationsIdRoute: ReservationsIdRoute,
+  ReservationsCalendarRoute: ReservationsCalendarRoute,
   ReservationsNewRoute: ReservationsNewRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
