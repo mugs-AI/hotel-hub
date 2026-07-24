@@ -574,3 +574,84 @@ export async function getReservationById(
     }),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Atomic update for a pre-check-in confirmed reservation.
+// See migration hotelhub_update_reservation for the SQL contract.
+// ---------------------------------------------------------------------------
+export const RESERVATION_UPDATE_ERROR_CODES = new Set([
+  "tenant_required",
+  "creator_required",
+  "invalid_stay_dates",
+  "not_found",
+  "reservation_not_editable",
+  "stale_reservation",
+  "invalid_booking_source",
+  "room_remark_too_long",
+  "room_not_found",
+  "invalid_occupancy",
+  "occupancy_exceeded",
+  "invalid_rate",
+  "rate_override_reason_required",
+]);
+
+export class ReservationUpdateError extends Error {
+  code: string;
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+    this.name = "ReservationUpdateError";
+  }
+}
+
+export type UpdateReservationInput = {
+  tenantId: string;
+  reservationId: string;
+  actorN3UserKey: string;
+  expectedUpdatedAt: string;
+  bookingSource: string;
+  arrivalDate: string;
+  departureDate: string;
+  notes: string | null;
+  externalBookingReference: string | null;
+  rooms: Array<{
+    id: string;
+    agreedRate: number;
+    adults: number;
+    children: number;
+    rateOverrideReason: string | null;
+    remark: string | null;
+  }>;
+};
+
+export async function updateReservationAtomic(
+  input: UpdateReservationInput,
+): Promise<{ reservationId: string; updatedAt: string }> {
+  const sb = await admin();
+  const res = await sb.rpc("hotelhub_update_reservation", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_actor_n3_user_key: input.actorN3UserKey,
+    p_expected_updated_at: input.expectedUpdatedAt,
+    p_booking_source: input.bookingSource,
+    p_arrival_date: input.arrivalDate,
+    p_departure_date: input.departureDate,
+    p_notes: input.notes,
+    p_external_booking_reference: input.externalBookingReference,
+    p_rooms: input.rooms.map((r) => ({
+      id: r.id,
+      agreed_rate: r.agreedRate,
+      adults: r.adults,
+      children: r.children,
+      rate_override_reason: r.rateOverrideReason ?? null,
+      remark: r.remark ?? null,
+    })),
+  });
+  if (res.error) {
+    const msg = (res.error.message ?? "").toString();
+    const match = msg.match(/[a-z_]+/g)?.find((w: string) => RESERVATION_UPDATE_ERROR_CODES.has(w));
+    throw new ReservationUpdateError(match ?? "reservation_update_failed");
+  }
+  const row = Array.isArray(res.data) ? res.data[0] : res.data;
+  return { reservationId: row.out_reservation_id, updatedAt: row.out_updated_at };
+}

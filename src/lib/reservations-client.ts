@@ -146,6 +146,7 @@ export type ReservationDetailDTO = {
   notes: string | null;
   externalBookingReference: string | null;
   createdAt: string;
+  updatedAt: string;
   createdByN3UserKey: string;
   rooms: Array<{
     id: string;
@@ -162,6 +163,28 @@ export type ReservationDetailDTO = {
     remark: string | null;
   }>;
   guests: ReservationDetailGuestDTO[];
+};
+
+export type UpdateReservationPayload = {
+  expectedUpdatedAt: string;
+  bookingSource: string;
+  arrivalDate: string;
+  departureDate: string;
+  notes: string | null;
+  externalBookingReference: string | null;
+  rooms: Array<{
+    id: string;
+    agreedRate: number;
+    adults: number;
+    children: number;
+    rateOverrideReason: string | null;
+    remark: string | null;
+  }>;
+};
+
+export type UpdateReservationResponse = {
+  reservationId: string;
+  updatedAt: string;
 };
 
 export type CreateReservationPayload = {
