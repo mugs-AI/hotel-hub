@@ -302,10 +302,16 @@ function isValidIsoDateStr(v: string): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-export function validateStayDates(arrival: string, departure: string): ValidationResult {
+export function validateStayDates(
+  arrival: string,
+  departure: string,
+  opts?: { today?: string },
+): ValidationResult {
   if (!arrival || !departure) return { ok: false, code: "invalid_stay_dates" };
   if (!isValidIsoDateStr(arrival) || !isValidIsoDateStr(departure))
     return { ok: false, code: "invalid_stay_dates" };
+  if (opts?.today && arrival < opts.today)
+    return { ok: false, code: "arrival_date_in_past" };
   if (departure <= arrival) return { ok: false, code: "invalid_stay_dates" };
   return { ok: true };
 }
