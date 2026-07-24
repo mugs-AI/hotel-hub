@@ -182,8 +182,11 @@ function NewReservationForm() {
   const navigate = useNavigate();
   const create = useCreateReservation();
 
-  const [arrival, setArrival] = useState("");
-  const [departure, setDeparture] = useState("");
+  // Today in Asia/Kuala_Lumpur — captured once per mount so the arrival
+  // default and past-date guard stay stable while the form is open.
+  const [today] = useState(() => todayInKualaLumpurIso());
+  const [arrival, setArrival] = useState<string>(today);
+  const [departure, setDeparture] = useState<string>(() => addDaysIso(today, 1));
   const [bookingSource, setBookingSource] = useState<string>("");
   const [externalRef, setExternalRef] = useState("");
   const [notes, setNotes] = useState("");
@@ -192,11 +195,21 @@ function NewReservationForm() {
   const [formError, setFormError] = useState<string | null>(null);
   const [availabilityMsg, setAvailabilityMsg] = useState<string | null>(null);
 
-  const stayValid = validateStayDates(arrival, departure);
+  const stayValid = validateStayDates(arrival, departure, { today });
+  const arrivalPast = !!arrival && arrival < today;
   const extRefCheck = normalizeExternalBookingReference(externalRef);
   const availability = useAvailability(arrival, departure, {
     enabled: stayValid.ok,
   });
+
+  // Keep departure strictly after arrival: when arrival advances past the
+  // current departure, snap departure to arrival + 1 day.
+  function handleArrivalChange(next: string) {
+    setArrival(next);
+    if (next && (!departure || departure <= next)) {
+      setDeparture(addDaysIso(next, 1));
+    }
+  }
 
   useEffect(() => {
     if (!stayValid.ok && rooms.length > 0) {
@@ -232,7 +245,10 @@ function NewReservationForm() {
     e.preventDefault();
     setFormError(null);
 
-    if (!stayValid.ok) return setFormError(friendlyError("invalid_stay_dates"));
+    if (!stayValid.ok) {
+      const code = stayValid.ok ? "invalid_stay_dates" : stayValid.code;
+      return setFormError(friendlyError(code));
+    }
     if (!bookingSource) return setFormError(friendlyError("invalid_booking_source"));
     if (!extRefCheck.ok) return setFormError(friendlyError(extRefCheck.code));
     if (rooms.length === 0) return setFormError(friendlyError("room_required"));
@@ -265,21 +281,42 @@ function NewReservationForm() {
     }
   }
 
+  const arrivalError = !arrival
+    ? null
+    : arrivalPast
+      ? friendlyError("arrival_date_in_past")
+      : stayValid.ok
+        ? null
+        : "Choose a valid arrival date";
+  const departureError = !departure
+    ? null
+    : arrivalPast
+      ? null
+      : stayValid.ok
+        ? null
+        : "Departure must be after arrival";
+
   return (
     <form className="space-y-6" onSubmit={handleSubmit} noValidate>
       <Card title="Stay details" accent={NAVY} tag="Step 1">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="Arrival date"
-            error={!arrival ? null : stayValid.ok ? null : "Choose a valid arrival date"}
-          >
-            <MalaysianDateInput value={arrival} onChange={setArrival} required />
+          <Field label="Arrival date" error={arrivalError}>
+            <MalaysianDateInput
+              value={arrival}
+              onChange={handleArrivalChange}
+              required
+              minIso={today}
+              pickerLabel="Choose arrival date"
+            />
           </Field>
-          <Field
-            label="Departure date"
-            error={!departure ? null : stayValid.ok ? null : "Departure must be after arrival"}
-          >
-            <MalaysianDateInput value={departure} onChange={setDeparture} required />
+          <Field label="Departure date" error={departureError}>
+            <MalaysianDateInput
+              value={departure}
+              onChange={setDeparture}
+              required
+              minIso={arrival ? addDaysIso(arrival, 1) : today}
+              pickerLabel="Choose departure date"
+            />
           </Field>
           <Field label="Booking source">
             <ActiveBookingSourceSelect value={bookingSource} onChange={setBookingSource} />
