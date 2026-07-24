@@ -492,7 +492,7 @@ export async function getReservationById(
   const rooms = await sb
     .from("hotel_reservation_rooms")
     .select(
-      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, hotel_rooms(room_number)",
+      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, hotel_rooms(room_number, display_name, n3_stock_name)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
