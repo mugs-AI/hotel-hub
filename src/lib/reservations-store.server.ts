@@ -189,6 +189,7 @@ export async function createReservationAtomic(
 export type AvailabilityRoom = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
   n3StockCode: string;
   n3StockName: string | null;
   roomType: string;
