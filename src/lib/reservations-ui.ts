@@ -46,6 +46,7 @@ export {
 export type ListFilters = {
   bookingReference: string;
   guestName: string;
+  guestMobile: string;
   bookingSource: string; // "" = all
   status: string; // "" = all
   arrivalFrom: string;
@@ -55,6 +56,7 @@ export type ListFilters = {
 export const EMPTY_FILTERS: ListFilters = {
   bookingReference: "",
   guestName: "",
+  guestMobile: "",
   bookingSource: "",
   status: "",
   arrivalFrom: "",
@@ -74,6 +76,7 @@ export function buildListQuery(
   const p = new URLSearchParams();
   if (filters.bookingReference.trim()) p.set("bookingReference", filters.bookingReference.trim());
   if (filters.guestName.trim()) p.set("guestName", filters.guestName.trim());
+  if (filters.guestMobile.trim()) p.set("guestMobile", filters.guestMobile.trim());
   if (filters.bookingSource) p.set("bookingSource", filters.bookingSource);
   if (filters.status) p.set("status", filters.status);
   if (filters.arrivalFrom) p.set("arrivalFrom", filters.arrivalFrom);
@@ -82,6 +85,7 @@ export function buildListQuery(
   p.set("offset", String(page.offset));
   return p;
 }
+
 
 // ---------- Guest helpers ----------
 // Correction B (Turn 2) — GuestDraft field names match the migration:
