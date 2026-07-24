@@ -2,6 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
+import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
+
 
 type NavItem = {
   to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings";
