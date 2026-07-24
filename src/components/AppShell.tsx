@@ -2,6 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
+import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
+
 
 type NavItem = {
   to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings";
@@ -33,6 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
+  const [displayWidth, setDisplayWidth] = useDisplayWidth();
 
   // Note: the N3 launch token is consumed server-side by the root-URL
   // interceptor in `src/start.ts` and the `/api/auth/launch` handler, then
@@ -62,11 +65,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const role = session.role;
+  const containerClass = widthContainerClass(displayWidth);
 
   return (
     <div className="min-h-screen text-foreground" style={{ backgroundColor: "#F4F8FC" }}>
       <header className="border-b border-border bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3">
+        <div className={`${containerClass} flex items-center justify-between gap-4 py-3`}>
           <div className="flex items-center gap-3">
             <div
               className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
@@ -83,14 +87,18 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
-          <SessionBadge
-            session={session}
-            onSignOut={() => signOut.mutate()}
-            signingOut={signOut.isPending}
-          />
+          <div className="flex items-center gap-4">
+            <DisplayWidthToggle value={displayWidth} onChange={setDisplayWidth} />
+            <SessionBadge
+              session={session}
+              onSignOut={() => signOut.mutate()}
+              signingOut={signOut.isPending}
+            />
+          </div>
         </div>
       </header>
-      <div className="mx-auto flex max-w-7xl gap-6 px-6 py-6">
+      <div className={`${containerClass} flex gap-6 py-6`}>
+
         <nav
           aria-label="Primary"
           className="w-56 shrink-0 rounded-lg p-3 shadow-sm"
@@ -161,6 +169,48 @@ function FullScreenLoader({ label }: { label: string }) {
     </div>
   );
 }
+
+function DisplayWidthToggle({
+  value,
+  onChange,
+}: {
+  value: DisplayWidth;
+  onChange: (v: DisplayWidth) => void;
+}) {
+  const options: Array<{ v: DisplayWidth; label: string; title: string }> = [
+    { v: "standard", label: "Standard", title: "Centered layout, capped for readability" },
+    { v: "full", label: "Full width", title: "Use the full browser workspace" },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Display width"
+      className="hidden items-center rounded-md border border-input bg-white p-0.5 text-xs md:inline-flex"
+    >
+      {options.map((o) => {
+        const active = o.v === value;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            title={o.title}
+            onClick={() => onChange(o.v)}
+            className="rounded px-2 py-1 font-medium transition-colors"
+            style={{
+              backgroundColor: active ? "#0F9D8A" : "transparent",
+              color: active ? "white" : "#102A43",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 
 /**
  * Full-page gate shown to authenticated N3 users who do not yet have a

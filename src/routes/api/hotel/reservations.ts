@@ -148,6 +148,7 @@ export async function handleListReservations({ request }: { request: Request }):
       tenantId: ctx.session.tenantId!,
       bookingReference: url.searchParams.get("bookingReference") ?? undefined,
       guestName: url.searchParams.get("guestName") ?? undefined,
+      guestMobile: url.searchParams.get("guestMobile") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       bookingSource: bookingSource ?? undefined,
       arrivalFrom: arrivalFrom ?? undefined,
@@ -161,6 +162,7 @@ export async function handleListReservations({ request }: { request: Request }):
     return deny(500, "reservations_list_failed");
   }
 }
+
 
 export async function handleCreateReservation({
   request,

@@ -31,7 +31,7 @@ import {
 import { tenantSourceLabel } from "@/lib/reservations-client";
 
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
-import { COUNTRIES, countryName } from "@/lib/iso-countries";
+import { countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
 import { IDENTITY_TYPES, identityTypeLabel } from "@/lib/guest-identity";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
@@ -565,7 +565,10 @@ function SelectedRoomRow({
   );
 }
 
-// ---------- Searchable country / nationality datalist input ----------
+// ---------- Searchable country / nationality combobox ----------
+// Uses the fully accessible CountryCombobox (keyboard nav, scrollIntoView,
+// listbox semantics) — the previous <datalist> implementation is removed.
+import { CountryCombobox } from "@/components/country-combobox";
 function CountryPicker({
   id,
   value,
@@ -577,58 +580,11 @@ function CountryPicker({
   onChange: (alpha3: string) => void;
   placeholder: string;
 }) {
-  const [text, setText] = useState<string>(value ? countryName(value) : "");
-  useEffect(() => {
-    setText(value ? countryName(value) : "");
-  }, [value]);
-
-  /**
-   * Resolve text to a country code. Only an exact name / alpha-3 match
-   * commits a country. Any non-empty text that doesn't match clears the
-   * hidden code so a stale value from a previous selection can never be
-   * submitted while the visible input shows unrelated text.
-   */
-  function resolve(next: string) {
-    const trimmed = next.trim().toLowerCase();
-    if (!trimmed) {
-      if (value) onChange("");
-      return;
-    }
-    const exact = COUNTRIES.find(
-      (c) => c.name.toLowerCase() === trimmed || c.alpha3.toLowerCase() === trimmed,
-    );
-    if (exact) {
-      if (exact.alpha3 !== value) onChange(exact.alpha3);
-      return;
-    }
-    // Partial / unmatched text — never keep a stale code.
-    if (value) onChange("");
-  }
-
-  const listId = `${id}-list`;
   return (
-    <>
-      <input
-        id={id}
-        list={listId}
-        className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-        value={text}
-        placeholder={placeholder}
-        onChange={(e) => {
-          setText(e.target.value);
-          resolve(e.target.value);
-        }}
-        onBlur={(e) => resolve(e.target.value)}
-        autoComplete="off"
-      />
-      <datalist id={listId}>
-        {COUNTRIES.map((c) => (
-          <option key={c.alpha3} value={c.name} />
-        ))}
-      </datalist>
-    </>
+    <CountryCombobox id={id} value={value} onChange={onChange} placeholder={placeholder} />
   );
 }
+
 
 function GuestCard({
   guest,

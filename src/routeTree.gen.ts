@@ -16,6 +16,7 @@ import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
 import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
+import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
@@ -24,6 +25,7 @@ import { Route as ApiHotelWalkInCustomerRouteImport } from './routes/api/hotel/w
 import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/settings'
 import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
 import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
+import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
@@ -72,6 +74,11 @@ const ReservationsNewRoute = ReservationsNewRouteImport.update({
   path: '/reservations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReservationsCalendarRoute = ReservationsCalendarRouteImport.update({
+  id: '/reservations/calendar',
+  path: '/reservations/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReservationsIdRoute = ReservationsIdRouteImport.update({
   id: '/reservations/$id',
   path: '/reservations/$id',
@@ -112,6 +119,12 @@ const ApiHotelReservationsRoute = ApiHotelReservationsRouteImport.update({
   path: '/api/hotel/reservations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotelReservationCalendarRoute =
+  ApiHotelReservationCalendarRouteImport.update({
+    id: '/api/hotel/reservation-calendar',
+    path: '/api/hotel/reservation-calendar',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHotelBookingSourcesRoute = ApiHotelBookingSourcesRouteImport.update({
   id: '/api/hotel/booking-sources',
   path: '/api/hotel/booking-sources',
@@ -181,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -188,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
@@ -210,6 +225,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -217,6 +233,7 @@ export interface FileRoutesByTo {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
@@ -240,6 +257,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
+  '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
@@ -247,6 +265,7 @@ export interface FileRoutesById {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
@@ -271,6 +290,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
@@ -278,6 +298,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
@@ -300,6 +321,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations'
     | '/api/auth/connect'
@@ -307,6 +329,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
@@ -329,6 +352,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/verification'
     | '/reservations/$id'
+    | '/reservations/calendar'
     | '/reservations/new'
     | '/reservations/'
     | '/api/auth/connect'
@@ -336,6 +360,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
@@ -359,6 +384,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
   ReservationsIdRoute: typeof ReservationsIdRoute
+  ReservationsCalendarRoute: typeof ReservationsCalendarRoute
   ReservationsNewRoute: typeof ReservationsNewRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
@@ -366,6 +392,7 @@ export interface RootRouteChildren {
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
+  ApiHotelReservationCalendarRoute: typeof ApiHotelReservationCalendarRoute
   ApiHotelReservationsRoute: typeof ApiHotelReservationsRouteWithChildren
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
   ApiHotelSettingsRoute: typeof ApiHotelSettingsRoute
@@ -428,6 +455,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReservationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reservations/calendar': {
+      id: '/reservations/calendar'
+      path: '/reservations/calendar'
+      fullPath: '/reservations/calendar'
+      preLoaderRoute: typeof ReservationsCalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reservations/$id': {
       id: '/reservations/$id'
       path: '/reservations/$id'
@@ -482,6 +516,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hotel/reservations'
       fullPath: '/api/hotel/reservations'
       preLoaderRoute: typeof ApiHotelReservationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/reservation-calendar': {
+      id: '/api/hotel/reservation-calendar'
+      path: '/api/hotel/reservation-calendar'
+      fullPath: '/api/hotel/reservation-calendar'
+      preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/booking-sources': {
@@ -639,6 +680,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
   ReservationsIdRoute: ReservationsIdRoute,
+  ReservationsCalendarRoute: ReservationsCalendarRoute,
   ReservationsNewRoute: ReservationsNewRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
@@ -646,6 +688,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
+  ApiHotelReservationCalendarRoute: ApiHotelReservationCalendarRoute,
   ApiHotelReservationsRoute: ApiHotelReservationsRouteWithChildren,
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,
   ApiHotelSettingsRoute: ApiHotelSettingsRoute,

@@ -26,6 +26,7 @@ const SOFT_BG = "#F4F8FC";
 type ListSearch = {
   bookingReference: string;
   guestName: string;
+  guestMobile: string;
   bookingSource: string;
   status: string;
   arrivalFrom: string;
@@ -46,6 +47,7 @@ export const Route = createFileRoute("/reservations/")({
   validateSearch: (raw: Record<string, unknown>): ListSearch => ({
     bookingReference: str(raw.bookingReference),
     guestName: str(raw.guestName),
+    guestMobile: str(raw.guestMobile),
     bookingSource: str(raw.bookingSource),
     status: str(raw.status),
     arrivalFrom: str(raw.arrivalFrom),
@@ -53,6 +55,7 @@ export const Route = createFileRoute("/reservations/")({
     limit: int(raw.limit, 25),
     offset: int(raw.offset, 0),
   }),
+
   head: () => ({
     meta: [
       { title: "Reservations — HotelHub" },
@@ -141,6 +144,7 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   const filters: ListFilters = {
     bookingReference: search.bookingReference,
     guestName: search.guestName,
+    guestMobile: search.guestMobile,
     bookingSource: search.bookingSource,
     status: search.status,
     arrivalFrom: search.arrivalFrom,
@@ -156,11 +160,13 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   }, [
     filters.bookingReference,
     filters.guestName,
+    filters.guestMobile,
     filters.bookingSource,
     filters.status,
     filters.arrivalFrom,
     filters.arrivalTo,
   ]);
+
 
   const query = useReservationList(filters, { limit, offset });
   const sourcesQ = useBookingSources({ activeOnly: false });
@@ -183,6 +189,7 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
 
   return (
     <>
+      <ViewSwitcher active="list" />
       <FiltersCard
         draft={draft}
         onChange={setDraft}
@@ -210,6 +217,37 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
     </>
   );
 }
+
+export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
+  return (
+    <nav
+      aria-label="Reservations view"
+      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-xs shadow-sm"
+    >
+      <Link
+        to="/reservations"
+        className="px-3 py-1.5 font-medium"
+        style={{
+          backgroundColor: active === "list" ? NAVY : "transparent",
+          color: active === "list" ? "white" : NAVY,
+        }}
+      >
+        List
+      </Link>
+      <Link
+        to="/reservations/calendar"
+        className="px-3 py-1.5 font-medium"
+        style={{
+          backgroundColor: active === "calendar" ? NAVY : "transparent",
+          color: active === "calendar" ? "white" : NAVY,
+        }}
+      >
+        Calendar / Room View
+      </Link>
+    </nav>
+  );
+}
+
 
 function BookingSourceSelect({
   value,
@@ -284,6 +322,15 @@ function FiltersCard({
             onChange={(e) => onChange({ ...draft, guestName: e.target.value })}
           />
         </Field>
+        <Field label="Mobile number">
+          <input
+            inputMode="tel"
+            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+            value={draft.guestMobile}
+            onChange={(e) => onChange({ ...draft, guestMobile: e.target.value })}
+            placeholder="e.g. 012 345 6789"
+          />
+        </Field>
         <Field label="Booking source">
           <BookingSourceSelect
             value={draft.bookingSource}
@@ -291,6 +338,7 @@ function FiltersCard({
             emptyLabel="All sources"
           />
         </Field>
+
         <Field label="Status">
           <select
             className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
