@@ -796,7 +796,7 @@ function RoomsStep({
   useEffect(() => setPage(1), [search, floor, roomType, minCapacity, pageSize]);
 
   return (
-    <div className={`grid grid-cols-1 gap-4 ${widthContainerClass("full").includes("max-w-none") ? "lg:grid-cols-[minmax(0,1fr)_320px]" : ""}`}>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <Card title={STEP_LABELS[2]}>
         {!stayValid ? (
           <p className="text-xs text-muted-foreground">
