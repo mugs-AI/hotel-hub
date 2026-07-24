@@ -140,10 +140,12 @@ describe("reservations-ui — pure helpers", () => {
       {
         bookingReference: "BK",
         guestName: "  Jane  ",
+        guestMobile: "",
         bookingSource: "walk_in",
         status: "",
         arrivalFrom: "2026-07-20",
         arrivalTo: "",
+
       },
       { limit: 25, offset: 50 },
     );
