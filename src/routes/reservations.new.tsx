@@ -37,7 +37,12 @@ import {
   clearDraft,
   createDraftScheduler,
   loadDraft,
+  newClientGuestId,
   saveDraft,
+  vaultClearForUser,
+  vaultDeleteIdentity,
+  vaultGetIdentity,
+  vaultSetIdentity,
 } from "@/lib/reservation-draft";
 
 
@@ -46,6 +51,7 @@ import { CountryCombobox } from "@/components/country-combobox";
 import { countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
 import { IDENTITY_TYPES, identityTypeLabel } from "@/lib/guest-identity";
+import { maskIdentityNumber } from "@/lib/guest-identity";
 import { addDaysIso, todayInKualaLumpurIso } from "@/lib/malaysia-date";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -181,10 +187,18 @@ function NewReservationWizard({
     if (d.bookingSource) setBookingSource(d.bookingSource);
     if (d.externalRef) setExternalRef(d.externalRef);
     if (d.notes) setNotes(d.notes);
-    if (d.rooms.length > 0) setRooms(d.rooms);
+    if (d.rooms.length > 0) setRooms(d.rooms.map((r) => ({ ...r, remark: r.remark ?? "" })));
     if (d.guests.length > 0) {
-      // identityNumber intentionally left blank; user re-enters.
-      setGuests(d.guests.map((g) => ({ ...g, identityNumber: "" })) as GuestDraft[]);
+      // Re-hydrate identityNumber from the browser-memory vault only.
+      // Guests without a clientId (older drafts) get a fresh one; their
+      // identity is treated as unknown until re-entered.
+      setGuests(
+        d.guests.map((g) => {
+          const clientId = g.clientId ?? newClientGuestId();
+          const raw = vaultGetIdentity(tenantId, n3UserKey, clientId);
+          return { ...g, clientId, identityNumber: raw } as GuestDraft;
+        }),
+      );
     }
     setStep(d.step as Step);
     setDraftStatus("restored");
@@ -212,10 +226,14 @@ function NewReservationWizard({
         setTimeout(() => setDraftStatus((s) => (s === "saved" ? null : s)), 1500);
       }
     });
-    return () => {
-      /* nothing; scheduler is per-effect-safe */
-    };
   }, [tenantId, n3UserKey, step, arrival, departure, bookingSource, externalRef, notes, rooms, guests]);
+
+  // Cancel any pending debounced save when the wizard unmounts so a stale
+  // write can never fire after navigation.
+  useEffect(() => {
+    const sched = scheduler.current;
+    return () => sched.cancel();
+  }, []);
 
   // ---------- Stay validity ----------
   const stayValid = validateStayDates(arrival, departure, { today });
@@ -284,7 +302,12 @@ function NewReservationWizard({
 
     try {
       const res = await create.mutateAsync(payload);
+      // Order matters: cancel any pending debounced save BEFORE clearing
+      // state, so the newly-empty form isn't re-persisted as the "next"
+      // reservation's starting point.
+      scheduler.current.cancel();
       clearDraft(tenantId, n3UserKey);
+      vaultClearForUser(tenantId, n3UserKey);
       navigate({ to: "/reservations/$id", params: { id: res.reservationId } });
     } catch (err) {
       const code = (err as { code?: string }).code ?? "reservation_create_failed";
@@ -327,7 +350,9 @@ function NewReservationWizard({
         <DiscardConfirm
           onCancel={() => setShowDiscard(false)}
           onConfirm={() => {
+            scheduler.current.cancel();
             clearDraft(tenantId, n3UserKey);
+            vaultClearForUser(tenantId, n3UserKey);
             setStep(1);
             setArrival(today);
             setDeparture(addDaysIso(today, 1));
@@ -374,7 +399,7 @@ function NewReservationWizard({
           onRefetch={() => availability.refetch()}
         />
       ) : step === 3 ? (
-        <GuestsStep guests={guests} onChange={setGuests} />
+        <GuestsStep guests={guests} onChange={setGuests} tenantId={tenantId} n3UserKey={n3UserKey} />
       ) : (
         <ReviewStep
           arrival={arrival}
@@ -1184,6 +1209,17 @@ function CompactRoomRow({
           maxLength={200}
         />
       ) : null}
+      <textarea
+        className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-xs"
+        placeholder="Room remark (optional, max 500 chars)"
+        value={room.remark}
+        onChange={(e) => onChange({ ...room, remark: e.target.value })}
+        maxLength={500}
+        rows={2}
+      />
+      <div className="mt-0.5 text-right text-[10px] text-muted-foreground">
+        {room.remark.length}/500
+      </div>
       {err ? (
         <p className="mt-1 text-[11px]" style={{ color: ERR }}>
           {friendlyError(err.code)}
@@ -1198,9 +1234,13 @@ function CompactRoomRow({
 function GuestsStep({
   guests,
   onChange,
+  tenantId,
+  n3UserKey,
 }: {
   guests: GuestDraft[];
   onChange: (g: GuestDraft[]) => void;
+  tenantId: string;
+  n3UserKey: string;
 }) {
   const [active, setActive] = useState<number>(() =>
     Math.max(0, guests.findIndex((g) => g.isPrimary)),
@@ -1219,6 +1259,8 @@ function GuestsStep({
       alert("Set another guest as primary before removing this one.");
       return;
     }
+    const removed = guests[i];
+    if (removed.clientId) vaultDeleteIdentity(tenantId, n3UserKey, removed.clientId);
     onChange(removeGuestSafe(guests, i));
     if (i <= active) setActive(Math.max(0, active - 1));
   }
@@ -1226,6 +1268,10 @@ function GuestsStep({
     onChange(setPrimaryGuest(guests, i));
   }
   function updateGuest(i: number, next: GuestDraft) {
+    // Persist identity into the browser-memory vault — NEVER into web storage.
+    if (next.clientId && next.identityNumber !== guests[i].identityNumber) {
+      vaultSetIdentity(tenantId, n3UserKey, next.clientId, next.identityNumber);
+    }
     onChange(guests.map((g, j) => (i === j ? next : g)));
   }
 
@@ -1547,6 +1593,11 @@ function ReviewStep({
               {overridden && r.rateOverrideReason ? (
                 <span className="text-muted-foreground">— {r.rateOverrideReason}</span>
               ) : null}
+              {r.remark.trim() ? (
+                <div className="mt-0.5 w-full pl-3 text-[11px] text-muted-foreground">
+                  Remark: {r.remark.trim()}
+                </div>
+              ) : null}
             </li>
           );
         })}
@@ -1554,31 +1605,7 @@ function ReviewStep({
       <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
         Primary booking contact
       </h3>
-      {primary ? (
-        <div className="text-xs">
-          <div className="font-medium" style={{ color: NAVY }}>
-            {primary.fullName || "—"}
-          </div>
-          <div className="text-muted-foreground">
-            {[primary.mobile, primary.email].filter(Boolean).join(" · ") || "—"}
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {[
-              primary.addressLine1,
-              primary.addressLine2,
-              primary.addressLine3,
-              [primary.postcode, primary.city].filter(Boolean).join(" "),
-              primary.countryCode === "MYS"
-                ? malaysianStateName(primary.stateCode)
-                : primary.stateProvince,
-              countryName(primary.countryCode),
-            ]
-              .map((s) => (s ?? "").trim())
-              .filter(Boolean)
-              .join(", ") || "—"}
-          </div>
-        </div>
-      ) : (
+      {primary ? <GuestReview g={primary} /> : (
         <p className="text-xs text-muted-foreground">No primary guest set.</p>
       )}
       <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
@@ -1587,14 +1614,50 @@ function ReviewStep({
       {additional.length === 0 ? (
         <p className="text-xs text-muted-foreground">None.</p>
       ) : (
-        <ul className="text-xs">
+        <ul className="space-y-2 text-xs">
           {additional.map((g, i) => (
-            <li key={i} className="text-muted-foreground">
-              · {g.fullName || `Guest ${i + 2}`}
+            <li key={g.clientId ?? i} className="rounded border p-2" style={{ borderColor: `${NAVY}22` }}>
+              <GuestReview g={g} />
             </li>
           ))}
         </ul>
       )}
     </Card>
+  );
+}
+
+function GuestReview({ g }: { g: GuestDraft }) {
+  const identityMasked = g.identityNumber ? maskIdentityNumber(g.identityNumber) : null;
+  return (
+    <div className="text-xs">
+      <div className="font-medium" style={{ color: NAVY }}>
+        {g.fullName || "—"}
+      </div>
+      <div className="text-muted-foreground">
+        {[g.mobile, g.email].filter(Boolean).join(" · ") || "—"}
+      </div>
+      {g.identityType || identityMasked ? (
+        <div className="mt-0.5 text-[11px] text-muted-foreground">
+          {identityTypeLabel(g.identityType) || "Identity"}:{" "}
+          <span className="font-mono">{identityMasked ?? "—"}</span>
+        </div>
+      ) : null}
+      <div className="mt-0.5 text-[11px] text-muted-foreground">
+        {[
+          g.addressLine1,
+          g.addressLine2,
+          g.addressLine3,
+          [g.postcode, g.city].filter(Boolean).join(" "),
+          g.countryCode === "MYS" ? malaysianStateName(g.stateCode) : g.stateProvince,
+          countryName(g.countryCode),
+        ]
+          .map((s) => (s ?? "").trim())
+          .filter(Boolean)
+          .join(", ") || "—"}
+      </div>
+      {g.notes.trim() ? (
+        <div className="mt-1 text-[11px] text-muted-foreground">Notes: {g.notes.trim()}</div>
+      ) : null}
+    </div>
   );
 }

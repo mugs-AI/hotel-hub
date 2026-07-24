@@ -275,6 +275,12 @@ function Grid() {
   );
 }
 
+// Column geometry: single source of truth so header, row, and overlay
+// stay perfectly aligned even under overflow-x scroll.
+const LABEL_COL_PX = 200;
+const DAY_COL_PX = 72;
+const ROW_HEIGHT_PX = 42;
+
 function FloorGrid({
   rooms,
   allocations,
@@ -322,6 +328,9 @@ function FloorGrid({
     });
   }
 
+  const rowWidth = LABEL_COL_PX + days * DAY_COL_PX;
+  const rowTemplate = `${LABEL_COL_PX}px repeat(${days}, ${DAY_COL_PX}px)`;
+
   return (
     <div className="space-y-3">
       <FloorChips
@@ -332,34 +341,45 @@ function FloorGrid({
         total={rooms.length}
       />
       <div className="overflow-auto rounded-md border" style={{ borderColor: `${NAVY}22` }}>
-        <div
-          className="grid text-xs"
-          style={{ gridTemplateColumns: `200px repeat(${days}, minmax(72px, 1fr))` }}
-        >
-          <div className="sticky left-0 top-0 z-30 bg-white p-2 font-semibold" style={{ color: NAVY }}>
-            Room
-          </div>
-          {dates.map((d) => {
-            const dow = dayOfWeek(d);
-            const weekend = dow === 0 || dow === 6;
-            const isToday = d === today;
-            return (
-              <div
-                key={d}
-                className="sticky top-0 z-20 border-l p-1 text-center"
-                style={{
-                  borderColor: `${NAVY}11`,
-                  backgroundColor: isToday ? `${GOLD}22` : weekend ? `${NAVY}08` : "white",
-                  color: NAVY,
-                }}
-              >
-                <div className="font-semibold">{formatMyDate(d).slice(0, 5)}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}
+        <div style={{ width: rowWidth, minWidth: rowWidth }}>
+          {/* Header row — sticky at top */}
+          <div
+            className="sticky top-0 z-20"
+            style={{
+              display: "grid",
+              gridTemplateColumns: rowTemplate,
+              backgroundColor: "white",
+              boxShadow: `inset 0 -1px 0 ${NAVY}22`,
+            }}
+          >
+            <div
+              className="sticky left-0 z-30 p-2 text-xs font-semibold"
+              style={{ color: NAVY, backgroundColor: "white" }}
+            >
+              Room
+            </div>
+            {dates.map((d) => {
+              const dow = dayOfWeek(d);
+              const weekend = dow === 0 || dow === 6;
+              const isToday = d === today;
+              return (
+                <div
+                  key={d}
+                  className="border-l p-1 text-center text-xs"
+                  style={{
+                    borderColor: `${NAVY}11`,
+                    backgroundColor: isToday ? `${GOLD}22` : weekend ? `${NAVY}08` : "white",
+                    color: NAVY,
+                  }}
+                >
+                  <div className="font-semibold">{formatMyDate(d).slice(0, 5)}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
           {visibleFloors.map((floorKey, floorIdx) => {
             const label = floorKey === UNASSIGNED_FLOOR ? "Unassigned" : `Floor ${floorKey}`;
@@ -367,21 +387,48 @@ function FloorGrid({
             const isCollapsed = collapsed.has(floorKey);
             const zebra = floorIdx % 2 === 1;
             return (
-              <FloorSection
-                key={floorKey}
-                label={label}
-                count={list.length}
-                collapsed={isCollapsed}
-                onToggle={() => toggle(floorKey)}
-                rooms={list}
-                dates={dates}
-                today={today}
-                allocations={allocations}
-                rangeStart={rangeStart}
-                rangeEndExclusive={rangeEndExclusive}
-                days={days}
-                zebra={zebra}
-              />
+              <div key={floorKey}>
+                <button
+                  type="button"
+                  onClick={() => toggle(floorKey)}
+                  className="flex w-full items-center gap-2 border-b border-t px-2 py-1.5 text-left text-xs font-semibold"
+                  style={{
+                    color: NAVY,
+                    borderColor: `${NAVY}22`,
+                    backgroundColor: zebra ? `${NAVY}05` : `${NAVY}0A`,
+                    width: rowWidth,
+                  }}
+                  aria-expanded={!isCollapsed}
+                >
+                  <ChevronDown
+                    className="h-3.5 w-3.5 transition-transform"
+                    aria-hidden
+                    style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                  />
+                  <span>{label}</span>
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                    ({list.length})
+                  </span>
+                </button>
+                {isCollapsed
+                  ? null
+                  : list.map((room) => (
+                      <RoomRow
+                        key={room.hotelRoomId}
+                        room={room}
+                        dates={dates}
+                        days={days}
+                        today={today}
+                        allocations={allocations.filter(
+                          (a) => a.hotelRoomId === room.hotelRoomId,
+                        )}
+                        rangeStart={rangeStart}
+                        rangeEndExclusive={rangeEndExclusive}
+                        template={rowTemplate}
+                        rowWidth={rowWidth}
+                      />
+                    ))}
+              </div>
             );
           })}
         </div>
@@ -421,9 +468,7 @@ function FloorChips({
         {label}
         <span
           className="rounded-full px-1.5 text-[10px]"
-          style={{
-            backgroundColor: isActive ? "rgba(255,255,255,0.2)" : `${NAVY}0F`,
-          }}
+          style={{ backgroundColor: isActive ? "rgba(255,255,255,0.2)" : `${NAVY}0F` }}
         >
           {count}
         </span>
@@ -434,79 +479,9 @@ function FloorChips({
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by floor">
       {chip("__all__", "All floors", total)}
       {floors.map((f) =>
-        chip(
-          f,
-          f === UNASSIGNED_FLOOR ? "Unassigned" : `Floor ${f}`,
-          counts.get(f) ?? 0,
-        ),
+        chip(f, f === UNASSIGNED_FLOOR ? "Unassigned" : `Floor ${f}`, counts.get(f) ?? 0),
       )}
     </div>
-  );
-}
-
-function FloorSection({
-  label,
-  count,
-  collapsed,
-  onToggle,
-  rooms,
-  dates,
-  today,
-  allocations,
-  rangeStart,
-  rangeEndExclusive,
-  days,
-  zebra,
-}: {
-  label: string;
-  count: number;
-  collapsed: boolean;
-  onToggle: () => void;
-  rooms: CalendarRoom[];
-  dates: string[];
-  today: string;
-  allocations: CalendarAllocation[];
-  rangeStart: string;
-  rangeEndExclusive: string;
-  days: number;
-  zebra: boolean;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="sticky left-0 z-10 flex items-center gap-2 border-t border-b bg-white px-2 py-1.5 text-left text-xs font-semibold"
-        style={{
-          gridColumn: `1 / span ${days + 1}`,
-          color: NAVY,
-          borderColor: `${NAVY}22`,
-          backgroundColor: zebra ? `${NAVY}05` : `${NAVY}0A`,
-        }}
-        aria-expanded={!collapsed}
-      >
-        <ChevronDown
-          className="h-3.5 w-3.5 transition-transform"
-          aria-hidden
-          style={{ transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
-        />
-        <span>{label}</span>
-        <span className="ml-1 text-[10px] font-normal text-muted-foreground">({count})</span>
-      </button>
-      {collapsed
-        ? null
-        : rooms.map((room) => (
-            <RoomRow
-              key={room.hotelRoomId}
-              room={room}
-              dates={dates}
-              today={today}
-              allocations={allocations.filter((a) => a.hotelRoomId === room.hotelRoomId)}
-              rangeStart={rangeStart}
-              rangeEndExclusive={rangeEndExclusive}
-            />
-          ))}
-    </>
   );
 }
 
@@ -537,85 +512,109 @@ function statusColor(status: string): string {
 function RoomRow({
   room,
   dates,
+  days,
   today,
   allocations,
   rangeStart,
   rangeEndExclusive,
+  template,
+  rowWidth,
 }: {
   room: CalendarRoom;
   dates: string[];
+  days: number;
   today: string;
   allocations: CalendarAllocation[];
   rangeStart: string;
   rangeEndExclusive: string;
+  template: string;
+  rowWidth: number;
 }) {
   return (
-    <>
+    <div
+      className="relative border-t"
+      style={{
+        borderColor: `${NAVY}11`,
+        width: rowWidth,
+        height: ROW_HEIGHT_PX,
+      }}
+    >
+      {/* Cell layer — grid with the shared column template. */}
       <div
-        className="sticky left-0 z-10 border-t bg-white p-2"
-        style={{ borderColor: `${NAVY}11` }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: template,
+          height: "100%",
+        }}
       >
-        <div className="text-sm font-semibold" style={{ color: NAVY }}>
-          {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
+        <div
+          className="sticky left-0 z-10 bg-white p-1.5"
+          style={{ borderRight: `1px solid ${NAVY}11` }}
+        >
+          <div className="truncate text-xs font-semibold" style={{ color: NAVY }}>
+            {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
+          </div>
+          <div className="truncate text-[10px] text-muted-foreground">
+            <span className="font-mono">{room.roomNumber}</span>
+            {" · "}
+            {room.roomType}
+            {room.floor ? ` · Fl ${room.floor}` : ""}
+            {!room.isActive ? " · inactive" : ""}
+          </div>
         </div>
-        <div className="text-[10px] text-muted-foreground">
-          <span className="font-mono">{room.roomNumber}</span>
-          {" · "}
-          {room.roomType}
-          {room.floor ? ` · Fl ${room.floor}` : ""}
-          {!room.isActive ? " · inactive" : ""}
-        </div>
-      </div>
-      {dates.map((d) => {
-        const dow = dayOfWeek(d);
-        const weekend = dow === 0 || dow === 6;
-        const isToday = d === today;
-        return (
-          <div
-            key={d}
-            className="relative min-h-[42px] border-l border-t"
-            style={{
-              borderColor: `${NAVY}11`,
-              backgroundColor: isToday ? `${GOLD}14` : weekend ? `${NAVY}06` : "white",
-            }}
-          />
-        );
-      })}
-      {/* Reservation blocks overlay via absolute positioning inside the row grid. */}
-      <div className="col-span-full contents">
-        {allocations.map((a) => {
-          const startIdx = Math.max(
-            0,
-            dates.indexOf(a.arrivalDate < rangeStart ? rangeStart : a.arrivalDate),
-          );
-          // departure is exclusive; last occupied night is departure - 1
-          const clipEnd = a.departureDate > rangeEndExclusive ? rangeEndExclusive : a.departureDate;
-          const endIdx = Math.max(0, dates.indexOf(addDays(clipEnd, -1)));
-          if (startIdx < 0 || endIdx < 0 || endIdx < startIdx) return null;
-          const span = endIdx - startIdx + 1;
+        {dates.map((d) => {
+          const dow = dayOfWeek(d);
+          const weekend = dow === 0 || dow === 6;
+          const isToday = d === today;
           return (
-            <Link
-              key={a.reservationId + a.hotelRoomId}
-              to="/reservations/$id"
-              params={{ id: a.reservationId }}
-              className="relative -mt-[38px] flex items-center overflow-hidden rounded px-2 py-1 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
+            <div
+              key={d}
+              className="border-l"
               style={{
-                gridColumn: `${startIdx + 2} / span ${span}`,
-                backgroundColor: statusColor(a.allocationStatus),
-                marginLeft: 2,
-                marginRight: 2,
-                height: 30,
+                borderColor: `${NAVY}11`,
+                backgroundColor: isToday ? `${GOLD}14` : weekend ? `${NAVY}06` : "white",
               }}
-              title={`${a.bookingReference} · ${a.primaryGuestName ?? ""}`}
-            >
-              <span className="truncate">
-                {a.bookingReference}
-                {a.primaryGuestName ? ` · ${a.primaryGuestName}` : ""}
-              </span>
-            </Link>
+            />
           );
         })}
       </div>
-    </>
+
+      {/* Reservation overlay — absolutely positioned in pixel units against
+          the row (0 = start of label column). Blocks sit on top of the day
+          cells and share the exact 72px column width. */}
+      {allocations.map((a) => {
+        const startClip = a.arrivalDate < rangeStart ? rangeStart : a.arrivalDate;
+        const clipEnd = a.departureDate > rangeEndExclusive ? rangeEndExclusive : a.departureDate;
+        const startIdx = dates.indexOf(startClip);
+        const endIdx = dates.indexOf(addDays(clipEnd, -1));
+        if (startIdx < 0 || endIdx < 0 || endIdx < startIdx) return null;
+        const span = endIdx - startIdx + 1;
+        const left = LABEL_COL_PX + startIdx * DAY_COL_PX + 2;
+        const width = span * DAY_COL_PX - 4;
+        // Guard against overflow past the row's right edge.
+        const clampedWidth = Math.max(0, Math.min(width, rowWidth - left - 2));
+        return (
+          <Link
+            key={a.reservationId + a.hotelRoomId}
+            to="/reservations/$id"
+            params={{ id: a.reservationId }}
+            className="absolute flex items-center overflow-hidden rounded px-2 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
+            style={{
+              left,
+              width: clampedWidth,
+              top: 6,
+              height: 30,
+              backgroundColor: statusColor(a.allocationStatus),
+            }}
+            title={`${a.bookingReference} · ${a.primaryGuestName ?? ""}`}
+          >
+            <span className="truncate">
+              {a.bookingReference}
+              {a.primaryGuestName ? ` · ${a.primaryGuestName}` : ""}
+            </span>
+          </Link>
+        );
+      })}
+    </div>
   );
 }

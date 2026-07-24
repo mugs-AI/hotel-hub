@@ -122,6 +122,8 @@ export type ReservationDetailGuestDTO = {
   identityType: string | null;
   /** ALWAYS masked server-side. Raw identity numbers never cross this boundary. */
   identityNumberMasked: string | null;
+  /** Free-text guest note (housekeeping/front-desk annotation). */
+  notes: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
   addressLine3: string | null;
@@ -157,6 +159,7 @@ export type ReservationDetailDTO = {
     children: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
+    remark: string | null;
   }>;
   guests: ReservationDetailGuestDTO[];
 };
@@ -173,6 +176,7 @@ export type CreateReservationPayload = {
     adults: number;
     children: number;
     rateOverrideReason: string | null;
+    remark: string | null;
   }>;
   guests: Array<{
     fullName: string;

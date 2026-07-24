@@ -216,11 +216,12 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
                 <th className="py-2 pr-4">Children</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2 pr-4">Override reason</th>
+                <th className="py-2 pr-4">Remark</th>
               </tr>
             </thead>
             <tbody>
               {data.rooms.map((r) => (
-                <tr key={r.id} className="border-t border-border/60">
+                <tr key={r.id} className="border-t border-border/60 align-top">
                   <td className="py-2 pr-4 text-xs">
                     <span className="font-semibold" style={{ color: NAVY }}>
                       {roomLabel(r.displayName, r.n3StockName, r.roomNumber)}
@@ -241,10 +242,23 @@ function Detail({ data }: { data: ReservationDetailDTO }) {
                   <td className="py-2 pr-4 text-xs text-muted-foreground">
                     {r.rateOverrideReason ?? "—"}
                   </td>
+                  <td className="py-2 pr-4 text-xs whitespace-pre-wrap">
+                    {r.remark ?? "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="mt-3">
+          <Link
+            to="/reservations/$id/print"
+            params={{ id: data.id }}
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
+            style={{ color: NAVY }}
+          >
+            Print registration forms
+          </Link>
         </div>
       </section>
 
@@ -330,6 +344,10 @@ function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
         <div className="sm:col-span-2">
           <dt className="text-muted-foreground">Address</dt>
           <dd>{addressDisplay(g)}</dd>
+        </div>
+        <div className="sm:col-span-3">
+          <dt className="text-muted-foreground">Guest notes</dt>
+          <dd className="whitespace-pre-wrap">{g.notes ?? "—"}</dd>
         </div>
       </dl>
     </li>

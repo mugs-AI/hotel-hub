@@ -58,6 +58,7 @@ export type CreateReservationInput = {
     adults: number;
     children: number;
     rateOverrideReason?: string | null;
+    remark?: string | null;
   }>;
   guests: Array<{
     fullName: string;
@@ -103,6 +104,7 @@ export const RESERVATION_ERROR_CODES = new Set([
   "invalid_rate",
   "rate_override_reason_required",
   "room_not_available",
+  "room_remark_too_long",
   "guest_full_name_required",
   "tenant_required",
   "creator_required",
@@ -150,6 +152,7 @@ export async function createReservationAtomic(
       adults: r.adults,
       children: r.children,
       rate_override_reason: r.rateOverrideReason ?? null,
+      remark: r.remark ?? null,
     })),
     p_guests: input.guests.map((g) => ({
       full_name: g.fullName,
@@ -449,6 +452,7 @@ export type ReservationDetail = {
     children: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
+    remark: string | null;
   }>;
   guests: Array<{
     id: string;
@@ -461,6 +465,7 @@ export type ReservationDetail = {
     identityType: string | null;
     /** ALWAYS masked; raw values never leave the server. */
     identityNumberMasked: string | null;
+    notes: string | null;
     addressLine1: string | null;
     addressLine2: string | null;
     addressLine3: string | null;
@@ -492,7 +497,7 @@ export async function getReservationById(
   const rooms = await sb
     .from("hotel_reservation_rooms")
     .select(
-      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, hotel_rooms(room_number, display_name, n3_stock_name)",
+      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, remark, hotel_rooms(room_number, display_name, n3_stock_name)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
@@ -501,7 +506,7 @@ export async function getReservationById(
   const guests = await sb
     .from("hotel_reservation_guests")
     .select(
-      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
+      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, notes, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
@@ -538,6 +543,7 @@ export async function getReservationById(
         children: row.children,
         allocationStatus: row.allocation_status,
         rateOverrideReason: row.rate_override_reason,
+        remark: row.remark ?? null,
       };
     }),
     guests: guestRows.map((row) => {
@@ -552,6 +558,7 @@ export async function getReservationById(
         nationalityCode: nested?.nationality_code ?? null,
         identityType: nested?.identity_type ?? null,
         identityNumberMasked: maskIdentityNumberServer(nested?.identity_number ?? null),
+        notes: nested?.notes ?? null,
         addressLine1: nested?.address_line_1 ?? null,
         addressLine2: nested?.address_line_2 ?? null,
         addressLine3: nested?.address_line_3 ?? null,

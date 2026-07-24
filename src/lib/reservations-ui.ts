@@ -98,6 +98,10 @@ import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 
 export type GuestDraft = {
+  /** Random client-only id used to key the browser-memory identity vault.
+   *  NEVER sent to the server. Optional in the type so pre-clientId
+   *  fixtures still compile; UI code should always set it. */
+  clientId?: string;
   fullName: string;
   mobile: string;
   email: string;
@@ -118,8 +122,20 @@ export type GuestDraft = {
   stateProvince: string; // free-text — only when countryCode is non-MY
 };
 
+function makeClientId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {
+    /* ignore */
+  }
+  return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function emptyGuestDraft(isPrimary = false): GuestDraft {
   return {
+    clientId: makeClientId(),
     fullName: "",
     mobile: "",
     email: "",
@@ -181,7 +197,12 @@ export type RoomDraft = {
   adults: number;
   children: number;
   rateOverrideReason: string;
+  /** Optional free-text note attached to this room (≤500 chars). */
+  remark: string;
 };
+
+/** Maximum length for a per-room remark (matches DB CHECK). */
+export const ROOM_REMARK_MAX = 500;
 
 export function makeRoomDraft(r: {
   hotelRoomId: string;
@@ -208,6 +229,7 @@ export function makeRoomDraft(r: {
     adults: 1,
     children: 0,
     rateOverrideReason: "",
+    remark: "",
   };
 }
 
@@ -308,12 +330,14 @@ export function buildCreatePayload(input: {
     externalBookingReference: extRef.ok ? extRef.value : null,
     rooms: input.rooms.map((r) => {
       const overridden = rateOverrideRequired(r.baseRate, r.agreedRate);
+      const remark = (r.remark ?? "").trim();
       return {
         hotelRoomId: r.hotelRoomId,
         agreedRate: r.agreedRate,
         adults: r.adults,
         children: r.children,
         rateOverrideReason: overridden ? r.rateOverrideReason.trim() || null : null,
+        remark: remark.length > 0 ? remark : null,
       };
     }),
     guests: input.guests.map((g) => {
@@ -381,6 +405,8 @@ export function validateRoom(r: RoomDraft): ValidationResult {
     return { ok: false, code: "invalid_rate", field: "agreedRate" };
   if (rateOverrideRequired(r.baseRate, r.agreedRate) && !r.rateOverrideReason.trim())
     return { ok: false, code: "rate_override_reason_required", field: "rateOverrideReason" };
+  if ((r.remark ?? "").trim().length > ROOM_REMARK_MAX)
+    return { ok: false, code: "room_remark_too_long", field: "remark" };
   return { ok: true };
 }
 
@@ -455,6 +481,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_room_id: "One of the selected rooms is invalid.",
   invalid_external_reference: "External booking reference is invalid.",
   invalid_notes: "Notes must be text.",
+  room_remark_too_long: "Room remark must be 500 characters or fewer.",
   // Booking Sources (Settings) — Correction B Turn 3
   invalid_source_name: "Enter a valid source name (1–80 characters).",
   source_name_exists: "A booking source with that name already exists.",

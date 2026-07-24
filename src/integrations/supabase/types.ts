@@ -267,6 +267,7 @@ export type Database = {
           hotel_room_id: string
           id: string
           rate_override_reason: string | null
+          remark: string | null
           reservation_id: string
           stay_range: unknown
           tenant_id: string
@@ -284,6 +285,7 @@ export type Database = {
           hotel_room_id: string
           id?: string
           rate_override_reason?: string | null
+          remark?: string | null
           reservation_id: string
           stay_range?: unknown
           tenant_id: string
@@ -301,6 +303,7 @@ export type Database = {
           hotel_room_id?: string
           id?: string
           rate_override_reason?: string | null
+          remark?: string | null
           reservation_id?: string
           stay_range?: unknown
           tenant_id?: string
