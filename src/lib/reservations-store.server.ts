@@ -441,6 +441,8 @@ export type ReservationDetail = {
     id: string;
     hotelRoomId: string;
     roomNumber: string;
+    displayName: string | null;
+    n3StockName: string | null;
     baseRateSnapshot: number;
     agreedRate: number;
     adults: number;
