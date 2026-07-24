@@ -290,6 +290,15 @@ function FiltersCard({
             onChange={(e) => onChange({ ...draft, guestName: e.target.value })}
           />
         </Field>
+        <Field label="Mobile number">
+          <input
+            inputMode="tel"
+            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+            value={draft.guestMobile}
+            onChange={(e) => onChange({ ...draft, guestMobile: e.target.value })}
+            placeholder="e.g. 012 345 6789"
+          />
+        </Field>
         <Field label="Booking source">
           <BookingSourceSelect
             value={draft.bookingSource}
@@ -297,6 +306,7 @@ function FiltersCard({
             emptyLabel="All sources"
           />
         </Field>
+
         <Field label="Status">
           <select
             className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
