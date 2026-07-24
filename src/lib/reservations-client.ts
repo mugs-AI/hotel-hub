@@ -393,3 +393,28 @@ export function tenantSourceLabel(
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
+
+export function useUpdateReservation(id: string) {
+  const qc = useQueryClient();
+  const tenantId = (function useTid() {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const s = useSessionMe();
+    return s.data?.authenticated === true ? s.data.tenant.tenantId : null;
+  })();
+  return useMutation<UpdateReservationResponse, ReservationApiError, UpdateReservationPayload>({
+    mutationFn: (payload) =>
+      jsonFetch<UpdateReservationResponse>(`/api/hotel/reservations/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reservationDetailKey(tenantId, id) });
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey as unknown[];
+          return k[0] === "reservations" && (k[1] === "list" || k[1] === "availability") && k[2] === tenantId;
+        },
+      });
+    },
+  });
+}
