@@ -37,7 +37,12 @@ import {
   clearDraft,
   createDraftScheduler,
   loadDraft,
+  newClientGuestId,
   saveDraft,
+  vaultClearForUser,
+  vaultDeleteIdentity,
+  vaultGetIdentity,
+  vaultSetIdentity,
 } from "@/lib/reservation-draft";
 
 
@@ -46,6 +51,7 @@ import { CountryCombobox } from "@/components/country-combobox";
 import { countryName } from "@/lib/iso-countries";
 import { MALAYSIAN_STATES, malaysianStateName } from "@/lib/malaysia-states";
 import { IDENTITY_TYPES, identityTypeLabel } from "@/lib/guest-identity";
+import { maskIdentityNumber } from "@/lib/guest-identity";
 import { addDaysIso, todayInKualaLumpurIso } from "@/lib/malaysia-date";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Plus, Save, Trash2, X } from "lucide-react";
 
@@ -181,10 +187,18 @@ function NewReservationWizard({
     if (d.bookingSource) setBookingSource(d.bookingSource);
     if (d.externalRef) setExternalRef(d.externalRef);
     if (d.notes) setNotes(d.notes);
-    if (d.rooms.length > 0) setRooms(d.rooms);
+    if (d.rooms.length > 0) setRooms(d.rooms.map((r) => ({ ...r, remark: r.remark ?? "" })));
     if (d.guests.length > 0) {
-      // identityNumber intentionally left blank; user re-enters.
-      setGuests(d.guests.map((g) => ({ ...g, identityNumber: "" })) as GuestDraft[]);
+      // Re-hydrate identityNumber from the browser-memory vault only.
+      // Guests without a clientId (older drafts) get a fresh one; their
+      // identity is treated as unknown until re-entered.
+      setGuests(
+        d.guests.map((g) => {
+          const clientId = g.clientId ?? newClientGuestId();
+          const raw = vaultGetIdentity(tenantId, n3UserKey, clientId);
+          return { ...g, clientId, identityNumber: raw } as GuestDraft;
+        }),
+      );
     }
     setStep(d.step as Step);
     setDraftStatus("restored");
@@ -212,10 +226,14 @@ function NewReservationWizard({
         setTimeout(() => setDraftStatus((s) => (s === "saved" ? null : s)), 1500);
       }
     });
-    return () => {
-      /* nothing; scheduler is per-effect-safe */
-    };
   }, [tenantId, n3UserKey, step, arrival, departure, bookingSource, externalRef, notes, rooms, guests]);
+
+  // Cancel any pending debounced save when the wizard unmounts so a stale
+  // write can never fire after navigation.
+  useEffect(() => {
+    const sched = scheduler.current;
+    return () => sched.cancel();
+  }, []);
 
   // ---------- Stay validity ----------
   const stayValid = validateStayDates(arrival, departure, { today });
