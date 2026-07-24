@@ -1,7 +1,6 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
-import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 
 
@@ -38,7 +37,7 @@ const rootTokenInterceptor = createMiddleware().server(async ({ next, request })
 
 export const startInstance = createStart(() => ({
   // HotelHub does not use Supabase Auth — N3 is the sole identity source.
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
 
