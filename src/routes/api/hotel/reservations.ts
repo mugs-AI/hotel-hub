@@ -20,6 +20,7 @@ import { findBookingSourceByCode, isSourceCodeFormat } from "@/lib/booking-sourc
 import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 import { logAudit } from "@/lib/audit.server";
+import { todayInKualaLumpurIso } from "@/lib/malaysia-date";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
