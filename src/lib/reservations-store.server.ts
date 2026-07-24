@@ -527,6 +527,8 @@ export async function getReservationById(
         id: row.id,
         hotelRoomId: row.hotel_room_id,
         roomNumber: nested?.room_number ?? "",
+        displayName: nested?.display_name ?? null,
+        n3StockName: nested?.n3_stock_name ?? null,
         baseRateSnapshot:
           typeof row.base_rate_snapshot === "string"
             ? Number(row.base_rate_snapshot)
