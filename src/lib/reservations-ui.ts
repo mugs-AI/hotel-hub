@@ -170,7 +170,10 @@ export function applyGuestCountryChange(g: GuestDraft, nextCountry: string): Gue
 export type RoomDraft = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
+  n3StockName: string | null;
   roomType: string;
+  floor: string | null;
   maxOccupancy: number;
   baseRate: number;
   currency: string;
@@ -183,7 +186,10 @@ export type RoomDraft = {
 export function makeRoomDraft(r: {
   hotelRoomId: string;
   roomNumber: string;
+  displayName?: string | null;
+  n3StockName?: string | null;
   roomType: string;
+  floor?: string | null;
   maxOccupancy: number;
   baseRate: number;
   currency: string;
@@ -191,7 +197,10 @@ export function makeRoomDraft(r: {
   return {
     hotelRoomId: r.hotelRoomId,
     roomNumber: r.roomNumber,
+    displayName: r.displayName ?? null,
+    n3StockName: r.n3StockName ?? null,
     roomType: r.roomType,
+    floor: r.floor ?? null,
     maxOccupancy: r.maxOccupancy,
     baseRate: r.baseRate,
     currency: r.currency,
@@ -201,6 +210,51 @@ export function makeRoomDraft(r: {
     rateOverrideReason: "",
   };
 }
+
+/**
+ * Operational label precedence used everywhere front-of-house:
+ * displayName || n3StockName || roomNumber. Trims each input; empty
+ * strings are treated as absent.
+ */
+export function roomLabel(
+  displayName: string | null | undefined,
+  n3StockName: string | null | undefined,
+  roomNumber: string | null | undefined,
+): string {
+  const dn = (displayName ?? "").trim();
+  if (dn) return dn;
+  const sn = (n3StockName ?? "").trim();
+  if (sn) return sn;
+  return (roomNumber ?? "").trim();
+}
+
+/** Natural comparator for mixed alpha-numeric strings ("2" < "10", "A2" < "A10"). */
+export function naturalCompare(a: string, b: string): number {
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+/** Group a room list by floor and return natural-sorted floor keys. */
+export function groupRoomsByFloor<T extends { floor: string | null | undefined }>(
+  rooms: readonly T[],
+): { floors: string[]; byFloor: Map<string, T[]> } {
+  const byFloor = new Map<string, T[]>();
+  for (const r of rooms) {
+    const key = ((r.floor ?? "") as string).trim() || "__unassigned__";
+    const arr = byFloor.get(key) ?? [];
+    arr.push(r);
+    byFloor.set(key, arr);
+  }
+  const floors = Array.from(byFloor.keys()).sort((a, b) => {
+    if (a === "__unassigned__") return 1;
+    if (b === "__unassigned__") return -1;
+    return naturalCompare(a, b);
+  });
+  return { floors, byFloor };
+}
+export const UNASSIGNED_FLOOR = "__unassigned__";
 
 export function addRoomIfNew(
   rooms: RoomDraft[],

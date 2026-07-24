@@ -98,6 +98,7 @@ export type ReservationListResponse = { items: ReservationListItem[]; total: num
 export type AvailabilityRoomDTO = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
   n3StockCode: string;
   n3StockName: string | null;
   roomType: string;
@@ -148,6 +149,8 @@ export type ReservationDetailDTO = {
     id: string;
     hotelRoomId: string;
     roomNumber: string;
+    displayName: string | null;
+    n3StockName: string | null;
     baseRateSnapshot: number;
     agreedRate: number;
     adults: number;

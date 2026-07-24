@@ -189,6 +189,7 @@ export async function createReservationAtomic(
 export type AvailabilityRoom = {
   hotelRoomId: string;
   roomNumber: string;
+  displayName: string | null;
   n3StockCode: string;
   n3StockName: string | null;
   roomType: string;
@@ -217,7 +218,7 @@ export async function checkAvailability(input: {
   const roomsRes = await sb
     .from("hotel_rooms")
     .select(
-      "id, tenant_id, room_number, n3_stock_code, n3_stock_name, room_type, floor, max_occupancy, base_rate, is_active",
+      "id, tenant_id, room_number, display_name, n3_stock_code, n3_stock_name, room_type, floor, max_occupancy, base_rate, is_active",
     )
     .eq("tenant_id", input.tenantId)
     .eq("is_active", true);
@@ -225,6 +226,7 @@ export async function checkAvailability(input: {
   const rooms = (roomsRes.data ?? []) as Array<{
     id: string;
     room_number: string;
+    display_name: string | null;
     n3_stock_code: string;
     n3_stock_name: string | null;
     room_type: string;
@@ -256,6 +258,7 @@ export async function checkAvailability(input: {
     .map((r) => ({
       hotelRoomId: r.id,
       roomNumber: r.room_number,
+      displayName: r.display_name ?? null,
       n3StockCode: r.n3_stock_code,
       n3StockName: r.n3_stock_name,
       roomType: r.room_type,
@@ -438,6 +441,8 @@ export type ReservationDetail = {
     id: string;
     hotelRoomId: string;
     roomNumber: string;
+    displayName: string | null;
+    n3StockName: string | null;
     baseRateSnapshot: number;
     agreedRate: number;
     adults: number;
@@ -487,7 +492,7 @@ export async function getReservationById(
   const rooms = await sb
     .from("hotel_reservation_rooms")
     .select(
-      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, hotel_rooms(room_number)",
+      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, hotel_rooms(room_number, display_name, n3_stock_name)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
@@ -522,6 +527,8 @@ export async function getReservationById(
         id: row.id,
         hotelRoomId: row.hotel_room_id,
         roomNumber: nested?.room_number ?? "",
+        displayName: nested?.display_name ?? null,
+        n3StockName: nested?.n3_stock_name ?? null,
         baseRateSnapshot:
           typeof row.base_rate_snapshot === "string"
             ? Number(row.base_rate_snapshot)
