@@ -144,6 +144,7 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   const filters: ListFilters = {
     bookingReference: search.bookingReference,
     guestName: search.guestName,
+    guestMobile: search.guestMobile,
     bookingSource: search.bookingSource,
     status: search.status,
     arrivalFrom: search.arrivalFrom,
@@ -159,11 +160,13 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   }, [
     filters.bookingReference,
     filters.guestName,
+    filters.guestMobile,
     filters.bookingSource,
     filters.status,
     filters.arrivalFrom,
     filters.arrivalTo,
   ]);
+
 
   const query = useReservationList(filters, { limit, offset });
   const sourcesQ = useBookingSources({ activeOnly: false });
