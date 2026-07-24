@@ -218,7 +218,7 @@ export async function checkAvailability(input: {
   const roomsRes = await sb
     .from("hotel_rooms")
     .select(
-      "id, tenant_id, room_number, n3_stock_code, n3_stock_name, room_type, floor, max_occupancy, base_rate, is_active",
+      "id, tenant_id, room_number, display_name, n3_stock_code, n3_stock_name, room_type, floor, max_occupancy, base_rate, is_active",
     )
     .eq("tenant_id", input.tenantId)
     .eq("is_active", true);
@@ -226,6 +226,7 @@ export async function checkAvailability(input: {
   const rooms = (roomsRes.data ?? []) as Array<{
     id: string;
     room_number: string;
+    display_name: string | null;
     n3_stock_code: string;
     n3_stock_name: string | null;
     room_type: string;
@@ -257,6 +258,7 @@ export async function checkAvailability(input: {
     .map((r) => ({
       hotelRoomId: r.id,
       roomNumber: r.room_number,
+      displayName: r.display_name ?? null,
       n3StockCode: r.n3_stock_code,
       n3StockName: r.n3_stock_name,
       roomType: r.room_type,
