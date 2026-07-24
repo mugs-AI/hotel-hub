@@ -19,6 +19,7 @@ import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
 import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
+import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$id_.edit'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
 import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
@@ -88,6 +89,11 @@ const ReservationsIdRoute = ReservationsIdRouteImport.update({
 const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
   id: '/reservations/$id_/print',
   path: '/reservations/$id/print',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdEditRoute = ReservationsIdEditRouteImport.update({
+  id: '/reservations/$id_/edit',
+  path: '/reservations/$id/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRoute
@@ -248,6 +255,7 @@ export interface FileRoutesByTo {
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id_/edit': typeof ReservationsIdEditRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRoute
@@ -315,6 +324,7 @@ export interface FileRouteTypes {
     | '/api/n3/customers'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/reservations/$id'
@@ -347,6 +357,7 @@ export interface FileRouteTypes {
     | '/api/n3/customers'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/reservations/$id'
@@ -379,6 +390,7 @@ export interface FileRouteTypes {
     | '/api/n3/customers'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id_/edit'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/reservations/$id'
@@ -412,6 +424,7 @@ export interface RootRouteChildren {
   ApiN3CustomersRoute: typeof ApiN3CustomersRouteWithChildren
   ApiN3StocksRoute: typeof ApiN3StocksRouteWithChildren
   ApiSessionMeRoute: typeof ApiSessionMeRoute
+  ReservationsIdEditRoute: typeof ReservationsIdEditRoute
   ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
@@ -487,6 +500,13 @@ declare module '@tanstack/react-router' {
       path: '/reservations/$id/print'
       fullPath: '/reservations/$id/print'
       preLoaderRoute: typeof ReservationsIdPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/edit': {
+      id: '/reservations/$id_/edit'
+      path: '/reservations/$id/edit'
+      fullPath: '/reservations/$id/edit'
+      preLoaderRoute: typeof ReservationsIdEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/session/me': {
@@ -716,6 +736,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiN3CustomersRoute: ApiN3CustomersRouteWithChildren,
   ApiN3StocksRoute: ApiN3StocksRouteWithChildren,
   ApiSessionMeRoute: ApiSessionMeRoute,
+  ReservationsIdEditRoute: ReservationsIdEditRoute,
   ReservationsIdPrintRoute: ReservationsIdPrintRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
