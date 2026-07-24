@@ -88,6 +88,7 @@ export type CreateReservationResult = {
 
 export const RESERVATION_ERROR_CODES = new Set([
   "invalid_stay_dates",
+  "arrival_date_in_past",
   "invalid_booking_source",
   "setup_incomplete",
   "room_required",
