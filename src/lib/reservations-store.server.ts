@@ -284,6 +284,7 @@ export async function listReservations(input: {
   tenantId: string;
   bookingReference?: string;
   guestName?: string;
+  guestMobile?: string;
   status?: string;
   arrivalFrom?: string;
   arrivalTo?: string;
@@ -301,12 +302,14 @@ export async function listReservations(input: {
   // Never page reservations first and filter guests inside the page.
   let restrictIds: string[] | null = null;
   const guestNeedle = input.guestName?.trim() ?? "";
-  if (guestNeedle) {
-    const g = await sb
-      .from("hotel_guests")
-      .select("id")
-      .eq("tenant_id", input.tenantId)
-      .ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
+  const mobileNeedle = input.guestMobile?.trim() ?? "";
+  if (guestNeedle || mobileNeedle) {
+    let gq = sb.from("hotel_guests").select("id").eq("tenant_id", input.tenantId);
+    if (guestNeedle)
+      gq = gq.ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
+    if (mobileNeedle)
+      gq = gq.ilike("mobile", `%${mobileNeedle.replace(/[%_]/g, "")}%`);
+    const g = await gq;
     if (g.error) throw new ReservationReadError(`guest search failed: ${g.error.message}`);
     const guestIds = ((g.data ?? []) as Array<{ id: string }>).map((r) => r.id);
     if (guestIds.length === 0) return { items: [], total: 0 };
@@ -323,6 +326,7 @@ export async function listReservations(input: {
     );
     if (restrictIds.length === 0) return { items: [], total: 0 };
   }
+
 
   let q = sb
     .from("hotel_reservations")
