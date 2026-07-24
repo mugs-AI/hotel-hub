@@ -189,6 +189,7 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
 
   return (
     <>
+      <ViewSwitcher active="list" />
       <FiltersCard
         draft={draft}
         onChange={setDraft}
@@ -216,6 +217,37 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
     </>
   );
 }
+
+export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
+  return (
+    <nav
+      aria-label="Reservations view"
+      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-xs shadow-sm"
+    >
+      <Link
+        to="/reservations"
+        className="px-3 py-1.5 font-medium"
+        style={{
+          backgroundColor: active === "list" ? NAVY : "transparent",
+          color: active === "list" ? "white" : NAVY,
+        }}
+      >
+        List
+      </Link>
+      <Link
+        to="/reservations/calendar"
+        className="px-3 py-1.5 font-medium"
+        style={{
+          backgroundColor: active === "calendar" ? NAVY : "transparent",
+          color: active === "calendar" ? "white" : NAVY,
+        }}
+      >
+        Calendar / Room View
+      </Link>
+    </nav>
+  );
+}
+
 
 function BookingSourceSelect({
   value,
