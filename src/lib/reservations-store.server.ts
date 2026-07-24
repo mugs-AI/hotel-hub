@@ -439,6 +439,7 @@ export type ReservationDetail = {
   notes: string | null;
   externalBookingReference: string | null;
   createdAt: string;
+  updatedAt: string;
   createdByN3UserKey: string;
   rooms: Array<{
     id: string;
@@ -486,7 +487,7 @@ export async function getReservationById(
   const head = await sb
     .from("hotel_reservations")
     .select(
-      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, created_by_n3_user_key",
+      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, updated_at, created_by_n3_user_key",
     )
     .eq("tenant_id", tenantId)
     .eq("id", id)
@@ -525,6 +526,7 @@ export async function getReservationById(
     notes: r.notes,
     externalBookingReference: r.external_booking_reference ?? null,
     createdAt: r.created_at,
+    updatedAt: r.updated_at,
     createdByN3UserKey: r.created_by_n3_user_key,
     rooms: roomRows.map((row) => {
       const nested = Array.isArray(row.hotel_rooms) ? row.hotel_rooms[0] : row.hotel_rooms;
