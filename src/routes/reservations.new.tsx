@@ -1234,9 +1234,13 @@ function CompactRoomRow({
 function GuestsStep({
   guests,
   onChange,
+  tenantId,
+  n3UserKey,
 }: {
   guests: GuestDraft[];
   onChange: (g: GuestDraft[]) => void;
+  tenantId: string;
+  n3UserKey: string;
 }) {
   const [active, setActive] = useState<number>(() =>
     Math.max(0, guests.findIndex((g) => g.isPrimary)),
@@ -1255,6 +1259,8 @@ function GuestsStep({
       alert("Set another guest as primary before removing this one.");
       return;
     }
+    const removed = guests[i];
+    if (removed.clientId) vaultDeleteIdentity(tenantId, n3UserKey, removed.clientId);
     onChange(removeGuestSafe(guests, i));
     if (i <= active) setActive(Math.max(0, active - 1));
   }
@@ -1262,6 +1268,10 @@ function GuestsStep({
     onChange(setPrimaryGuest(guests, i));
   }
   function updateGuest(i: number, next: GuestDraft) {
+    // Persist identity into the browser-memory vault — NEVER into web storage.
+    if (next.clientId && next.identityNumber !== guests[i].identityNumber) {
+      vaultSetIdentity(tenantId, n3UserKey, next.clientId, next.identityNumber);
+    }
     onChange(guests.map((g, j) => (i === j ? next : g)));
   }
 
