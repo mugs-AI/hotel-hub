@@ -128,7 +128,7 @@ describe("reservations-ui — pure helpers", () => {
 
   it("formatIsoDate renders Malaysian dd/mm/yyyy (Correction B)", async () => {
     const { formatIsoDate } = await import("@/lib/reservations-ui");
-    expect(formatIsoDate("2027-07-20")).toBe("20/07/2026");
+    expect(formatIsoDate("2027-07-20")).toBe("20/07/2027");
     expect(formatIsoDate("2026-02-28")).toBe("28/02/2026");
     expect(formatIsoDate(null)).toBe("—");
     expect(formatIsoDate("")).toBe("—");
