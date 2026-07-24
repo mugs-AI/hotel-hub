@@ -25,6 +25,10 @@ export type MalaysianDateInputProps = {
   className?: string;
   /** Accessible label for the calendar icon button, e.g. "Choose arrival date". */
   pickerLabel?: string;
+  /** Optional inclusive ISO lower bound — dates before this are disabled in the picker. */
+  minIso?: string;
+  /** Optional inclusive ISO upper bound — dates after this are disabled in the picker. */
+  maxIso?: string;
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
@@ -55,7 +59,7 @@ function isoToLocalDate(iso: string): Date | undefined {
 
 export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInputProps>(
   function MalaysianDateInput(
-    { value, onChange, className, disabled, required, id, name, pickerLabel, ...aria },
+    { value, onChange, className, disabled, required, id, name, pickerLabel, minIso, maxIso, ...aria },
     ref,
   ) {
     const [display, setDisplay] = useState<string>(() =>
@@ -98,6 +102,12 @@ export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInpu
     }
 
     const selected = isoToLocalDate(value);
+    const minDate = minIso ? isoToLocalDate(minIso) : undefined;
+    const maxDate = maxIso ? isoToLocalDate(maxIso) : undefined;
+    const disabledMatchers = [
+      ...(minDate ? [{ before: minDate }] : []),
+      ...(maxDate ? [{ after: maxDate }] : []),
+    ];
 
     return (
       <div className={cn("relative", className)}>
@@ -147,6 +157,7 @@ export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInpu
                 }
               }}
               initialFocus
+              disabled={disabledMatchers.length > 0 ? disabledMatchers : undefined}
               className={cn("p-3 pointer-events-auto")}
             />
           </PopoverContent>

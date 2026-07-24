@@ -128,7 +128,7 @@ describe("reservations-ui — pure helpers", () => {
 
   it("formatIsoDate renders Malaysian dd/mm/yyyy (Correction B)", async () => {
     const { formatIsoDate } = await import("@/lib/reservations-ui");
-    expect(formatIsoDate("2026-07-20")).toBe("20/07/2026");
+    expect(formatIsoDate("2027-07-20")).toBe("20/07/2027");
     expect(formatIsoDate("2026-02-28")).toBe("28/02/2026");
     expect(formatIsoDate(null)).toBe("—");
     expect(formatIsoDate("")).toBe("—");
@@ -143,7 +143,7 @@ describe("reservations-ui — pure helpers", () => {
         guestMobile: "",
         bookingSource: "walk_in",
         status: "",
-        arrivalFrom: "2026-07-20",
+        arrivalFrom: "2027-07-20",
         arrivalTo: "",
 
       },
@@ -152,7 +152,7 @@ describe("reservations-ui — pure helpers", () => {
     expect(p.get("bookingReference")).toBe("BK");
     expect(p.get("guestName")).toBe("Jane");
     expect(p.get("bookingSource")).toBe("walk_in");
-    expect(p.get("arrivalFrom")).toBe("2026-07-20");
+    expect(p.get("arrivalFrom")).toBe("2027-07-20");
     expect(p.get("status")).toBeNull();
     expect(p.get("arrivalTo")).toBeNull();
     expect(p.get("limit")).toBe("25");
@@ -274,8 +274,8 @@ describe("reservations-ui — pure helpers", () => {
     };
     const payload = buildCreatePayload({
       bookingSource: "walk_in",
-      arrivalDate: "2026-07-20",
-      departureDate: "2026-07-22",
+      arrivalDate: "2027-07-20",
+      departureDate: "2027-07-22",
       notes: "  vip ",
       rooms: [room],
       guests: [{ ...emptyGuestDraft(true), fullName: " John " }],
@@ -331,9 +331,9 @@ describe("reservations-ui — pure helpers", () => {
     const { validateStayDates } = await import("@/lib/reservations-ui");
     expect(validateStayDates("", "").ok).toBe(false);
     expect(validateStayDates("2026-02-31", "2026-03-01").ok).toBe(false);
-    expect(validateStayDates("2026-07-22", "2026-07-22").ok).toBe(false);
-    expect(validateStayDates("2026-07-22", "2026-07-20").ok).toBe(false);
-    expect(validateStayDates("2026-07-20", "2026-07-22")).toEqual({ ok: true });
+    expect(validateStayDates("2027-07-22", "2027-07-22").ok).toBe(false);
+    expect(validateStayDates("2027-07-22", "2027-07-20").ok).toBe(false);
+    expect(validateStayDates("2027-07-20", "2027-07-22")).toEqual({ ok: true });
   });
 
   it("friendlyError never returns raw server strings", async () => {
@@ -354,7 +354,7 @@ describe("GET /api/hotel/availability — hardening", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22",
       ),
     });
     expect(res.status).toBe(403);
@@ -364,7 +364,7 @@ describe("GET /api/hotel/availability — hardening", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22&adults=1.5",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22&adults=1.5",
       ),
     });
     expect(res.status).toBe(400);
@@ -375,7 +375,7 @@ describe("GET /api/hotel/availability — hardening", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22&adults=",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22&adults=",
       ),
     });
     expect(res.status).toBe(400);
@@ -386,7 +386,7 @@ describe("GET /api/hotel/availability — hardening", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22&children=abc",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22&children=abc",
       ),
     });
     expect(res.status).toBe(400);
@@ -444,7 +444,7 @@ describe("GET /api/hotel/reservations — hardening", () => {
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
       request: new Request(
-        "http://x.test/api/hotel/reservations?arrivalFrom=2026-07-22&arrivalTo=2026-07-20",
+        "http://x.test/api/hotel/reservations?arrivalFrom=2027-07-22&arrivalTo=2027-07-20",
       ),
     });
     expect((await res.json()).error).toBe("invalid_date_filter");
@@ -577,12 +577,12 @@ describe("Milestone 1.1.2 — static safety", () => {
       "limit=25",
     ]);
     expect(reservationDetailKey("t-1", "abc")).toEqual(["reservations", "detail", "t-1", "abc"]);
-    expect(availabilityKey("t-1", "2026-07-20", "2026-07-22")).toEqual([
+    expect(availabilityKey("t-1", "2027-07-20", "2027-07-22")).toEqual([
       "reservations",
       "availability",
       "t-1",
-      "2026-07-20",
-      "2026-07-22",
+      "2027-07-20",
+      "2027-07-22",
     ]);
   });
 });

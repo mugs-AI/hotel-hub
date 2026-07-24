@@ -302,10 +302,16 @@ function isValidIsoDateStr(v: string): boolean {
   return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
 }
 
-export function validateStayDates(arrival: string, departure: string): ValidationResult {
+export function validateStayDates(
+  arrival: string,
+  departure: string,
+  opts?: { today?: string },
+): ValidationResult {
   if (!arrival || !departure) return { ok: false, code: "invalid_stay_dates" };
   if (!isValidIsoDateStr(arrival) || !isValidIsoDateStr(departure))
     return { ok: false, code: "invalid_stay_dates" };
+  if (opts?.today && arrival < opts.today)
+    return { ok: false, code: "arrival_date_in_past" };
   if (departure <= arrival) return { ok: false, code: "invalid_stay_dates" };
   return { ok: true };
 }
@@ -350,6 +356,7 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_stay_dates: "Arrival and departure dates are invalid.",
+  arrival_date_in_past: "Arrival date cannot be earlier than today.",
   invalid_booking_source: "Please choose a valid booking source.",
   room_required: "Select at least one room.",
   guest_required: "Add at least one guest.",

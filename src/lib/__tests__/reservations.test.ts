@@ -153,7 +153,7 @@ describe("GET /api/hotel/availability", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22",
       ),
     });
     expect(res.status).toBe(403);
@@ -163,7 +163,7 @@ describe("GET /api/hotel/availability", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22",
       ),
     });
     expect(res.status).toBe(401);
@@ -173,7 +173,7 @@ describe("GET /api/hotel/availability", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-22&departure=2026-07-20",
+        "http://x.test/api/hotel/availability?arrival=2027-07-22&departure=2027-07-20",
       ),
     });
     expect(res.status).toBe(400);
@@ -217,7 +217,7 @@ describe("GET /api/hotel/availability", () => {
     const { handleAvailability } = await import("@/routes/api/hotel/availability");
     const res = await handleAvailability({
       request: new Request(
-        "http://x.test/api/hotel/availability?arrival=2026-07-20&departure=2026-07-22&adults=3",
+        "http://x.test/api/hotel/availability?arrival=2027-07-20&departure=2027-07-22&adults=3",
       ),
     });
     expect(res.status).toBe(200);
@@ -236,8 +236,8 @@ describe("POST /api/hotel/reservations", () => {
   const ROOM_UUID_2 = "22222222-2222-4222-8222-222222222222";
   const validBody = () => ({
     bookingSource: "walk_in",
-    arrivalDate: "2026-07-20",
-    departureDate: "2026-07-22",
+    arrivalDate: "2027-07-20",
+    departureDate: "2027-07-22",
     notes: "VIP",
     rooms: [{ hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 }],
     guests: [{ fullName: "John Doe", isPrimary: true }],
@@ -309,7 +309,7 @@ describe("POST /api/hotel/reservations", () => {
     await seedAuthenticated("owner");
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     const res = await handleCreateReservation({
-      request: post({ ...validBody(), departureDate: "2026-07-20" }),
+      request: post({ ...validBody(), departureDate: "2027-07-20" }),
     });
     expect((await res.json()).error).toBe("invalid_stay_dates");
   });
@@ -492,9 +492,9 @@ describe("GET /api/hotel/reservations", () => {
           booking_reference: "BK260720001",
           booking_source: "walk_in",
           status: "confirmed",
-          arrival_date: "2026-07-20",
-          departure_date: "2026-07-22",
-          created_at: "2026-07-20T00:00:00Z",
+          arrival_date: "2027-07-20",
+          departure_date: "2027-07-22",
+          created_at: "2027-07-20T00:00:00Z",
           created_by_n3_user_key: "user-1",
         },
       ],

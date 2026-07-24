@@ -20,6 +20,7 @@ import { findBookingSourceByCode, isSourceCodeFormat } from "@/lib/booking-sourc
 import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 import { logAudit } from "@/lib/audit.server";
+import { todayInKualaLumpurIso } from "@/lib/malaysia-date";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -195,6 +196,10 @@ export async function handleCreateReservation({
   const departure = body.departureDate;
   if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival) {
     return deny(400, "invalid_stay_dates");
+  }
+  // Server-independent guard: arrival cannot be earlier than today in KL.
+  if (arrival < todayInKualaLumpurIso()) {
+    return deny(400, "arrival_date_in_past");
   }
   const notes =
     body.notes === undefined || body.notes === null
