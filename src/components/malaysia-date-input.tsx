@@ -25,6 +25,10 @@ export type MalaysianDateInputProps = {
   className?: string;
   /** Accessible label for the calendar icon button, e.g. "Choose arrival date". */
   pickerLabel?: string;
+  /** Optional inclusive ISO lower bound — dates before this are disabled in the picker. */
+  minIso?: string;
+  /** Optional inclusive ISO upper bound — dates after this are disabled in the picker. */
+  maxIso?: string;
   "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
