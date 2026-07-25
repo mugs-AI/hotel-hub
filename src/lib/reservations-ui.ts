@@ -461,7 +461,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   reservation_detail_failed: "Unable to load this reservation.",
   not_found: "Reservation not found.",
   invalid_id: "Invalid reservation link.",
-  unauthenticated: "Your session has expired. Please relaunch from N3.",
+  unauthenticated: "Your N3 session has expired. Reopen HotelHub from N3 → Marketplace → My Apps.",
   forbidden: "You don’t have permission to view this.",
   role_unassigned: "Your HotelHub role hasn’t been assigned yet.",
   // Correction B — guest identity and address

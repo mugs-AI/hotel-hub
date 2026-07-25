@@ -801,7 +801,7 @@ function N3Picker<T extends "customers" | "stocks">({
       {state.kind === "error" ? (
         <p className="text-xs" style={{ color: ERR }}>
           {state.code === "n3_unauthorized"
-            ? "N3 session expired. Please re-launch from N3."
+            ? "Your N3 session has expired. Reopen HotelHub from N3 → Marketplace → My Apps."
             : state.code === "n3_unavailable"
               ? "N3 is currently unavailable. Please retry."
               : state.code === "n3_incomplete"
