@@ -238,7 +238,7 @@ function Detail({ data, canEdit }: { data: ReservationDetailDTO; canEdit: boolea
             </span>
             {canEdit && editable ? (
               <Link
-                to="/reservations/$id_/edit"
+                to="/reservations/$id/edit"
                 params={{ id: data.id }}
                 className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-white"
                 style={{ backgroundColor: NAVY }}
