@@ -283,3 +283,39 @@ matching, refunds, cancellation / no-show processing, housekeeping
 operations, maintenance jobs, dashboards, reports, or sample hotel
 data. The navigation shell continues to render placeholders for these
 deferred modules.
+
+## Future Public Website & Channel Manager Boundary
+
+HotelHub stays one multi-tenant codebase with feature-controlled add-ons:
+`Core` (this app — N3-authenticated staff), `Website Booking`, and
+`Channel Manager`. A future public "Book Now" button opens a separate
+public surface (e.g. `booking.<tenant>.com`); public guests never receive
+N3 accounts and cannot reach staff APIs.
+
+- A future limited public server API validates property, availability,
+  holds, and bookings. N3 credentials remain server-only.
+- Payment success comes only from a verified payment-gateway webhook.
+  HotelHub never handles raw card data.
+- Guest access uses short-lived, single-purpose booking/manage tokens —
+  never N3 staff sessions or Supabase browser auth.
+- Website/OTA sales require a future room-type / rate-plan inventory
+  layer above the physical-room model. Public channels sell a room type;
+  Front Desk assigns the physical room later.
+- OTAs connect `OTA ↔ selected Channel Manager ↔ HotelHub`. The client
+  website is not OTA middleware.
+- Server-controlled reservation source / external reference is preserved
+  for future idempotent imports.
+
+No public endpoints, room-type tables, speculative OTA schema, or
+payment-gateway code are added in Core.
+
+## Accounting Roadmap (informational)
+
+- Reservation / check-in receipt → N3 AR Receive Payment (OR).
+- Cancelled unmatched refundable deposit → later approved N3 Customer
+  Refund; policy may instead require partial refund, customer credit,
+  forfeit, or later action.
+- Checkout charge → Cash Sales / CashMemo with Post to AR enabled.
+- Match applicable ORs to the CashMemo. A customer code on
+  Non-Post-to-AR Cash Sales does not create the required open
+  customer-control item, so it is not valid for this matching workflow.
