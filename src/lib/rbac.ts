@@ -25,6 +25,7 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "n3:verify": new Set(["owner"]),
   "n3:list_customers": new Set(["owner"]),
   "n3:list_stocks": new Set(["owner"]),
+  "n3:financial_verify": new Set(["owner"]),
   "hotel:setup": new Set(["owner"]),
   // Front desk needs to see rates for future check-in flows; housekeeper
   // is excluded from rate values in this milestone.
