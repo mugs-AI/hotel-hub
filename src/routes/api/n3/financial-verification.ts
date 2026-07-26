@@ -9,7 +9,6 @@ import {
   classifyGlAccount,
   classifyOrOrigin,
 } from "@/lib/n3-financial.server";
-import { getTenant } from "@/lib/tenant-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
