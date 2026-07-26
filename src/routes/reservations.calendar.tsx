@@ -10,7 +10,8 @@ import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { formatMyDate } from "@/lib/malaysia-date";
 import { ViewSwitcher } from "@/routes/reservations.index";
 import { groupRoomsByFloor, naturalCompare, roomLabel, UNASSIGNED_FLOOR } from "@/lib/reservations-ui";
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, Plus } from "lucide-react";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -99,11 +100,12 @@ function CalendarPage() {
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
+  const canCreate = hasPermission(role, "hotel:reservations:create");
 
   return (
     <AppShell>
       <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
-        <Header />
+        <Header canCreate={canCreate} />
         <ViewSwitcher active="calendar" />
         {data?.authenticated !== true ? null : !canView ? <NoAccess /> : <Grid />}
       </div>
@@ -111,26 +113,43 @@ function CalendarPage() {
   );
 }
 
-function Header() {
+function Header({ canCreate }: { canCreate: boolean }) {
   return (
     <section
       className="rounded-lg p-6 text-white shadow-sm"
       style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
     >
-      <span
-        className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-        style={{ backgroundColor: GOLD, color: NAVY }}
-      >
-        Planning
-      </span>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight">Reservation Calendar / Room View</h1>
-      <p className="mt-1 max-w-2xl text-sm text-white/85">
-        Read-only view of room allocations across the selected date range. Click a reservation
-        block to open its full detail.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <span
+            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ backgroundColor: GOLD, color: NAVY }}
+          >
+            Planning
+          </span>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+            Reservation Calendar / Room View
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-white/85">
+            Read-only view of room allocations across the selected date range. Click a reservation
+            block to open its full detail.
+          </p>
+        </div>
+        {canCreate ? (
+          <Link
+            to="/reservations/new"
+            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium shadow-sm"
+            style={{ backgroundColor: GOLD, color: NAVY }}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Add Reservation
+          </Link>
+        ) : null}
+      </div>
     </section>
   );
 }
+
 
 function NoAccess() {
   return (
