@@ -24,7 +24,8 @@ export type AuditEventType =
   | "hotel.booking_source.renamed"
   | "hotel.booking_source.activated"
   | "hotel.booking_source.deactivated"
-  | "hotel.booking_source.reordered";
+  | "hotel.booking_source.reordered"
+  | "n3.financial_verification";
 
 const SENSITIVE_KEYS = new Set([
   "token",
