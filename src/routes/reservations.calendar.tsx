@@ -10,7 +10,8 @@ import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { formatMyDate } from "@/lib/malaysia-date";
 import { ViewSwitcher } from "@/routes/reservations.index";
 import { groupRoomsByFloor, naturalCompare, roomLabel, UNASSIGNED_FLOOR } from "@/lib/reservations-ui";
-import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, Plus } from "lucide-react";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
