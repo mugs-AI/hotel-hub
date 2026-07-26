@@ -44,8 +44,6 @@ export async function handleFinancialVerification({
   if (typeof body.customerCode === "string" && body.customerCode.trim())
     filters.customerCode = body.customerCode.trim();
 
-  const tenantRow = await getTenant(ctx.session.tenantId).catch(() => null);
-
   try {
     const run = await runFinancialVerification({
       token: ctx.session.n3Token,
@@ -53,8 +51,8 @@ export async function handleFinancialVerification({
       dateTo: range.to,
       tenant: {
         id: ctx.session.tenantId,
-        code: tenantRow?.n3TenantCode ?? null,
-        name: tenantRow?.n3CompanyName ?? null,
+        code: ctx.session.tenantCode ?? null,
+        name: ctx.session.companyName ?? null,
       },
       filters,
     });
