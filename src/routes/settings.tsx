@@ -200,8 +200,46 @@ function BookingSourcesScreen() {
         )}
       </section>
 
+      <FinancialVerificationCard />
+
       <AddSourceDialog open={addOpen} onOpenChange={setAddOpen} />
     </div>
+  );
+}
+
+function FinancialVerificationCard() {
+  return (
+    <section
+      className="rounded-xl border bg-white p-5 shadow-sm"
+      style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+            style={{ color: GOLD }}
+          >
+            Owner tools
+          </p>
+          <h2 className="mt-1 text-lg font-semibold" style={{ color: NAVY }}>
+            N3 Financial Verification
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Read-only inquiry that confirms the live N3 Cloud contract for AR
+            Receive Payments, Cash Sales, Customer Refunds and the GL Chart of
+            Accounts. Use it to capture evidence before HotelHub payment writes
+            are enabled. It never creates, voids or refunds an N3 transaction.
+          </p>
+        </div>
+        <a
+          href="/settings/n3-financial-verification"
+          className="shrink-0 rounded-md px-3 py-2 text-sm font-semibold shadow-sm"
+          style={{ backgroundColor: NAVY, color: "white" }}
+        >
+          Open console →
+        </a>
+      </div>
+    </section>
   );
 }
 
