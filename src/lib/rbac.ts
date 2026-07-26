@@ -10,6 +10,7 @@ export type Permission =
   | "n3:verify" // run the read-only N3 verification probes
   | "n3:list_customers" // fetch N3 customer list for setup
   | "n3:list_stocks" // fetch N3 stock list for setup
+  | "n3:financial_verify" // run the Owner-only N3 Financial Verification console
   | "hotel:setup" // change tenant settings, walk-in customer, or rooms
   | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
   | "hotel:reservations:view" // read reservation list / detail / availability
