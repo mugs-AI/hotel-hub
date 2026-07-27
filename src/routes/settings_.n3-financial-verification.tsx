@@ -507,19 +507,23 @@ function RunSummary({ data }: { data: ApiResponse }) {
           type="button"
           variant="outline"
           onClick={() => {
+            const ts = run.runAt.replace(/[-:.]/g, "").slice(0, 15); // YYYYMMDDTHHMMSS
+            const refPart = (run.filters.hotelReference || run.filters.docNumber || "noref")
+              .replace(/[^A-Za-z0-9-]/g, "");
             const blob = new Blob([JSON.stringify(data, null, 2)], {
               type: "application/json",
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `hotelhub-n3-verify-${run.dateFrom}_${run.dateTo}.json`;
+            a.download = `hotelhub-5d0-${ts}-${refPart}.json`;
             a.click();
             URL.revokeObjectURL(url);
           }}
         >
           Download JSON
         </Button>
+
       </div>
     </section>
   );
