@@ -550,10 +550,71 @@ function ResourceSections({ data }: { data: ApiResponse }) {
       <ResourceCard report={map.get("cash_sales")!} />
       <KnockoffCard data={data} />
       <ResourceCard report={map.get("customer_refunds")!} />
+      <RefundKnockoffCard data={data} />
       <ResourceCard report={map.get("gl_accounts")!} extra={<GlAccountsTable data={data} />} />
     </>
   );
 }
+
+function RefundKnockoffCard({ data }: { data: ApiResponse }) {
+  const rows = data.derived.refundToOr ?? [];
+  return (
+    <section
+      className="rounded-xl border bg-white p-5 shadow-sm"
+      style={{ borderColor: `${NAVY}1F` }}
+    >
+      <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+        Refund ↔ OR Identity Check{" "}
+        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+      </h2>
+      {rows.length === 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          No refund knockoff rows matched an AR Receipt in this date range.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-[11px] uppercase text-muted-foreground">
+                <th className="p-2">Refund (RF)</th>
+                <th className="p-2">Knockoff DocId</th>
+                <th className="p-2">OR UUID</th>
+                <th className="p-2">Same UUID?</th>
+                <th className="p-2">Applied</th>
+                <th className="p-2">Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((k, i) => (
+                <tr key={i} className="border-t align-top">
+                  <td className="p-2">
+                    {k.refundDocNo}
+                    <br />
+                    <span className="text-muted-foreground">{k.refundId}</span>
+                  </td>
+                  <td className="p-2">
+                    {k.docNo ?? "—"}
+                    <br />
+                    <span className="text-muted-foreground">{k.docId ?? "—"}</span>
+                  </td>
+                  <td className="p-2">
+                    {k.candidateReceiptDocNo ?? "—"}
+                    <br />
+                    <span className="text-muted-foreground">{k.candidateReceiptId ?? "—"}</span>
+                  </td>
+                  <td className="p-2">{k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}</td>
+                  <td className="p-2">{k.appliedAmount ?? "—"}</td>
+                  <td className="p-2">{k.evidenceLabel}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 
 function ResourceCard({
   report,
