@@ -110,17 +110,6 @@ type ResourceReport = {
   detailFanOut: DetailFanOut | null;
   note?: string;
 };
-type Run = {
-  schemaVersion: string;
-  runId: string;
-  runAt: string;
-  dateFrom: string;
-  dateTo: string;
-  tenant: { id: string | null; code: string | null; name: string | null };
-  filters: Record<string, string>;
-  resources: ResourceReport[];
-  elapsedMs: number;
-};
 type KnockoffMatch = {
   receiptId: string | null;
   receiptDocNo: string | null;
@@ -133,8 +122,9 @@ type KnockoffMatch = {
   candidateCashSalesDocNo: string | null;
   candidateCashSalesDocCode: string | null;
   sameUuid: boolean | null;
+  docNoAgrees: boolean | null;
   customerMatch: boolean | null;
-  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available" | "none";
+  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel: string;
 };
 type RefundKnockoffMatch = {
@@ -150,7 +140,7 @@ type RefundKnockoffMatch = {
   correlation: string;
   evidenceLabel: string;
 };
-type GlEligibility = {
+type GlEligibilityRow = {
   row: unknown;
   eligibility: "bank" | "cash" | "unknown" | "ineligible";
   reasons: string[];
@@ -158,17 +148,21 @@ type GlEligibility = {
   active: boolean | null;
   posting: boolean | null;
 };
-type Derived = {
-  knockoffs: KnockoffMatch[];
-  orToCashMemo: KnockoffMatch[];
-  refundToOr: RefundKnockoffMatch[];
-  glClassified: { row: unknown; eligibility: "bank" | "cash" | "unknown" | "ineligible" }[];
-  glEligibility: GlEligibility[];
-  orClassified: { row: unknown; origin: "ar_receipt" | "gl_originated_or" | "unknown" }[];
+type Bundle = {
+  schemaVersion: string;
+  runId: string;
+  runAt: string;
+  tenant: { code: string | null; name: string | null };
+  dateRange: { from: string; to: string };
+  filters: Record<string, string>;
+  resources: ResourceReport[];
+  comparisons: { orToCashMemo: KnockoffMatch[]; refundToOr: RefundKnockoffMatch[] };
+  glEligibility: GlEligibilityRow[];
   fieldMaps: Record<string, { observed: string[] }>;
   conclusions: { resource: string; label: MafLabel; note: string | null }[];
+  elapsedMs: number;
 };
-type ApiResponse = { run: Run; derived: Derived };
+type ApiResponse = Bundle;
 
 
 function todayKL(): string {
@@ -433,7 +427,7 @@ function MafBadge({ label }: { label: MafLabel }) {
 }
 
 function RunSummary({ data }: { data: ApiResponse }) {
-  const run = data.run;
+  const run = data;
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
@@ -462,7 +456,7 @@ function RunSummary({ data }: { data: ApiResponse }) {
             Range
           </dt>
           <dd className="font-medium">
-            {fmtDMY(run.dateFrom)} — {fmtDMY(run.dateTo)}
+            {fmtDMY(run.dateRange.from)} — {fmtDMY(run.dateRange.to)}
           </dd>
         </div>
         <div>
@@ -473,7 +467,7 @@ function RunSummary({ data }: { data: ApiResponse }) {
         </div>
       </dl>
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {run.resources.map((r) => (
+        {run.resources.map((r: ResourceReport) => (
           <div
             key={r.resource}
             className="rounded-lg border p-3 text-xs"
@@ -543,10 +537,10 @@ function labelFor(r: ResourceReport["resource"]): string {
 }
 
 function ResourceSections({ data }: { data: ApiResponse }) {
-  const map = new Map(data.run.resources.map((r) => [r.resource, r]));
+  const map = new Map<string, ResourceReport>(data.resources.map((r: ResourceReport) => [r.resource, r] as const));
   return (
     <>
-      <ResourceCard report={map.get("ar_receipts")!} extra={<OrOriginTable data={data} />} />
+      <ResourceCard report={map.get("ar_receipts")!} />
       <ResourceCard report={map.get("cash_sales")!} />
       <KnockoffCard data={data} />
       <ResourceCard report={map.get("customer_refunds")!} />
@@ -557,7 +551,7 @@ function ResourceSections({ data }: { data: ApiResponse }) {
 }
 
 function RefundKnockoffCard({ data }: { data: ApiResponse }) {
-  const rows = data.derived.refundToOr ?? [];
+  const rows = data.comparisons.refundToOr ?? [];
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
@@ -585,7 +579,7 @@ function RefundKnockoffCard({ data }: { data: ApiResponse }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((k, i) => (
+              {rows.map((k: RefundKnockoffMatch, i: number) => (
                 <tr key={i} className="border-t align-top">
                   <td className="p-2">
                     {k.refundDocNo}
@@ -705,7 +699,7 @@ function ResourceCard({
 
 
 function KnockoffCard({ data }: { data: ApiResponse }) {
-  const rows = data.derived.knockoffs;
+  const rows = data.comparisons.orToCashMemo;
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
@@ -733,7 +727,7 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((k, i) => (
+              {rows.map((k: KnockoffMatch, i: number) => (
                 <tr key={i} className="border-t align-top">
                   <td className="p-2">
                     {k.receiptDocNo}
@@ -772,7 +766,7 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
 }
 
 function GlAccountsTable({ data }: { data: ApiResponse }) {
-  const rows = data.derived.glClassified;
+  const rows = data.glEligibility;
   if (rows.length === 0) return null;
   return (
     <div className="mt-3 overflow-x-auto">
@@ -786,7 +780,7 @@ function GlAccountsTable({ data }: { data: ApiResponse }) {
           </tr>
         </thead>
         <tbody>
-          {rows.slice(0, 100).map((r, i) => {
+          {rows.slice(0, 100).map((r: GlEligibilityRow, i: number) => {
             const row = (r.row ?? {}) as Record<string, unknown>;
             return (
               <tr key={i} className="border-t">
@@ -824,53 +818,4 @@ function GlAccountsTable({ data }: { data: ApiResponse }) {
   );
 }
 
-function OrOriginTable({ data }: { data: ApiResponse }) {
-  const rows = data.derived.orClassified;
-  if (rows.length === 0) return null;
-  return (
-    <div className="mt-3 overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-[11px] uppercase text-muted-foreground">
-            <th className="p-2">Doc No</th>
-            <th className="p-2">Origin</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.slice(0, 100).map((r, i) => {
-            const row = (r.row ?? {}) as Record<string, unknown>;
-            return (
-              <tr key={i} className="border-t">
-                <td className="p-2">{String(row.DocNo ?? row.docNo ?? "—")}</td>
-                <td className="p-2">
-                  <span
-                    className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white"
-                    style={{
-                      backgroundColor:
-                        r.origin === "ar_receipt"
-                          ? TEAL
-                          : r.origin === "gl_originated_or"
-                            ? "#C2413B"
-                            : "#8B98A9",
-                    }}
-                    title={
-                      r.origin === "gl_originated_or"
-                        ? "Not an AR Receipt — do not treat as a hotel deposit."
-                        : ""
-                    }
-                  >
-                    {r.origin === "ar_receipt"
-                      ? "AR Receipt"
-                      : r.origin === "gl_originated_or"
-                        ? "GL-originated OR"
-                        : "Unknown"}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+function OrOriginTable(_props: { data: ApiResponse }) { return null; }

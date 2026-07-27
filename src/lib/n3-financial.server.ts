@@ -1,28 +1,27 @@
-// Server-only N3 Financial Verification helpers — Run 5D0 Correction.
+// Server-only N3 Financial Verification helpers — Run 5D0.3 Critical
+// Correction. READ-ONLY. Only authenticated GETs are permitted here.
 //
-// READ-ONLY. Only authenticated GET calls to N3 Cloud are permitted here.
-// This module never issues POST/PUT/PATCH/DELETE and never creates, updates,
-// voids, matches, refunds or deletes any N3 record. It powers the Owner-only
-// `/settings/n3-financial-verification` screen to lock the live Cloud
-// contract before Run 5D writes.
-//
-// Contract discipline:
-//   - Every candidate endpoint tried is recorded in the evidence bundle with
-//     its exact casing, HTTP status, envelope code/message, and a sanitized
-//     sample of the response.
-//   - A 2xx page is not enough. Each resource has a semantic validator that
-//     checks the returned rows expose the fields that identify that
-//     resource. Wrong-resource payloads are labelled `Mismatch` and never
-//     parsed as that resource.
-//   - GL bank/cash eligibility requires immutable id + active + posting/leaf
-//     + normalised `SpecialType`. Name-only rows are `unknown`, never
-//     eligible.
-//   - Detail reads are strictly GET, tenant-scoped, capped at 20 per
-//     resource, and driven by immutable N3 IDs returned from the list.
+// Discipline (5d0.3):
+//   • Every candidate endpoint tried is recorded with an ALLOWLISTED public
+//     shape. `rawItems`, `rawTotal`, `body`, `matchedRawRows` and any other
+//     internal properties MUST NOT reach the browser or the exported bundle.
+//   • Semantic validation runs INSIDE the candidate loop. A 2xx that fails
+//     semantic validation is recorded as `Mismatch` and the loop continues to
+//     the next candidate.
+//   • An empty page cannot establish `Live N3 Confirmed` on its own for
+//     resources whose envelope message identifies a different resource
+//     (e.g. AR/Sales Credit Note vs Customer Refund).
+//   • GL lookup tries `/api/AccountCodes/Leaf/Query` first (proven working
+//     in mugs-AI/n3-custom-bill-entry), then falls back to
+//     `/api/GLAccounts/Query` and `/api/glaccounts/list`.
+//   • Detail fan-out normalises the inner detail DTO. Raw DTOs stay
+//     server-only; normalised DTOs drive comparisons.
+//   • Comparisons cross-check BOTH immutable ID and document number:
+//     ID resolves but docNo disagrees → Mismatch.
 
 import { callN3Path } from "./n3-gateway.server";
 
-export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.2";
+export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.3";
 
 export type FinResource = "ar_receipts" | "cash_sales" | "customer_refunds" | "gl_accounts";
 
@@ -41,21 +40,23 @@ export type FetchStatus =
   | "invalid_contract"
   | "failed";
 
-// Endpoint candidates. GL puts the confirmed `/api/GLAccounts/Query`
-// (exact casing) first, then keeps only the previously-proven
-// `/api/glaccounts/list` fallback. Guessed `/chartofaccount`/`coa` paths
-// were removed per the correction brief.
 const RESOURCE_CANDIDATES: Record<FinResource, string[]> = {
-  ar_receipts: ["/api/arreceive/list", "/api/arreceipts/list"],
+  ar_receipts: ["/api/arreceipts/list", "/api/arreceive/list"],
   cash_sales: ["/api/cashsales/list"],
   customer_refunds: ["/api/customerrefunds/list", "/api/debtorrefund/list"],
-  gl_accounts: ["/api/GLAccounts/Query", "/api/glaccounts/list"],
+  // /api/AccountCodes/Leaf/Query is the proven working GL lookup (see
+  // mugs-AI/n3-custom-bill-entry). The GLAccounts endpoints observed 404
+  // in the live 5d0.2 bundle, but we keep them as ordered fallbacks so a
+  // future N3 release that exposes them is still detected.
+  gl_accounts: [
+    "/api/AccountCodes/Leaf/Query",
+    "/api/GLAccounts/Query",
+    "/api/glaccounts/list",
+  ],
 };
 
-// Root path used to build immutable-ID detail reads. Detail read is a
-// GET-only convention (`{list_root}/{id}`) — never a write path.
 const RESOURCE_DETAIL_ROOT: Record<Exclude<FinResource, "gl_accounts">, string> = {
-  ar_receipts: "/api/arreceive",
+  ar_receipts: "/api/arreceipts",
   cash_sales: "/api/cashsales",
   customer_refunds: "/api/customerrefunds",
 };
@@ -76,16 +77,6 @@ function pick(row: Record<string, unknown>, keys: string[]): unknown {
     if (Object.prototype.hasOwnProperty.call(row, k)) return row[k];
   }
   return undefined;
-}
-
-function pickWithSource(
-  row: Record<string, unknown>,
-  keys: string[],
-): { value: unknown; sourceField: string | null } {
-  for (const k of keys) {
-    if (Object.prototype.hasOwnProperty.call(row, k)) return { value: row[k], sourceField: k };
-  }
-  return { value: undefined, sourceField: null };
 }
 
 function toNumber(v: unknown): number | null {
@@ -138,14 +129,9 @@ export function parseDateRange(
   return { ok: true, from, to };
 }
 
-// ---- Sanitizer ------------------------------------------------------------
+// ---- Sanitizer (case-insensitive, recursive) -----------------------------
 
-// Recursive, case-insensitive redaction. Extended to cover tokens, secrets,
-// connection data, Malaysian identity numbers, and personal/contact fields.
-// Never rely on this for authorization; treat it as a belt-and-braces
-// defense on top of "never echo tokens".
 const REDACT_KEYS = new Set([
-  // Authorization + secrets
   "authorization",
   "auth",
   "bearer",
@@ -168,7 +154,6 @@ const REDACT_KEYS = new Set([
   "db_password",
   "connection",
   "connectionstring",
-  // Identity documents
   "identityno",
   "identitynumber",
   "identityid",
@@ -181,7 +166,6 @@ const REDACT_KEYS = new Set([
   "mypr",
   "passport",
   "passportno",
-  // Personal / contact / address
   "phone",
   "phoneno",
   "mobile",
@@ -232,9 +216,51 @@ export function sanitize(value: unknown, depth = 0): unknown {
   return "[unsupported]";
 }
 
+// Recursive assertion helper — used by tests and by the server before
+// returning any bundle to the browser. Throws on any forbidden property or
+// value in the JSON tree.
+const FORBIDDEN_KEYS = new Set([
+  "rawitems",
+  "rawtotal",
+  "body",
+  "matchedrawrows",
+  "_matcheddetaildtos",
+  "authorization",
+  "bearer",
+  "cookie",
+  "token",
+  "apikey",
+  "api_key",
+]);
+
+export function assertNoInternalOrSecretFields(value: unknown, path = "$"): void {
+  if (value === null || value === undefined) return;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) assertNoInternalOrSecretFields(value[i], `${path}[${i}]`);
+    return;
+  }
+  if (isPlainObject(value)) {
+    for (const [k, v] of Object.entries(value)) {
+      if (FORBIDDEN_KEYS.has(k.toLowerCase())) {
+        throw new Error(`bundle_contains_forbidden_key:${path}.${k}`);
+      }
+      // Refuse tenant UUIDs in exported bundles. Tenant id lives only in
+      // audit logs; the bundle carries `code` + `name` only.
+      if (k.toLowerCase() === "tenant" && isPlainObject(v)) {
+        for (const tk of Object.keys(v)) {
+          if (tk.toLowerCase() === "id" && v[tk] !== null && v[tk] !== undefined) {
+            throw new Error(`bundle_contains_tenant_id:${path}.${k}.${tk}`);
+          }
+        }
+      }
+      assertNoInternalOrSecretFields(v, `${path}.${k}`);
+    }
+  }
+}
+
 // ---- Envelope helpers -----------------------------------------------------
 
-export type SanitizedCall = {
+export type EndpointAttempt = {
   endpoint: string;
   method: "GET";
   query: Record<string, string>;
@@ -245,6 +271,13 @@ export type SanitizedCall = {
   timestamp: string;
   responseSample: unknown;
   error?: string;
+};
+
+type InternalCall = {
+  attempt: EndpointAttempt;
+  rawItems: unknown[] | null;
+  rawTotal: number | null;
+  body: unknown;
 };
 
 function envelopeCodeOf(body: unknown): { code: string | null; message: string | null } {
@@ -285,10 +318,7 @@ function pageTotalOf(body: unknown): number | null {
   return null;
 }
 
-async function callOnce(
-  token: string,
-  path: string,
-): Promise<SanitizedCall & { rawItems: unknown[] | null; rawTotal: number | null; body: unknown }> {
+async function callOnce(token: string, path: string): Promise<InternalCall> {
   const started = Date.now();
   const timestamp = new Date().toISOString();
   const [pathOnly, qs = ""] = path.split("?");
@@ -300,34 +330,38 @@ async function callOnce(
     const items = pageItemsOf(res.body);
     const total = pageTotalOf(res.body);
     return {
-      endpoint: pathOnly,
-      method: "GET",
-      query,
-      httpStatus: res.status,
-      envelopeCode: env.code,
-      envelopeMessage: env.message,
-      durationMs: Date.now() - started,
-      timestamp,
-      responseSample: sanitize(res.body),
+      attempt: {
+        endpoint: pathOnly,
+        method: "GET",
+        query,
+        httpStatus: res.status,
+        envelopeCode: env.code,
+        envelopeMessage: env.message,
+        durationMs: Date.now() - started,
+        timestamp,
+        responseSample: sanitize(res.body),
+      },
       rawItems: items,
       rawTotal: total,
       body: res.body,
     };
   } catch (err) {
     return {
-      endpoint: pathOnly,
-      method: "GET",
-      query,
-      httpStatus: null,
-      envelopeCode: null,
-      envelopeMessage: null,
-      durationMs: Date.now() - started,
-      timestamp,
-      responseSample: null,
+      attempt: {
+        endpoint: pathOnly,
+        method: "GET",
+        query,
+        httpStatus: null,
+        envelopeCode: null,
+        envelopeMessage: null,
+        durationMs: Date.now() - started,
+        timestamp,
+        responseSample: null,
+        error: (err as Error).message?.slice(0, 200) ?? "network_error",
+      },
       rawItems: null,
       rawTotal: null,
       body: null,
-      error: (err as Error).message?.slice(0, 200) ?? "network_error",
     };
   }
 }
@@ -369,10 +403,11 @@ function rowDocDate(row: unknown): string | null {
 
 export type ContractValidation = {
   passed: boolean;
-  observedFields: string[]; // union of keys observed on first N rows
-  requiredHits: Record<string, boolean>; // which required signals we saw
+  observedFields: string[];
+  requiredHits: Record<string, boolean>;
   suspectedResource: FinResource | "ar_credit_note" | "sales_credit_note" | "unknown" | null;
   reason: string;
+  envelopeMessage?: string | null;
 };
 
 function unionKeys(rows: unknown[], sampleSize = 5): string[] {
@@ -389,112 +424,130 @@ function hasAnyKey(obs: string[], candidates: string[]): boolean {
   return candidates.some((c) => lower.includes(c.toLowerCase()));
 }
 
-function looksLikeCreditNote(obs: string[]): boolean {
-  const lower = obs.map((k) => k.toLowerCase());
-  return (
-    lower.includes("creditnotetype") ||
-    lower.includes("salescreditnote") ||
-    lower.includes("arcreditnote") ||
-    lower.some((k) => k.includes("creditnote"))
-  );
+function envelopeIdentifiesCreditNote(message: string | null): boolean {
+  if (!message) return false;
+  return /credit\s*note/i.test(message);
 }
 
-function validateContract(resource: FinResource, rows: unknown[]): ContractValidation {
+function envelopeIdentifiesSalesCreditNote(message: string | null): boolean {
+  return !!message && /sales\s*credit\s*note/i.test(message);
+}
+
+export function validateContract(
+  resource: FinResource,
+  rows: unknown[],
+  envelopeMessage: string | null = null,
+): ContractValidation {
   const obs = unionKeys(rows);
-  if (rows.length === 0) {
-    return {
-      passed: true, // an empty page cannot disprove the contract
-      observedFields: obs,
-      requiredHits: {},
-      suspectedResource: null,
-      reason: "empty_page",
-    };
-  }
   switch (resource) {
     case "ar_receipts": {
+      // Live list rows do NOT need to expose knockoff/deposit — those live
+      // in the detail DTO. Strong list signals: doc identity + customer.
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId",
-        "customerId",
-        "DebtorId",
-        "debtorId",
-        "CustomerCode",
-        "customerCode",
-        "DebtorCode",
-        "debtorCode",
-      ]);
-      const hasKnockoff = hasAnyKey(obs, [
-        "knockoff",
-        "KnockOff",
-        "knockOff",
-        "knockOffs",
-        "Knockoffs",
-        "KnockOffs",
-        "knockoffs",
-      ]);
-      const hasDeposit = hasAnyKey(obs, [
-        "DepositTo",
-        "depositTo",
-        "PaymentBy",
-        "paymentBy",
+        "CustomerId", "customerId", "DebtorId", "debtorId",
+        "CustomerCode", "customerCode", "DebtorCode", "debtorCode",
+        "Customer", "customer", "CustomerName", "customerName",
       ]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
-      const passed = hasDoc && hasCustomer && (hasKnockoff || hasDeposit);
+      const hasAmount = hasAnyKey(obs, [
+        "Total", "total", "TotalAmount", "totalAmount",
+        "PaidAmount", "paidAmount", "ReceivedAmount", "receivedAmount",
+        "Amount", "amount", "NetTotalAmount", "netTotalAmount",
+      ]);
+      const looksReceipt = envelopeMessage
+        ? /receipt|receive/i.test(envelopeMessage)
+        : false;
+      const emptyOk = rows.length === 0 && !envelopeIdentifiesCreditNote(envelopeMessage) && looksReceipt;
+      const passed = emptyOk || (hasDoc && hasCustomer && hasAmount);
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasKnockoff, hasDeposit, hasDoc },
-        suspectedResource: passed ? "ar_receipts" : looksLikeCreditNote(obs) ? "ar_credit_note" : "unknown",
-        reason: passed ? "ar_receipt_fields_present" : "missing_ar_receipt_signals",
+        requiredHits: { hasCustomer, hasDoc, hasAmount, looksReceipt, emptyOk },
+        suspectedResource: passed
+          ? "ar_receipts"
+          : envelopeIdentifiesCreditNote(envelopeMessage)
+            ? "ar_credit_note"
+            : "unknown",
+        reason: emptyOk
+          ? "empty_page_with_receipt_envelope"
+          : passed
+            ? "ar_receipt_fields_present"
+            : "missing_ar_receipt_signals",
+        envelopeMessage,
       };
     }
     case "cash_sales": {
+      // Live shape observed: customer, customerName, netTotalAmount,
+      // outstandingAmount, isPostToAR, referenceNo.
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId",
-        "customerId",
-        "DebtorId",
-        "debtorId",
-        "CustomerCode",
-        "customerCode",
+        "CustomerId", "customerId", "DebtorId", "debtorId",
+        "CustomerCode", "customerCode",
+        "Customer", "customer", "CustomerName", "customerName",
       ]);
-      const hasTotal = hasAnyKey(obs, ["Total", "total", "NetTotal", "netTotal", "GrandTotal", "grandTotal"]);
+      const hasTotal = hasAnyKey(obs, [
+        "Total", "total", "NetTotal", "netTotal",
+        "NetTotalAmount", "netTotalAmount",
+        "GrandTotal", "grandTotal",
+      ]);
+      const hasIsPostToAR = hasAnyKey(obs, ["IsPostToAR", "isPostToAR", "PostToAR", "postToAR"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
-      const passed = hasDoc && hasCustomer && hasTotal;
+      const strong = hasDoc && (hasIsPostToAR || (hasCustomer && hasTotal));
+      const emptyOk =
+        rows.length === 0 &&
+        !envelopeIdentifiesCreditNote(envelopeMessage) &&
+        !!envelopeMessage &&
+        /cash\s*sale/i.test(envelopeMessage);
+      const passed = strong || emptyOk;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasTotal, hasDoc },
-        suspectedResource: passed ? "cash_sales" : looksLikeCreditNote(obs) ? "sales_credit_note" : "unknown",
+        requiredHits: { hasCustomer, hasTotal, hasDoc, hasIsPostToAR, emptyOk },
+        suspectedResource: passed
+          ? "cash_sales"
+          : envelopeIdentifiesSalesCreditNote(envelopeMessage)
+            ? "sales_credit_note"
+            : "unknown",
         reason: passed ? "cash_sales_fields_present" : "missing_cash_sales_signals",
+        envelopeMessage,
       };
     }
     case "customer_refunds": {
-      if (looksLikeCreditNote(obs)) {
+      // The 5d0.2 bundle proved an empty page whose envelope says
+      // "Get AR credit note list success" was wrongly accepted. Reject any
+      // response whose message identifies a credit-note resource, even if
+      // rows are empty.
+      if (envelopeIdentifiesCreditNote(envelopeMessage)) {
         return {
           passed: false,
           observedFields: obs,
           requiredHits: {},
-          suspectedResource: obs.some((k) => k.toLowerCase().includes("sales")) ? "sales_credit_note" : "ar_credit_note",
-          reason: "credit_note_payload_rejected_as_refund",
+          suspectedResource: envelopeIdentifiesSalesCreditNote(envelopeMessage)
+            ? "sales_credit_note"
+            : "ar_credit_note",
+          reason: "credit_note_envelope_rejected_as_refund",
+          envelopeMessage,
+        };
+      }
+      // Empty page WITHOUT a credit-note envelope cannot prove Customer
+      // Refund by itself. Require refund-specific signals in the rows.
+      if (rows.length === 0) {
+        return {
+          passed: false,
+          observedFields: obs,
+          requiredHits: {},
+          suspectedResource: "unknown",
+          reason: "empty_page_cannot_prove_customer_refund",
+          envelopeMessage,
         };
       }
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId",
-        "customerId",
-        "DebtorId",
-        "debtorId",
-        "CustomerCode",
-        "customerCode",
+        "CustomerId", "customerId", "DebtorId", "debtorId",
+        "CustomerCode", "customerCode",
       ]);
       const hasPaymentBy = hasAnyKey(obs, ["PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
       const hasRefundKnockoff = hasAnyKey(obs, [
-        "knockoff",
-        "knockOff",
-        "knockOffs",
-        "Knockoffs",
-        "KnockOffs",
-        "knockoffs",
-        "RefundKnockoff",
-        "refundKnockoff",
+        "knockoff", "knockOff", "knockOffs", "Knockoffs", "KnockOffs", "knockoffs",
+        "RefundKnockoff", "refundKnockoff",
       ]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
       const passed = hasDoc && hasCustomer && (hasPaymentBy || hasRefundKnockoff);
@@ -504,19 +557,22 @@ function validateContract(resource: FinResource, rows: unknown[]): ContractValid
         requiredHits: { hasCustomer, hasPaymentBy, hasRefundKnockoff, hasDoc },
         suspectedResource: passed ? "customer_refunds" : "unknown",
         reason: passed ? "customer_refund_fields_present" : "missing_customer_refund_signals",
+        envelopeMessage,
       };
     }
     case "gl_accounts": {
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
-      const hasName = hasAnyKey(obs, ["Name", "name", "AccountName", "accountName", "Description"]);
+      const hasName = hasAnyKey(obs, ["Name", "name", "AccountName", "accountName", "Description", "description"]);
       const hasCode = hasAnyKey(obs, ["Code", "code", "AccountCode", "accountCode"]);
-      const passed = hasName && hasCode; // SpecialType may be absent for some rows
+      const emptyOk = rows.length === 0;
+      const passed = emptyOk || (hasName && hasCode);
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasSpecial, hasName, hasCode },
+        requiredHits: { hasSpecial, hasName, hasCode, emptyOk },
         suspectedResource: passed ? "gl_accounts" : "unknown",
         reason: passed ? "gl_account_fields_present" : "missing_gl_account_signals",
+        envelopeMessage,
       };
     }
   }
@@ -540,26 +596,20 @@ export type FilterDiagnostic = {
   };
   beforeCount: number;
   afterCount: number;
-  mismatches: string[]; // filter names whose target field was absent in observed rows
+  mismatches: string[];
   rejected?: { field: string; reason: string };
 };
 
 const DOC_NUMBER_FIELDS = ["DocNo", "docNo", "DocCode", "docCode"];
 const HOTEL_REF_FIELDS = [
-  "ReferenceNo",
-  "referenceNo",
-  "Reference",
-  "reference",
-  "OurRef",
-  "ourRef",
-  "OurReference",
-  "ourReference",
+  "ReferenceNo", "referenceNo",
+  "Reference", "reference",
+  "OurRef", "ourRef",
+  "OurReference", "ourReference",
 ];
 const CUSTOMER_CODE_FIELDS = [
-  "CustomerCode",
-  "customerCode",
-  "DebtorCode",
-  "debtorCode",
+  "CustomerCode", "customerCode",
+  "DebtorCode", "debtorCode",
 ];
 
 function firstPresentField(row: Record<string, unknown>, fields: string[]): string | null {
@@ -581,10 +631,8 @@ function anyRowHasAny(rows: unknown[], fields: string[]): string | null {
 function normalizeFilters(input?: NormalizedFilters): NormalizedFilters {
   const out: NormalizedFilters = {};
   if (input?.docNumber && input.docNumber.trim()) out.docNumber = input.docNumber.trim();
-  if (input?.hotelReference && input.hotelReference.trim())
-    out.hotelReference = input.hotelReference.trim();
-  if (input?.customerCode && input.customerCode.trim())
-    out.customerCode = input.customerCode.trim();
+  if (input?.hotelReference && input.hotelReference.trim()) out.hotelReference = input.hotelReference.trim();
+  if (input?.customerCode && input.customerCode.trim()) out.customerCode = input.customerCode.trim();
   return out;
 }
 
@@ -604,13 +652,10 @@ export function applyFilters(
     mismatches: [],
   };
 
-  // Only transaction resources filter on document/reference/customer.
   if (resource === "gl_accounts" || Object.keys(filters).length === 0) {
     return { rows, diagnostic };
   }
 
-  // Validate customerCode against tenant's configured HotelHub customer.
-  let effectiveFilters: NormalizedFilters = { ...filters };
   if (filters.customerCode) {
     if (!tenantCustomer?.code || !eq(filters.customerCode, tenantCustomer.code)) {
       diagnostic.rejected = {
@@ -635,23 +680,160 @@ export function applyFilters(
 
   const kept = rows.filter((r) => {
     if (!isPlainObject(r)) return false;
-    if (effectiveFilters.docNumber) {
-      const anyMatch = DOC_NUMBER_FIELDS.some((f) => eq(r[f], effectiveFilters.docNumber!));
-      if (!anyMatch) return false;
-    }
-    if (effectiveFilters.hotelReference) {
-      const anyMatch = HOTEL_REF_FIELDS.some((f) => eq(r[f], effectiveFilters.hotelReference!));
-      if (!anyMatch) return false;
-    }
-    if (effectiveFilters.customerCode) {
-      const anyMatch = CUSTOMER_CODE_FIELDS.some((f) => eq(r[f], effectiveFilters.customerCode!));
-      if (!anyMatch) return false;
-    }
+    if (filters.docNumber && !DOC_NUMBER_FIELDS.some((f) => eq(r[f], filters.docNumber!))) return false;
+    if (filters.hotelReference && !HOTEL_REF_FIELDS.some((f) => eq(r[f], filters.hotelReference!))) return false;
+    if (filters.customerCode && !CUSTOMER_CODE_FIELDS.some((f) => eq(r[f], filters.customerCode!))) return false;
     return true;
   });
 
   diagnostic.afterCount = kept.length;
   return { rows: kept, diagnostic };
+}
+
+// ---- Normalised detail DTOs ----------------------------------------------
+
+export type NormalizedReceipt = {
+  id: string | null;
+  docNo: string | null;
+  docCode: string | null;
+  customerId: string | null;
+  customerCode: string | null;
+  totalAmount: number | null;
+  knockoffs: ParsedKnockoff[];
+  sourceFields: Record<string, string>;
+};
+
+export type NormalizedCashSale = {
+  id: string | null;
+  docNo: string | null;
+  docCode: string | null;
+  customerId: string | null;
+  customerCode: string | null;
+  netTotalAmount: number | null;
+  outstandingAmount: number | null;
+  isPostToAR: boolean | null;
+  referenceNo: string | null;
+  sourceFields: Record<string, string>;
+};
+
+export type NormalizedRefund = {
+  id: string | null;
+  docNo: string | null;
+  docCode: string | null;
+  customerId: string | null;
+  customerCode: string | null;
+  amount: number | null;
+  knockoffs: ParsedKnockoff[];
+  sourceFields: Record<string, string>;
+};
+
+function pickWithField(
+  row: Record<string, unknown>,
+  keys: string[],
+): { value: unknown; field: string | null } {
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(row, k)) return { value: row[k], field: k };
+  }
+  return { value: undefined, field: null };
+}
+
+// Extract the inner detail DTO from a detail envelope.
+function innerDetailOf(body: unknown): Record<string, unknown> | null {
+  if (isPlainObject(body)) {
+    const data = body.data ?? body.Data;
+    if (isPlainObject(data)) return data;
+    if (Array.isArray(data) && data.length > 0 && isPlainObject(data[0])) return data[0];
+    // Some N3 endpoints return the DTO at the top level.
+    return body;
+  }
+  return null;
+}
+
+export function normalizeReceiptDetail(body: unknown): NormalizedReceipt | null {
+  const dto = innerDetailOf(body);
+  if (!dto) return null;
+  const src: Record<string, string> = {};
+  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
+  if (ci.field) src.customerId = ci.field;
+  const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
+  if (cc.field) src.customerCode = cc.field;
+  const total = pickWithField(dto, [
+    "Total", "total", "TotalAmount", "totalAmount",
+    "PaidAmount", "paidAmount", "ReceivedAmount", "receivedAmount",
+    "NetTotalAmount", "netTotalAmount",
+  ]);
+  if (total.field) src.totalAmount = total.field;
+  return {
+    id,
+    docNo: normStr(dn.value),
+    docCode: normStr(dc.value),
+    customerId: normStr(ci.value),
+    customerCode: normStr(cc.value),
+    totalAmount: toNumber(total.value),
+    knockoffs: extractKnockoffs(dto),
+    sourceFields: src,
+  };
+}
+
+export function normalizeCashSaleDetail(body: unknown): NormalizedCashSale | null {
+  const dto = innerDetailOf(body);
+  if (!dto) return null;
+  const src: Record<string, string> = {};
+  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
+  if (ci.field) src.customerId = ci.field;
+  const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
+  if (cc.field) src.customerCode = cc.field;
+  const nt = pickWithField(dto, ["NetTotalAmount", "netTotalAmount", "NetTotal", "netTotal", "Total", "total"]);
+  if (nt.field) src.netTotalAmount = nt.field;
+  const outs = pickWithField(dto, ["OutstandingAmount", "outstandingAmount"]);
+  if (outs.field) src.outstandingAmount = outs.field;
+  const pa = pickWithField(dto, ["IsPostToAR", "isPostToAR", "PostToAR", "postToAR"]);
+  if (pa.field) src.isPostToAR = pa.field;
+  const ref = pickWithField(dto, ["ReferenceNo", "referenceNo", "Reference", "reference"]);
+  if (ref.field) src.referenceNo = ref.field;
+  return {
+    id,
+    docNo: normStr(dn.value),
+    docCode: normStr(dc.value),
+    customerId: normStr(ci.value),
+    customerCode: normStr(cc.value),
+    netTotalAmount: toNumber(nt.value),
+    outstandingAmount: toNumber(outs.value),
+    isPostToAR: toBool(pa.value),
+    referenceNo: normStr(ref.value),
+    sourceFields: src,
+  };
+}
+
+export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
+  const dto = innerDetailOf(body);
+  if (!dto) return null;
+  const src: Record<string, string> = {};
+  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
+  if (ci.field) src.customerId = ci.field;
+  const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
+  if (cc.field) src.customerCode = cc.field;
+  const amt = pickWithField(dto, ["Amount", "amount", "Total", "total", "NetTotalAmount", "netTotalAmount"]);
+  if (amt.field) src.amount = amt.field;
+  return {
+    id,
+    docNo: normStr(dn.value),
+    docCode: normStr(dc.value),
+    customerId: normStr(ci.value),
+    customerCode: normStr(cc.value),
+    amount: toNumber(amt.value),
+    knockoffs: extractKnockoffs(dto),
+    sourceFields: src,
+  };
 }
 
 // ---- Detail fan-out (immutable ID only) ----------------------------------
@@ -669,7 +851,7 @@ export type DetailEvidence = {
 
 export type DetailFanOut = {
   cap: number;
-  requested: number; // matched rows count
+  requested: number;
   performed: number;
   skipped: boolean;
   reason: string | null;
@@ -681,70 +863,75 @@ async function fetchDetailById(
   root: string,
   id: string,
   sourceListDocNo: string | null,
-): Promise<DetailEvidence> {
+): Promise<{ evidence: DetailEvidence; body: unknown }> {
   const path = `${root}/${encodeURIComponent(id)}`;
   const call = await callOnce(token, path);
-  const bodyKeys = isPlainObject(call.body)
-    ? Object.keys(call.body)
-    : Array.isArray(call.body) && isPlainObject(call.body[0])
-      ? Object.keys(call.body[0])
-      : [];
-  return {
+  const dto = innerDetailOf(call.body);
+  const evidence: DetailEvidence = {
     sourceListId: id,
     sourceListDocNo,
     endpoint: path,
-    httpStatus: call.httpStatus,
-    envelopeCode: call.envelopeCode,
-    sanitizedSample: call.responseSample,
-    fieldNamesObserved: bodyKeys,
-    ...(call.error ? { error: call.error } : {}),
+    httpStatus: call.attempt.httpStatus,
+    envelopeCode: call.attempt.envelopeCode,
+    sanitizedSample: call.attempt.responseSample,
+    fieldNamesObserved: dto ? Object.keys(dto) : [],
+    ...(call.attempt.error ? { error: call.attempt.error } : {}),
   };
+  return { evidence, body: call.body };
 }
 
 async function fanOutDetails(
   token: string,
   resource: Exclude<FinResource, "gl_accounts">,
   matchedRows: unknown[],
-): Promise<DetailFanOut> {
+): Promise<{ fanOut: DetailFanOut; details: unknown[] }> {
   const root = RESOURCE_DETAIL_ROOT[resource];
   const requested = matchedRows.length;
   if (requested === 0) {
-    return { cap: DETAIL_FANOUT_CAP, requested: 0, performed: 0, skipped: false, reason: null, evidence: [] };
+    return {
+      fanOut: { cap: DETAIL_FANOUT_CAP, requested: 0, performed: 0, skipped: false, reason: null, evidence: [] },
+      details: [],
+    };
   }
   if (requested > DETAIL_FANOUT_CAP) {
     return {
-      cap: DETAIL_FANOUT_CAP,
-      requested,
-      performed: 0,
-      skipped: true,
-      reason: "narrow_filters_required",
-      evidence: [],
+      fanOut: {
+        cap: DETAIL_FANOUT_CAP,
+        requested,
+        performed: 0,
+        skipped: true,
+        reason: "narrow_filters_required",
+        evidence: [],
+      },
+      details: [],
     };
   }
   const evidence: DetailEvidence[] = [];
+  const details: unknown[] = [];
   for (const row of matchedRows) {
     const id = rowId(row);
     if (!id) continue;
     const docNo = isPlainObject(row)
       ? ((row.DocNo as string | undefined) ?? (row.docNo as string | undefined) ?? null)
       : null;
-    // Serial to avoid hammering N3 with parallel bursts.
-    const ev = await fetchDetailById(token, root, id, docNo);
-    evidence.push(ev);
+    const res = await fetchDetailById(token, root, id, docNo);
+    evidence.push(res.evidence);
+    details.push(res.body);
   }
   return {
-    cap: DETAIL_FANOUT_CAP,
-    requested,
-    performed: evidence.length,
-    skipped: false,
-    reason: null,
-    evidence,
+    fanOut: {
+      cap: DETAIL_FANOUT_CAP,
+      requested,
+      performed: evidence.length,
+      skipped: false,
+      reason: null,
+      evidence,
+    },
+    details,
   };
 }
 
 // ---- Resource fetch (list) -----------------------------------------------
-
-export type EndpointAttempt = SanitizedCall;
 
 export type ResourceReport = {
   resource: FinResource;
@@ -753,17 +940,23 @@ export type ResourceReport = {
   endpointAttempts: EndpointAttempt[];
   contractValidation: ContractValidation | null;
   rows: unknown[]; // sanitized rows kept after date + filter application
-  matchedRawRows: unknown[]; // raw (unsanitized) rows kept for detail fan-out
   totalReported: number | null;
-  fetched: number; // pre-filter (post-dedupe) count
-  matched: number; // post-filter count
+  fetched: number;
+  matched: number;
   pagesFetched: number;
   truncated: boolean;
   elapsedMs: number;
   mafLabel: MafLabel;
   filterDiagnostic: FilterDiagnostic | null;
   detailFanOut: DetailFanOut | null;
+  listFieldMap: { observed: string[] };
+  detailFieldMap: { observed: string[] };
   note?: string;
+};
+
+// Internal-only carry with normalised detail DTOs; NEVER exported.
+type InternalResource = ResourceReport & {
+  _normalizedDetails: unknown[];
 };
 
 async function fetchListResource(
@@ -773,17 +966,18 @@ async function fetchListResource(
   to: string,
   filters: NormalizedFilters,
   tenantCustomer: { code: string | null } | null,
-): Promise<ResourceReport> {
+): Promise<InternalResource> {
   const startedAll = Date.now();
   const candidates = RESOURCE_CANDIDATES[resource];
   const attempts: EndpointAttempt[] = [];
   let chosen: string | null = null;
-  let firstOk: Awaited<ReturnType<typeof callOnce>> | null = null;
+  let firstOk: InternalCall | null = null;
+  let contract: ContractValidation | null = null;
 
   for (const base of candidates) {
     const first = await callOnce(token, `${base}?$top=${PAGE_TOP}&$skip=0`);
-    attempts.push(first);
-    if (first.httpStatus === 401) {
+    attempts.push(first.attempt);
+    if (first.attempt.httpStatus === 401) {
       return {
         resource,
         status: "unauthorized",
@@ -791,7 +985,6 @@ async function fetchListResource(
         endpointAttempts: attempts,
         contractValidation: null,
         rows: [],
-        matchedRawRows: [],
         totalReported: null,
         fetched: 0,
         matched: 0,
@@ -801,19 +994,27 @@ async function fetchListResource(
         mafLabel: "Not Available",
         filterDiagnostic: null,
         detailFanOut: null,
+        listFieldMap: { observed: [] },
+        detailFieldMap: { observed: [] },
         note: "N3 returned 401 Unauthorized",
+        _normalizedDetails: [],
       };
     }
-    if (
-      first.httpStatus !== null &&
-      first.httpStatus >= 200 &&
-      first.httpStatus < 300 &&
-      first.rawItems
-    ) {
-      chosen = base;
-      firstOk = first;
-      break;
+    const s = first.attempt.httpStatus;
+    if (s === null || s < 200 || s >= 300 || first.rawItems === null) {
+      continue; // non-2xx or unrecognised envelope — try next candidate
     }
+    // Semantic validation inside the loop.
+    const rows = first.rawItems ?? [];
+    const cv = validateContract(resource, rows, first.attempt.envelopeMessage);
+    contract = cv;
+    if (!cv.passed) {
+      // Mismatch: continue to next candidate. Keep the attempt evidence.
+      continue;
+    }
+    chosen = base;
+    firstOk = first;
+    break;
   }
 
   if (!chosen || !firstOk) {
@@ -823,9 +1024,8 @@ async function fetchListResource(
       status: anyReached ? "invalid_contract" : "unavailable",
       chosenEndpoint: null,
       endpointAttempts: attempts,
-      contractValidation: null,
+      contractValidation: contract,
       rows: [],
-      matchedRawRows: [],
       totalReported: null,
       fetched: 0,
       matched: 0,
@@ -835,38 +1035,20 @@ async function fetchListResource(
       mafLabel: anyReached ? "Mismatch" : "Not Available",
       filterDiagnostic: null,
       detailFanOut: null,
-      note: anyReached
-        ? "No candidate endpoint returned a recognised N3 list envelope"
-        : "No candidate endpoint reachable",
+      listFieldMap: { observed: [] },
+      detailFieldMap: { observed: [] },
+      note: contract
+        ? `Semantic contract failed: ${contract.reason}${
+            contract.suspectedResource ? ` (suspected: ${contract.suspectedResource})` : ""
+          }`
+        : anyReached
+          ? "No candidate endpoint returned a recognised N3 list envelope"
+          : "No candidate endpoint reachable",
+      _normalizedDetails: [],
     };
   }
 
-  // Semantic contract check against the first page of rows.
   const firstRows = firstOk.rawItems ?? [];
-  const contract = validateContract(resource, firstRows);
-  if (!contract.passed) {
-    return {
-      resource,
-      status: "invalid_contract",
-      chosenEndpoint: chosen,
-      endpointAttempts: attempts,
-      contractValidation: contract,
-      rows: [],
-      matchedRawRows: [],
-      totalReported: firstOk.rawTotal,
-      fetched: 0,
-      matched: 0,
-      pagesFetched: 1,
-      truncated: false,
-      elapsedMs: Date.now() - startedAll,
-      mafLabel: "Mismatch",
-      filterDiagnostic: null,
-      detailFanOut: null,
-      note: `Semantic contract failed: ${contract.reason}${
-        contract.suspectedResource ? ` (suspected: ${contract.suspectedResource})` : ""
-      }`,
-    };
-  }
 
   // Page through the rest.
   const collected: unknown[] = [...firstRows];
@@ -879,13 +1061,9 @@ async function fetchListResource(
   while (collected.length < cap && skip < HARD_CAP) {
     const next = await callOnce(token, `${chosen}?$top=${PAGE_TOP}&$skip=${skip}`);
     pages++;
-    if (
-      next.error ||
-      next.httpStatus === null ||
-      next.httpStatus < 200 ||
-      next.httpStatus >= 300
-    ) {
-      attempts.push(next);
+    const s = next.attempt.httpStatus;
+    if (next.attempt.error || s === null || s < 200 || s >= 300) {
+      attempts.push(next.attempt);
       truncated = true;
       break;
     }
@@ -917,13 +1095,24 @@ async function fetchListResource(
     });
   }
 
-  // Optional business filters.
   const { rows: filtered, diagnostic } = applyFilters(resource, inRange, filters, tenantCustomer);
 
   // Detail fan-out (transaction resources only).
   let detailFanOut: DetailFanOut | null = null;
+  let normalizedDetails: unknown[] = [];
+  let detailFields: string[] = [];
   if (resource !== "gl_accounts") {
-    detailFanOut = await fanOutDetails(token, resource, filtered);
+    const res = await fanOutDetails(token, resource, filtered);
+    detailFanOut = res.fanOut;
+    // Normalise each detail body into a stable DTO.
+    for (const body of res.details) {
+      let norm: unknown = null;
+      if (resource === "ar_receipts") norm = normalizeReceiptDetail(body);
+      else if (resource === "cash_sales") norm = normalizeCashSaleDetail(body);
+      else if (resource === "customer_refunds") norm = normalizeRefundDetail(body);
+      if (norm) normalizedDetails.push(norm);
+    }
+    detailFields = unionKeys(normalizedDetails, 8);
   }
 
   return {
@@ -933,7 +1122,6 @@ async function fetchListResource(
     endpointAttempts: attempts,
     contractValidation: contract,
     rows: filtered.map((r) => sanitize(r)),
-    matchedRawRows: filtered,
     totalReported: reportedTotal,
     fetched: deduped.length,
     matched: filtered.length,
@@ -943,6 +1131,9 @@ async function fetchListResource(
     mafLabel: "Live N3 Confirmed",
     filterDiagnostic: diagnostic,
     detailFanOut,
+    listFieldMap: { observed: unionKeys(filtered, 8) },
+    detailFieldMap: { observed: detailFields },
+    _normalizedDetails: normalizedDetails,
   };
 }
 
@@ -954,46 +1145,139 @@ export type FinancialVerificationRun = {
   runAt: string;
   dateFrom: string;
   dateTo: string;
-  tenant: { id: string | null; code: string | null; name: string | null };
+  tenant: { code: string | null; name: string | null }; // tenant.id EXCLUDED
   filters: NormalizedFilters;
-  resources: ResourceReport[];
+  resources: ResourceReport[]; // public shape only
   elapsedMs: number;
 };
 
 function makeRunId(): string {
   const rand = Math.random().toString(36).slice(2, 8);
-  const ts = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15); // YYYYMMDDTHHMMSS
+  const ts = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15);
   return `${ts}-${rand}`;
 }
+
+// Strip the internal-only carry off a resource before it can be handed to
+// the browser or serialized into the bundle.
+function publicResource(r: InternalResource): ResourceReport {
+  const { _normalizedDetails: _drop, ...safe } = r;
+  void _drop;
+  return safe;
+}
+
+export type FinancialBundle = {
+  schemaVersion: string;
+  runId: string;
+  runAt: string;
+  tenant: { code: string | null; name: string | null };
+  dateRange: { from: string; to: string };
+  filters: NormalizedFilters;
+  resources: ResourceReport[];
+  comparisons: {
+    orToCashMemo: KnockoffMatch[];
+    refundToOr: RefundKnockoffMatch[];
+  };
+  glEligibility: Array<{ row: unknown } & GlEligibilityDetail>;
+  fieldMaps: {
+    arReceiptList: { observed: string[] };
+    arReceiptDetail: { observed: string[] };
+    cashSalesList: { observed: string[] };
+    cashSalesDetail: { observed: string[] };
+    customerRefundList: { observed: string[] };
+    customerRefundDetail: { observed: string[] };
+    glAccountList: { observed: string[] };
+  };
+  conclusions: Array<{ resource: FinResource; label: MafLabel; note: string | null }>;
+  elapsedMs: number;
+};
 
 export async function runFinancialVerification(input: {
   token: string;
   dateFrom: string;
   dateTo: string;
-  tenant: { id: string | null; code: string | null; name: string | null };
+  tenant: { id?: string | null; code: string | null; name: string | null };
   filters?: NormalizedFilters;
   tenantCustomer?: { code: string | null } | null;
-}): Promise<FinancialVerificationRun> {
+}): Promise<{ run: FinancialVerificationRun; bundle: FinancialBundle; _internal: InternalResource[] }> {
   const started = Date.now();
   const filters = normalizeFilters(input.filters);
   const tc = input.tenantCustomer ?? null;
-  const resources = await Promise.all([
+  const internals = await Promise.all([
     fetchListResource(input.token, "ar_receipts", input.dateFrom, input.dateTo, filters, tc),
     fetchListResource(input.token, "cash_sales", input.dateFrom, input.dateTo, filters, tc),
     fetchListResource(input.token, "customer_refunds", input.dateFrom, input.dateTo, filters, tc),
     fetchListResource(input.token, "gl_accounts", input.dateFrom, input.dateTo, filters, tc),
   ]);
-  return {
+  const resources = internals.map(publicResource);
+
+  const ar = internals.find((r) => r.resource === "ar_receipts");
+  const cs = internals.find((r) => r.resource === "cash_sales");
+  const rf = internals.find((r) => r.resource === "customer_refunds");
+  const gl = internals.find((r) => r.resource === "gl_accounts");
+
+  // Comparisons use NORMALISED DETAIL DTOs — never list rows.
+  const arDetails = (ar?._normalizedDetails ?? []) as NormalizedReceipt[];
+  const csDetails = (cs?._normalizedDetails ?? []) as NormalizedCashSale[];
+  const rfDetails = (rf?._normalizedDetails ?? []) as NormalizedRefund[];
+
+  const orToCashMemo =
+    ar && cs && ar.status === "success" && cs.status === "success"
+      ? compareReceiptKnockoffs(arDetails, csDetails)
+      : [];
+  const refundToOr =
+    rf && ar && rf.status === "success" && ar.status === "success"
+      ? compareRefundKnockoffs(rfDetails, arDetails)
+      : [];
+
+  const glEligibility =
+    gl && gl.status === "success"
+      ? gl.rows.map((row) => ({ row, ...evaluateGlAccount(row) }))
+      : [];
+
+  const conclusions = resources.map((r) => ({
+    resource: r.resource,
+    label: r.mafLabel,
+    note: r.note ?? null,
+  }));
+
+  const tenantPublic = { code: input.tenant.code, name: input.tenant.name };
+
+  const run: FinancialVerificationRun = {
     schemaVersion: FINANCIAL_BUNDLE_SCHEMA_VERSION,
     runId: makeRunId(),
     runAt: new Date().toISOString(),
     dateFrom: input.dateFrom,
     dateTo: input.dateTo,
-    tenant: input.tenant,
+    tenant: tenantPublic,
     filters,
     resources,
     elapsedMs: Date.now() - started,
   };
+
+  const bundle: FinancialBundle = {
+    schemaVersion: run.schemaVersion,
+    runId: run.runId,
+    runAt: run.runAt,
+    tenant: tenantPublic,
+    dateRange: { from: input.dateFrom, to: input.dateTo },
+    filters,
+    resources,
+    comparisons: { orToCashMemo, refundToOr },
+    glEligibility,
+    fieldMaps: {
+      arReceiptList: ar?.listFieldMap ?? { observed: [] },
+      arReceiptDetail: ar?.detailFieldMap ?? { observed: [] },
+      cashSalesList: cs?.listFieldMap ?? { observed: [] },
+      cashSalesDetail: cs?.detailFieldMap ?? { observed: [] },
+      customerRefundList: rf?.listFieldMap ?? { observed: [] },
+      customerRefundDetail: rf?.detailFieldMap ?? { observed: [] },
+      glAccountList: gl?.listFieldMap ?? { observed: [] },
+    },
+    conclusions,
+    elapsedMs: run.elapsedMs,
+  };
+
+  return { run, bundle, _internal: internals };
 }
 
 // ---- GL eligibility (strict) ---------------------------------------------
@@ -1039,16 +1323,11 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
 
   const posting = toBool(
     pick(row, [
-      "IsPostingAccount",
-      "isPostingAccount",
-      "Posting",
-      "posting",
-      "IsLeaf",
-      "isLeaf",
-      "Leaf",
-      "leaf",
-      "IsDetail",
-      "isDetail",
+      "IsPostingAccount", "isPostingAccount",
+      "Posting", "posting",
+      "IsLeaf", "isLeaf",
+      "Leaf", "leaf",
+      "IsDetail", "isDetail",
     ]),
   );
   if (posting === null) reasons.push("missing_posting_or_leaf_flag");
@@ -1061,49 +1340,17 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
   const isCashSpecial = st === "cash account" || st === "cash" || st === "petty cash";
 
   if (hasImmutableId && active === true && posting === true && isBankSpecial) {
-    return {
-      eligibility: "bank",
-      reasons: ["special_type_bank", "active", "posting"],
-      normalizedSpecialType,
-      active,
-      posting,
-      hasImmutableId,
-    };
+    return { eligibility: "bank", reasons: ["special_type_bank", "active", "posting"], normalizedSpecialType, active, posting, hasImmutableId };
   }
   if (hasImmutableId && active === true && posting === true && isCashSpecial) {
-    return {
-      eligibility: "cash",
-      reasons: ["special_type_cash", "active", "posting"],
-      normalizedSpecialType,
-      active,
-      posting,
-      hasImmutableId,
-    };
+    return { eligibility: "cash", reasons: ["special_type_cash", "active", "posting"], normalizedSpecialType, active, posting, hasImmutableId };
   }
-  // If SpecialType is present and clearly non-bank/non-cash, mark ineligible.
   if (normalizedSpecialType && !isBankSpecial && !isCashSpecial) {
-    return {
-      eligibility: "ineligible",
-      reasons: [...reasons, "special_type_not_bank_or_cash"],
-      normalizedSpecialType,
-      active,
-      posting,
-      hasImmutableId,
-    };
+    return { eligibility: "ineligible", reasons: [...reasons, "special_type_not_bank_or_cash"], normalizedSpecialType, active, posting, hasImmutableId };
   }
-  return {
-    eligibility: "unknown",
-    reasons,
-    normalizedSpecialType,
-    active,
-    posting,
-    hasImmutableId,
-  };
+  return { eligibility: "unknown", reasons, normalizedSpecialType, active, posting, hasImmutableId };
 }
 
-// Backward-compat: existing callers/tests import `classifyGlAccount` and
-// expect a simple enum value. The corrected semantics use `evaluateGlAccount`
-// and demote name-only or missing-flag rows to `unknown`.
 export function classifyGlAccount(row: unknown): GlEligibility {
   return evaluateGlAccount(row).eligibility;
 }
@@ -1111,17 +1358,15 @@ export function classifyGlAccount(row: unknown): GlEligibility {
 // ---- OR knockoffs (parsing + comparison) ---------------------------------
 
 export type ParsedKnockoff = {
-  docType: string | null; // original casing preserved
-  docTypeNormalized: string | null; // uppercased trimmed
+  docType: string | null;
+  docTypeNormalized: string | null;
   docId: string | null;
   docNo: string | null;
   docCode: string | null;
   appliedAmount: number | null;
-  raw: Record<string, unknown>;
 };
 
 function extractKnockoffs(row: Record<string, unknown>): ParsedKnockoff[] {
-  // Singular `knockoff` field is the documented live shape.
   const singular = pick(row, ["knockoff", "Knockoff", "KnockOff", "knockOff"]);
   const plural = pick(row, ["knockoffs", "Knockoffs", "KnockOffs", "knockOffs"]);
   const raws: unknown[] = [];
@@ -1147,13 +1392,11 @@ function extractKnockoffs(row: Record<string, unknown>): ParsedKnockoff[] {
       docNo,
       docCode,
       appliedAmount,
-      raw: k,
     });
   }
   return parsed;
 }
 
-// Compare an OR's knockoff row to the Cash Sales row it should point at.
 export type KnockoffMatch = {
   receiptId: string | null;
   receiptDocNo: string | null;
@@ -1166,9 +1409,9 @@ export type KnockoffMatch = {
   candidateCashSalesDocNo: string | null;
   candidateCashSalesDocCode: string | null;
   sameUuid: boolean | null;
+  docNoAgrees: boolean | null;
   customerMatch: boolean | null;
-  // Correlation labels kept backward-compatible with the previous UI/tests.
-  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available" | "none";
+  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
     | "Immutable ID confirmed"
     | "Document-number only — not proven"
@@ -1176,52 +1419,96 @@ export type KnockoffMatch = {
     | "Not available";
 };
 
-function customerIdOf(row: Record<string, unknown>): string | null {
-  return normStr(pick(row, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+// Union input: legacy list-row shape OR NormalizedReceipt / NormalizedCashSale.
+// The orchestrator hands us NormalizedReceipt[] and NormalizedCashSale[] but
+// tests may hand us minimal list-row objects.
+type ReceiptLike = Partial<NormalizedReceipt> & Record<string, unknown>;
+type CashSaleLike = Partial<NormalizedCashSale> & Record<string, unknown>;
+
+function receiptId(rec: ReceiptLike): string | null {
+  return typeof rec.id === "string" && rec.id ? rec.id : rowId(rec);
+}
+function receiptDocNo(rec: ReceiptLike): string | null {
+  return typeof rec.docNo === "string" && rec.docNo
+    ? rec.docNo
+    : normStr(pick(rec as Record<string, unknown>, ["DocNo", "docNo"]));
+}
+function receiptCustomer(rec: ReceiptLike): string | null {
+  return typeof rec.customerId === "string" && rec.customerId
+    ? rec.customerId
+    : normStr(pick(rec as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+}
+function receiptKnockoffs(rec: ReceiptLike): ParsedKnockoff[] {
+  if (Array.isArray(rec.knockoffs) && rec.knockoffs.length && isPlainObject(rec.knockoffs[0]) && 'docTypeNormalized' in (rec.knockoffs[0] as object)) {
+    return rec.knockoffs as ParsedKnockoff[];
+  }
+  return extractKnockoffs(rec as Record<string, unknown>);
+}
+function csId(cs: CashSaleLike): string | null {
+  return typeof cs.id === "string" && cs.id ? cs.id : rowId(cs);
+}
+function csDocNo(cs: CashSaleLike): string | null {
+  return typeof cs.docNo === "string" && cs.docNo
+    ? cs.docNo
+    : normStr(pick(cs as Record<string, unknown>, ["DocNo", "docNo"]));
+}
+function csDocCode(cs: CashSaleLike): string | null {
+  return typeof cs.docCode === "string" && cs.docCode
+    ? cs.docCode
+    : normStr(pick(cs as Record<string, unknown>, ["DocCode", "docCode"]));
+}
+function csCustomer(cs: CashSaleLike): string | null {
+  return typeof cs.customerId === "string" && cs.customerId
+    ? cs.customerId
+    : normStr(pick(cs as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
 }
 
 export function compareReceiptKnockoffs(
   arReceipts: unknown[],
   cashSales: unknown[],
 ): KnockoffMatch[] {
-  const csById = new Map<string, Record<string, unknown>>();
-  const csByDocNo = new Map<string, Record<string, unknown>>();
+  const csById = new Map<string, CashSaleLike>();
+  const csByDocNo = new Map<string, CashSaleLike>();
   for (const raw of cashSales) {
     if (!isPlainObject(raw)) continue;
-    const id = rowId(raw);
-    const docNo = normStr(pick(raw, ["DocNo", "docNo"]));
-    if (id) csById.set(id.toUpperCase(), raw);
-    if (docNo) csByDocNo.set(docNo.toUpperCase(), raw);
+    const c = raw as CashSaleLike;
+    const id = csId(c);
+    const dn = csDocNo(c);
+    if (id) csById.set(id.toUpperCase(), c);
+    if (dn) csByDocNo.set(dn.toUpperCase(), c);
   }
   const out: KnockoffMatch[] = [];
   for (const rec of arReceipts) {
     if (!isPlainObject(rec)) continue;
-    const receiptId = rowId(rec);
-    const receiptDocNo = normStr(pick(rec, ["DocNo", "docNo"]));
-    const receiptCustomer = customerIdOf(rec);
-    for (const k of extractKnockoffs(rec)) {
-      // Only INV-type knockoffs correlate to Cash Sales / Cash Memos.
+    const r = rec as ReceiptLike;
+    const rid = receiptId(r);
+    const rdn = receiptDocNo(r);
+    const rcust = receiptCustomer(r);
+    for (const k of receiptKnockoffs(r)) {
       if (k.docTypeNormalized !== "INV") continue;
       const byId = k.docId ? csById.get(k.docId.toUpperCase()) : undefined;
       const byNo = !byId && k.docNo ? csByDocNo.get(k.docNo.toUpperCase()) : undefined;
       const cs = byId ?? byNo ?? null;
-      const csId = cs ? rowId(cs) : null;
-      const csDocNo = cs ? normStr(pick(cs, ["DocNo", "docNo"])) : null;
-      const csDocCode = cs ? normStr(pick(cs, ["DocCode", "docCode"])) : null;
-      const csCustomer = cs ? customerIdOf(cs) : null;
-      const sameUuid =
-        k.docId && csId ? k.docId.toUpperCase() === csId.toUpperCase() : null;
+      const csid = cs ? csId(cs) : null;
+      const csdn = cs ? csDocNo(cs) : null;
+      const csdc = cs ? csDocCode(cs) : null;
+      const csc = cs ? csCustomer(cs) : null;
+      const sameUuid = k.docId && csid ? k.docId.toUpperCase() === csid.toUpperCase() : null;
+      const docNoAgrees =
+        k.docNo && csdn ? k.docNo.trim().toUpperCase() === csdn.trim().toUpperCase() : null;
       const customerMatch =
-        receiptCustomer && csCustomer
-          ? receiptCustomer.toUpperCase() === csCustomer.toUpperCase()
-          : null;
+        rcust && csc ? rcust.toUpperCase() === csc.toUpperCase() : null;
 
       let correlation: KnockoffMatch["correlation"];
       let evidenceLabel: KnockoffMatch["evidenceLabel"];
-      if (byId) {
+      // ID resolves but docNo disagrees → Mismatch (5d0.3 requirement).
+      if (byId && k.docNo && csdn && docNoAgrees === false) {
+        correlation = "mismatch";
+        evidenceLabel = "Mismatch";
+      } else if (byId) {
         correlation = "immutable_id";
         evidenceLabel = "Immutable ID confirmed";
-      } else if (k.docId && csId && k.docId.toUpperCase() !== csId.toUpperCase()) {
+      } else if (k.docId && csid && k.docId.toUpperCase() !== csid.toUpperCase()) {
         correlation = "mismatch";
         evidenceLabel = "Mismatch";
       } else if (byNo) {
@@ -1233,17 +1520,18 @@ export function compareReceiptKnockoffs(
       }
 
       out.push({
-        receiptId,
-        receiptDocNo,
+        receiptId: rid,
+        receiptDocNo: rdn,
         docType: k.docType,
         docId: k.docId,
         docNo: k.docNo,
         docCode: k.docCode,
         appliedAmount: k.appliedAmount,
-        candidateCashSalesId: csId,
-        candidateCashSalesDocNo: csDocNo,
-        candidateCashSalesDocCode: csDocCode,
+        candidateCashSalesId: csid,
+        candidateCashSalesDocNo: csdn,
+        candidateCashSalesDocCode: csdc,
         sameUuid,
+        docNoAgrees,
         customerMatch,
         correlation,
         evidenceLabel,
@@ -1263,8 +1551,7 @@ export function classifyOrOrigin(row: unknown): OrClassification {
   const s = String(source ?? "").toLowerCase();
   if (s.includes("gl") || s.includes("journal")) return "gl_originated_or";
   const customer = pick(row, ["CustomerId", "customerId", "DebtorId", "debtorId", "CustomerCode", "customerCode"]);
-  const hasKnockoff = extractKnockoffs(row).length > 0;
-  if (customer && (hasKnockoff || customer)) return "ar_receipt";
+  if (customer) return "ar_receipt";
   return "unknown";
 }
 
@@ -1281,6 +1568,7 @@ export type RefundKnockoffMatch = {
   candidateReceiptId: string | null;
   candidateReceiptDocNo: string | null;
   sameUuid: boolean | null;
+  docNoAgrees: boolean | null;
   customerMatch: boolean | null;
   correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
@@ -1294,43 +1582,51 @@ export function compareRefundKnockoffs(
   customerRefunds: unknown[],
   arReceipts: unknown[],
 ): RefundKnockoffMatch[] {
-  const orById = new Map<string, Record<string, unknown>>();
-  const orByDocNo = new Map<string, Record<string, unknown>>();
+  const orById = new Map<string, ReceiptLike>();
+  const orByDocNo = new Map<string, ReceiptLike>();
   for (const raw of arReceipts) {
     if (!isPlainObject(raw)) continue;
-    const id = rowId(raw);
-    const docNo = normStr(pick(raw, ["DocNo", "docNo"]));
-    if (id) orById.set(id.toUpperCase(), raw);
-    if (docNo) orByDocNo.set(docNo.toUpperCase(), raw);
+    const r = raw as ReceiptLike;
+    const id = receiptId(r);
+    const dn = receiptDocNo(r);
+    if (id) orById.set(id.toUpperCase(), r);
+    if (dn) orByDocNo.set(dn.toUpperCase(), r);
   }
   const out: RefundKnockoffMatch[] = [];
   for (const rf of customerRefunds) {
     if (!isPlainObject(rf)) continue;
-    const refundId = rowId(rf);
-    const refundDocNo = normStr(pick(rf, ["DocNo", "docNo"]));
-    const refundCustomer = customerIdOf(rf);
-    for (const k of extractKnockoffs(rf)) {
-      // Refunds knock off OR receipts. Accept either the "OR" type marker
-      // when present or fall back on any docId/docNo the payload provides.
+    const rfl = rf as Partial<NormalizedRefund> & Record<string, unknown>;
+    const rfid = typeof rfl.id === "string" ? rfl.id : rowId(rfl);
+    const rfdn = typeof rfl.docNo === "string" ? rfl.docNo : normStr(pick(rfl, ["DocNo", "docNo"]));
+    const rfcust = typeof rfl.customerId === "string"
+      ? rfl.customerId
+      : normStr(pick(rfl, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+    const kos = Array.isArray(rfl.knockoffs) && rfl.knockoffs.length && isPlainObject(rfl.knockoffs[0]) && 'docTypeNormalized' in (rfl.knockoffs[0] as object)
+      ? (rfl.knockoffs as ParsedKnockoff[])
+      : extractKnockoffs(rfl);
+    for (const k of kos) {
       if (k.docTypeNormalized && !["OR", "RECEIPT", "AR"].includes(k.docTypeNormalized)) continue;
       const byId = k.docId ? orById.get(k.docId.toUpperCase()) : undefined;
       const byNo = !byId && k.docNo ? orByDocNo.get(k.docNo.toUpperCase()) : undefined;
       const or = byId ?? byNo ?? null;
-      const orId = or ? rowId(or) : null;
-      const orDocNo = or ? normStr(pick(or, ["DocNo", "docNo"])) : null;
-      const orCustomer = or ? customerIdOf(or) : null;
-      const sameUuid = k.docId && orId ? k.docId.toUpperCase() === orId.toUpperCase() : null;
+      const orid = or ? receiptId(or) : null;
+      const ordn = or ? receiptDocNo(or) : null;
+      const orcust = or ? receiptCustomer(or) : null;
+      const sameUuid = k.docId && orid ? k.docId.toUpperCase() === orid.toUpperCase() : null;
+      const docNoAgrees =
+        k.docNo && ordn ? k.docNo.trim().toUpperCase() === ordn.trim().toUpperCase() : null;
       const customerMatch =
-        refundCustomer && orCustomer
-          ? refundCustomer.toUpperCase() === orCustomer.toUpperCase()
-          : null;
+        rfcust && orcust ? rfcust.toUpperCase() === orcust.toUpperCase() : null;
 
       let correlation: RefundKnockoffMatch["correlation"];
       let evidenceLabel: RefundKnockoffMatch["evidenceLabel"];
-      if (byId) {
+      if (byId && k.docNo && ordn && docNoAgrees === false) {
+        correlation = "mismatch";
+        evidenceLabel = "Mismatch";
+      } else if (byId) {
         correlation = "immutable_id";
         evidenceLabel = "Immutable ID confirmed";
-      } else if (k.docId && orId && k.docId.toUpperCase() !== orId.toUpperCase()) {
+      } else if (k.docId && orid && k.docId.toUpperCase() !== orid.toUpperCase()) {
         correlation = "mismatch";
         evidenceLabel = "Mismatch";
       } else if (byNo) {
@@ -1342,16 +1638,17 @@ export function compareRefundKnockoffs(
       }
 
       out.push({
-        refundId,
-        refundDocNo,
+        refundId: rfid,
+        refundDocNo: rfdn,
         docType: k.docType,
         docId: k.docId,
         docNo: k.docNo,
         docCode: k.docCode,
         appliedAmount: k.appliedAmount,
-        candidateReceiptId: orId,
-        candidateReceiptDocNo: orDocNo,
+        candidateReceiptId: orid,
+        candidateReceiptDocNo: ordn,
         sameUuid,
+        docNoAgrees,
         customerMatch,
         correlation,
         evidenceLabel,
@@ -1361,7 +1658,7 @@ export function compareRefundKnockoffs(
   return out;
 }
 
-// ---- Source-field maps (for the evidence bundle) -------------------------
+// ---- Field maps (legacy helper kept for callers) -------------------------
 
 export function buildFieldMap(rows: unknown[]): Record<string, string[]> {
   return { observed: unionKeys(rows, 8) };

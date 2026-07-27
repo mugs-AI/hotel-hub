@@ -8,6 +8,8 @@ import {
   compareReceiptKnockoffs,
   compareRefundKnockoffs,
   applyFilters,
+  validateContract,
+  assertNoInternalOrSecretFields,
   FINANCIAL_BUNDLE_SCHEMA_VERSION,
 } from "@/lib/n3-financial.server";
 import { hasPermission } from "@/lib/rbac";
@@ -382,12 +384,10 @@ describe("Run 5D0 — applyFilters (AND logic + diagnostics)", () => {
 // ---- Bundle schema + tests --------------------------------------------
 
 describe("Run 5D0 — bundle schema constant", () => {
-  it("is versioned 5d0.2", () => {
-    expect(FINANCIAL_BUNDLE_SCHEMA_VERSION).toBe("5d0.2");
+  it("is versioned 5d0.3", () => {
+    expect(FINANCIAL_BUNDLE_SCHEMA_VERSION).toBe("5d0.3");
   });
 });
-
-// ---- Route module has no write methods -----------------------------------
 
 describe("Run 5D0 — route module is GET-only against N3", () => {
   it("financial-verification route never issues N3 writes", () => {
@@ -395,8 +395,6 @@ describe("Run 5D0 — route module is GET-only against N3", () => {
       resolve(__dirname, "../../routes/api/n3/financial-verification.ts"),
       "utf8",
     );
-    // The route may accept POST from the browser; it must not construct
-    // any N3 request using write verbs.
     expect(/callN3Path\s*\([^)]*,\s*['"]POST/i.test(src)).toBe(false);
     expect(/callN3Path\s*\([^)]*,\s*['"]PUT/i.test(src)).toBe(false);
     expect(/callN3Path\s*\([^)]*,\s*['"]PATCH/i.test(src)).toBe(false);
@@ -408,18 +406,113 @@ describe("Run 5D0 — route module is GET-only against N3", () => {
   });
 });
 
-// ---- GL query endpoint precedence ----------------------------------------
-
-describe("Run 5D0 — GL endpoint precedence", () => {
-  it("puts /api/GLAccounts/Query first in the GL candidates", () => {
-    // Introspect the RESOURCE_CANDIDATES constant indirectly by scanning
-    // the module source — this is intentionally coupled so the correction
-    // cannot silently regress the endpoint order.
+describe("Run 5D0.3 — GL endpoint precedence", () => {
+  it("puts /api/AccountCodes/Leaf/Query first in the GL candidates", () => {
     const src = readFileSync(resolve(__dirname, "../n3-financial.server.ts"), "utf8");
     const glBlock = src.match(/gl_accounts:\s*\[([^\]]+)\]/);
     expect(glBlock).toBeTruthy();
     const first = glBlock![1].split(",").map((s) => s.trim().replace(/^["']|["']$/g, ""))[0];
-    expect(first).toBe("/api/GLAccounts/Query");
+    expect(first).toBe("/api/AccountCodes/Leaf/Query");
+  });
+});
+
+// ---- 5d0.3 correction regression tests -----------------------------------
+
+describe("Run 5D0.3 — AR receipts list contract (no knockoff required)", () => {
+  it("accepts the proven live list shape without knockoff/DepositTo", () => {
+    const cv = validateContract(
+      "ar_receipts",
+      [{ id: "R1", docCode: "OR-001", docDate: "2026-07-01", customerCode: "700-C001", totalAmount: 100 }],
+      "Get customer receipt list success",
+    );
+    expect(cv.passed).toBe(true);
+  });
+});
+
+describe("Run 5D0.3 — Cash Sales list contract (live fields)", () => {
+  it("recognises customer/customerName + netTotalAmount + isPostToAR", () => {
+    const cv = validateContract(
+      "cash_sales",
+      [{
+        id: "CS1", docCode: "CS-001", docDate: "2026-07-01",
+        customer: "C1", customerName: "Alice",
+        netTotalAmount: 200, outstandingAmount: 0,
+        referenceNo: "HH-1", isPostToAR: false,
+      }],
+      "Get cash sales list success",
+    );
+    expect(cv.passed).toBe(true);
+  });
+});
+
+describe("Run 5D0.3 — Customer Refund rejects credit-note envelope", () => {
+  it("rejects empty page whose envelope identifies AR credit note", () => {
+    const cv = validateContract("customer_refunds", [], "Get AR credit note list success");
+    expect(cv.passed).toBe(false);
+    expect(cv.suspectedResource).toBe("ar_credit_note");
+  });
+  it("also rejects a non-empty page identified as credit note", () => {
+    const cv = validateContract(
+      "customer_refunds",
+      [{ Id: "X", DocNo: "CN-1", CreditNoteType: "AR" }],
+      "Get AR credit note list success",
+    );
+    expect(cv.passed).toBe(false);
+  });
+  it("empty page without a credit-note envelope cannot prove refund", () => {
+    const cv = validateContract("customer_refunds", [], "Get customer refund list success");
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_customer_refund");
+  });
+});
+
+describe("Run 5D0.3 — ID resolves but docNo disagrees → Mismatch", () => {
+  it("OR knockoff: id matches Cash Sale id but docNo differs", () => {
+    const receipts = [{
+      id: "REC-1", docNo: "OR-001", customerId: "C1",
+      knockoffs: [{ docType: "INV", docId: "CS-UUID-1", docNo: "CS-WRONG", docCode: null, appliedAmount: 100, docTypeNormalized: "INV" }],
+    }];
+    const cs = [{ id: "CS-UUID-1", docNo: "CS-RIGHT", customerId: "C1" }];
+    const out = compareReceiptKnockoffs(receipts, cs);
+    expect(out[0].correlation).toBe("mismatch");
+    expect(out[0].sameUuid).toBe(true);
+    expect(out[0].docNoAgrees).toBe(false);
+  });
+  it("Refund knockoff: id matches OR id but docNo differs", () => {
+    const receipts = [{ id: "OR-ID-1", docNo: "OR-RIGHT", customerId: "C1" }];
+    const rf = [{
+      Id: "RF-1", DocNo: "RF-001", CustomerId: "C1",
+      knockoff: { DocType: "OR", DocId: "OR-ID-1", DocNo: "OR-WRONG" },
+    }];
+    const out = compareRefundKnockoffs(rf, receipts);
+    expect(out[0].correlation).toBe("mismatch");
+  });
+});
+
+describe("Run 5D0.3 — export sanitization asserts no internal properties", () => {
+  it("throws on rawItems/rawTotal/body/matchedRawRows", () => {
+    expect(() => assertNoInternalOrSecretFields({ x: { rawItems: [] } })).toThrow(/rawItems/i);
+    expect(() => assertNoInternalOrSecretFields({ x: { body: {} } })).toThrow(/body/i);
+    expect(() => assertNoInternalOrSecretFields({ x: { matchedRawRows: [] } })).toThrow(/matchedRawRows/i);
+  });
+  it("throws on tenant.id in the bundle", () => {
+    expect(() =>
+      assertNoInternalOrSecretFields({ tenant: { id: "abc-uuid", code: "T", name: "n" } }),
+    ).toThrow(/tenant_id/);
+  });
+  it("throws on secret headers anywhere", () => {
+    expect(() =>
+      assertNoInternalOrSecretFields({ a: [{ b: { Authorization: "Bearer xxx" } }] }),
+    ).toThrow();
+  });
+  it("passes a clean bundle-shaped object", () => {
+    expect(() =>
+      assertNoInternalOrSecretFields({
+        schemaVersion: "5d0.3",
+        tenant: { code: "T", name: "N" },
+        resources: [{ resource: "ar_receipts", rows: [{ DocNo: "OR-1" }] }],
+      }),
+    ).not.toThrow();
   });
 });
 

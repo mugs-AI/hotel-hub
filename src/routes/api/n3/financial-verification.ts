@@ -6,11 +6,7 @@ import { destroySession, requirePermission } from "@/lib/session-context.server"
 import {
   parseDateRange,
   runFinancialVerification,
-  compareReceiptKnockoffs,
-  compareRefundKnockoffs,
-  evaluateGlAccount,
-  classifyOrOrigin,
-  buildFieldMap,
+  assertNoInternalOrSecretFields,
   FINANCIAL_BUNDLE_SCHEMA_VERSION,
   type NormalizedFilters,
 } from "@/lib/n3-financial.server";
@@ -49,9 +45,6 @@ export async function handleFinancialVerification({
   if (typeof body.customerCode === "string" && body.customerCode.trim())
     filters.customerCode = body.customerCode.trim();
 
-  // Load the tenant's configured HotelHub N3 walk-in customer, if any.
-  // Used to validate a browser-supplied customerCode filter — we never
-  // trust an arbitrary customer id from the client.
   let tenantCustomer: { code: string | null } | null = null;
   if (ctx.session.tenantId) {
     try {
@@ -64,12 +57,12 @@ export async function handleFinancialVerification({
   }
 
   try {
-    const run = await runFinancialVerification({
+    const { run, bundle } = await runFinancialVerification({
       token: ctx.session.n3Token,
       dateFrom: range.from,
       dateTo: range.to,
       tenant: {
-        id: ctx.session.tenantId,
+        // Never place tenant.id into any exportable shape.
         code: ctx.session.tenantCode ?? null,
         name: ctx.session.companyName ?? null,
       },
@@ -88,55 +81,9 @@ export async function handleFinancialVerification({
       return deny(401, "n3_unauthorized");
     }
 
-    const ar = run.resources.find((r) => r.resource === "ar_receipts");
-    const cs = run.resources.find((r) => r.resource === "cash_sales");
-    const rf = run.resources.find((r) => r.resource === "customer_refunds");
-    const gl = run.resources.find((r) => r.resource === "gl_accounts");
-
-    const orToCashMemo =
-      ar && cs && ar.status === "success" && cs.status === "success"
-        ? compareReceiptKnockoffs(ar.matchedRawRows, cs.matchedRawRows)
-        : [];
-    const refundToOr =
-      rf && ar && rf.status === "success" && ar.status === "success"
-        ? compareRefundKnockoffs(rf.matchedRawRows, ar.matchedRawRows)
-        : [];
-    const glEligibility =
-      gl && gl.status === "success"
-        ? gl.rows.map((row) => {
-            const detail = evaluateGlAccount(row);
-            return { row, ...detail };
-          })
-        : [];
-    const orClassified =
-      ar && ar.status === "success"
-        ? ar.rows.map((row) => ({ row, origin: classifyOrOrigin(row) }))
-        : [];
-
-    // Bundle-ready derived section that stays browser-safe (raw rows are
-    // never returned; only sanitized `rows` from ResourceReport).
-    const fieldMaps = {
-      arReceipt: ar ? buildFieldMap(ar.rows) : { observed: [] },
-      cashSales: cs ? buildFieldMap(cs.rows) : { observed: [] },
-      customerRefund: rf ? buildFieldMap(rf.rows) : { observed: [] },
-      glAccount: gl ? buildFieldMap(gl.rows) : { observed: [] },
-    };
-
-    const conclusions = run.resources.map((r) => ({
-      resource: r.resource,
-      label: r.mafLabel,
-      note: r.note ?? null,
-    }));
-
-    // Never return the raw matched rows.
-    const publicRun = {
-      ...run,
-      resources: run.resources.map((r) => {
-        const { matchedRawRows: _drop, ...safe } = r;
-        void _drop;
-        return safe;
-      }),
-    };
+    // Belt-and-braces: refuse to send any payload containing internal-only
+    // properties or a tenant UUID.
+    assertNoInternalOrSecretFields(bundle);
 
     await logAudit({
       tenantId: ctx.session.tenantId,
@@ -166,22 +113,8 @@ export async function handleFinancialVerification({
       },
     });
 
-    return Response.json(
-      {
-        run: publicRun,
-        derived: {
-          knockoffs: orToCashMemo, // legacy alias for the existing UI table
-          orToCashMemo,
-          refundToOr,
-          glClassified: glEligibility.map((g) => ({ row: g.row, eligibility: g.eligibility })),
-          glEligibility,
-          orClassified,
-          fieldMaps,
-          conclusions,
-        },
-      },
-      { headers: { "cache-control": "no-store" } },
-    );
+    // 5d0.3: return the bundle at TOP LEVEL. No internal `run` or `derived`.
+    return Response.json(bundle, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("[fin-verify] failed", (err as Error).message?.slice(0, 200));
     return deny(502, "verification_failed");
