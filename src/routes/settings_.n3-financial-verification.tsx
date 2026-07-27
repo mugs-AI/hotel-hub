@@ -58,11 +58,46 @@ type SanitizedCall = {
   responseSample: unknown;
   error?: string;
 };
+type ContractValidation = {
+  passed: boolean;
+  observedFields: string[];
+  requiredHits: Record<string, boolean>;
+  suspectedResource: string | null;
+  reason: string;
+};
+type FilterDiagnostic = {
+  resource: string;
+  requested: Record<string, string>;
+  resolvedFields: Record<string, string | null>;
+  beforeCount: number;
+  afterCount: number;
+  mismatches: string[];
+  rejected?: { field: string; reason: string };
+};
+type DetailEvidence = {
+  sourceListId: string;
+  sourceListDocNo: string | null;
+  endpoint: string;
+  httpStatus: number | null;
+  envelopeCode: string | null;
+  sanitizedSample: unknown;
+  fieldNamesObserved: string[];
+  error?: string;
+};
+type DetailFanOut = {
+  cap: number;
+  requested: number;
+  performed: number;
+  skipped: boolean;
+  reason: string | null;
+  evidence: DetailEvidence[];
+};
 type ResourceReport = {
   resource: "ar_receipts" | "cash_sales" | "customer_refunds" | "gl_accounts";
   status: FetchStatus;
   chosenEndpoint: string | null;
-  attempts: SanitizedCall[];
+  endpointAttempts: SanitizedCall[];
+  contractValidation: ContractValidation | null;
   rows: unknown[];
   totalReported: number | null;
   fetched: number;
@@ -71,9 +106,13 @@ type ResourceReport = {
   truncated: boolean;
   elapsedMs: number;
   mafLabel: MafLabel;
+  filterDiagnostic: FilterDiagnostic | null;
+  detailFanOut: DetailFanOut | null;
   note?: string;
 };
 type Run = {
+  schemaVersion: string;
+  runId: string;
   runAt: string;
   dateFrom: string;
   dateTo: string;
@@ -88,19 +127,49 @@ type KnockoffMatch = {
   docType: string | null;
   docId: string | null;
   docNo: string | null;
+  docCode: string | null;
   appliedAmount: number | null;
   candidateCashSalesId: string | null;
   candidateCashSalesDocNo: string | null;
+  candidateCashSalesDocCode: string | null;
   sameUuid: boolean | null;
   customerMatch: boolean | null;
-  correlation: "immutable_id" | "document_number_only" | "none";
+  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available" | "none";
+  evidenceLabel: string;
+};
+type RefundKnockoffMatch = {
+  refundId: string | null;
+  refundDocNo: string | null;
+  docType: string | null;
+  docId: string | null;
+  docNo: string | null;
+  appliedAmount: number | null;
+  candidateReceiptId: string | null;
+  candidateReceiptDocNo: string | null;
+  sameUuid: boolean | null;
+  correlation: string;
+  evidenceLabel: string;
+};
+type GlEligibility = {
+  row: unknown;
+  eligibility: "bank" | "cash" | "unknown" | "ineligible";
+  reasons: string[];
+  normalizedSpecialType: string | null;
+  active: boolean | null;
+  posting: boolean | null;
 };
 type Derived = {
   knockoffs: KnockoffMatch[];
-  glClassified: { row: unknown; eligibility: "bank" | "cash" | "ineligible" }[];
+  orToCashMemo: KnockoffMatch[];
+  refundToOr: RefundKnockoffMatch[];
+  glClassified: { row: unknown; eligibility: "bank" | "cash" | "unknown" | "ineligible" }[];
+  glEligibility: GlEligibility[];
   orClassified: { row: unknown; origin: "ar_receipt" | "gl_originated_or" | "unknown" }[];
+  fieldMaps: Record<string, { observed: string[] }>;
+  conclusions: { resource: string; label: MafLabel; note: string | null }[];
 };
 type ApiResponse = { run: Run; derived: Derived };
+
 
 function todayKL(): string {
   // Malaysia is UTC+8, no DST.
