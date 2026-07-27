@@ -58,11 +58,46 @@ type SanitizedCall = {
   responseSample: unknown;
   error?: string;
 };
+type ContractValidation = {
+  passed: boolean;
+  observedFields: string[];
+  requiredHits: Record<string, boolean>;
+  suspectedResource: string | null;
+  reason: string;
+};
+type FilterDiagnostic = {
+  resource: string;
+  requested: Record<string, string>;
+  resolvedFields: Record<string, string | null>;
+  beforeCount: number;
+  afterCount: number;
+  mismatches: string[];
+  rejected?: { field: string; reason: string };
+};
+type DetailEvidence = {
+  sourceListId: string;
+  sourceListDocNo: string | null;
+  endpoint: string;
+  httpStatus: number | null;
+  envelopeCode: string | null;
+  sanitizedSample: unknown;
+  fieldNamesObserved: string[];
+  error?: string;
+};
+type DetailFanOut = {
+  cap: number;
+  requested: number;
+  performed: number;
+  skipped: boolean;
+  reason: string | null;
+  evidence: DetailEvidence[];
+};
 type ResourceReport = {
   resource: "ar_receipts" | "cash_sales" | "customer_refunds" | "gl_accounts";
   status: FetchStatus;
   chosenEndpoint: string | null;
-  attempts: SanitizedCall[];
+  endpointAttempts: SanitizedCall[];
+  contractValidation: ContractValidation | null;
   rows: unknown[];
   totalReported: number | null;
   fetched: number;
@@ -71,9 +106,13 @@ type ResourceReport = {
   truncated: boolean;
   elapsedMs: number;
   mafLabel: MafLabel;
+  filterDiagnostic: FilterDiagnostic | null;
+  detailFanOut: DetailFanOut | null;
   note?: string;
 };
 type Run = {
+  schemaVersion: string;
+  runId: string;
   runAt: string;
   dateFrom: string;
   dateTo: string;
@@ -88,19 +127,49 @@ type KnockoffMatch = {
   docType: string | null;
   docId: string | null;
   docNo: string | null;
+  docCode: string | null;
   appliedAmount: number | null;
   candidateCashSalesId: string | null;
   candidateCashSalesDocNo: string | null;
+  candidateCashSalesDocCode: string | null;
   sameUuid: boolean | null;
   customerMatch: boolean | null;
-  correlation: "immutable_id" | "document_number_only" | "none";
+  correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available" | "none";
+  evidenceLabel: string;
+};
+type RefundKnockoffMatch = {
+  refundId: string | null;
+  refundDocNo: string | null;
+  docType: string | null;
+  docId: string | null;
+  docNo: string | null;
+  appliedAmount: number | null;
+  candidateReceiptId: string | null;
+  candidateReceiptDocNo: string | null;
+  sameUuid: boolean | null;
+  correlation: string;
+  evidenceLabel: string;
+};
+type GlEligibility = {
+  row: unknown;
+  eligibility: "bank" | "cash" | "unknown" | "ineligible";
+  reasons: string[];
+  normalizedSpecialType: string | null;
+  active: boolean | null;
+  posting: boolean | null;
 };
 type Derived = {
   knockoffs: KnockoffMatch[];
-  glClassified: { row: unknown; eligibility: "bank" | "cash" | "ineligible" }[];
+  orToCashMemo: KnockoffMatch[];
+  refundToOr: RefundKnockoffMatch[];
+  glClassified: { row: unknown; eligibility: "bank" | "cash" | "unknown" | "ineligible" }[];
+  glEligibility: GlEligibility[];
   orClassified: { row: unknown; origin: "ar_receipt" | "gl_originated_or" | "unknown" }[];
+  fieldMaps: Record<string, { observed: string[] }>;
+  conclusions: { resource: string; label: MafLabel; note: string | null }[];
 };
 type ApiResponse = { run: Run; derived: Derived };
+
 
 function todayKL(): string {
   // Malaysia is UTC+8, no DST.
@@ -438,19 +507,23 @@ function RunSummary({ data }: { data: ApiResponse }) {
           type="button"
           variant="outline"
           onClick={() => {
+            const ts = run.runAt.replace(/[-:.]/g, "").slice(0, 15); // YYYYMMDDTHHMMSS
+            const refPart = (run.filters.hotelReference || run.filters.docNumber || "noref")
+              .replace(/[^A-Za-z0-9-]/g, "");
             const blob = new Blob([JSON.stringify(data, null, 2)], {
               type: "application/json",
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `hotelhub-n3-verify-${run.dateFrom}_${run.dateTo}.json`;
+            a.download = `hotelhub-5d0-${ts}-${refPart}.json`;
             a.click();
             URL.revokeObjectURL(url);
           }}
         >
           Download JSON
         </Button>
+
       </div>
     </section>
   );
@@ -477,10 +550,71 @@ function ResourceSections({ data }: { data: ApiResponse }) {
       <ResourceCard report={map.get("cash_sales")!} />
       <KnockoffCard data={data} />
       <ResourceCard report={map.get("customer_refunds")!} />
+      <RefundKnockoffCard data={data} />
       <ResourceCard report={map.get("gl_accounts")!} extra={<GlAccountsTable data={data} />} />
     </>
   );
 }
+
+function RefundKnockoffCard({ data }: { data: ApiResponse }) {
+  const rows = data.derived.refundToOr ?? [];
+  return (
+    <section
+      className="rounded-xl border bg-white p-5 shadow-sm"
+      style={{ borderColor: `${NAVY}1F` }}
+    >
+      <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+        Refund ↔ OR Identity Check{" "}
+        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+      </h2>
+      {rows.length === 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          No refund knockoff rows matched an AR Receipt in this date range.
+        </p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-[11px] uppercase text-muted-foreground">
+                <th className="p-2">Refund (RF)</th>
+                <th className="p-2">Knockoff DocId</th>
+                <th className="p-2">OR UUID</th>
+                <th className="p-2">Same UUID?</th>
+                <th className="p-2">Applied</th>
+                <th className="p-2">Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((k, i) => (
+                <tr key={i} className="border-t align-top">
+                  <td className="p-2">
+                    {k.refundDocNo}
+                    <br />
+                    <span className="text-muted-foreground">{k.refundId}</span>
+                  </td>
+                  <td className="p-2">
+                    {k.docNo ?? "—"}
+                    <br />
+                    <span className="text-muted-foreground">{k.docId ?? "—"}</span>
+                  </td>
+                  <td className="p-2">
+                    {k.candidateReceiptDocNo ?? "—"}
+                    <br />
+                    <span className="text-muted-foreground">{k.candidateReceiptId ?? "—"}</span>
+                  </td>
+                  <td className="p-2">{k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}</td>
+                  <td className="p-2">{k.appliedAmount ?? "—"}</td>
+                  <td className="p-2">{k.evidenceLabel}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 
 function ResourceCard({
   report,
@@ -509,6 +643,35 @@ function ResourceCard({
         · {report.matched} matched / {report.fetched} fetched · {report.pagesFetched} pages ·{" "}
         {report.elapsedMs} ms {report.truncated ? "· truncated" : ""}
       </p>
+      {report.contractValidation ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Contract: {report.contractValidation.passed ? "passed" : "FAILED"} —{" "}
+          {report.contractValidation.reason}
+          {report.contractValidation.suspectedResource
+            ? ` (suspected: ${report.contractValidation.suspectedResource})`
+            : ""}
+        </p>
+      ) : null}
+      {report.filterDiagnostic ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Filter: {report.filterDiagnostic.beforeCount} → {report.filterDiagnostic.afterCount}
+          {report.filterDiagnostic.mismatches.length
+            ? ` · missing fields: ${report.filterDiagnostic.mismatches.join(", ")}`
+            : ""}
+          {report.filterDiagnostic.rejected
+            ? ` · rejected ${report.filterDiagnostic.rejected.field}: ${report.filterDiagnostic.rejected.reason}`
+            : ""}
+        </p>
+      ) : null}
+      {report.detailFanOut ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Detail reads: {report.detailFanOut.performed}/{report.detailFanOut.requested} (cap{" "}
+          {report.detailFanOut.cap})
+          {report.detailFanOut.skipped
+            ? ` · skipped: ${report.detailFanOut.reason ?? "unknown"}`
+            : ""}
+        </p>
+      ) : null}
       {extra}
       <div className="mt-3">
         <button
@@ -516,13 +679,20 @@ function ResourceCard({
           className="text-xs underline"
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? "Hide" : "Show"} sanitized evidence ({report.attempts.length} call
-          {report.attempts.length === 1 ? "" : "s"})
+          {open ? "Hide" : "Show"} sanitized evidence ({report.endpointAttempts.length} call
+          {report.endpointAttempts.length === 1 ? "" : "s"}
+          {report.detailFanOut ? `, ${report.detailFanOut.evidence.length} detail` : ""})
         </button>
         {open ? (
           <pre className="mt-2 max-h-80 overflow-auto rounded bg-slate-950 p-3 text-[11px] leading-snug text-slate-100">
             {JSON.stringify(
-              { attempts: report.attempts, sample: report.rows.slice(0, 3) },
+              {
+                endpointAttempts: report.endpointAttempts,
+                contractValidation: report.contractValidation,
+                filterDiagnostic: report.filterDiagnostic,
+                detailFanOut: report.detailFanOut,
+                sample: report.rows.slice(0, 3),
+              },
               null,
               2,
             )}
@@ -532,6 +702,7 @@ function ResourceCard({
     </section>
   );
 }
+
 
 function KnockoffCard({ data }: { data: ApiResponse }) {
   const rows = data.derived.knockoffs;
