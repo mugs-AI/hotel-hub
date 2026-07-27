@@ -252,7 +252,7 @@ describe("Run 5D0 — OR ↔ Cash Memo comparison", () => {
         knockoff: { DocType: "INV", DocId: "AAA", DocNo: "CS-3" },
       },
     ];
-    const cs = [{ Id: "BBB", DocNo: "CS-999" }];
+    const cs = [{ Id: "BBB", DocNo: "CS-3" }];
     const out = compareReceiptKnockoffs(receipts, cs);
     expect(out[0].correlation).toBe("mismatch");
     expect(out[0].evidenceLabel).toBe("Mismatch");
