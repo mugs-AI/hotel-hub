@@ -15,7 +15,7 @@ const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 const SOFT_BG = "#F4F8FC";
 
-export const Route = createFileRoute("/settings/n3-financial-verification")({
+export const Route = createFileRoute("/settings_/n3-financial-verification")({
   head: () => ({
     meta: [
       { title: "N3 Financial Verification — HotelHub" },
