@@ -578,6 +578,35 @@ function ResourceCard({
         · {report.matched} matched / {report.fetched} fetched · {report.pagesFetched} pages ·{" "}
         {report.elapsedMs} ms {report.truncated ? "· truncated" : ""}
       </p>
+      {report.contractValidation ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Contract: {report.contractValidation.passed ? "passed" : "FAILED"} —{" "}
+          {report.contractValidation.reason}
+          {report.contractValidation.suspectedResource
+            ? ` (suspected: ${report.contractValidation.suspectedResource})`
+            : ""}
+        </p>
+      ) : null}
+      {report.filterDiagnostic ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Filter: {report.filterDiagnostic.beforeCount} → {report.filterDiagnostic.afterCount}
+          {report.filterDiagnostic.mismatches.length
+            ? ` · missing fields: ${report.filterDiagnostic.mismatches.join(", ")}`
+            : ""}
+          {report.filterDiagnostic.rejected
+            ? ` · rejected ${report.filterDiagnostic.rejected.field}: ${report.filterDiagnostic.rejected.reason}`
+            : ""}
+        </p>
+      ) : null}
+      {report.detailFanOut ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Detail reads: {report.detailFanOut.performed}/{report.detailFanOut.requested} (cap{" "}
+          {report.detailFanOut.cap})
+          {report.detailFanOut.skipped
+            ? ` · skipped: ${report.detailFanOut.reason ?? "unknown"}`
+            : ""}
+        </p>
+      ) : null}
       {extra}
       <div className="mt-3">
         <button
@@ -585,13 +614,20 @@ function ResourceCard({
           className="text-xs underline"
           onClick={() => setOpen((v) => !v)}
         >
-          {open ? "Hide" : "Show"} sanitized evidence ({report.attempts.length} call
-          {report.attempts.length === 1 ? "" : "s"})
+          {open ? "Hide" : "Show"} sanitized evidence ({report.endpointAttempts.length} call
+          {report.endpointAttempts.length === 1 ? "" : "s"}
+          {report.detailFanOut ? `, ${report.detailFanOut.evidence.length} detail` : ""})
         </button>
         {open ? (
           <pre className="mt-2 max-h-80 overflow-auto rounded bg-slate-950 p-3 text-[11px] leading-snug text-slate-100">
             {JSON.stringify(
-              { attempts: report.attempts, sample: report.rows.slice(0, 3) },
+              {
+                endpointAttempts: report.endpointAttempts,
+                contractValidation: report.contractValidation,
+                filterDiagnostic: report.filterDiagnostic,
+                detailFanOut: report.detailFanOut,
+                sample: report.rows.slice(0, 3),
+              },
               null,
               2,
             )}
@@ -601,6 +637,7 @@ function ResourceCard({
     </section>
   );
 }
+
 
 function KnockoffCard({ data }: { data: ApiResponse }) {
   const rows = data.derived.knockoffs;
