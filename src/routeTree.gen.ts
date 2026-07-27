@@ -15,7 +15,7 @@ import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
-import { Route as SettingsN3FinancialVerificationRouteImport } from './routes/settings.n3-financial-verification'
+import { Route as SettingsN3FinancialVerificationRouteImport } from './routes/settings_.n3-financial-verification'
 import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
 import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
@@ -75,9 +75,9 @@ const ReservationsIndexRoute = ReservationsIndexRouteImport.update({
 } as any)
 const SettingsN3FinancialVerificationRoute =
   SettingsN3FinancialVerificationRouteImport.update({
-    id: '/n3-financial-verification',
-    path: '/n3-financial-verification',
-    getParentRoute: () => SettingsRoute,
+    id: '/settings_/n3-financial-verification',
+    path: '/settings/n3-financial-verification',
+    getParentRoute: () => rootRouteImport,
   } as any)
 const ReservationsNewRoute = ReservationsNewRouteImport.update({
   id: '/reservations/new',
@@ -217,7 +217,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
@@ -252,7 +252,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
@@ -288,12 +288,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
-  '/settings': typeof SettingsRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
   '/reservations/$id': typeof ReservationsIdRoute
   '/reservations/calendar': typeof ReservationsCalendarRoute
   '/reservations/new': typeof ReservationsNewRoute
-  '/settings/n3-financial-verification': typeof SettingsN3FinancialVerificationRoute
+  '/settings_/n3-financial-verification': typeof SettingsN3FinancialVerificationRoute
   '/reservations/': typeof ReservationsIndexRoute
   '/api/auth/connect': typeof ApiAuthConnectRoute
   '/api/auth/launch': typeof ApiAuthLaunchRoute
@@ -400,7 +400,7 @@ export interface FileRouteTypes {
     | '/reservations/$id'
     | '/reservations/calendar'
     | '/reservations/new'
-    | '/settings/n3-financial-verification'
+    | '/settings_/n3-financial-verification'
     | '/reservations/'
     | '/api/auth/connect'
     | '/api/auth/launch'
@@ -431,11 +431,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
-  SettingsRoute: typeof SettingsRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
   ReservationsIdRoute: typeof ReservationsIdRoute
   ReservationsCalendarRoute: typeof ReservationsCalendarRoute
   ReservationsNewRoute: typeof ReservationsNewRoute
+  SettingsN3FinancialVerificationRoute: typeof SettingsN3FinancialVerificationRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
   ApiAuthConnectRoute: typeof ApiAuthConnectRoute
   ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
@@ -501,12 +502,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReservationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/n3-financial-verification': {
-      id: '/settings/n3-financial-verification'
-      path: '/n3-financial-verification'
+    '/settings_/n3-financial-verification': {
+      id: '/settings_/n3-financial-verification'
+      path: '/settings/n3-financial-verification'
       fullPath: '/settings/n3-financial-verification'
       preLoaderRoute: typeof SettingsN3FinancialVerificationRouteImport
-      parentRoute: typeof SettingsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/reservations/new': {
       id: '/reservations/new'
@@ -693,18 +694,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface SettingsRouteChildren {
-  SettingsN3FinancialVerificationRoute: typeof SettingsN3FinancialVerificationRoute
-}
-
-const SettingsRouteChildren: SettingsRouteChildren = {
-  SettingsN3FinancialVerificationRoute: SettingsN3FinancialVerificationRoute,
-}
-
-const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
-  SettingsRouteChildren,
-)
-
 interface ApiHotelBookingSourcesRouteChildren {
   ApiHotelBookingSourcesIdRoute: typeof ApiHotelBookingSourcesIdRoute
 }
@@ -770,11 +759,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LaunchErrorRoute: LaunchErrorRoute,
   RoomsRatesRoute: RoomsRatesRoute,
-  SettingsRoute: SettingsRouteWithChildren,
+  SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
   ReservationsIdRoute: ReservationsIdRoute,
   ReservationsCalendarRoute: ReservationsCalendarRoute,
   ReservationsNewRoute: ReservationsNewRoute,
+  SettingsN3FinancialVerificationRoute: SettingsN3FinancialVerificationRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
   ApiAuthConnectRoute: ApiAuthConnectRoute,
   ApiAuthLaunchRoute: ApiAuthLaunchRoute,
