@@ -861,6 +861,7 @@ export type DetailFanOut = {
   cap: number;
   requested: number;
   performed: number;
+  normalized: number;
   skipped: boolean;
   reason: string | null;
   evidence: DetailEvidence[];
