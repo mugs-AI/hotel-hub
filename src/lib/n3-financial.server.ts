@@ -457,19 +457,19 @@ export function validateContract(
       const looksReceipt = envelopeMessage
         ? /receipt|receive/i.test(envelopeMessage)
         : false;
-      const emptyOk = rows.length === 0 && !envelopeIdentifiesCreditNote(envelopeMessage) && looksReceipt;
-      const passed = emptyOk || (hasDoc && hasCustomer && hasAmount);
+      // An empty page CANNOT establish Live N3 Confirmed on its own.
+      const passed = rows.length > 0 && hasDoc && hasCustomer && hasAmount;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasDoc, hasAmount, looksReceipt, emptyOk },
+        requiredHits: { hasCustomer, hasDoc, hasAmount, looksReceipt, isEmpty: rows.length === 0 },
         suspectedResource: passed
           ? "ar_receipts"
           : envelopeIdentifiesCreditNote(envelopeMessage)
             ? "ar_credit_note"
             : "unknown",
-        reason: emptyOk
-          ? "empty_page_with_receipt_envelope"
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_ar_receipts"
           : passed
             ? "ar_receipt_fields_present"
             : "missing_ar_receipt_signals",
