@@ -457,19 +457,19 @@ export function validateContract(
       const looksReceipt = envelopeMessage
         ? /receipt|receive/i.test(envelopeMessage)
         : false;
-      const emptyOk = rows.length === 0 && !envelopeIdentifiesCreditNote(envelopeMessage) && looksReceipt;
-      const passed = emptyOk || (hasDoc && hasCustomer && hasAmount);
+      // An empty page CANNOT establish Live N3 Confirmed on its own.
+      const passed = rows.length > 0 && hasDoc && hasCustomer && hasAmount;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasDoc, hasAmount, looksReceipt, emptyOk },
+        requiredHits: { hasCustomer, hasDoc, hasAmount, looksReceipt, isEmpty: rows.length === 0 },
         suspectedResource: passed
           ? "ar_receipts"
           : envelopeIdentifiesCreditNote(envelopeMessage)
             ? "ar_credit_note"
             : "unknown",
-        reason: emptyOk
-          ? "empty_page_with_receipt_envelope"
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_ar_receipts"
           : passed
             ? "ar_receipt_fields_present"
             : "missing_ar_receipt_signals",
@@ -492,22 +492,22 @@ export function validateContract(
       const hasIsPostToAR = hasAnyKey(obs, ["IsPostToAR", "isPostToAR", "PostToAR", "postToAR"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
       const strong = hasDoc && (hasIsPostToAR || (hasCustomer && hasTotal));
-      const emptyOk =
-        rows.length === 0 &&
-        !envelopeIdentifiesCreditNote(envelopeMessage) &&
-        !!envelopeMessage &&
-        /cash\s*sale/i.test(envelopeMessage);
-      const passed = strong || emptyOk;
+      // Empty page cannot establish Live N3 Confirmed.
+      const passed = rows.length > 0 && strong;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasTotal, hasDoc, hasIsPostToAR, emptyOk },
+        requiredHits: { hasCustomer, hasTotal, hasDoc, hasIsPostToAR, isEmpty: rows.length === 0 },
         suspectedResource: passed
           ? "cash_sales"
           : envelopeIdentifiesSalesCreditNote(envelopeMessage)
             ? "sales_credit_note"
             : "unknown",
-        reason: passed ? "cash_sales_fields_present" : "missing_cash_sales_signals",
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_cash_sales"
+          : passed
+            ? "cash_sales_fields_present"
+            : "missing_cash_sales_signals",
         envelopeMessage,
       };
     }
@@ -564,14 +564,18 @@ export function validateContract(
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
       const hasName = hasAnyKey(obs, ["Name", "name", "AccountName", "accountName", "Description", "description"]);
       const hasCode = hasAnyKey(obs, ["Code", "code", "AccountCode", "accountCode"]);
-      const emptyOk = rows.length === 0;
-      const passed = emptyOk || (hasName && hasCode);
+      // Empty page cannot establish Live N3 Confirmed.
+      const passed = rows.length > 0 && hasName && hasCode;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasSpecial, hasName, hasCode, emptyOk },
+        requiredHits: { hasSpecial, hasName, hasCode, isEmpty: rows.length === 0 },
         suspectedResource: passed ? "gl_accounts" : "unknown",
-        reason: passed ? "gl_account_fields_present" : "missing_gl_account_signals",
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_gl_accounts"
+          : passed
+            ? "gl_account_fields_present"
+            : "missing_gl_account_signals",
         envelopeMessage,
       };
     }
@@ -610,6 +614,10 @@ const HOTEL_REF_FIELDS = [
 const CUSTOMER_CODE_FIELDS = [
   "CustomerCode", "customerCode",
   "DebtorCode", "debtorCode",
+  // Live Cash Sales exposes the customer CODE as `customer`/`Customer`
+  // (a plain string). Never accept `customerName` as a code — it is a
+  // display value and can never establish an exact-code match.
+  "Customer", "customer",
 ];
 
 function firstPresentField(row: Record<string, unknown>, fields: string[]): string | null {
@@ -853,6 +861,7 @@ export type DetailFanOut = {
   cap: number;
   requested: number;
   performed: number;
+  normalized: number;
   skipped: boolean;
   reason: string | null;
   evidence: DetailEvidence[];
@@ -884,13 +893,26 @@ async function fanOutDetails(
   token: string,
   resource: Exclude<FinResource, "gl_accounts">,
   matchedRows: unknown[],
-): Promise<{ fanOut: DetailFanOut; details: unknown[] }> {
+): Promise<{
+  fanOut: DetailFanOut;
+  // Only successful 2xx detail responses. Failed / 404 / error-envelope bodies
+  // remain in `fanOut.evidence` as attempts and never enter this array.
+  successfulDetails: unknown[];
+}> {
   const root = RESOURCE_DETAIL_ROOT[resource];
   const requested = matchedRows.length;
   if (requested === 0) {
     return {
-      fanOut: { cap: DETAIL_FANOUT_CAP, requested: 0, performed: 0, skipped: false, reason: null, evidence: [] },
-      details: [],
+      fanOut: {
+        cap: DETAIL_FANOUT_CAP,
+        requested: 0,
+        performed: 0,
+        normalized: 0,
+        skipped: false,
+        reason: null,
+        evidence: [],
+      },
+      successfulDetails: [],
     };
   }
   if (requested > DETAIL_FANOUT_CAP) {
@@ -899,15 +921,16 @@ async function fanOutDetails(
         cap: DETAIL_FANOUT_CAP,
         requested,
         performed: 0,
+        normalized: 0,
         skipped: true,
         reason: "narrow_filters_required",
         evidence: [],
       },
-      details: [],
+      successfulDetails: [],
     };
   }
   const evidence: DetailEvidence[] = [];
-  const details: unknown[] = [];
+  const successfulDetails: unknown[] = [];
   for (const row of matchedRows) {
     const id = rowId(row);
     if (!id) continue;
@@ -916,20 +939,25 @@ async function fanOutDetails(
       : null;
     const res = await fetchDetailById(token, root, id, docNo);
     evidence.push(res.evidence);
-    details.push(res.body);
+    const status = res.evidence.httpStatus;
+    if (typeof status === "number" && status >= 200 && status < 300 && !res.evidence.error) {
+      successfulDetails.push(res.body);
+    }
   }
   return {
     fanOut: {
       cap: DETAIL_FANOUT_CAP,
       requested,
       performed: evidence.length,
+      normalized: 0, // caller fills in after normalization
       skipped: false,
       reason: null,
       evidence,
     },
-    details,
+    successfulDetails,
   };
 }
+
 
 // ---- Resource fetch (list) -----------------------------------------------
 
@@ -1099,20 +1127,23 @@ async function fetchListResource(
 
   // Detail fan-out (transaction resources only).
   let detailFanOut: DetailFanOut | null = null;
-  let normalizedDetails: unknown[] = [];
-  let detailFields: string[] = [];
+  const normalizedDetails: unknown[] = [];
+  // Observed = actual N3 DTO field names from successful 2xx detail bodies,
+  // NOT the normalized property names of our DTOs.
+  const observedDetailKeys = new Set<string>();
   if (resource !== "gl_accounts") {
     const res = await fanOutDetails(token, resource, filtered);
     detailFanOut = res.fanOut;
-    // Normalise each detail body into a stable DTO.
-    for (const body of res.details) {
+    for (const body of res.successfulDetails) {
+      const dto = innerDetailOf(body);
+      if (dto) for (const k of Object.keys(dto)) observedDetailKeys.add(k);
       let norm: unknown = null;
       if (resource === "ar_receipts") norm = normalizeReceiptDetail(body);
       else if (resource === "cash_sales") norm = normalizeCashSaleDetail(body);
       else if (resource === "customer_refunds") norm = normalizeRefundDetail(body);
       if (norm) normalizedDetails.push(norm);
     }
-    detailFields = unionKeys(normalizedDetails, 8);
+    detailFanOut = { ...detailFanOut, normalized: normalizedDetails.length };
   }
 
   return {
@@ -1132,7 +1163,7 @@ async function fetchListResource(
     filterDiagnostic: diagnostic,
     detailFanOut,
     listFieldMap: { observed: unionKeys(filtered, 8) },
-    detailFieldMap: { observed: detailFields },
+    detailFieldMap: { observed: Array.from(observedDetailKeys).slice(0, 24) },
     _normalizedDetails: normalizedDetails,
   };
 }

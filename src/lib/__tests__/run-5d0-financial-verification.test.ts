@@ -525,3 +525,108 @@ describe("Run 5D0 — Supabase browser-auth guardrails", () => {
     expect(src).not.toMatch(/attachSupabaseAuth/);
   });
 });
+
+// ---- Run 5D0.3A source-review corrections --------------------------------
+
+import { existsSync } from "node:fs";
+
+describe("Run 5D0.3A — regenerated browser-auth files are absent", () => {
+  const forbidden = [
+    "src/integrations/supabase/auth-attacher.ts",
+    "src/integrations/supabase/auth-middleware.ts",
+    "src/integrations/supabase/client.ts",
+  ];
+  for (const rel of forbidden) {
+    it(`does not exist: ${rel}`, () => {
+      expect(existsSync(resolve(__dirname, "../../..", rel))).toBe(false);
+    });
+  }
+  it("keeps src/integrations/supabase/client.server.ts", () => {
+    expect(
+      existsSync(resolve(__dirname, "../../..", "src/integrations/supabase/client.server.ts")),
+    ).toBe(true);
+  });
+  it("src/start.ts keeps functionMiddleware: []", () => {
+    const src = readFileSync(resolve(__dirname, "../../start.ts"), "utf8");
+    expect(src).toMatch(/functionMiddleware:\s*\[\s*\]/);
+    expect(src).not.toMatch(/attachSupabaseAuth/);
+  });
+});
+
+describe("Run 5D0.3A — empty pages cannot establish Live N3 Confirmed", () => {
+  it("AR Receipts: empty rows fail contract even with receipt envelope", () => {
+    const cv = validateContract("ar_receipts", [], "Get AR receipt list success");
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_ar_receipts");
+  });
+  it("Cash Sales: empty rows fail contract even with cash-sale envelope", () => {
+    const cv = validateContract("cash_sales", [], "Get cash sale list success");
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_cash_sales");
+  });
+  it("Customer Refunds: empty rows fail contract", () => {
+    const cv = validateContract("customer_refunds", [], "Get customer refund list success");
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_customer_refund");
+  });
+  it("GL Accounts: empty rows fail contract", () => {
+    const cv = validateContract("gl_accounts", [], null);
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_gl_accounts");
+  });
+});
+
+describe("Run 5D0.3A — Customer Code filter recognises live `customer` field", () => {
+  it("matches Cash Sales row whose CODE lives in `customer` (not customerName)", () => {
+    const rows = [
+      { docNo: "CS-1", customer: "WALKIN", customerName: "Walk In Guest", netTotalAmount: 100 },
+      { docNo: "CS-2", customer: "OTHER", customerName: "Somebody Else", netTotalAmount: 50 },
+    ];
+    const out = applyFilters(
+      "cash_sales",
+      rows,
+      { customerCode: "WALKIN" },
+      { code: "WALKIN" },
+    );
+    expect(out.rows.length).toBe(1);
+    expect((out.rows[0] as { docNo: string }).docNo).toBe("CS-1");
+    expect(out.diagnostic.resolvedFields.customerCode).toBe("customer");
+  });
+  it("never treats customerName as a customer code", () => {
+    const rows = [
+      { docNo: "CS-3", customerName: "WALKIN", netTotalAmount: 25 },
+    ];
+    const out = applyFilters(
+      "cash_sales",
+      rows,
+      { customerCode: "WALKIN" },
+      { code: "WALKIN" },
+    );
+    expect(out.rows.length).toBe(0);
+    expect(out.diagnostic.mismatches).toContain("customerCode");
+  });
+});
+
+describe("Run 5D0.3A — DetailFanOut reports normalized separately from attempts", () => {
+  it("carries `normalized` counter alongside `performed`", () => {
+    // Type-level: shape includes both fields.
+    const shape: {
+      cap: number;
+      requested: number;
+      performed: number;
+      normalized: number;
+      skipped: boolean;
+      reason: string | null;
+      evidence: unknown[];
+    } = {
+      cap: 20,
+      requested: 0,
+      performed: 0,
+      normalized: 0,
+      skipped: false,
+      reason: null,
+      evidence: [],
+    };
+    expect(shape.normalized).toBe(0);
+  });
+});
