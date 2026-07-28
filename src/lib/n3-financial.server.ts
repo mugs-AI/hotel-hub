@@ -1127,20 +1127,23 @@ async function fetchListResource(
 
   // Detail fan-out (transaction resources only).
   let detailFanOut: DetailFanOut | null = null;
-  let normalizedDetails: unknown[] = [];
-  let detailFields: string[] = [];
+  const normalizedDetails: unknown[] = [];
+  // Observed = actual N3 DTO field names from successful 2xx detail bodies,
+  // NOT the normalized property names of our DTOs.
+  const observedDetailKeys = new Set<string>();
   if (resource !== "gl_accounts") {
     const res = await fanOutDetails(token, resource, filtered);
     detailFanOut = res.fanOut;
-    // Normalise each detail body into a stable DTO.
-    for (const body of res.details) {
+    for (const body of res.successfulDetails) {
+      const dto = innerDetailOf(body);
+      if (dto) for (const k of Object.keys(dto)) observedDetailKeys.add(k);
       let norm: unknown = null;
       if (resource === "ar_receipts") norm = normalizeReceiptDetail(body);
       else if (resource === "cash_sales") norm = normalizeCashSaleDetail(body);
       else if (resource === "customer_refunds") norm = normalizeRefundDetail(body);
       if (norm) normalizedDetails.push(norm);
     }
-    detailFields = unionKeys(normalizedDetails, 8);
+    detailFanOut = { ...detailFanOut, normalized: normalizedDetails.length };
   }
 
   return {
@@ -1160,7 +1163,7 @@ async function fetchListResource(
     filterDiagnostic: diagnostic,
     detailFanOut,
     listFieldMap: { observed: unionKeys(filtered, 8) },
-    detailFieldMap: { observed: detailFields },
+    detailFieldMap: { observed: Array.from(observedDetailKeys).slice(0, 24) },
     _normalizedDetails: normalizedDetails,
   };
 }
