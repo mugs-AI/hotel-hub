@@ -614,6 +614,10 @@ const HOTEL_REF_FIELDS = [
 const CUSTOMER_CODE_FIELDS = [
   "CustomerCode", "customerCode",
   "DebtorCode", "debtorCode",
+  // Live Cash Sales exposes the customer CODE as `customer`/`Customer`
+  // (a plain string). Never accept `customerName` as a code — it is a
+  // display value and can never establish an exact-code match.
+  "Customer", "customer",
 ];
 
 function firstPresentField(row: Record<string, unknown>, fields: string[]): string | null {
