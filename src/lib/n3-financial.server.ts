@@ -893,13 +893,26 @@ async function fanOutDetails(
   token: string,
   resource: Exclude<FinResource, "gl_accounts">,
   matchedRows: unknown[],
-): Promise<{ fanOut: DetailFanOut; details: unknown[] }> {
+): Promise<{
+  fanOut: DetailFanOut;
+  // Only successful 2xx detail responses. Failed / 404 / error-envelope bodies
+  // remain in `fanOut.evidence` as attempts and never enter this array.
+  successfulDetails: unknown[];
+}> {
   const root = RESOURCE_DETAIL_ROOT[resource];
   const requested = matchedRows.length;
   if (requested === 0) {
     return {
-      fanOut: { cap: DETAIL_FANOUT_CAP, requested: 0, performed: 0, skipped: false, reason: null, evidence: [] },
-      details: [],
+      fanOut: {
+        cap: DETAIL_FANOUT_CAP,
+        requested: 0,
+        performed: 0,
+        normalized: 0,
+        skipped: false,
+        reason: null,
+        evidence: [],
+      },
+      successfulDetails: [],
     };
   }
   if (requested > DETAIL_FANOUT_CAP) {
@@ -908,15 +921,16 @@ async function fanOutDetails(
         cap: DETAIL_FANOUT_CAP,
         requested,
         performed: 0,
+        normalized: 0,
         skipped: true,
         reason: "narrow_filters_required",
         evidence: [],
       },
-      details: [],
+      successfulDetails: [],
     };
   }
   const evidence: DetailEvidence[] = [];
-  const details: unknown[] = [];
+  const successfulDetails: unknown[] = [];
   for (const row of matchedRows) {
     const id = rowId(row);
     if (!id) continue;
@@ -925,20 +939,25 @@ async function fanOutDetails(
       : null;
     const res = await fetchDetailById(token, root, id, docNo);
     evidence.push(res.evidence);
-    details.push(res.body);
+    const status = res.evidence.httpStatus;
+    if (typeof status === "number" && status >= 200 && status < 300 && !res.evidence.error) {
+      successfulDetails.push(res.body);
+    }
   }
   return {
     fanOut: {
       cap: DETAIL_FANOUT_CAP,
       requested,
       performed: evidence.length,
+      normalized: 0, // caller fills in after normalization
       skipped: false,
       reason: null,
       evidence,
     },
-    details,
+    successfulDetails,
   };
 }
+
 
 // ---- Resource fetch (list) -----------------------------------------------
 
