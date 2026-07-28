@@ -564,14 +564,18 @@ export function validateContract(
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
       const hasName = hasAnyKey(obs, ["Name", "name", "AccountName", "accountName", "Description", "description"]);
       const hasCode = hasAnyKey(obs, ["Code", "code", "AccountCode", "accountCode"]);
-      const emptyOk = rows.length === 0;
-      const passed = emptyOk || (hasName && hasCode);
+      // Empty page cannot establish Live N3 Confirmed.
+      const passed = rows.length > 0 && hasName && hasCode;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasSpecial, hasName, hasCode, emptyOk },
+        requiredHits: { hasSpecial, hasName, hasCode, isEmpty: rows.length === 0 },
         suspectedResource: passed ? "gl_accounts" : "unknown",
-        reason: passed ? "gl_account_fields_present" : "missing_gl_account_signals",
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_gl_accounts"
+          : passed
+            ? "gl_account_fields_present"
+            : "missing_gl_account_signals",
         envelopeMessage,
       };
     }
