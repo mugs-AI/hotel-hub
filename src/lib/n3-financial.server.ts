@@ -492,22 +492,22 @@ export function validateContract(
       const hasIsPostToAR = hasAnyKey(obs, ["IsPostToAR", "isPostToAR", "PostToAR", "postToAR"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
       const strong = hasDoc && (hasIsPostToAR || (hasCustomer && hasTotal));
-      const emptyOk =
-        rows.length === 0 &&
-        !envelopeIdentifiesCreditNote(envelopeMessage) &&
-        !!envelopeMessage &&
-        /cash\s*sale/i.test(envelopeMessage);
-      const passed = strong || emptyOk;
+      // Empty page cannot establish Live N3 Confirmed.
+      const passed = rows.length > 0 && strong;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasTotal, hasDoc, hasIsPostToAR, emptyOk },
+        requiredHits: { hasCustomer, hasTotal, hasDoc, hasIsPostToAR, isEmpty: rows.length === 0 },
         suspectedResource: passed
           ? "cash_sales"
           : envelopeIdentifiesSalesCreditNote(envelopeMessage)
             ? "sales_credit_note"
             : "unknown",
-        reason: passed ? "cash_sales_fields_present" : "missing_cash_sales_signals",
+        reason: rows.length === 0
+          ? "empty_page_cannot_prove_cash_sales"
+          : passed
+            ? "cash_sales_fields_present"
+            : "missing_cash_sales_signals",
         envelopeMessage,
       };
     }
