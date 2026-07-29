@@ -83,11 +83,13 @@ type DetailEvidence = {
   sanitizedSample: unknown;
   fieldNamesObserved: string[];
   error?: string;
+  rejectionReason?: string;
 };
 type DetailFanOut = {
   cap: number;
   requested: number;
   performed: number;
+  normalized: number;
   skipped: boolean;
   reason: string | null;
   evidence: DetailEvidence[];
@@ -163,7 +165,6 @@ type Bundle = {
   elapsedMs: number;
 };
 type ApiResponse = Bundle;
-
 
 function todayKL(): string {
   // Malaysia is UTC+8, no DST.
@@ -259,8 +260,7 @@ function Console() {
   const rangeInvalid = useMemo(() => {
     if (!dateFrom || !dateTo) return "Both dates are required.";
     if (dateTo < dateFrom) return "Date To cannot be before Date From.";
-    const days =
-      Math.floor((Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000) + 1;
+    const days = Math.floor((Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000) + 1;
     if (days > 31) return "Range is limited to 31 days.";
     return null;
   }, [dateFrom, dateTo]);
@@ -281,10 +281,9 @@ function Console() {
           N3 Financial Verification
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Read-only console. Discovers the live N3 Cloud contract for AR Receive
-          Payments, Cash Sales, Customer Refunds, and the GL Chart of Accounts
-          used for deposits and refunds. It does not create, void, match, or
-          refund any N3 transaction.
+          Read-only console. Discovers the live N3 Cloud contract for AR Receive Payments, Cash
+          Sales, Customer Refunds, and the GL Chart of Accounts used for deposits and refunds. It
+          does not create, void, match, or refund any N3 transaction.
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
           <Link to="/settings" className="underline">
@@ -438,31 +437,23 @@ function RunSummary({ data }: { data: ApiResponse }) {
       </h2>
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Run at
-          </dt>
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Run at</dt>
           <dd className="font-medium">{new Date(run.runAt).toLocaleString()}</dd>
         </div>
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Tenant
-          </dt>
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Tenant</dt>
           <dd className="font-medium">
             {run.tenant.name ?? "—"} {run.tenant.code ? `(${run.tenant.code})` : ""}
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Range
-          </dt>
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Range</dt>
           <dd className="font-medium">
             {fmtDMY(run.dateRange.from)} — {fmtDMY(run.dateRange.to)}
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Elapsed
-          </dt>
+          <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Elapsed</dt>
           <dd className="font-medium">{run.elapsedMs} ms</dd>
         </div>
       </dl>
@@ -502,8 +493,11 @@ function RunSummary({ data }: { data: ApiResponse }) {
           variant="outline"
           onClick={() => {
             const ts = run.runAt.replace(/[-:.]/g, "").slice(0, 15); // YYYYMMDDTHHMMSS
-            const refPart = (run.filters.hotelReference || run.filters.docNumber || "noref")
-              .replace(/[^A-Za-z0-9-]/g, "");
+            const refPart = (
+              run.filters.hotelReference ||
+              run.filters.docNumber ||
+              "noref"
+            ).replace(/[^A-Za-z0-9-]/g, "");
             const blob = new Blob([JSON.stringify(data, null, 2)], {
               type: "application/json",
             });
@@ -517,7 +511,6 @@ function RunSummary({ data }: { data: ApiResponse }) {
         >
           Download JSON
         </Button>
-
       </div>
     </section>
   );
@@ -537,7 +530,9 @@ function labelFor(r: ResourceReport["resource"]): string {
 }
 
 function ResourceSections({ data }: { data: ApiResponse }) {
-  const map = new Map<string, ResourceReport>(data.resources.map((r: ResourceReport) => [r.resource, r] as const));
+  const map = new Map<string, ResourceReport>(
+    data.resources.map((r: ResourceReport) => [r.resource, r] as const),
+  );
   return (
     <>
       <ResourceCard report={map.get("ar_receipts")!} />
@@ -609,14 +604,7 @@ function RefundKnockoffCard({ data }: { data: ApiResponse }) {
   );
 }
 
-
-function ResourceCard({
-  report,
-  extra,
-}: {
-  report: ResourceReport;
-  extra?: React.ReactNode;
-}) {
+function ResourceCard({ report, extra }: { report: ResourceReport; extra?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <section
@@ -659,8 +647,8 @@ function ResourceCard({
       ) : null}
       {report.detailFanOut ? (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Detail reads: {report.detailFanOut.performed}/{report.detailFanOut.requested} (cap{" "}
-          {report.detailFanOut.cap})
+          Detail reads: {report.detailFanOut.performed} performed / {report.detailFanOut.requested}{" "}
+          requested · {report.detailFanOut.normalized} normalized (cap {report.detailFanOut.cap})
           {report.detailFanOut.skipped
             ? ` · skipped: ${report.detailFanOut.reason ?? "unknown"}`
             : ""}
@@ -668,11 +656,7 @@ function ResourceCard({
       ) : null}
       {extra}
       <div className="mt-3">
-        <button
-          type="button"
-          className="text-xs underline"
-          onClick={() => setOpen((v) => !v)}
-        >
+        <button type="button" className="text-xs underline" onClick={() => setOpen((v) => !v)}>
           {open ? "Hide" : "Show"} sanitized evidence ({report.endpointAttempts.length} call
           {report.endpointAttempts.length === 1 ? "" : "s"}
           {report.detailFanOut ? `, ${report.detailFanOut.evidence.length} detail` : ""})
@@ -697,7 +681,6 @@ function ResourceCard({
   );
 }
 
-
 function KnockoffCard({ data }: { data: ApiResponse }) {
   const rows = data.comparisons.orToCashMemo;
   return (
@@ -706,12 +689,13 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
       style={{ borderColor: `${NAVY}1F` }}
     >
       <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-        OR ↔ Cash Memo Identity Check <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+        OR ↔ Cash Memo Identity Check{" "}
+        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
       </h2>
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          No INV-type knockoff rows were returned for this date range. Correlation cannot be
-          proven without a live matched row.
+          No INV-type knockoff rows were returned for this date range. Correlation cannot be proven
+          without a live matched row.
         </p>
       ) : (
         <div className="mt-3 overflow-x-auto">
@@ -744,9 +728,7 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
                     <br />
                     <span className="text-muted-foreground">{k.candidateCashSalesId ?? "—"}</span>
                   </td>
-                  <td className="p-2">
-                    {k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}
-                  </td>
+                  <td className="p-2">{k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}</td>
                   <td className="p-2">{k.appliedAmount ?? "—"}</td>
                   <td className="p-2">
                     {k.correlation === "immutable_id"
@@ -786,9 +768,7 @@ function GlAccountsTable({ data }: { data: ApiResponse }) {
               <tr key={i} className="border-t">
                 <td className="p-2">{String(row.Code ?? row.code ?? "—")}</td>
                 <td className="p-2">{String(row.Name ?? row.name ?? "—")}</td>
-                <td className="p-2">
-                  {String(row.SpecialType ?? row.specialType ?? "—")}
-                </td>
+                <td className="p-2">{String(row.SpecialType ?? row.specialType ?? "—")}</td>
                 <td className="p-2">
                   <span
                     className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white"
@@ -818,4 +798,6 @@ function GlAccountsTable({ data }: { data: ApiResponse }) {
   );
 }
 
-function OrOriginTable(_props: { data: ApiResponse }) { return null; }
+function OrOriginTable(_props: { data: ApiResponse }) {
+  return null;
+}

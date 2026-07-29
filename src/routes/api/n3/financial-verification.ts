@@ -39,7 +39,8 @@ export async function handleFinancialVerification({
   if (!range.ok) return deny(400, range.error);
 
   const filters: NormalizedFilters = {};
-  if (typeof body.docNumber === "string" && body.docNumber.trim()) filters.docNumber = body.docNumber.trim();
+  if (typeof body.docNumber === "string" && body.docNumber.trim())
+    filters.docNumber = body.docNumber.trim();
   if (typeof body.hotelReference === "string" && body.hotelReference.trim())
     filters.hotelReference = body.hotelReference.trim();
   if (typeof body.customerCode === "string" && body.customerCode.trim())
@@ -106,6 +107,7 @@ export async function handleFinancialVerification({
             ? {
                 requested: r.detailFanOut.requested,
                 performed: r.detailFanOut.performed,
+                normalized: r.detailFanOut.normalized,
                 skipped: r.detailFanOut.skipped,
               }
             : null,

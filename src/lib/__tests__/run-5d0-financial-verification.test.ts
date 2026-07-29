@@ -9,6 +9,7 @@ import {
   compareRefundKnockoffs,
   applyFilters,
   validateContract,
+  assessDetailResponse,
   assertNoInternalOrSecretFields,
   FINANCIAL_BUNDLE_SCHEMA_VERSION,
 } from "@/lib/n3-financial.server";
@@ -141,13 +142,18 @@ describe("Run 5D0 — GL eligibility (strict)", () => {
     );
   });
   it("rejects name-only heuristic — 'Bank' in the name is not proof", () => {
-    const r = evaluateGlAccount({ Id: "gl-4", Name: "Bank Charges", Active: true, IsPostingAccount: true });
+    const r = evaluateGlAccount({
+      Id: "gl-4",
+      Name: "Bank Charges",
+      Active: true,
+      IsPostingAccount: true,
+    });
     expect(r.eligibility).toBe("unknown");
     expect(r.reasons).toContain("missing_special_type");
     // classifyGlAccount is the backward-compat alias.
-    expect(classifyGlAccount({ Id: "gl-4", Name: "Bank Charges", Active: true, IsPostingAccount: true })).toBe(
-      "unknown",
-    );
+    expect(
+      classifyGlAccount({ Id: "gl-4", Name: "Bank Charges", Active: true, IsPostingAccount: true }),
+    ).toBe("unknown");
   });
   it("returns ineligible for revenue accounts (SpecialType present, non-bank/cash)", () => {
     expect(
@@ -371,12 +377,7 @@ describe("Run 5D0 — applyFilters (AND logic + diagnostics)", () => {
     expect(diagnostic.resolvedFields.hotelReference).toBe(null);
   });
   it("gl_accounts ignores transactional filters", () => {
-    const { rows: kept } = applyFilters(
-      "gl_accounts",
-      rows,
-      { docNumber: "does-not-exist" },
-      null,
-    );
+    const { rows: kept } = applyFilters("gl_accounts", rows, { docNumber: "does-not-exist" }, null);
     expect(kept).toEqual(rows);
   });
 });
@@ -422,7 +423,15 @@ describe("Run 5D0.3 — AR receipts list contract (no knockoff required)", () =>
   it("accepts the proven live list shape without knockoff/DepositTo", () => {
     const cv = validateContract(
       "ar_receipts",
-      [{ id: "R1", docCode: "OR-001", docDate: "2026-07-01", customerCode: "700-C001", totalAmount: 100 }],
+      [
+        {
+          id: "R1",
+          docCode: "OR-001",
+          docDate: "2026-07-01",
+          customerCode: "700-C001",
+          totalAmount: 100,
+        },
+      ],
       "Get customer receipt list success",
     );
     expect(cv.passed).toBe(true);
@@ -433,12 +442,19 @@ describe("Run 5D0.3 — Cash Sales list contract (live fields)", () => {
   it("recognises customer/customerName + netTotalAmount + isPostToAR", () => {
     const cv = validateContract(
       "cash_sales",
-      [{
-        id: "CS1", docCode: "CS-001", docDate: "2026-07-01",
-        customer: "C1", customerName: "Alice",
-        netTotalAmount: 200, outstandingAmount: 0,
-        referenceNo: "HH-1", isPostToAR: false,
-      }],
+      [
+        {
+          id: "CS1",
+          docCode: "CS-001",
+          docDate: "2026-07-01",
+          customer: "C1",
+          customerName: "Alice",
+          netTotalAmount: 200,
+          outstandingAmount: 0,
+          referenceNo: "HH-1",
+          isPostToAR: false,
+        },
+      ],
       "Get cash sales list success",
     );
     expect(cv.passed).toBe(true);
@@ -468,10 +484,23 @@ describe("Run 5D0.3 — Customer Refund rejects credit-note envelope", () => {
 
 describe("Run 5D0.3 — ID resolves but docNo disagrees → Mismatch", () => {
   it("OR knockoff: id matches Cash Sale id but docNo differs", () => {
-    const receipts = [{
-      id: "REC-1", docNo: "OR-001", customerId: "C1",
-      knockoffs: [{ docType: "INV", docId: "CS-UUID-1", docNo: "CS-WRONG", docCode: null, appliedAmount: 100, docTypeNormalized: "INV" }],
-    }];
+    const receipts = [
+      {
+        id: "REC-1",
+        docNo: "OR-001",
+        customerId: "C1",
+        knockoffs: [
+          {
+            docType: "INV",
+            docId: "CS-UUID-1",
+            docNo: "CS-WRONG",
+            docCode: null,
+            appliedAmount: 100,
+            docTypeNormalized: "INV",
+          },
+        ],
+      },
+    ];
     const cs = [{ id: "CS-UUID-1", docNo: "CS-RIGHT", customerId: "C1" }];
     const out = compareReceiptKnockoffs(receipts, cs);
     expect(out[0].correlation).toBe("mismatch");
@@ -480,10 +509,14 @@ describe("Run 5D0.3 — ID resolves but docNo disagrees → Mismatch", () => {
   });
   it("Refund knockoff: id matches OR id but docNo differs", () => {
     const receipts = [{ id: "OR-ID-1", docNo: "OR-RIGHT", customerId: "C1" }];
-    const rf = [{
-      Id: "RF-1", DocNo: "RF-001", CustomerId: "C1",
-      knockoff: { DocType: "OR", DocId: "OR-ID-1", DocNo: "OR-WRONG" },
-    }];
+    const rf = [
+      {
+        Id: "RF-1",
+        DocNo: "RF-001",
+        CustomerId: "C1",
+        knockoff: { DocType: "OR", DocId: "OR-ID-1", DocNo: "OR-WRONG" },
+      },
+    ];
     const out = compareRefundKnockoffs(rf, receipts);
     expect(out[0].correlation).toBe("mismatch");
   });
@@ -493,7 +526,9 @@ describe("Run 5D0.3 — export sanitization asserts no internal properties", () 
   it("throws on rawItems/rawTotal/body/matchedRawRows", () => {
     expect(() => assertNoInternalOrSecretFields({ x: { rawItems: [] } })).toThrow(/rawItems/i);
     expect(() => assertNoInternalOrSecretFields({ x: { body: {} } })).toThrow(/body/i);
-    expect(() => assertNoInternalOrSecretFields({ x: { matchedRawRows: [] } })).toThrow(/matchedRawRows/i);
+    expect(() => assertNoInternalOrSecretFields({ x: { matchedRawRows: [] } })).toThrow(
+      /matchedRawRows/i,
+    );
   });
   it("throws on tenant.id in the bundle", () => {
     expect(() =>
@@ -582,51 +617,130 @@ describe("Run 5D0.3A — Customer Code filter recognises live `customer` field",
       { docNo: "CS-1", customer: "WALKIN", customerName: "Walk In Guest", netTotalAmount: 100 },
       { docNo: "CS-2", customer: "OTHER", customerName: "Somebody Else", netTotalAmount: 50 },
     ];
-    const out = applyFilters(
-      "cash_sales",
-      rows,
-      { customerCode: "WALKIN" },
-      { code: "WALKIN" },
-    );
+    const out = applyFilters("cash_sales", rows, { customerCode: "WALKIN" }, { code: "WALKIN" });
     expect(out.rows.length).toBe(1);
     expect((out.rows[0] as { docNo: string }).docNo).toBe("CS-1");
     expect(out.diagnostic.resolvedFields.customerCode).toBe("customer");
   });
   it("never treats customerName as a customer code", () => {
-    const rows = [
-      { docNo: "CS-3", customerName: "WALKIN", netTotalAmount: 25 },
-    ];
-    const out = applyFilters(
-      "cash_sales",
-      rows,
-      { customerCode: "WALKIN" },
-      { code: "WALKIN" },
-    );
+    const rows = [{ docNo: "CS-3", customerName: "WALKIN", netTotalAmount: 25 }];
+    const out = applyFilters("cash_sales", rows, { customerCode: "WALKIN" }, { code: "WALKIN" });
     expect(out.rows.length).toBe(0);
     expect(out.diagnostic.mismatches).toContain("customerCode");
   });
 });
 
-describe("Run 5D0.3A — DetailFanOut reports normalized separately from attempts", () => {
-  it("carries `normalized` counter alongside `performed`", () => {
-    // Type-level: shape includes both fields.
-    const shape: {
-      cap: number;
-      requested: number;
-      performed: number;
-      normalized: number;
-      skipped: boolean;
-      reason: string | null;
-      evidence: unknown[];
-    } = {
-      cap: 20,
-      requested: 0,
-      performed: 0,
-      normalized: 0,
-      skipped: false,
-      reason: null,
-      evidence: [],
-    };
-    expect(shape.normalized).toBe(0);
+describe("Run 5D0.3A Closure — detail response acceptance gate", () => {
+  const validReceipt = {
+    code: "0000",
+    message: "Get customer receipt success",
+    data: {
+      id: "receipt-id-1",
+      docNo: "OR-0001",
+      customerCode: "WALKIN",
+      totalAmount: 100,
+    },
+  };
+
+  it("accepts a 2xx success envelope with a matching transaction DTO", () => {
+    const out = assessDetailResponse({
+      resource: "ar_receipts",
+      httpStatus: 200,
+      envelopeCode: "0000",
+      body: validReceipt,
+      sourceListId: "receipt-id-1",
+    });
+    expect(out.accepted).toBe(true);
+    expect(out.normalized?.id).toBe("receipt-id-1");
+    expect(Object.keys(out.dto ?? {})).toContain("totalAmount");
+    expect(out.rejectionReason).toBeNull();
+  });
+
+  it("rejects a 2xx non-success N3 envelope", () => {
+    const out = assessDetailResponse({
+      resource: "ar_receipts",
+      httpStatus: 200,
+      envelopeCode: "9999",
+      body: { code: "9999", message: "Not found", data: validReceipt.data },
+      sourceListId: "receipt-id-1",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.normalized).toBeNull();
+    expect(out.rejectionReason).toBe("n3_error_envelope");
+  });
+
+  it("rejects a success envelope with null data", () => {
+    const out = assessDetailResponse({
+      resource: "ar_receipts",
+      httpStatus: 200,
+      envelopeCode: "0000",
+      body: { code: "0000", message: "Success", data: null },
+      sourceListId: "receipt-id-1",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.normalized).toBeNull();
+    expect(out.rejectionReason).toBe("empty_or_invalid_detail_data");
+  });
+
+  it("rejects an HTTP 404 response", () => {
+    const out = assessDetailResponse({
+      resource: "ar_receipts",
+      httpStatus: 404,
+      envelopeCode: null,
+      body: { message: "Not found" },
+      sourceListId: "receipt-id-1",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.normalized).toBeNull();
+    expect(out.rejectionReason).toBe("http_not_success");
+  });
+
+  it("rejects a valid-looking DTO whose immutable ID disagrees", () => {
+    const out = assessDetailResponse({
+      resource: "ar_receipts",
+      httpStatus: 200,
+      envelopeCode: "0000",
+      body: validReceipt,
+      sourceListId: "different-id",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.normalized).toBeNull();
+    expect(out.dto).toBeNull();
+    expect(out.rejectionReason).toBe("detail_id_mismatch");
+  });
+
+  it("rejects a DTO with an ID but no document identity", () => {
+    const out = assessDetailResponse({
+      resource: "cash_sales",
+      httpStatus: 200,
+      envelopeCode: "0000",
+      body: { data: { id: "cash-id-1", netTotalAmount: 50 } },
+      sourceListId: "cash-id-1",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.rejectionReason).toBe("missing_document_identity");
+  });
+
+  it("does not expose error-envelope fields as accepted detail fields", () => {
+    const out = assessDetailResponse({
+      resource: "customer_refunds",
+      httpStatus: 200,
+      envelopeCode: "5000",
+      body: { code: "5000", message: "Internal error", error: "failed" },
+      sourceListId: "refund-id-1",
+    });
+    expect(out.accepted).toBe(false);
+    expect(out.dto).toBeNull();
+    expect(Object.keys(out.dto ?? {})).not.toContain("error");
+  });
+
+  it("renders performed, requested, and normalized counts separately", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../../routes/settings_.n3-financial-verification.tsx"),
+      "utf8",
+    );
+    expect(src).toMatch(
+      /detailFanOut\.performed[\s\S]*performed[\s\S]*detailFanOut\.requested[\s\S]*requested[\s\S]*detailFanOut\.normalized[\s\S]*normalized/,
+    );
   });
 });

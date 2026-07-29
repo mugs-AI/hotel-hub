@@ -34,11 +34,7 @@ export type MafLabel =
   | "Mismatch";
 
 export type FetchStatus =
-  | "success"
-  | "unavailable"
-  | "unauthorized"
-  | "invalid_contract"
-  | "failed";
+  "success" | "unavailable" | "unauthorized" | "invalid_contract" | "failed";
 
 const RESOURCE_CANDIDATES: Record<FinResource, string[]> = {
   ar_receipts: ["/api/arreceipts/list", "/api/arreceive/list"],
@@ -48,11 +44,7 @@ const RESOURCE_CANDIDATES: Record<FinResource, string[]> = {
   // mugs-AI/n3-custom-bill-entry). The GLAccounts endpoints observed 404
   // in the live 5d0.2 bundle, but we keep them as ordered fallbacks so a
   // future N3 release that exposes them is still detected.
-  gl_accounts: [
-    "/api/AccountCodes/Leaf/Query",
-    "/api/GLAccounts/Query",
-    "/api/glaccounts/list",
-  ],
+  gl_accounts: ["/api/AccountCodes/Leaf/Query", "/api/GLAccounts/Query", "/api/glaccounts/list"],
 };
 
 const RESOURCE_DETAIL_ROOT: Record<Exclude<FinResource, "gl_accounts">, string> = {
@@ -118,7 +110,8 @@ export function parseDateRange(
   to: unknown,
 ): { ok: true; from: string; to: string } | { ok: false; error: string } {
   const isoRe = /^\d{4}-\d{2}-\d{2}$/;
-  if (typeof from !== "string" || !isoRe.test(from)) return { ok: false, error: "date_from_invalid" };
+  if (typeof from !== "string" || !isoRe.test(from))
+    return { ok: false, error: "date_from_invalid" };
   if (typeof to !== "string" || !isoRe.test(to)) return { ok: false, error: "date_to_invalid" };
   const f = Date.parse(`${from}T00:00:00Z`);
   const t = Date.parse(`${to}T00:00:00Z`);
@@ -236,7 +229,8 @@ const FORBIDDEN_KEYS = new Set([
 export function assertNoInternalOrSecretFields(value: unknown, path = "$"): void {
   if (value === null || value === undefined) return;
   if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) assertNoInternalOrSecretFields(value[i], `${path}[${i}]`);
+    for (let i = 0; i < value.length; i++)
+      assertNoInternalOrSecretFields(value[i], `${path}[${i}]`);
     return;
   }
   if (isPlainObject(value)) {
@@ -298,8 +292,7 @@ function pageItemsOf(body: unknown): unknown[] | null {
     const v = data.value ?? data.Value ?? data.items ?? data.Items ?? data.results ?? data.Results;
     if (Array.isArray(v)) return v;
   }
-  const v =
-    body.value ?? body.Value ?? body.items ?? body.Items ?? body.results ?? body.Results;
+  const v = body.value ?? body.Value ?? body.items ?? body.Items ?? body.results ?? body.Results;
   if (Array.isArray(v)) return v;
   return null;
 }
@@ -444,19 +437,35 @@ export function validateContract(
       // Live list rows do NOT need to expose knockoff/deposit — those live
       // in the detail DTO. Strong list signals: doc identity + customer.
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId", "customerId", "DebtorId", "debtorId",
-        "CustomerCode", "customerCode", "DebtorCode", "debtorCode",
-        "Customer", "customer", "CustomerName", "customerName",
+        "CustomerId",
+        "customerId",
+        "DebtorId",
+        "debtorId",
+        "CustomerCode",
+        "customerCode",
+        "DebtorCode",
+        "debtorCode",
+        "Customer",
+        "customer",
+        "CustomerName",
+        "customerName",
       ]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
       const hasAmount = hasAnyKey(obs, [
-        "Total", "total", "TotalAmount", "totalAmount",
-        "PaidAmount", "paidAmount", "ReceivedAmount", "receivedAmount",
-        "Amount", "amount", "NetTotalAmount", "netTotalAmount",
+        "Total",
+        "total",
+        "TotalAmount",
+        "totalAmount",
+        "PaidAmount",
+        "paidAmount",
+        "ReceivedAmount",
+        "receivedAmount",
+        "Amount",
+        "amount",
+        "NetTotalAmount",
+        "netTotalAmount",
       ]);
-      const looksReceipt = envelopeMessage
-        ? /receipt|receive/i.test(envelopeMessage)
-        : false;
+      const looksReceipt = envelopeMessage ? /receipt|receive/i.test(envelopeMessage) : false;
       // An empty page CANNOT establish Live N3 Confirmed on its own.
       const passed = rows.length > 0 && hasDoc && hasCustomer && hasAmount;
       return {
@@ -468,11 +477,12 @@ export function validateContract(
           : envelopeIdentifiesCreditNote(envelopeMessage)
             ? "ar_credit_note"
             : "unknown",
-        reason: rows.length === 0
-          ? "empty_page_cannot_prove_ar_receipts"
-          : passed
-            ? "ar_receipt_fields_present"
-            : "missing_ar_receipt_signals",
+        reason:
+          rows.length === 0
+            ? "empty_page_cannot_prove_ar_receipts"
+            : passed
+              ? "ar_receipt_fields_present"
+              : "missing_ar_receipt_signals",
         envelopeMessage,
       };
     }
@@ -480,14 +490,26 @@ export function validateContract(
       // Live shape observed: customer, customerName, netTotalAmount,
       // outstandingAmount, isPostToAR, referenceNo.
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId", "customerId", "DebtorId", "debtorId",
-        "CustomerCode", "customerCode",
-        "Customer", "customer", "CustomerName", "customerName",
+        "CustomerId",
+        "customerId",
+        "DebtorId",
+        "debtorId",
+        "CustomerCode",
+        "customerCode",
+        "Customer",
+        "customer",
+        "CustomerName",
+        "customerName",
       ]);
       const hasTotal = hasAnyKey(obs, [
-        "Total", "total", "NetTotal", "netTotal",
-        "NetTotalAmount", "netTotalAmount",
-        "GrandTotal", "grandTotal",
+        "Total",
+        "total",
+        "NetTotal",
+        "netTotal",
+        "NetTotalAmount",
+        "netTotalAmount",
+        "GrandTotal",
+        "grandTotal",
       ]);
       const hasIsPostToAR = hasAnyKey(obs, ["IsPostToAR", "isPostToAR", "PostToAR", "postToAR"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
@@ -503,11 +525,12 @@ export function validateContract(
           : envelopeIdentifiesSalesCreditNote(envelopeMessage)
             ? "sales_credit_note"
             : "unknown",
-        reason: rows.length === 0
-          ? "empty_page_cannot_prove_cash_sales"
-          : passed
-            ? "cash_sales_fields_present"
-            : "missing_cash_sales_signals",
+        reason:
+          rows.length === 0
+            ? "empty_page_cannot_prove_cash_sales"
+            : passed
+              ? "cash_sales_fields_present"
+              : "missing_cash_sales_signals",
         envelopeMessage,
       };
     }
@@ -541,13 +564,23 @@ export function validateContract(
         };
       }
       const hasCustomer = hasAnyKey(obs, [
-        "CustomerId", "customerId", "DebtorId", "debtorId",
-        "CustomerCode", "customerCode",
+        "CustomerId",
+        "customerId",
+        "DebtorId",
+        "debtorId",
+        "CustomerCode",
+        "customerCode",
       ]);
       const hasPaymentBy = hasAnyKey(obs, ["PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
       const hasRefundKnockoff = hasAnyKey(obs, [
-        "knockoff", "knockOff", "knockOffs", "Knockoffs", "KnockOffs", "knockoffs",
-        "RefundKnockoff", "refundKnockoff",
+        "knockoff",
+        "knockOff",
+        "knockOffs",
+        "Knockoffs",
+        "KnockOffs",
+        "knockoffs",
+        "RefundKnockoff",
+        "refundKnockoff",
       ]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
       const passed = hasDoc && hasCustomer && (hasPaymentBy || hasRefundKnockoff);
@@ -562,7 +595,14 @@ export function validateContract(
     }
     case "gl_accounts": {
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
-      const hasName = hasAnyKey(obs, ["Name", "name", "AccountName", "accountName", "Description", "description"]);
+      const hasName = hasAnyKey(obs, [
+        "Name",
+        "name",
+        "AccountName",
+        "accountName",
+        "Description",
+        "description",
+      ]);
       const hasCode = hasAnyKey(obs, ["Code", "code", "AccountCode", "accountCode"]);
       // Empty page cannot establish Live N3 Confirmed.
       const passed = rows.length > 0 && hasName && hasCode;
@@ -571,11 +611,12 @@ export function validateContract(
         observedFields: obs,
         requiredHits: { hasSpecial, hasName, hasCode, isEmpty: rows.length === 0 },
         suspectedResource: passed ? "gl_accounts" : "unknown",
-        reason: rows.length === 0
-          ? "empty_page_cannot_prove_gl_accounts"
-          : passed
-            ? "gl_account_fields_present"
-            : "missing_gl_account_signals",
+        reason:
+          rows.length === 0
+            ? "empty_page_cannot_prove_gl_accounts"
+            : passed
+              ? "gl_account_fields_present"
+              : "missing_gl_account_signals",
         envelopeMessage,
       };
     }
@@ -606,18 +647,25 @@ export type FilterDiagnostic = {
 
 const DOC_NUMBER_FIELDS = ["DocNo", "docNo", "DocCode", "docCode"];
 const HOTEL_REF_FIELDS = [
-  "ReferenceNo", "referenceNo",
-  "Reference", "reference",
-  "OurRef", "ourRef",
-  "OurReference", "ourReference",
+  "ReferenceNo",
+  "referenceNo",
+  "Reference",
+  "reference",
+  "OurRef",
+  "ourRef",
+  "OurReference",
+  "ourReference",
 ];
 const CUSTOMER_CODE_FIELDS = [
-  "CustomerCode", "customerCode",
-  "DebtorCode", "debtorCode",
+  "CustomerCode",
+  "customerCode",
+  "DebtorCode",
+  "debtorCode",
   // Live Cash Sales exposes the customer CODE as `customer`/`Customer`
   // (a plain string). Never accept `customerName` as a code — it is a
   // display value and can never establish an exact-code match.
-  "Customer", "customer",
+  "Customer",
+  "customer",
 ];
 
 function firstPresentField(row: Record<string, unknown>, fields: string[]): string | null {
@@ -639,8 +687,10 @@ function anyRowHasAny(rows: unknown[], fields: string[]): string | null {
 function normalizeFilters(input?: NormalizedFilters): NormalizedFilters {
   const out: NormalizedFilters = {};
   if (input?.docNumber && input.docNumber.trim()) out.docNumber = input.docNumber.trim();
-  if (input?.hotelReference && input.hotelReference.trim()) out.hotelReference = input.hotelReference.trim();
-  if (input?.customerCode && input.customerCode.trim()) out.customerCode = input.customerCode.trim();
+  if (input?.hotelReference && input.hotelReference.trim())
+    out.hotelReference = input.hotelReference.trim();
+  if (input?.customerCode && input.customerCode.trim())
+    out.customerCode = input.customerCode.trim();
   return out;
 }
 
@@ -688,9 +738,12 @@ export function applyFilters(
 
   const kept = rows.filter((r) => {
     if (!isPlainObject(r)) return false;
-    if (filters.docNumber && !DOC_NUMBER_FIELDS.some((f) => eq(r[f], filters.docNumber!))) return false;
-    if (filters.hotelReference && !HOTEL_REF_FIELDS.some((f) => eq(r[f], filters.hotelReference!))) return false;
-    if (filters.customerCode && !CUSTOMER_CODE_FIELDS.some((f) => eq(r[f], filters.customerCode!))) return false;
+    if (filters.docNumber && !DOC_NUMBER_FIELDS.some((f) => eq(r[f], filters.docNumber!)))
+      return false;
+    if (filters.hotelReference && !HOTEL_REF_FIELDS.some((f) => eq(r[f], filters.hotelReference!)))
+      return false;
+    if (filters.customerCode && !CUSTOMER_CODE_FIELDS.some((f) => eq(r[f], filters.customerCode!)))
+      return false;
     return true;
   });
 
@@ -761,17 +814,27 @@ export function normalizeReceiptDetail(body: unknown): NormalizedReceipt | null 
   const dto = innerDetailOf(body);
   if (!dto) return null;
   const src: Record<string, string> = {};
-  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
-  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
-  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const id = normStr(pick(dto, ["Id", "id"]));
+  if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]);
+  if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]);
+  if (dc.field) src.docCode = dc.field;
   const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
   if (ci.field) src.customerId = ci.field;
   const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
   if (cc.field) src.customerCode = cc.field;
   const total = pickWithField(dto, [
-    "Total", "total", "TotalAmount", "totalAmount",
-    "PaidAmount", "paidAmount", "ReceivedAmount", "receivedAmount",
-    "NetTotalAmount", "netTotalAmount",
+    "Total",
+    "total",
+    "TotalAmount",
+    "totalAmount",
+    "PaidAmount",
+    "paidAmount",
+    "ReceivedAmount",
+    "receivedAmount",
+    "NetTotalAmount",
+    "netTotalAmount",
   ]);
   if (total.field) src.totalAmount = total.field;
   return {
@@ -790,14 +853,24 @@ export function normalizeCashSaleDetail(body: unknown): NormalizedCashSale | nul
   const dto = innerDetailOf(body);
   if (!dto) return null;
   const src: Record<string, string> = {};
-  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
-  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
-  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const id = normStr(pick(dto, ["Id", "id"]));
+  if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]);
+  if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]);
+  if (dc.field) src.docCode = dc.field;
   const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
   if (ci.field) src.customerId = ci.field;
   const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
   if (cc.field) src.customerCode = cc.field;
-  const nt = pickWithField(dto, ["NetTotalAmount", "netTotalAmount", "NetTotal", "netTotal", "Total", "total"]);
+  const nt = pickWithField(dto, [
+    "NetTotalAmount",
+    "netTotalAmount",
+    "NetTotal",
+    "netTotal",
+    "Total",
+    "total",
+  ]);
   if (nt.field) src.netTotalAmount = nt.field;
   const outs = pickWithField(dto, ["OutstandingAmount", "outstandingAmount"]);
   if (outs.field) src.outstandingAmount = outs.field;
@@ -823,14 +896,24 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   const dto = innerDetailOf(body);
   if (!dto) return null;
   const src: Record<string, string> = {};
-  const id = normStr(pick(dto, ["Id", "id"])); if (id) src.id = "Id";
-  const dn = pickWithField(dto, ["DocNo", "docNo"]); if (dn.field) src.docNo = dn.field;
-  const dc = pickWithField(dto, ["DocCode", "docCode"]); if (dc.field) src.docCode = dc.field;
+  const id = normStr(pick(dto, ["Id", "id"]));
+  if (id) src.id = "Id";
+  const dn = pickWithField(dto, ["DocNo", "docNo"]);
+  if (dn.field) src.docNo = dn.field;
+  const dc = pickWithField(dto, ["DocCode", "docCode"]);
+  if (dc.field) src.docCode = dc.field;
   const ci = pickWithField(dto, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
   if (ci.field) src.customerId = ci.field;
   const cc = pickWithField(dto, ["CustomerCode", "customerCode", "DebtorCode", "debtorCode"]);
   if (cc.field) src.customerCode = cc.field;
-  const amt = pickWithField(dto, ["Amount", "amount", "Total", "total", "NetTotalAmount", "netTotalAmount"]);
+  const amt = pickWithField(dto, [
+    "Amount",
+    "amount",
+    "Total",
+    "total",
+    "NetTotalAmount",
+    "netTotalAmount",
+  ]);
   if (amt.field) src.amount = amt.field;
   return {
     id,
@@ -844,6 +927,139 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   };
 }
 
+type NormalizedTransactionDetail = NormalizedReceipt | NormalizedCashSale | NormalizedRefund;
+
+export type DetailResponseAssessment = {
+  accepted: boolean;
+  normalized: NormalizedTransactionDetail | null;
+  dto: Record<string, unknown> | null;
+  rejectionReason: string | null;
+};
+
+function isSuccessfulEnvelopeCode(code: string | null): boolean {
+  if (code === null) return true;
+  const normalized = code.trim().toLowerCase();
+  return (
+    normalized === "0000" || normalized === "0" || normalized === "200" || normalized === "success"
+  );
+}
+
+function isBareEnvelope(dto: Record<string, unknown>): boolean {
+  const transactionKeys = new Set([
+    "id",
+    "guid",
+    "uuid",
+    "docno",
+    "doccode",
+    "customerid",
+    "customercode",
+    "debtorid",
+    "debtorcode",
+  ]);
+  return !Object.keys(dto).some((key) => transactionKeys.has(key.toLowerCase()));
+}
+
+/**
+ * The single acceptance gate for N3 transaction-detail responses.
+ *
+ * Rejected responses remain diagnostic evidence only. They never enter
+ * comparisons, normalized counts, or detail field maps.
+ */
+export function assessDetailResponse(args: {
+  resource: Exclude<FinResource, "gl_accounts">;
+  httpStatus: number | null;
+  envelopeCode: string | null;
+  body: unknown;
+  sourceListId: string;
+  transportError?: string;
+}): DetailResponseAssessment {
+  if (args.transportError) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "transport_error",
+    };
+  }
+  if (typeof args.httpStatus !== "number" || args.httpStatus < 200 || args.httpStatus >= 300) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "http_not_success",
+    };
+  }
+  if (!isSuccessfulEnvelopeCode(args.envelopeCode)) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "n3_error_envelope",
+    };
+  }
+  if (isPlainObject(args.body)) {
+    const hasData = Object.prototype.hasOwnProperty.call(args.body, "data");
+    const hasPascalData = Object.prototype.hasOwnProperty.call(args.body, "Data");
+    if (hasData || hasPascalData) {
+      const data = hasData ? args.body.data : args.body.Data;
+      const usableArray = Array.isArray(data) && data.length > 0 && isPlainObject(data[0]);
+      if (!isPlainObject(data) && !usableArray) {
+        return {
+          accepted: false,
+          normalized: null,
+          dto: null,
+          rejectionReason: "empty_or_invalid_detail_data",
+        };
+      }
+    }
+  }
+
+  const dto = innerDetailOf(args.body);
+  if (!dto || isBareEnvelope(dto)) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "not_transaction_detail",
+    };
+  }
+
+  let normalized: NormalizedTransactionDetail | null = null;
+  if (args.resource === "ar_receipts") {
+    normalized = normalizeReceiptDetail(args.body);
+  } else if (args.resource === "cash_sales") {
+    normalized = normalizeCashSaleDetail(args.body);
+  } else {
+    normalized = normalizeRefundDetail(args.body);
+  }
+
+  if (!normalized?.id) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "missing_detail_id",
+    };
+  }
+  if (!normalized.docNo && !normalized.docCode) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "missing_document_identity",
+    };
+  }
+  if (normalized.id.trim().toLowerCase() !== args.sourceListId.trim().toLowerCase()) {
+    return {
+      accepted: false,
+      normalized: null,
+      dto: null,
+      rejectionReason: "detail_id_mismatch",
+    };
+  }
+  return { accepted: true, normalized, dto, rejectionReason: null };
+}
+
 // ---- Detail fan-out (immutable ID only) ----------------------------------
 
 export type DetailEvidence = {
@@ -855,6 +1071,7 @@ export type DetailEvidence = {
   sanitizedSample: unknown;
   fieldNamesObserved: string[];
   error?: string;
+  rejectionReason?: string;
 };
 
 export type DetailFanOut = {
@@ -875,7 +1092,6 @@ async function fetchDetailById(
 ): Promise<{ evidence: DetailEvidence; body: unknown }> {
   const path = `${root}/${encodeURIComponent(id)}`;
   const call = await callOnce(token, path);
-  const dto = innerDetailOf(call.body);
   const evidence: DetailEvidence = {
     sourceListId: id,
     sourceListDocNo,
@@ -883,7 +1099,7 @@ async function fetchDetailById(
     httpStatus: call.attempt.httpStatus,
     envelopeCode: call.attempt.envelopeCode,
     sanitizedSample: call.attempt.responseSample,
-    fieldNamesObserved: dto ? Object.keys(dto) : [],
+    fieldNamesObserved: [],
     ...(call.attempt.error ? { error: call.attempt.error } : {}),
   };
   return { evidence, body: call.body };
@@ -895,9 +1111,10 @@ async function fanOutDetails(
   matchedRows: unknown[],
 ): Promise<{
   fanOut: DetailFanOut;
-  // Only successful 2xx detail responses. Failed / 404 / error-envelope bodies
-  // remain in `fanOut.evidence` as attempts and never enter this array.
-  successfulDetails: unknown[];
+  successfulDetails: Array<{
+    normalized: NormalizedTransactionDetail;
+    dto: Record<string, unknown>;
+  }>;
 }> {
   const root = RESOURCE_DETAIL_ROOT[resource];
   const requested = matchedRows.length;
@@ -930,7 +1147,10 @@ async function fanOutDetails(
     };
   }
   const evidence: DetailEvidence[] = [];
-  const successfulDetails: unknown[] = [];
+  const successfulDetails: Array<{
+    normalized: NormalizedTransactionDetail;
+    dto: Record<string, unknown>;
+  }> = [];
   for (const row of matchedRows) {
     const id = rowId(row);
     if (!id) continue;
@@ -938,18 +1158,31 @@ async function fanOutDetails(
       ? ((row.DocNo as string | undefined) ?? (row.docNo as string | undefined) ?? null)
       : null;
     const res = await fetchDetailById(token, root, id, docNo);
-    evidence.push(res.evidence);
-    const status = res.evidence.httpStatus;
-    if (typeof status === "number" && status >= 200 && status < 300 && !res.evidence.error) {
-      successfulDetails.push(res.body);
+    const assessment = assessDetailResponse({
+      resource,
+      httpStatus: res.evidence.httpStatus,
+      envelopeCode: res.evidence.envelopeCode,
+      body: res.body,
+      sourceListId: id,
+      transportError: res.evidence.error,
+    });
+    if (assessment.accepted && assessment.normalized && assessment.dto) {
+      res.evidence.fieldNamesObserved = Object.keys(assessment.dto);
+      successfulDetails.push({
+        normalized: assessment.normalized,
+        dto: assessment.dto,
+      });
+    } else {
+      res.evidence.rejectionReason = assessment.rejectionReason ?? "detail_rejected";
     }
+    evidence.push(res.evidence);
   }
   return {
     fanOut: {
       cap: DETAIL_FANOUT_CAP,
       requested,
       performed: evidence.length,
-      normalized: 0, // caller fills in after normalization
+      normalized: successfulDetails.length,
       skipped: false,
       reason: null,
       evidence,
@@ -957,7 +1190,6 @@ async function fanOutDetails(
     successfulDetails,
   };
 }
-
 
 // ---- Resource fetch (list) -----------------------------------------------
 
@@ -1134,16 +1366,10 @@ async function fetchListResource(
   if (resource !== "gl_accounts") {
     const res = await fanOutDetails(token, resource, filtered);
     detailFanOut = res.fanOut;
-    for (const body of res.successfulDetails) {
-      const dto = innerDetailOf(body);
-      if (dto) for (const k of Object.keys(dto)) observedDetailKeys.add(k);
-      let norm: unknown = null;
-      if (resource === "ar_receipts") norm = normalizeReceiptDetail(body);
-      else if (resource === "cash_sales") norm = normalizeCashSaleDetail(body);
-      else if (resource === "customer_refunds") norm = normalizeRefundDetail(body);
-      if (norm) normalizedDetails.push(norm);
+    for (const detail of res.successfulDetails) {
+      for (const k of Object.keys(detail.dto)) observedDetailKeys.add(k);
+      normalizedDetails.push(detail.normalized);
     }
-    detailFanOut = { ...detailFanOut, normalized: normalizedDetails.length };
   }
 
   return {
@@ -1229,7 +1455,11 @@ export async function runFinancialVerification(input: {
   tenant: { id?: string | null; code: string | null; name: string | null };
   filters?: NormalizedFilters;
   tenantCustomer?: { code: string | null } | null;
-}): Promise<{ run: FinancialVerificationRun; bundle: FinancialBundle; _internal: InternalResource[] }> {
+}): Promise<{
+  run: FinancialVerificationRun;
+  bundle: FinancialBundle;
+  _internal: InternalResource[];
+}> {
   const started = Date.now();
   const filters = normalizeFilters(input.filters);
   const tc = input.tenantCustomer ?? null;
@@ -1261,9 +1491,7 @@ export async function runFinancialVerification(input: {
       : [];
 
   const glEligibility =
-    gl && gl.status === "success"
-      ? gl.rows.map((row) => ({ row, ...evaluateGlAccount(row) }))
-      : [];
+    gl && gl.status === "success" ? gl.rows.map((row) => ({ row, ...evaluateGlAccount(row) })) : [];
 
   const conclusions = resources.map((r) => ({
     resource: r.resource,
@@ -1348,17 +1576,24 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
   const specialRaw = pick(row, ["SpecialType", "specialType", "SpecialAccountType"]);
   const normalizedSpecialType = normalizeSpecialType(specialRaw);
 
-  const active = toBool(pick(row, ["Active", "active", "IsActive", "isActive", "Enabled", "enabled"]));
+  const active = toBool(
+    pick(row, ["Active", "active", "IsActive", "isActive", "Enabled", "enabled"]),
+  );
   if (active === null) reasons.push("missing_active_flag");
   else if (active === false) reasons.push("account_inactive");
 
   const posting = toBool(
     pick(row, [
-      "IsPostingAccount", "isPostingAccount",
-      "Posting", "posting",
-      "IsLeaf", "isLeaf",
-      "Leaf", "leaf",
-      "IsDetail", "isDetail",
+      "IsPostingAccount",
+      "isPostingAccount",
+      "Posting",
+      "posting",
+      "IsLeaf",
+      "isLeaf",
+      "Leaf",
+      "leaf",
+      "IsDetail",
+      "isDetail",
     ]),
   );
   if (posting === null) reasons.push("missing_posting_or_leaf_flag");
@@ -1371,15 +1606,43 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
   const isCashSpecial = st === "cash account" || st === "cash" || st === "petty cash";
 
   if (hasImmutableId && active === true && posting === true && isBankSpecial) {
-    return { eligibility: "bank", reasons: ["special_type_bank", "active", "posting"], normalizedSpecialType, active, posting, hasImmutableId };
+    return {
+      eligibility: "bank",
+      reasons: ["special_type_bank", "active", "posting"],
+      normalizedSpecialType,
+      active,
+      posting,
+      hasImmutableId,
+    };
   }
   if (hasImmutableId && active === true && posting === true && isCashSpecial) {
-    return { eligibility: "cash", reasons: ["special_type_cash", "active", "posting"], normalizedSpecialType, active, posting, hasImmutableId };
+    return {
+      eligibility: "cash",
+      reasons: ["special_type_cash", "active", "posting"],
+      normalizedSpecialType,
+      active,
+      posting,
+      hasImmutableId,
+    };
   }
   if (normalizedSpecialType && !isBankSpecial && !isCashSpecial) {
-    return { eligibility: "ineligible", reasons: [...reasons, "special_type_not_bank_or_cash"], normalizedSpecialType, active, posting, hasImmutableId };
+    return {
+      eligibility: "ineligible",
+      reasons: [...reasons, "special_type_not_bank_or_cash"],
+      normalizedSpecialType,
+      active,
+      posting,
+      hasImmutableId,
+    };
   }
-  return { eligibility: "unknown", reasons, normalizedSpecialType, active, posting, hasImmutableId };
+  return {
+    eligibility: "unknown",
+    reasons,
+    normalizedSpecialType,
+    active,
+    posting,
+    hasImmutableId,
+  };
 }
 
 export function classifyGlAccount(row: unknown): GlEligibility {
@@ -1444,10 +1707,7 @@ export type KnockoffMatch = {
   customerMatch: boolean | null;
   correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
-    | "Immutable ID confirmed"
-    | "Document-number only — not proven"
-    | "Mismatch"
-    | "Not available";
+    "Immutable ID confirmed" | "Document-number only — not proven" | "Mismatch" | "Not available";
 };
 
 // Union input: legacy list-row shape OR NormalizedReceipt / NormalizedCashSale.
@@ -1467,10 +1727,17 @@ function receiptDocNo(rec: ReceiptLike): string | null {
 function receiptCustomer(rec: ReceiptLike): string | null {
   return typeof rec.customerId === "string" && rec.customerId
     ? rec.customerId
-    : normStr(pick(rec as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+    : normStr(
+        pick(rec as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]),
+      );
 }
 function receiptKnockoffs(rec: ReceiptLike): ParsedKnockoff[] {
-  if (Array.isArray(rec.knockoffs) && rec.knockoffs.length && isPlainObject(rec.knockoffs[0]) && 'docTypeNormalized' in (rec.knockoffs[0] as object)) {
+  if (
+    Array.isArray(rec.knockoffs) &&
+    rec.knockoffs.length &&
+    isPlainObject(rec.knockoffs[0]) &&
+    "docTypeNormalized" in (rec.knockoffs[0] as object)
+  ) {
     return rec.knockoffs as ParsedKnockoff[];
   }
   return extractKnockoffs(rec as Record<string, unknown>);
@@ -1491,7 +1758,9 @@ function csDocCode(cs: CashSaleLike): string | null {
 function csCustomer(cs: CashSaleLike): string | null {
   return typeof cs.customerId === "string" && cs.customerId
     ? cs.customerId
-    : normStr(pick(cs as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+    : normStr(
+        pick(cs as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]),
+      );
 }
 
 export function compareReceiptKnockoffs(
@@ -1527,8 +1796,7 @@ export function compareReceiptKnockoffs(
       const sameUuid = k.docId && csid ? k.docId.toUpperCase() === csid.toUpperCase() : null;
       const docNoAgrees =
         k.docNo && csdn ? k.docNo.trim().toUpperCase() === csdn.trim().toUpperCase() : null;
-      const customerMatch =
-        rcust && csc ? rcust.toUpperCase() === csc.toUpperCase() : null;
+      const customerMatch = rcust && csc ? rcust.toUpperCase() === csc.toUpperCase() : null;
 
       let correlation: KnockoffMatch["correlation"];
       let evidenceLabel: KnockoffMatch["evidenceLabel"];
@@ -1578,10 +1846,24 @@ export type OrClassification = "ar_receipt" | "gl_originated_or" | "unknown";
 
 export function classifyOrOrigin(row: unknown): OrClassification {
   if (!isPlainObject(row)) return "unknown";
-  const source = pick(row, ["Source", "source", "OriginModule", "originModule", "FromModule", "fromModule"]);
+  const source = pick(row, [
+    "Source",
+    "source",
+    "OriginModule",
+    "originModule",
+    "FromModule",
+    "fromModule",
+  ]);
   const s = String(source ?? "").toLowerCase();
   if (s.includes("gl") || s.includes("journal")) return "gl_originated_or";
-  const customer = pick(row, ["CustomerId", "customerId", "DebtorId", "debtorId", "CustomerCode", "customerCode"]);
+  const customer = pick(row, [
+    "CustomerId",
+    "customerId",
+    "DebtorId",
+    "debtorId",
+    "CustomerCode",
+    "customerCode",
+  ]);
   if (customer) return "ar_receipt";
   return "unknown";
 }
@@ -1603,10 +1885,7 @@ export type RefundKnockoffMatch = {
   customerMatch: boolean | null;
   correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
-    | "Immutable ID confirmed"
-    | "Document-number only — not proven"
-    | "Mismatch"
-    | "Not available";
+    "Immutable ID confirmed" | "Document-number only — not proven" | "Mismatch" | "Not available";
 };
 
 export function compareRefundKnockoffs(
@@ -1629,12 +1908,17 @@ export function compareRefundKnockoffs(
     const rfl = rf as Partial<NormalizedRefund> & Record<string, unknown>;
     const rfid = typeof rfl.id === "string" ? rfl.id : rowId(rfl);
     const rfdn = typeof rfl.docNo === "string" ? rfl.docNo : normStr(pick(rfl, ["DocNo", "docNo"]));
-    const rfcust = typeof rfl.customerId === "string"
-      ? rfl.customerId
-      : normStr(pick(rfl, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
-    const kos = Array.isArray(rfl.knockoffs) && rfl.knockoffs.length && isPlainObject(rfl.knockoffs[0]) && 'docTypeNormalized' in (rfl.knockoffs[0] as object)
-      ? (rfl.knockoffs as ParsedKnockoff[])
-      : extractKnockoffs(rfl);
+    const rfcust =
+      typeof rfl.customerId === "string"
+        ? rfl.customerId
+        : normStr(pick(rfl, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+    const kos =
+      Array.isArray(rfl.knockoffs) &&
+      rfl.knockoffs.length &&
+      isPlainObject(rfl.knockoffs[0]) &&
+      "docTypeNormalized" in (rfl.knockoffs[0] as object)
+        ? (rfl.knockoffs as ParsedKnockoff[])
+        : extractKnockoffs(rfl);
     for (const k of kos) {
       if (k.docTypeNormalized && !["OR", "RECEIPT", "AR"].includes(k.docTypeNormalized)) continue;
       const byId = k.docId ? orById.get(k.docId.toUpperCase()) : undefined;
@@ -1646,8 +1930,7 @@ export function compareRefundKnockoffs(
       const sameUuid = k.docId && orid ? k.docId.toUpperCase() === orid.toUpperCase() : null;
       const docNoAgrees =
         k.docNo && ordn ? k.docNo.trim().toUpperCase() === ordn.trim().toUpperCase() : null;
-      const customerMatch =
-        rfcust && orcust ? rfcust.toUpperCase() === orcust.toUpperCase() : null;
+      const customerMatch = rfcust && orcust ? rfcust.toUpperCase() === orcust.toUpperCase() : null;
 
       let correlation: RefundKnockoffMatch["correlation"];
       let evidenceLabel: RefundKnockoffMatch["evidenceLabel"];
