@@ -861,7 +861,13 @@ function pickWithField(
 function innerDetailOf(body: unknown): Record<string, unknown> | null {
   if (isPlainObject(body)) {
     const data = body.data ?? body.Data;
-    if (isPlainObject(data)) return data;
+    if (isPlainObject(data)) {
+      // Some N3 detail endpoints wrap the DTO as { data: { value: {...} } }.
+      const value = data.value ?? data.Value;
+      if (isPlainObject(value)) return value;
+      if (Array.isArray(value) && value.length > 0 && isPlainObject(value[0])) return value[0];
+      return data;
+    }
     if (Array.isArray(data) && data.length > 0 && isPlainObject(data[0])) return data[0];
     // Some N3 endpoints return the DTO at the top level.
     return body;
