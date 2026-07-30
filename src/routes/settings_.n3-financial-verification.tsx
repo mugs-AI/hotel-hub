@@ -162,8 +162,17 @@ type Bundle = {
   glEligibility: GlEligibilityRow[];
   fieldMaps: Record<string, { observed: string[] }>;
   conclusions: { resource: string; label: MafLabel; note: string | null }[];
+  refundLinkState?: {
+    state: "linked" | "unapplied" | "not_available";
+    label: string;
+    note: string;
+    acceptedRefundDetails: number;
+    refundsWithKnockoffs: number;
+    comparisonRows: number;
+  };
   elapsedMs: number;
 };
+
 type ApiResponse = Bundle;
 
 function todayKL(): string {
