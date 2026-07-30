@@ -1721,7 +1721,14 @@ export async function runFinancialVerification(input: {
       glAccountList: gl?.listFieldMap ?? { observed: [] },
     },
     conclusions,
+    refundLinkState: deriveRefundLinkState({
+      resourceStatus: rf?.status ?? null,
+      contractPassed: rf?.contractValidation?.passed ?? null,
+      refundDetails: rfDetails,
+      comparisonRows: refundToOr.length,
+    }),
     elapsedMs: run.elapsedMs,
+
   };
 
   return { run, bundle, _internal: internals };
