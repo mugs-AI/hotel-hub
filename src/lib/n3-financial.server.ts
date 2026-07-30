@@ -815,16 +815,37 @@ export type NormalizedCashSale = {
   sourceFields: Record<string, string>;
 };
 
+export type NormalizedRefundAccount = {
+  id: string | null;
+  code: string | null;
+  name: string | null;
+  type: string | null;
+  specialCode: string | null;
+  isActive: boolean | null;
+};
+
 export type NormalizedRefund = {
   id: string | null;
   docNo: string | null;
   docCode: string | null;
+  docDate: string | null;
+  docType: string | null;
   customerId: string | null;
   customerCode: string | null;
+  customerName: string | null;
+  description: string | null;
+  referenceNo: string | null;
   amount: number | null;
+  netTotalAmount: number | null;
+  outstandingAmount: number | null;
+  status: string | null;
+  isCancelled: boolean | null;
+  currencyCode: string | null;
+  account: NormalizedRefundAccount | null;
   knockoffs: ParsedKnockoff[];
   sourceFields: Record<string, string>;
 };
+
 
 function pickWithField(
   row: Record<string, unknown>,
