@@ -535,64 +535,102 @@ export function validateContract(
       };
     }
     case "customer_refunds": {
-      // The 5d0.2 bundle proved an empty page whose envelope says
-      // "Get AR credit note list success" was wrongly accepted. Reject any
-      // response whose message identifies a credit-note resource, even if
-      // rows are empty.
-      if (envelopeIdentifiesCreditNote(envelopeMessage)) {
-        return {
-          passed: false,
-          observedFields: obs,
-          requiredHits: {},
-          suspectedResource: envelopeIdentifiesSalesCreditNote(envelopeMessage)
-            ? "sales_credit_note"
-            : "ar_credit_note",
-          reason: "credit_note_envelope_rejected_as_refund",
-          envelopeMessage,
-        };
-      }
-      // Empty page WITHOUT a credit-note envelope cannot prove Customer
-      // Refund by itself. Require refund-specific signals in the rows.
+      // 5d0.3B: N3 reuses a misleading envelope message
+      // ("Get AR credit note list success") for the genuine
+      // /api/customerrefunds/list resource. Proof of resource identity is
+      // therefore STRUCTURAL: an explicit `RF` transaction discriminator.
+      // Empty page can never prove Customer Refund, regardless of envelope.
       if (rows.length === 0) {
         return {
           passed: false,
           observedFields: obs,
-          requiredHits: {},
-          suspectedResource: "unknown",
+          requiredHits: { isEmpty: true },
+          suspectedResource: envelopeIdentifiesCreditNote(envelopeMessage)
+            ? envelopeIdentifiesSalesCreditNote(envelopeMessage)
+              ? "sales_credit_note"
+              : "ar_credit_note"
+            : "unknown",
           reason: "empty_page_cannot_prove_customer_refund",
           envelopeMessage,
         };
       }
-      const hasCustomer = hasAnyKey(obs, [
-        "CustomerId",
-        "customerId",
-        "DebtorId",
-        "debtorId",
-        "CustomerCode",
-        "customerCode",
-      ]);
-      const hasPaymentBy = hasAnyKey(obs, ["PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
-      const hasRefundKnockoff = hasAnyKey(obs, [
-        "knockoff",
-        "knockOff",
-        "knockOffs",
-        "Knockoffs",
-        "KnockOffs",
-        "knockoffs",
-        "RefundKnockoff",
-        "refundKnockoff",
-      ]);
+      const docTypes = rows
+        .filter(isPlainObject)
+        .map((r) =>
+          normStr(pick(r as Record<string, unknown>, ["docType", "DocType", "documentType", "DocumentType"])),
+        )
+        .filter((v): v is string => !!v)
+        .map((v) => v.toUpperCase());
+      const hasRfDocType = docTypes.includes("RF");
+      const foreignDocTypes = Array.from(new Set(docTypes.filter((t) => t !== "RF")));
+
+      const hasId = hasAnyKey(obs, ["Id", "id", "Guid", "guid"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
-      const passed = hasDoc && hasCustomer && (hasPaymentBy || hasRefundKnockoff);
+      const hasCustomer =
+        hasAnyKey(obs, [
+          "CustomerId",
+          "customerId",
+          "DebtorId",
+          "debtorId",
+          "CustomerCode",
+          "customerCode",
+          "DebtorCode",
+          "debtorCode",
+        ]) ||
+        rows.filter(isPlainObject).some((r) => {
+          const c = (r as Record<string, unknown>).customer ?? (r as Record<string, unknown>).Customer;
+          return (
+            isPlainObject(c) && (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])))
+          );
+        });
+      const hasAmount = rows.filter(isPlainObject).some((r) => {
+        const v = pick(r as Record<string, unknown>, [
+          "NetTotalAmount",
+          "netTotalAmount",
+          "TotalAmount",
+          "totalAmount",
+          "Amount",
+          "amount",
+          "Total",
+          "total",
+        ]);
+        return toNumber(v) !== null;
+      });
+      const hasAccount = hasAnyKey(obs, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+
+      const passed = hasRfDocType && hasId && hasDoc && hasCustomer && hasAmount;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasPaymentBy, hasRefundKnockoff, hasDoc },
-        suspectedResource: passed ? "customer_refunds" : "unknown",
-        reason: passed ? "customer_refund_fields_present" : "missing_customer_refund_signals",
+        requiredHits: {
+          hasRfDocType,
+          hasId,
+          hasDoc,
+          hasCustomer,
+          hasAmount,
+          hasAccount,
+          isEmpty: false,
+          envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
+        },
+        suspectedResource: passed
+          ? "customer_refunds"
+          : foreignDocTypes.length || envelopeIdentifiesCreditNote(envelopeMessage)
+            ? envelopeIdentifiesSalesCreditNote(envelopeMessage) ||
+              foreignDocTypes.some((t) => t === "SCN")
+              ? "sales_credit_note"
+              : "ar_credit_note"
+            : "unknown",
+        reason: passed
+          ? "customer_refund_rf_structure_confirmed"
+          : hasRfDocType
+            ? "missing_customer_refund_signals"
+            : foreignDocTypes.length
+              ? "non_rf_document_type_rejected_as_refund"
+              : "missing_rf_document_type_discriminator",
         envelopeMessage,
       };
     }
+
     case "gl_accounts": {
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
       const hasName = hasAnyKey(obs, [
