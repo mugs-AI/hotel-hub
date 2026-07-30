@@ -162,8 +162,17 @@ type Bundle = {
   glEligibility: GlEligibilityRow[];
   fieldMaps: Record<string, { observed: string[] }>;
   conclusions: { resource: string; label: MafLabel; note: string | null }[];
+  refundLinkState?: {
+    state: "linked" | "unapplied" | "not_available";
+    label: string;
+    note: string;
+    acceptedRefundDetails: number;
+    refundsWithKnockoffs: number;
+    comparisonRows: number;
+  };
   elapsedMs: number;
 };
+
 type ApiResponse = Bundle;
 
 function todayKL(): string {
@@ -547,6 +556,16 @@ function ResourceSections({ data }: { data: ApiResponse }) {
 
 function RefundKnockoffCard({ data }: { data: ApiResponse }) {
   const rows = data.comparisons.refundToOr ?? [];
+  const derived = data.refundLinkState ?? {
+    state: rows.length ? ("linked" as const) : ("not_available" as const),
+    label: rows.length ? "Live N3 Confirmed" : "Not Available",
+    note: "",
+    acceptedRefundDetails: 0,
+    refundsWithKnockoffs: 0,
+    comparisonRows: rows.length,
+  };
+  const badgeColor =
+    derived.state === "linked" ? TEAL : derived.state === "unapplied" ? GOLD : "#8B98A9";
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
@@ -554,13 +573,23 @@ function RefundKnockoffCard({ data }: { data: ApiResponse }) {
     >
       <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
         Refund ↔ OR Identity Check{" "}
-        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+        <span
+          data-testid="refund-link-state"
+          className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white"
+          style={{ backgroundColor: badgeColor }}
+        >
+          {derived.label}
+        </span>
       </h2>
-      {rows.length === 0 ? (
+      {derived.state !== "linked" ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          No refund knockoff rows matched an AR Receipt in this date range.
+          {derived.note ||
+            (derived.state === "unapplied"
+              ? "The Customer Refund was retrieved successfully but currently has no AR Receipt (OR) knockoff."
+              : "No refund knockoff rows matched an AR Receipt in this date range.")}
         </p>
       ) : (
+
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>

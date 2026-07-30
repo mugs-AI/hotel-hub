@@ -535,64 +535,102 @@ export function validateContract(
       };
     }
     case "customer_refunds": {
-      // The 5d0.2 bundle proved an empty page whose envelope says
-      // "Get AR credit note list success" was wrongly accepted. Reject any
-      // response whose message identifies a credit-note resource, even if
-      // rows are empty.
-      if (envelopeIdentifiesCreditNote(envelopeMessage)) {
-        return {
-          passed: false,
-          observedFields: obs,
-          requiredHits: {},
-          suspectedResource: envelopeIdentifiesSalesCreditNote(envelopeMessage)
-            ? "sales_credit_note"
-            : "ar_credit_note",
-          reason: "credit_note_envelope_rejected_as_refund",
-          envelopeMessage,
-        };
-      }
-      // Empty page WITHOUT a credit-note envelope cannot prove Customer
-      // Refund by itself. Require refund-specific signals in the rows.
+      // 5d0.3B: N3 reuses a misleading envelope message
+      // ("Get AR credit note list success") for the genuine
+      // /api/customerrefunds/list resource. Proof of resource identity is
+      // therefore STRUCTURAL: an explicit `RF` transaction discriminator.
+      // Empty page can never prove Customer Refund, regardless of envelope.
       if (rows.length === 0) {
         return {
           passed: false,
           observedFields: obs,
-          requiredHits: {},
-          suspectedResource: "unknown",
+          requiredHits: { isEmpty: true },
+          suspectedResource: envelopeIdentifiesCreditNote(envelopeMessage)
+            ? envelopeIdentifiesSalesCreditNote(envelopeMessage)
+              ? "sales_credit_note"
+              : "ar_credit_note"
+            : "unknown",
           reason: "empty_page_cannot_prove_customer_refund",
           envelopeMessage,
         };
       }
-      const hasCustomer = hasAnyKey(obs, [
-        "CustomerId",
-        "customerId",
-        "DebtorId",
-        "debtorId",
-        "CustomerCode",
-        "customerCode",
-      ]);
-      const hasPaymentBy = hasAnyKey(obs, ["PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
-      const hasRefundKnockoff = hasAnyKey(obs, [
-        "knockoff",
-        "knockOff",
-        "knockOffs",
-        "Knockoffs",
-        "KnockOffs",
-        "knockoffs",
-        "RefundKnockoff",
-        "refundKnockoff",
-      ]);
+      const docTypes = rows
+        .filter(isPlainObject)
+        .map((r) =>
+          normStr(pick(r as Record<string, unknown>, ["docType", "DocType", "documentType", "DocumentType"])),
+        )
+        .filter((v): v is string => !!v)
+        .map((v) => v.toUpperCase());
+      const hasRfDocType = docTypes.includes("RF");
+      const foreignDocTypes = Array.from(new Set(docTypes.filter((t) => t !== "RF")));
+
+      const hasId = hasAnyKey(obs, ["Id", "id", "Guid", "guid"]);
       const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
-      const passed = hasDoc && hasCustomer && (hasPaymentBy || hasRefundKnockoff);
+      const hasCustomer =
+        hasAnyKey(obs, [
+          "CustomerId",
+          "customerId",
+          "DebtorId",
+          "debtorId",
+          "CustomerCode",
+          "customerCode",
+          "DebtorCode",
+          "debtorCode",
+        ]) ||
+        rows.filter(isPlainObject).some((r) => {
+          const c = (r as Record<string, unknown>).customer ?? (r as Record<string, unknown>).Customer;
+          return (
+            isPlainObject(c) && (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])))
+          );
+        });
+      const hasAmount = rows.filter(isPlainObject).some((r) => {
+        const v = pick(r as Record<string, unknown>, [
+          "NetTotalAmount",
+          "netTotalAmount",
+          "TotalAmount",
+          "totalAmount",
+          "Amount",
+          "amount",
+          "Total",
+          "total",
+        ]);
+        return toNumber(v) !== null;
+      });
+      const hasAccount = hasAnyKey(obs, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+
+      const passed = hasRfDocType && hasId && hasDoc && hasCustomer && hasAmount;
       return {
         passed,
         observedFields: obs,
-        requiredHits: { hasCustomer, hasPaymentBy, hasRefundKnockoff, hasDoc },
-        suspectedResource: passed ? "customer_refunds" : "unknown",
-        reason: passed ? "customer_refund_fields_present" : "missing_customer_refund_signals",
+        requiredHits: {
+          hasRfDocType,
+          hasId,
+          hasDoc,
+          hasCustomer,
+          hasAmount,
+          hasAccount,
+          isEmpty: false,
+          envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
+        },
+        suspectedResource: passed
+          ? "customer_refunds"
+          : foreignDocTypes.length || envelopeIdentifiesCreditNote(envelopeMessage)
+            ? envelopeIdentifiesSalesCreditNote(envelopeMessage) ||
+              foreignDocTypes.some((t) => t === "SCN")
+              ? "sales_credit_note"
+              : "ar_credit_note"
+            : "unknown",
+        reason: passed
+          ? "customer_refund_rf_structure_confirmed"
+          : hasRfDocType
+            ? "missing_customer_refund_signals"
+            : foreignDocTypes.length
+              ? "non_rf_document_type_rejected_as_refund"
+              : "missing_rf_document_type_discriminator",
         envelopeMessage,
       };
     }
+
     case "gl_accounts": {
       const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
       const hasName = hasAnyKey(obs, [
@@ -777,16 +815,37 @@ export type NormalizedCashSale = {
   sourceFields: Record<string, string>;
 };
 
+export type NormalizedRefundAccount = {
+  id: string | null;
+  code: string | null;
+  name: string | null;
+  type: string | null;
+  specialCode: string | null;
+  isActive: boolean | null;
+};
+
 export type NormalizedRefund = {
   id: string | null;
   docNo: string | null;
   docCode: string | null;
+  docDate: string | null;
+  docType: string | null;
   customerId: string | null;
   customerCode: string | null;
+  customerName: string | null;
+  description: string | null;
+  referenceNo: string | null;
   amount: number | null;
+  netTotalAmount: number | null;
+  outstandingAmount: number | null;
+  status: string | null;
+  isCancelled: boolean | null;
+  currencyCode: string | null;
+  account: NormalizedRefundAccount | null;
   knockoffs: ParsedKnockoff[];
   sourceFields: Record<string, string>;
 };
+
 
 function pickWithField(
   row: Record<string, unknown>,
@@ -802,7 +861,13 @@ function pickWithField(
 function innerDetailOf(body: unknown): Record<string, unknown> | null {
   if (isPlainObject(body)) {
     const data = body.data ?? body.Data;
-    if (isPlainObject(data)) return data;
+    if (isPlainObject(data)) {
+      // Some N3 detail endpoints wrap the DTO as { data: { value: {...} } }.
+      const value = data.value ?? data.Value;
+      if (isPlainObject(value)) return value;
+      if (Array.isArray(value) && value.length > 0 && isPlainObject(value[0])) return value[0];
+      return data;
+    }
     if (Array.isArray(data) && data.length > 0 && isPlainObject(data[0])) return data[0];
     // Some N3 endpoints return the DTO at the top level.
     return body;
@@ -909,23 +974,90 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   const amt = pickWithField(dto, [
     "Amount",
     "amount",
-    "Total",
-    "total",
     "NetTotalAmount",
     "netTotalAmount",
+    "TotalAmount",
+    "totalAmount",
+    "Total",
+    "total",
   ]);
   if (amt.field) src.amount = amt.field;
+  const dd = pickWithField(dto, ["DocDate", "docDate", "Date", "date"]);
+  if (dd.field) src.docDate = dd.field;
+  const dt = pickWithField(dto, ["DocType", "docType", "DocumentType", "documentType"]);
+  if (dt.field) src.docType = dt.field;
+  const cn = pickWithField(dto, ["CustomerName", "customerName", "DebtorName", "debtorName"]);
+  if (cn.field) src.customerName = cn.field;
+  const desc = pickWithField(dto, ["Description", "description"]);
+  if (desc.field) src.description = desc.field;
+  const ref = pickWithField(dto, ["ReferenceNo", "referenceNo", "Reference", "reference"]);
+  if (ref.field) src.referenceNo = ref.field;
+  const nt = pickWithField(dto, ["NetTotalAmount", "netTotalAmount"]);
+  if (nt.field) src.netTotalAmount = nt.field;
+  const outs = pickWithField(dto, ["OutstandingAmount", "outstandingAmount"]);
+  if (outs.field) src.outstandingAmount = outs.field;
+  const st = pickWithField(dto, ["Status", "status"]);
+  if (st.field) src.status = st.field;
+  const canc = pickWithField(dto, ["IsCancelled", "isCancelled", "Cancelled", "cancelled"]);
+  if (canc.field) src.isCancelled = canc.field;
+  const cur = pickWithField(dto, ["CurrencyCode", "currencyCode"]);
+  if (cur.field) src.currencyCode = cur.field;
+
+  // Customer object (customer.id / customer.code / customer.name)
+  const custObj = pickWithField(dto, ["Customer", "customer"]);
+  let customerId = normStr(ci.value);
+  let customerCode = normStr(cc.value);
+  let customerName = normStr(cn.value);
+  if (isPlainObject(custObj.value)) {
+    const c = custObj.value;
+    customerId = customerId ?? normStr(pick(c, ["Id", "id"]));
+    customerCode = customerCode ?? normStr(pick(c, ["Code", "code"]));
+    customerName = customerName ?? normStr(pick(c, ["Name", "name"]));
+    if (custObj.field) src.customer = custObj.field;
+  } else if (typeof custObj.value === "string") {
+    customerCode = customerCode ?? normStr(custObj.value);
+    if (custObj.field) src.customer = custObj.field;
+  }
+
+  // Payment-By account object
+  const acctRaw = pickWithField(dto, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+  let account: NormalizedRefundAccount | null = null;
+  if (isPlainObject(acctRaw.value)) {
+    const a = acctRaw.value;
+    account = {
+      id: normStr(pick(a, ["Id", "id"])),
+      code: normStr(pick(a, ["Code", "code"])),
+      name: normStr(pick(a, ["Name", "name"])),
+      type: normStr(pick(a, ["Type", "type"])),
+      specialCode: normStr(pick(a, ["SpecialCode", "specialCode"])),
+      isActive: toBool(pick(a, ["IsActive", "isActive"])),
+    };
+    if (acctRaw.field) src.account = acctRaw.field;
+  }
+
   return {
     id,
     docNo: normStr(dn.value),
     docCode: normStr(dc.value),
-    customerId: normStr(ci.value),
-    customerCode: normStr(cc.value),
+    docDate: normStr(dd.value),
+    docType: normStr(dt.value),
+    customerId,
+    customerCode,
+    customerName,
+    description: normStr(desc.value),
+    referenceNo: normStr(ref.value),
     amount: toNumber(amt.value),
+    netTotalAmount: toNumber(nt.value),
+    outstandingAmount: toNumber(outs.value),
+    status: normStr(st.value),
+    isCancelled: toBool(canc.value),
+    currencyCode: normStr(cur.value),
+    account,
     knockoffs: extractKnockoffs(dto),
     sourceFields: src,
   };
 }
+
 
 type NormalizedTransactionDetail = NormalizedReceipt | NormalizedCashSale | NormalizedRefund;
 
@@ -1445,8 +1577,70 @@ export type FinancialBundle = {
     glAccountList: { observed: string[] };
   };
   conclusions: Array<{ resource: FinResource; label: MafLabel; note: string | null }>;
+  refundLinkState: RefundLinkState;
   elapsedMs: number;
 };
+
+export type RefundLinkState = {
+  state: "linked" | "unapplied" | "not_available";
+  label: string;
+  note: string;
+  acceptedRefundDetails: number;
+  refundsWithKnockoffs: number;
+  comparisonRows: number;
+};
+
+/**
+ * 5d0.3B: three-way refund evidence state. Never inferred from comparison
+ * row count alone.
+ */
+export function deriveRefundLinkState(input: {
+  resourceStatus: string | null;
+  contractPassed: boolean | null;
+  refundDetails: NormalizedRefund[];
+  comparisonRows: number;
+}): RefundLinkState {
+  const accepted = input.refundDetails.length;
+  const withKnockoffs = input.refundDetails.filter(
+    (r) => Array.isArray(r.knockoffs) && r.knockoffs.length > 0,
+  ).length;
+  const base = {
+    acceptedRefundDetails: accepted,
+    refundsWithKnockoffs: withKnockoffs,
+    comparisonRows: input.comparisonRows,
+  };
+  if (input.resourceStatus !== "success" || input.contractPassed !== true || accepted === 0) {
+    return {
+      state: "not_available",
+      label: "Not Available",
+      note: "No accepted normalized Customer Refund detail is available for this result.",
+      ...base,
+    };
+  }
+  if (withKnockoffs > 0 && input.comparisonRows > 0) {
+    return {
+      state: "linked",
+      label: "Live N3 Confirmed",
+      note: "Refund knockoff rows were compared against AR Receipts by immutable N3 ID.",
+      ...base,
+    };
+  }
+  if (withKnockoffs === 0) {
+    return {
+      state: "unapplied",
+      label: "Unapplied — No OR Linked",
+      note: "The Customer Refund was retrieved successfully from N3 but currently has no AR Receipt (OR) knockoff.",
+      ...base,
+    };
+  }
+  return {
+    state: "not_available",
+    label: "Not Available",
+    note: "Refund knockoffs exist but no AR Receipt could be resolved for comparison.",
+    ...base,
+  };
+}
+
 
 export async function runFinancialVerification(input: {
   token: string;
@@ -1533,7 +1727,14 @@ export async function runFinancialVerification(input: {
       glAccountList: gl?.listFieldMap ?? { observed: [] },
     },
     conclusions,
+    refundLinkState: deriveRefundLinkState({
+      resourceStatus: rf?.status ?? null,
+      contractPassed: rf?.contractValidation?.passed ?? null,
+      refundDetails: rfDetails,
+      comparisonRows: refundToOr.length,
+    }),
     elapsedMs: run.elapsedMs,
+
   };
 
   return { run, bundle, _internal: internals };
