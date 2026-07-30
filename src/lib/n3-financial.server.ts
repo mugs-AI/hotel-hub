@@ -1571,8 +1571,70 @@ export type FinancialBundle = {
     glAccountList: { observed: string[] };
   };
   conclusions: Array<{ resource: FinResource; label: MafLabel; note: string | null }>;
+  refundLinkState: RefundLinkState;
   elapsedMs: number;
 };
+
+export type RefundLinkState = {
+  state: "linked" | "unapplied" | "not_available";
+  label: string;
+  note: string;
+  acceptedRefundDetails: number;
+  refundsWithKnockoffs: number;
+  comparisonRows: number;
+};
+
+/**
+ * 5d0.3B: three-way refund evidence state. Never inferred from comparison
+ * row count alone.
+ */
+export function deriveRefundLinkState(input: {
+  resourceStatus: string | null;
+  contractPassed: boolean | null;
+  refundDetails: NormalizedRefund[];
+  comparisonRows: number;
+}): RefundLinkState {
+  const accepted = input.refundDetails.length;
+  const withKnockoffs = input.refundDetails.filter(
+    (r) => Array.isArray(r.knockoffs) && r.knockoffs.length > 0,
+  ).length;
+  const base = {
+    acceptedRefundDetails: accepted,
+    refundsWithKnockoffs: withKnockoffs,
+    comparisonRows: input.comparisonRows,
+  };
+  if (input.resourceStatus !== "success" || input.contractPassed !== true || accepted === 0) {
+    return {
+      state: "not_available",
+      label: "Not Available",
+      note: "No accepted normalized Customer Refund detail is available for this result.",
+      ...base,
+    };
+  }
+  if (withKnockoffs > 0 && input.comparisonRows > 0) {
+    return {
+      state: "linked",
+      label: "Live N3 Confirmed",
+      note: "Refund knockoff rows were compared against AR Receipts by immutable N3 ID.",
+      ...base,
+    };
+  }
+  if (withKnockoffs === 0) {
+    return {
+      state: "unapplied",
+      label: "Unapplied — No OR Linked",
+      note: "The Customer Refund was retrieved successfully from N3 but currently has no AR Receipt (OR) knockoff.",
+      ...base,
+    };
+  }
+  return {
+    state: "not_available",
+    label: "Not Available",
+    note: "Refund knockoffs exist but no AR Receipt could be resolved for comparison.",
+    ...base,
+  };
+}
+
 
 export async function runFinancialVerification(input: {
   token: string;
