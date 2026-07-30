@@ -11,6 +11,8 @@ import {
   validateContract,
   assessDetailResponse,
   assertNoInternalOrSecretFields,
+  normalizeRefundDetail,
+  deriveRefundLinkState,
   FINANCIAL_BUNDLE_SCHEMA_VERSION,
 } from "@/lib/n3-financial.server";
 import { hasPermission } from "@/lib/rbac";
@@ -742,5 +744,178 @@ describe("Run 5D0.3A Closure — detail response acceptance gate", () => {
     expect(src).toMatch(
       /detailFanOut\.performed[\s\S]*performed[\s\S]*detailFanOut\.requested[\s\S]*requested[\s\S]*detailFanOut\.normalized[\s\S]*normalized/,
     );
+  });
+});
+
+// ---- Run 5D0.3B — Customer Refund RF contract -----------------------------
+
+const LIVE_RF_ROW = {
+  id: "71060db7-b73b-49d1-f843-08deed8f951a",
+  docCode: "M1RF260701",
+  docDate: "2026-07-30",
+  docType: "RF",
+  customerCode: "777-W001",
+  customerName: "WALK-IN CUSTOMER HOTEL",
+  description: "Customer Payment Refund",
+  netTotalAmount: 200,
+  outstandingAmount: 200,
+  status: "Unapplied",
+  isCancelled: false,
+  account: {
+    id: "74ba5c46-082f-430c-bbdb-07ce23be92a1",
+    code: "700-0301",
+    name: "CIMB",
+    type: "BCA",
+    specialCode: "BAC",
+    isActive: true,
+  },
+};
+const MISLEADING_ENVELOPE = "Get AR credit note list success";
+
+describe("Run 5D0.3B — Customer Refund validated by RF structure", () => {
+  it("accepts the proven live RF row despite the AR credit note envelope", () => {
+    const cv = validateContract("customer_refunds", [LIVE_RF_ROW], MISLEADING_ENVELOPE);
+    expect(cv.passed).toBe(true);
+  });
+  it("reports suspectedResource customer_refunds", () => {
+    const cv = validateContract("customer_refunds", [LIVE_RF_ROW], MISLEADING_ENVELOPE);
+    expect(cv.suspectedResource).toBe("customer_refunds");
+  });
+  it("uses a refund-specific success reason", () => {
+    const cv = validateContract("customer_refunds", [LIVE_RF_ROW], MISLEADING_ENVELOPE);
+    expect(cv.reason).toBe("customer_refund_rf_structure_confirmed");
+    expect(cv.reason).not.toBe("credit_note_envelope_rejected_as_refund");
+  });
+  it("retains the misleading envelope message as diagnostic evidence", () => {
+    const cv = validateContract("customer_refunds", [LIVE_RF_ROW], MISLEADING_ENVELOPE);
+    expect(cv.envelopeMessage).toBe(MISLEADING_ENVELOPE);
+    expect(cv.requiredHits.envelopeMentionsCreditNote).toBe(true);
+  });
+  it("rejects a real credit-note row (non-RF docType) under the same envelope", () => {
+    const cv = validateContract(
+      "customer_refunds",
+      [{ ...LIVE_RF_ROW, docType: "ARCN", docCode: "M1CN260701" }],
+      MISLEADING_ENVELOPE,
+    );
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("non_rf_document_type_rejected_as_refund");
+  });
+  it("rejects generic document/customer/amount rows without an RF discriminator", () => {
+    const { docType: _dt, ...noType } = LIVE_RF_ROW;
+    void _dt;
+    const cv = validateContract("customer_refunds", [noType], MISLEADING_ENVELOPE);
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("missing_rf_document_type_discriminator");
+  });
+  it("empty page with AR credit note envelope still cannot prove refund", () => {
+    const cv = validateContract("customer_refunds", [], MISLEADING_ENVELOPE);
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("empty_page_cannot_prove_customer_refund");
+  });
+});
+
+describe("Run 5D0.3B — live refund detail normalization", () => {
+  const detailBody = {
+    code: "0000",
+    message: MISLEADING_ENVELOPE,
+    data: {
+      value: {
+        ...LIVE_RF_ROW,
+        referenceNo: "REF-1",
+        currencyCode: "MYR",
+        customer: {
+          id: "cust-uuid-1",
+          code: "777-W001",
+          name: "WALK-IN CUSTOMER HOTEL",
+        },
+        knockoff: [],
+      },
+    },
+  };
+  it("normalizes lower-camel-case refund fields, customer and account objects", () => {
+    const n = normalizeRefundDetail(detailBody)!;
+    expect(n.id).toBe(LIVE_RF_ROW.id);
+    expect(n.docCode).toBe("M1RF260701");
+    expect(n.docType).toBe("RF");
+    expect(n.docDate).toBe("2026-07-30");
+    expect(n.customerCode).toBe("777-W001");
+    expect(n.customerName).toBe("WALK-IN CUSTOMER HOTEL");
+    expect(n.customerId).toBe("cust-uuid-1");
+    expect(n.netTotalAmount).toBe(200);
+    expect(n.outstandingAmount).toBe(200);
+    expect(n.status).toBe("Unapplied");
+    expect(n.isCancelled).toBe(false);
+    expect(n.currencyCode).toBe("MYR");
+    expect(n.referenceNo).toBe("REF-1");
+    expect(n.account).toEqual({
+      id: "74ba5c46-082f-430c-bbdb-07ce23be92a1",
+      code: "700-0301",
+      name: "CIMB",
+      type: "BCA",
+      specialCode: "BAC",
+      isActive: true,
+    });
+  });
+  it("accepts an empty knockoff array as a valid normalized detail", () => {
+    const n = normalizeRefundDetail(detailBody)!;
+    expect(n).not.toBeNull();
+    expect(n.knockoffs).toEqual([]);
+  });
+});
+
+describe("Run 5D0.3B — refund link state derivation", () => {
+  const normalized = () => normalizeRefundDetail({ data: { value: { ...LIVE_RF_ROW, knockoff: [] } } })!;
+  it("successful refund with zero knockoffs is unapplied, not not_available", () => {
+    const s = deriveRefundLinkState({
+      resourceStatus: "success",
+      contractPassed: true,
+      refundDetails: [normalized()],
+      comparisonRows: 0,
+    });
+    expect(s.state).toBe("unapplied");
+    expect(s.label).toBe("Unapplied — No OR Linked");
+  });
+  it("linked when knockoffs produce comparison rows", () => {
+    const withKo = normalizeRefundDetail({
+      data: {
+        value: {
+          ...LIVE_RF_ROW,
+          knockoff: [{ docId: "REC-1", docType: "OR", docNo: "OR-001", appliedAmount: 200 }],
+        },
+      },
+    })!;
+    const s = deriveRefundLinkState({
+      resourceStatus: "success",
+      contractPassed: true,
+      refundDetails: [withKo],
+      comparisonRows: 1,
+    });
+    expect(s.state).toBe("linked");
+  });
+  it("not_available when the resource failed or nothing normalized", () => {
+    expect(
+      deriveRefundLinkState({
+        resourceStatus: "failed",
+        contractPassed: false,
+        refundDetails: [],
+        comparisonRows: 0,
+      }).state,
+    ).toBe("not_available");
+    expect(
+      deriveRefundLinkState({
+        resourceStatus: "success",
+        contractPassed: true,
+        refundDetails: [],
+        comparisonRows: 0,
+      }).state,
+    ).toBe("not_available");
+  });
+  it("console renders the derived refund state, not a row-count guess", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "src/routes/settings_.n3-financial-verification.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("data.refundLinkState");
+    expect(src).toContain('data-testid="refund-link-state"');
   });
 });
