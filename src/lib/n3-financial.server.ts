@@ -968,23 +968,90 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   const amt = pickWithField(dto, [
     "Amount",
     "amount",
-    "Total",
-    "total",
     "NetTotalAmount",
     "netTotalAmount",
+    "TotalAmount",
+    "totalAmount",
+    "Total",
+    "total",
   ]);
   if (amt.field) src.amount = amt.field;
+  const dd = pickWithField(dto, ["DocDate", "docDate", "Date", "date"]);
+  if (dd.field) src.docDate = dd.field;
+  const dt = pickWithField(dto, ["DocType", "docType", "DocumentType", "documentType"]);
+  if (dt.field) src.docType = dt.field;
+  const cn = pickWithField(dto, ["CustomerName", "customerName", "DebtorName", "debtorName"]);
+  if (cn.field) src.customerName = cn.field;
+  const desc = pickWithField(dto, ["Description", "description"]);
+  if (desc.field) src.description = desc.field;
+  const ref = pickWithField(dto, ["ReferenceNo", "referenceNo", "Reference", "reference"]);
+  if (ref.field) src.referenceNo = ref.field;
+  const nt = pickWithField(dto, ["NetTotalAmount", "netTotalAmount"]);
+  if (nt.field) src.netTotalAmount = nt.field;
+  const outs = pickWithField(dto, ["OutstandingAmount", "outstandingAmount"]);
+  if (outs.field) src.outstandingAmount = outs.field;
+  const st = pickWithField(dto, ["Status", "status"]);
+  if (st.field) src.status = st.field;
+  const canc = pickWithField(dto, ["IsCancelled", "isCancelled", "Cancelled", "cancelled"]);
+  if (canc.field) src.isCancelled = canc.field;
+  const cur = pickWithField(dto, ["CurrencyCode", "currencyCode"]);
+  if (cur.field) src.currencyCode = cur.field;
+
+  // Customer object (customer.id / customer.code / customer.name)
+  const custObj = pickWithField(dto, ["Customer", "customer"]);
+  let customerId = normStr(ci.value);
+  let customerCode = normStr(cc.value);
+  let customerName = normStr(cn.value);
+  if (isPlainObject(custObj.value)) {
+    const c = custObj.value;
+    customerId = customerId ?? normStr(pick(c, ["Id", "id"]));
+    customerCode = customerCode ?? normStr(pick(c, ["Code", "code"]));
+    customerName = customerName ?? normStr(pick(c, ["Name", "name"]));
+    if (custObj.field) src.customer = custObj.field;
+  } else if (typeof custObj.value === "string") {
+    customerCode = customerCode ?? normStr(custObj.value);
+    if (custObj.field) src.customer = custObj.field;
+  }
+
+  // Payment-By account object
+  const acctRaw = pickWithField(dto, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+  let account: NormalizedRefundAccount | null = null;
+  if (isPlainObject(acctRaw.value)) {
+    const a = acctRaw.value;
+    account = {
+      id: normStr(pick(a, ["Id", "id"])),
+      code: normStr(pick(a, ["Code", "code"])),
+      name: normStr(pick(a, ["Name", "name"])),
+      type: normStr(pick(a, ["Type", "type"])),
+      specialCode: normStr(pick(a, ["SpecialCode", "specialCode"])),
+      isActive: toBool(pick(a, ["IsActive", "isActive"])),
+    };
+    if (acctRaw.field) src.account = acctRaw.field;
+  }
+
   return {
     id,
     docNo: normStr(dn.value),
     docCode: normStr(dc.value),
-    customerId: normStr(ci.value),
-    customerCode: normStr(cc.value),
+    docDate: normStr(dd.value),
+    docType: normStr(dt.value),
+    customerId,
+    customerCode,
+    customerName,
+    description: normStr(desc.value),
+    referenceNo: normStr(ref.value),
     amount: toNumber(amt.value),
+    netTotalAmount: toNumber(nt.value),
+    outstandingAmount: toNumber(outs.value),
+    status: normStr(st.value),
+    isCancelled: toBool(canc.value),
+    currencyCode: normStr(cur.value),
+    account,
     knockoffs: extractKnockoffs(dto),
     sourceFields: src,
   };
 }
+
 
 type NormalizedTransactionDetail = NormalizedReceipt | NormalizedCashSale | NormalizedRefund;
 
