@@ -554,51 +554,88 @@ export function validateContract(
           envelopeMessage,
         };
       }
-      const docTypes = rows
-        .filter(isPlainObject)
-        .map((r) =>
-          normStr(pick(r as Record<string, unknown>, ["docType", "DocType", "documentType", "DocumentType"])),
-        )
+      const objRows = rows.filter(isPlainObject) as Record<string, unknown>[];
+      const docTypes = objRows
+        .map((r) => normStr(pick(r, ["docType", "DocType", "documentType", "DocumentType"])))
         .filter((v): v is string => !!v)
         .map((v) => v.toUpperCase());
       const hasRfDocType = docTypes.includes("RF");
       const foreignDocTypes = Array.from(new Set(docTypes.filter((t) => t !== "RF")));
 
-      const hasId = hasAnyKey(obs, ["Id", "id", "Guid", "guid"]);
-      const hasDoc = hasAnyKey(obs, ["DocNo", "docNo", "DocCode", "docCode"]);
-      const hasCustomer =
-        hasAnyKey(obs, [
-          "CustomerId",
-          "customerId",
-          "DebtorId",
-          "debtorId",
-          "CustomerCode",
-          "customerCode",
-          "DebtorCode",
-          "debtorCode",
-        ]) ||
-        rows.filter(isPlainObject).some((r) => {
-          const c = (r as Record<string, unknown>).customer ?? (r as Record<string, unknown>).Customer;
-          return (
-            isPlainObject(c) && (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])))
-          );
-        });
-      const hasAmount = rows.filter(isPlainObject).some((r) => {
-        const v = pick(r as Record<string, unknown>, [
-          "NetTotalAmount",
-          "netTotalAmount",
-          "TotalAmount",
-          "totalAmount",
-          "Amount",
-          "amount",
-          "Total",
-          "total",
-        ]);
-        return toNumber(v) !== null;
-      });
+      // 5d0.3B.1: a mixed page containing ANY non-RF document-type
+      // discriminator is not a Customer Refund list. Reject immediately —
+      // never let an RF row legitimise foreign documents in the same page.
+      if (foreignDocTypes.length > 0) {
+        return {
+          passed: false,
+          observedFields: obs,
+          requiredHits: {
+            hasRfDocType,
+            hasForeignDocTypes: true,
+            isEmpty: false,
+            envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
+          },
+          suspectedResource:
+            envelopeIdentifiesSalesCreditNote(envelopeMessage) || foreignDocTypes.some((t) => t === "SCN")
+              ? "sales_credit_note"
+              : "ar_credit_note",
+          reason: "non_rf_document_type_rejected_as_refund",
+          envelopeMessage,
+        };
+      }
+
+      // 5d0.3B.1: structural proof must come from ONE single RF row.
+      // Never combine required fields across different rows.
+      const rowHasId = (r: Record<string, unknown>) => !!normStr(pick(r, ["Id", "id", "Guid", "guid"]));
+      const rowHasDoc = (r: Record<string, unknown>) =>
+        !!normStr(pick(r, ["DocNo", "docNo", "DocCode", "docCode"]));
+      const rowHasCustomer = (r: Record<string, unknown>) => {
+        const direct = normStr(
+          pick(r, [
+            "CustomerId",
+            "customerId",
+            "DebtorId",
+            "debtorId",
+            "CustomerCode",
+            "customerCode",
+            "DebtorCode",
+            "debtorCode",
+          ]),
+        );
+        if (direct) return true;
+        const c = r.customer ?? r.Customer;
+        return isPlainObject(c) && (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])));
+      };
+      const rowHasAmount = (r: Record<string, unknown>) =>
+        toNumber(
+          pick(r, [
+            "NetTotalAmount",
+            "netTotalAmount",
+            "TotalAmount",
+            "totalAmount",
+            "Amount",
+            "amount",
+            "Total",
+            "total",
+          ]),
+        ) !== null;
+
+      const rfRows = objRows.filter(
+        (r) =>
+          (normStr(pick(r, ["docType", "DocType", "documentType", "DocumentType"])) ?? "").toUpperCase() ===
+          "RF",
+      );
+      const completeRfRow = rfRows.find(
+        (r) => rowHasId(r) && rowHasDoc(r) && rowHasCustomer(r) && rowHasAmount(r),
+      );
+
+      const hasId = rfRows.some(rowHasId);
+      const hasDoc = rfRows.some(rowHasDoc);
+      const hasCustomer = rfRows.some(rowHasCustomer);
+      const hasAmount = rfRows.some(rowHasAmount);
       const hasAccount = hasAnyKey(obs, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
 
-      const passed = hasRfDocType && hasId && hasDoc && hasCustomer && hasAmount;
+      const passed = !!completeRfRow;
       return {
         passed,
         observedFields: obs,
@@ -609,26 +646,25 @@ export function validateContract(
           hasCustomer,
           hasAmount,
           hasAccount,
+          hasCompleteRfRow: passed,
           isEmpty: false,
           envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
         },
         suspectedResource: passed
           ? "customer_refunds"
-          : foreignDocTypes.length || envelopeIdentifiesCreditNote(envelopeMessage)
-            ? envelopeIdentifiesSalesCreditNote(envelopeMessage) ||
-              foreignDocTypes.some((t) => t === "SCN")
+          : envelopeIdentifiesCreditNote(envelopeMessage)
+            ? envelopeIdentifiesSalesCreditNote(envelopeMessage)
               ? "sales_credit_note"
               : "ar_credit_note"
             : "unknown",
         reason: passed
           ? "customer_refund_rf_structure_confirmed"
           : hasRfDocType
-            ? "missing_customer_refund_signals"
-            : foreignDocTypes.length
-              ? "non_rf_document_type_rejected_as_refund"
-              : "missing_rf_document_type_discriminator",
+            ? "incomplete_rf_row_structure"
+            : "missing_rf_document_type_discriminator",
         envelopeMessage,
       };
+
     }
 
     case "gl_accounts": {

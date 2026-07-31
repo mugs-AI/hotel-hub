@@ -814,6 +814,65 @@ describe("Run 5D0.3B — Customer Refund validated by RF structure", () => {
   });
 });
 
+// ---- Run 5D0.3B.1 — Mixed document-type safety ---------------------------
+
+describe("Run 5D0.3B.1 — mixed document-type safety", () => {
+  it("rejects a page mixing a valid RF row with an ARCN row", () => {
+    const cv = validateContract(
+      "customer_refunds",
+      [LIVE_RF_ROW, { ...LIVE_RF_ROW, id: "arcn-1", docType: "ARCN", docCode: "M1CN260701" }],
+      MISLEADING_ENVELOPE,
+    );
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("non_rf_document_type_rejected_as_refund");
+    expect(cv.suspectedResource).toBe("ar_credit_note");
+  });
+
+  it("rejects a page mixing a valid RF row with an SCN row", () => {
+    const cv = validateContract(
+      "customer_refunds",
+      [LIVE_RF_ROW, { ...LIVE_RF_ROW, id: "scn-1", docType: "SCN", docCode: "M1SCN260701" }],
+      MISLEADING_ENVELOPE,
+    );
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("non_rf_document_type_rejected_as_refund");
+    expect(cv.suspectedResource).toBe("sales_credit_note");
+  });
+
+  it("rejects structural proof split across multiple incomplete RF rows", () => {
+    const cv = validateContract(
+      "customer_refunds",
+      [
+        { docType: "RF", id: "rf-a", docCode: "M1RF260701" },
+        { docType: "RF", customerCode: "777-W001", netTotalAmount: 200 },
+      ],
+      MISLEADING_ENVELOPE,
+    );
+    expect(cv.passed).toBe(false);
+    expect(cv.reason).toBe("incomplete_rf_row_structure");
+    expect(cv.requiredHits.hasCompleteRfRow).toBe(false);
+  });
+
+  it("accepts a single complete live RF row", () => {
+    const cv = validateContract("customer_refunds", [LIVE_RF_ROW], MISLEADING_ENVELOPE);
+    expect(cv.passed).toBe(true);
+    expect(cv.requiredHits.hasCompleteRfRow).toBe(true);
+  });
+
+  it("accepts nested customer{id|code} identity on a single RF row", () => {
+    const { customerCode: _cc, customerName: _cn, ...base } = LIVE_RF_ROW;
+    void _cc;
+    void _cn;
+    const cv = validateContract(
+      "customer_refunds",
+      [{ ...base, customer: { id: "cust-1", code: "777-W001" } }],
+      MISLEADING_ENVELOPE,
+    );
+    expect(cv.passed).toBe(true);
+  });
+});
+
+
 describe("Run 5D0.3B — live refund detail normalization", () => {
   const detailBody = {
     code: "0000",
