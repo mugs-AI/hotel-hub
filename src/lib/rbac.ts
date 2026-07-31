@@ -15,6 +15,8 @@ export type Permission =
   | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
   | "hotel:reservations:view" // read reservation list / detail / availability
   | "hotel:reservations:create" // create new reservations
+  | "hotel:deposits:view" // read the reservation deposit ledger
+  | "hotel:deposits:create" // post a reservation deposit to N3 (AR Receive Payment)
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
