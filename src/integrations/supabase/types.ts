@@ -205,6 +205,93 @@ export type Database = {
           },
         ]
       }
+      hotel_reservation_deposits: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by_n3_user_key: string
+          currency_code: string
+          description: string | null
+          id: string
+          idempotency_key: string
+          last_error_code: string | null
+          n3_account_code: string | null
+          n3_account_id: string | null
+          n3_account_name: string | null
+          n3_customer_code: string | null
+          n3_customer_id: string | null
+          n3_customer_name: string | null
+          n3_doc_code: string | null
+          n3_receipt_id: string | null
+          n3_reference_no: string
+          reservation_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by_n3_user_key: string
+          currency_code: string
+          description?: string | null
+          id?: string
+          idempotency_key: string
+          last_error_code?: string | null
+          n3_account_code?: string | null
+          n3_account_id?: string | null
+          n3_account_name?: string | null
+          n3_customer_code?: string | null
+          n3_customer_id?: string | null
+          n3_customer_name?: string | null
+          n3_doc_code?: string | null
+          n3_receipt_id?: string | null
+          n3_reference_no: string
+          reservation_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by_n3_user_key?: string
+          currency_code?: string
+          description?: string | null
+          id?: string
+          idempotency_key?: string
+          last_error_code?: string | null
+          n3_account_code?: string | null
+          n3_account_id?: string | null
+          n3_account_name?: string | null
+          n3_customer_code?: string | null
+          n3_customer_id?: string | null
+          n3_customer_name?: string | null
+          n3_doc_code?: string | null
+          n3_receipt_id?: string | null
+          n3_reference_no?: string
+          reservation_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_deposits_reservation_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_deposits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_reservation_guests: {
         Row: {
           created_at: string

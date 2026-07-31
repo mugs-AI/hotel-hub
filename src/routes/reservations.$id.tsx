@@ -14,6 +14,7 @@ import { formatCreatedAt, formatIsoDate, friendlyError, roomLabel } from "@/lib/
 import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
+import { DepositsCard } from "@/components/DepositsCard";
 import { ArrowLeft, CalendarDays, ListOrdered, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
 
 const NAVY = "#102A43";
@@ -78,7 +79,7 @@ function ReservationDetailPage() {
         ) : query.error ? (
           <ErrorState code={query.error.code} onRetry={() => query.refetch()} />
         ) : query.data ? (
-          <Detail data={query.data.reservation} canEdit={canEdit} />
+          <Detail data={query.data.reservation} canEdit={canEdit} role={role} />
         ) : null}
       </div>
     </AppShell>
@@ -210,7 +211,17 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
   );
 }
 
-function Detail({ data, canEdit }: { data: ReservationDetailDTO; canEdit: boolean }) {
+function Detail({
+  data,
+  canEdit,
+  role,
+}: {
+  data: ReservationDetailDTO;
+  canEdit: boolean;
+  role: Parameters<typeof hasPermission>[0];
+}) {
+  const canViewDeposits = hasPermission(role, "hotel:deposits:view");
+  const canCreateDeposits = hasPermission(role, "hotel:deposits:create");
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
   const editable =
@@ -332,6 +343,13 @@ function Detail({ data, canEdit }: { data: ReservationDetailDTO; canEdit: boolea
           </a>
         </div>
       </section>
+
+      <DepositsCard
+        reservationId={data.id}
+        canView={canViewDeposits}
+        canCreate={canCreateDeposits}
+        eligible={data.status === "confirmed"}
+      />
 
       <section
         className="rounded-lg border bg-white p-5 shadow-sm"

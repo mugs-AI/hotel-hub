@@ -15,6 +15,8 @@ export type Permission =
   | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
   | "hotel:reservations:view" // read reservation list / detail / availability
   | "hotel:reservations:create" // create new reservations
+  | "hotel:deposits:view" // read the reservation deposit ledger
+  | "hotel:deposits:create" // post a reservation deposit to N3 (AR Receive Payment)
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
@@ -32,6 +34,10 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:rooms:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:create": new Set(["owner", "front_desk"]),
+  // Financial writes to N3 are Owner-only. Front desk and housekeeper must
+  // never post an AR Receive Payment.
+  "hotel:deposits:view": new Set(["owner"]),
+  "hotel:deposits:create": new Set(["owner"]),
   "roles:manage": new Set(["owner"]),
 };
 
