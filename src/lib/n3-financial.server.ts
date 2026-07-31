@@ -571,7 +571,7 @@ export function validateContract(
           observedFields: obs,
           requiredHits: {
             hasRfDocType,
-            foreignDocTypes: foreignDocTypes.length,
+            hasForeignDocTypes: true,
             isEmpty: false,
             envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
           },
