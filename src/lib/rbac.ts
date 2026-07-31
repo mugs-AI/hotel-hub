@@ -34,6 +34,10 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:rooms:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:create": new Set(["owner", "front_desk"]),
+  // Financial writes to N3 are Owner-only. Front desk and housekeeper must
+  // never post an AR Receive Payment.
+  "hotel:deposits:view": new Set(["owner"]),
+  "hotel:deposits:create": new Set(["owner"]),
   "roles:manage": new Set(["owner"]),
 };
 
