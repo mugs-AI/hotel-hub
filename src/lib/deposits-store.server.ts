@@ -61,15 +61,18 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "walk_in_customer_not_mapped",
   "n3_defaults_unavailable",
   "n3_defaults_invalid",
+  "n3_preflight_unavailable",
   "n3_rejected",
   "n3_result_uncertain",
   "reference_conflict",
   "deposit_not_found",
   "deposit_not_uncertain",
+  "deposit_not_recoverable",
   "deposit_claim_failed",
   "deposit_write_failed",
   "unauthorized",
 ]);
+
 
 export class DepositError extends Error {
   code: string;
