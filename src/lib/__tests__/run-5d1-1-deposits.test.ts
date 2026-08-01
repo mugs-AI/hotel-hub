@@ -118,6 +118,8 @@ function newDefaults() {
     body: {
       data: {
         id: "rcpt-new",
+        docType: "AROR",
+        currencyRate: 1,
         accountId: "acc-guid-1",
         accountCode: "3000-000",
         accountName: "Maybank Current",
