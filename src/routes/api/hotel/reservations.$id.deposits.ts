@@ -105,10 +105,27 @@ export async function handleDepositCreate({
   if (!isSameOriginWrite(request)) return deny(403, "cross_site_denied");
   const { ctx, decision } = await requirePermission("hotel:deposits:create");
   if (!decision.ok) {
+    // Sanitized authorization denial (no tokens, cookies or upstream bodies).
+    await logAudit({
+      tenantId: ctx.session.tenantId ?? undefined,
+      n3UserKey: ctx.session.n3UserKey ?? undefined,
+      eventType: "hotel.deposit.denied",
+      detail: { reason: decision.reason, permission: "hotel:deposits:create" },
+    });
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
   const id = params.id ?? "";
   if (!isUuidLike(id)) return deny(400, "invalid_id");
+
+  if (!isDepositWriteEnabled(ctx.session.n3TenantKey)) {
+    await logAudit({
+      tenantId: ctx.session.tenantId ?? undefined,
+      n3UserKey: ctx.session.n3UserKey,
+      eventType: "hotel.deposit.denied",
+      detail: { reason: "deposit_writes_disabled", reservationId: id },
+    });
+    return deny(403, "deposit_writes_disabled");
+  }
 
   let parsed: unknown;
   try {
@@ -143,12 +160,14 @@ export async function handleDepositCreate({
       err instanceof DepositError && DEPOSIT_ERROR_CODES.has(err.code)
         ? err.code
         : "deposit_write_failed";
+    if (code === "unauthorized") return denyN3Unauthorized("deposits.create");
     if (!(err instanceof DepositError)) {
       console.error("[deposits.create] failed", (err as Error).message?.slice(0, 200));
     }
     return deny(statusForDepositError(code), code);
   }
 }
+
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits")({
   server: { handlers: { GET: handleDepositsList, POST: handleDepositCreate } },
