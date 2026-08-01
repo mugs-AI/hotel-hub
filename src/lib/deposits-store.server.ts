@@ -629,10 +629,51 @@ export async function createDeposit(
     currencyId: defaults.currencyId,
   };
 
-  // Pre-flight read-only reconciliation: never POST twice for one reference.
+  // Pre-flight read-only reconciliation. FAIL CLOSED: the create only happens
+  // after a readable, successful, zero-match preflight.
   const pre = await n3.listByReference(input.n3Token, referenceNo);
-  const preMatch = matchExistingReceipt(pre, expected);
-  if (preMatch && "conflict" in preMatch) {
+  const verdictPre = classifyPreflight(pre, expected);
+
+  if (verdictPre.kind === "unauthorized") {
+    deposit = await updateDeposit(input.tenantId, deposit.id, {
+      status: "failed",
+      last_error_code: "n3_preflight_unavailable",
+    });
+    await logAudit({
+      tenantId: input.tenantId,
+      n3UserKey: input.actorN3UserKey,
+      eventType: "hotel.deposit.failed",
+      detail: {
+        depositId: deposit.id,
+        reservationId: input.reservationId,
+        code: "n3_unauthorized",
+        created: false,
+      },
+    });
+    // Definite N3 401 — the caller destroys the HotelHub session.
+    throw new DepositError("unauthorized");
+  }
+
+  if (verdictPre.kind === "unavailable") {
+    deposit = await updateDeposit(input.tenantId, deposit.id, {
+      status: "failed",
+      last_error_code: "n3_preflight_unavailable",
+    });
+    await logAudit({
+      tenantId: input.tenantId,
+      n3UserKey: input.actorN3UserKey,
+      eventType: "hotel.deposit.failed",
+      detail: {
+        depositId: deposit.id,
+        reservationId: input.reservationId,
+        code: verdictPre.code,
+        created: false,
+      },
+    });
+    return { deposit, reused: false };
+  }
+
+  if (verdictPre.kind === "conflict") {
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "failed",
       last_error_code: "reference_conflict",
@@ -645,11 +686,12 @@ export async function createDeposit(
     });
     return { deposit, reused: false };
   }
-  if (preMatch && "match" in preMatch) {
+
+  if (verdictPre.kind === "match") {
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "posted",
-      n3_receipt_id: preMatch.match.n3ReceiptId,
-      n3_doc_code: preMatch.match.n3DocCode,
+      n3_receipt_id: verdictPre.identity.n3ReceiptId,
+      n3_doc_code: verdictPre.identity.n3DocCode,
       last_error_code: null,
     });
     await logAudit({
@@ -659,13 +701,14 @@ export async function createDeposit(
       detail: {
         depositId: deposit.id,
         reservationId: input.reservationId,
-        n3ReceiptId: preMatch.match.n3ReceiptId,
-        n3DocCode: preMatch.match.n3DocCode,
+        n3ReceiptId: verdictPre.identity.n3ReceiptId,
+        n3DocCode: verdictPre.identity.n3DocCode,
         via: "preflight",
       },
     });
     return { deposit, reused: false };
   }
+
 
   const payload = buildDepositPayload({
     defaults,
