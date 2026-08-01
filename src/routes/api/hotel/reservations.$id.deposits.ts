@@ -1,8 +1,9 @@
-// GET  /api/hotel/reservations/:id/deposits — Owner only. Sanitized ledger.
+// GET  /api/hotel/reservations/:id/deposits — Owner + Front Desk. Sanitized ledger.
 // POST /api/hotel/reservations/:id/deposits — Owner only. Creates at most ONE
 //   N3 AR Receive Payment (AROR) per client request id. Feature-gated.
 import { createFileRoute } from "@tanstack/react-router";
-import { requirePermission } from "@/lib/session-context.server";
+import { destroySession, requirePermission } from "@/lib/session-context.server";
+import { logAudit } from "@/lib/audit.server";
 import {
   createDeposit,
   DepositError,
@@ -15,6 +16,16 @@ import {
 
 export function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
+}
+
+/**
+ * Definite N3 401 → destroy the HotelHub session and return the established
+ * sanitized 401. Never surfaces raw N3 data.
+ */
+export async function denyN3Unauthorized(context: string) {
+  await destroySession("n3_401");
+  await logAudit({ eventType: "session.n3_401", detail: { context } });
+  return deny(401, "unauthorized");
 }
 
 /** Reject cross-site writes: this API is only ever called by the app itself. */
@@ -41,11 +52,13 @@ export function statusForDepositError(code: string): number {
       return 404;
     case "reservation_not_eligible":
     case "deposit_not_uncertain":
+    case "deposit_not_recoverable":
     case "reference_conflict":
       return 409;
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
+    case "n3_preflight_unavailable":
       return 502;
     case "invalid_amount":
     case "invalid_client_request_id":
@@ -54,6 +67,7 @@ export function statusForDepositError(code: string): number {
       return 500;
   }
 }
+
 
 export async function handleDepositsList({
   params,
@@ -91,10 +105,27 @@ export async function handleDepositCreate({
   if (!isSameOriginWrite(request)) return deny(403, "cross_site_denied");
   const { ctx, decision } = await requirePermission("hotel:deposits:create");
   if (!decision.ok) {
+    // Sanitized authorization denial (no tokens, cookies or upstream bodies).
+    await logAudit({
+      tenantId: ctx.session.tenantId ?? undefined,
+      n3UserKey: ctx.session.n3UserKey ?? undefined,
+      eventType: "hotel.deposit.denied",
+      detail: { reason: decision.reason, permission: "hotel:deposits:create" },
+    });
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
   const id = params.id ?? "";
   if (!isUuidLike(id)) return deny(400, "invalid_id");
+
+  if (!isDepositWriteEnabled(ctx.session.n3TenantKey)) {
+    await logAudit({
+      tenantId: ctx.session.tenantId ?? undefined,
+      n3UserKey: ctx.session.n3UserKey,
+      eventType: "hotel.deposit.denied",
+      detail: { reason: "deposit_writes_disabled", reservationId: id },
+    });
+    return deny(403, "deposit_writes_disabled");
+  }
 
   let parsed: unknown;
   try {
@@ -129,12 +160,14 @@ export async function handleDepositCreate({
       err instanceof DepositError && DEPOSIT_ERROR_CODES.has(err.code)
         ? err.code
         : "deposit_write_failed";
+    if (code === "unauthorized") return denyN3Unauthorized("deposits.create");
     if (!(err instanceof DepositError)) {
       console.error("[deposits.create] failed", (err as Error).message?.slice(0, 200));
     }
     return deny(statusForDepositError(code), code);
   }
 }
+
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits")({
   server: { handlers: { GET: handleDepositsList, POST: handleDepositCreate } },

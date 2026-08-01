@@ -85,6 +85,26 @@ export function useCreateDeposit(reservationId: string) {
   });
 }
 
+export type DepositPreview = {
+  bookingReference: string;
+  customerLabel: string;
+  amount: number;
+  currency: string;
+  accountLabel: string | null;
+  warning: string;
+};
+
+/** Owner-triggered read-only confirmation preview (no N3 write). */
+export function useDepositPreview(reservationId: string) {
+  return useMutation<{ preview: DepositPreview }, DepositApiError, { amount: number }>({
+    mutationFn: (payload) =>
+      depositFetch<{ preview: DepositPreview }>(
+        `/api/hotel/reservations/${reservationId}/deposits/preview`,
+        { method: "POST", body: JSON.stringify(payload) },
+      ),
+  });
+}
+
 export function useReconcileDeposit(reservationId: string) {
   const qc = useQueryClient();
   const tenantKey = useTenantKey();
@@ -98,6 +118,11 @@ export function useReconcileDeposit(reservationId: string) {
       qc.invalidateQueries({ queryKey: depositsKey(tenantKey, reservationId) });
     },
   });
+}
+
+/** Interrupted (`submitting`) and uncertain (`unknown`) rows are recoverable. */
+export function isRecoverableDeposit(s: DepositDTO["status"]): boolean {
+  return s === "submitting" || s === "unknown";
 }
 
 export function depositStatusLabel(s: DepositDTO["status"]): string {
@@ -122,17 +147,24 @@ export function depositErrorMessage(code: string | null | undefined): string {
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
       return "N3 did not return valid receipt defaults. Nothing was posted.";
+    case "n3_preflight_unavailable":
+      return "HotelHub could not verify N3 before posting, so nothing was created. Try again later.";
     case "reservation_not_eligible":
       return "Only confirmed reservations can take a deposit.";
     case "reference_conflict":
       return "A conflicting N3 document already uses this reference. Nothing was posted.";
     case "n3_rejected":
       return "N3 rejected this payment. Nothing was posted.";
+    case "n3_result_uncertain":
+      return "HotelHub could not confirm the N3 result. Check N3 before doing anything else.";
     case "invalid_amount":
       return "Enter a positive amount with at most 2 decimals.";
+    case "deposit_not_recoverable":
+      return "This deposit is already resolved.";
     case "unauthorized":
       return "Your N3 session expired. Relaunch HotelHub from N3 to continue.";
     default:
       return "The deposit could not be completed.";
   }
 }
+

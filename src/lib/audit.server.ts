@@ -30,7 +30,9 @@ export type AuditEventType =
   | "hotel.deposit.posted"
   | "hotel.deposit.failed"
   | "hotel.deposit.unknown"
-  | "hotel.deposit.reconciled";
+  | "hotel.deposit.reconciled"
+  | "hotel.deposit.denied";
+
 
 const SENSITIVE_KEYS = new Set([
   "token",

@@ -10,7 +10,7 @@ import {
   reconcileDeposit,
   toDepositDTO,
 } from "@/lib/deposits-store.server";
-import { deny, isSameOriginWrite, statusForDepositError } from "./reservations.$id.deposits";
+import { deny, denyN3Unauthorized, isSameOriginWrite, statusForDepositError } from "./reservations.$id.deposits";
 
 export async function handleDepositReconcile({
   request,
@@ -45,11 +45,13 @@ export async function handleDepositReconcile({
       err instanceof DepositError && DEPOSIT_ERROR_CODES.has(err.code)
         ? err.code
         : "deposit_write_failed";
+    if (code === "unauthorized") return denyN3Unauthorized("deposits.reconcile");
     if (!(err instanceof DepositError)) {
       console.error("[deposits.reconcile] failed", (err as Error).message?.slice(0, 200));
     }
     return deny(statusForDepositError(code), code);
   }
+
 }
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits/$depositId/reconcile")({
