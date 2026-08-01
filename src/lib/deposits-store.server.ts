@@ -345,7 +345,54 @@ export function matchExistingReceipt(
   return null;
 }
 
+/**
+ * Fail-closed classification of the exact-reference preflight read.
+ * Only `none` (a readable, successful, zero-match page) may proceed to Create.
+ */
+export type PreflightVerdict =
+  | { kind: "none" }
+  | { kind: "match"; identity: ReceiptIdentity }
+  | { kind: "conflict" }
+  | { kind: "unauthorized" }
+  | { kind: "unavailable"; code: string };
+
+export function classifyPreflight(
+  outcome: N3Outcome,
+  expected: {
+    customerId: string;
+    referenceNo: string;
+    amount: number;
+    currencyId: string | null;
+  },
+): PreflightVerdict {
+  if (outcome.kind === "transport_error") {
+    return { kind: "unavailable", code: `n3_${outcome.reason}` };
+  }
+  if (outcome.status === 401 || outcome.status === 403) return { kind: "unauthorized" };
+  if (outcome.status < 200 || outcome.status >= 300) {
+    return { kind: "unavailable", code: "n3_preflight_status" };
+  }
+  if (envelopeRejected(outcome.body)) {
+    return { kind: "unavailable", code: "n3_preflight_rejected" };
+  }
+  // The contract must be readable: a list envelope is required. A null /
+  // unparsable / non-list body is NOT proof of "no existing document".
+  const b: any = outcome.body;
+  const listLike =
+    Array.isArray(b?.data?.value) ||
+    Array.isArray(b?.data) ||
+    Array.isArray(b?.value) ||
+    Array.isArray(b);
+  if (!listLike) return { kind: "unavailable", code: "n3_preflight_unreadable" };
+
+  const found = matchExistingReceipt(outcome, expected);
+  if (found && "conflict" in found) return { kind: "conflict" };
+  if (found && "match" in found) return { kind: "match", identity: found.match };
+  return { kind: "none" };
+}
+
 // ---------------------------------------------------------------- persistence
+
 
 export type DepositRecord = {
   id: string;
