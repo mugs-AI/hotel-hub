@@ -1,8 +1,9 @@
-// GET  /api/hotel/reservations/:id/deposits — Owner only. Sanitized ledger.
+// GET  /api/hotel/reservations/:id/deposits — Owner + Front Desk. Sanitized ledger.
 // POST /api/hotel/reservations/:id/deposits — Owner only. Creates at most ONE
 //   N3 AR Receive Payment (AROR) per client request id. Feature-gated.
 import { createFileRoute } from "@tanstack/react-router";
-import { requirePermission } from "@/lib/session-context.server";
+import { destroySession, requirePermission } from "@/lib/session-context.server";
+import { logAudit } from "@/lib/audit.server";
 import {
   createDeposit,
   DepositError,
@@ -15,6 +16,16 @@ import {
 
 export function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
+}
+
+/**
+ * Definite N3 401 → destroy the HotelHub session and return the established
+ * sanitized 401. Never surfaces raw N3 data.
+ */
+export async function denyN3Unauthorized(context: string) {
+  await destroySession("n3_401");
+  await logAudit({ eventType: "session.n3_401", detail: { context } });
+  return deny(401, "unauthorized");
 }
 
 /** Reject cross-site writes: this API is only ever called by the app itself. */
@@ -41,11 +52,13 @@ export function statusForDepositError(code: string): number {
       return 404;
     case "reservation_not_eligible":
     case "deposit_not_uncertain":
+    case "deposit_not_recoverable":
     case "reference_conflict":
       return 409;
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
+    case "n3_preflight_unavailable":
       return 502;
     case "invalid_amount":
     case "invalid_client_request_id":
@@ -54,6 +67,7 @@ export function statusForDepositError(code: string): number {
       return 500;
   }
 }
+
 
 export async function handleDepositsList({
   params,
