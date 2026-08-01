@@ -10,7 +10,7 @@ import {
   reconcileDeposit,
   toDepositDTO,
 } from "@/lib/deposits-store.server";
-import { deny, isSameOriginWrite, statusForDepositError } from "./reservations.$id.deposits";
+import { deny, denyN3Unauthorized, isSameOriginWrite, statusForDepositError } from "./reservations.$id.deposits";
 
 export async function handleDepositReconcile({
   request,
