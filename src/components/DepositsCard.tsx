@@ -1,10 +1,14 @@
-// Owner-only reservation deposit panel. Displays the local ledger and, when the
-// server reports the capability, allows posting one N3 AR Receive Payment.
+// Reservation deposit panel.
+// Owner + Front Desk read the ledger; only the Owner may post to N3.
+// The client request id is minted ONCE when the Owner opens the confirmation
+// flow so a safe HTTP retry cannot create a second N3 document.
 import { useState } from "react";
 import {
   depositErrorMessage,
   depositStatusLabel,
+  isRecoverableDeposit,
   useCreateDeposit,
+  useDepositPreview,
   useReconcileDeposit,
   useReservationDeposits,
 } from "@/lib/deposits-client";
@@ -28,22 +32,47 @@ export function DepositsCard({
   const q = useReservationDeposits(reservationId, canView);
   const create = useCreateDeposit(reservationId);
   const reconcile = useReconcileDeposit(reservationId);
+  const preview = useDepositPreview(reservationId);
   const [amount, setAmount] = useState("");
-  const [confirming, setConfirming] = useState(false);
+  // Stable per-confirmation-attempt identity. Minted on "Add deposit",
+  // cleared only on cancel or a completed server result.
+  const [attempt, setAttempt] = useState<{ clientRequestId: string; amount: number } | null>(null);
 
   if (!canView) return null;
   const deposits = q.data?.deposits ?? [];
   const gateOpen = q.data?.capability.canCreate === true;
   const canPost = canCreate && gateOpen && eligible;
 
-  const submit = () => {
+  const openConfirm = () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) return;
+    const rounded = Math.round(value * 100) / 100;
+    setAttempt({ clientRequestId: crypto.randomUUID(), amount: rounded });
+    preview.reset();
+    preview.mutate({ amount: rounded });
+  };
+
+  const cancelConfirm = () => {
+    setAttempt(null);
+    preview.reset();
+    create.reset();
+  };
+
+  const submit = () => {
+    if (!attempt) return;
     create.mutate(
-      { amount: Math.round(value * 100) / 100, clientRequestId: crypto.randomUUID() },
-      { onSuccess: () => { setAmount(""); setConfirming(false); } },
+      { amount: attempt.amount, clientRequestId: attempt.clientRequestId },
+      {
+        onSuccess: () => {
+          setAmount("");
+          setAttempt(null);
+          preview.reset();
+        },
+      },
     );
   };
+
+  const p = preview.data?.preview;
 
   return (
     <section
@@ -74,8 +103,8 @@ export function DepositsCard({
                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                   style={{
                     backgroundColor:
-                      d.status === "posted" ? `${TEAL}22` : d.status === "unknown" ? `${GOLD}22` : `${ERR}1A`,
-                    color: d.status === "posted" ? TEAL : d.status === "unknown" ? GOLD : ERR,
+                      d.status === "posted" ? `${TEAL}22` : d.status === "failed" ? `${ERR}1A` : `${GOLD}22`,
+                    color: d.status === "posted" ? TEAL : d.status === "failed" ? ERR : GOLD,
                   }}
                 >
                   {depositStatusLabel(d.status)}
@@ -99,20 +128,22 @@ export function DepositsCard({
                   <dd className="font-mono break-all">{d.createdByN3UserKey}</dd>
                 </div>
               </dl>
-              {d.status === "unknown" ? (
+              {isRecoverableDeposit(d.status) ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span style={{ color: GOLD }}>
                     HotelHub could not confirm the N3 result. Do not re-post — check N3 first.
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => reconcile.mutate({ depositId: d.id })}
-                    disabled={reconcile.isPending}
-                    className="rounded-md border border-input bg-white px-2 py-1 font-medium"
-                    style={{ color: NAVY }}
-                  >
-                    Check N3 result
-                  </button>
+                  {canCreate ? (
+                    <button
+                      type="button"
+                      onClick={() => reconcile.mutate({ depositId: d.id })}
+                      disabled={reconcile.isPending}
+                      className="rounded-md border border-input bg-white px-2 py-1 font-medium"
+                      style={{ color: NAVY }}
+                    >
+                      Check N3 result
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {d.status === "failed" ? (
@@ -125,7 +156,11 @@ export function DepositsCard({
         </ul>
       )}
 
-      {canCreate ? (
+      {!canCreate ? (
+        <p className="mt-4 border-t pt-4 text-xs text-muted-foreground">
+          Owner approval is required to post a deposit to N3.
+        </p>
+      ) : (
         <div className="mt-4 border-t pt-4">
           {!gateOpen ? (
             <p className="text-xs text-muted-foreground">
@@ -135,7 +170,7 @@ export function DepositsCard({
             <p className="text-xs text-muted-foreground">
               Only confirmed reservations can take a deposit.
             </p>
-          ) : !confirming ? (
+          ) : !attempt ? (
             <div className="flex flex-wrap items-end gap-3">
               <label className="text-xs">
                 <span className="block text-muted-foreground">Deposit amount</span>
@@ -150,7 +185,7 @@ export function DepositsCard({
               <button
                 type="button"
                 disabled={!canPost || !amount.trim()}
-                onClick={() => setConfirming(true)}
+                onClick={openConfirm}
                 className="rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50"
                 style={{ backgroundColor: GOLD, color: NAVY }}
               >
@@ -159,23 +194,49 @@ export function DepositsCard({
             </div>
           ) : (
             <div className="rounded-md border p-3 text-xs" style={{ borderColor: `${GOLD}55` }}>
-              <p style={{ color: NAVY }}>
-                This posts a real AR Receive Payment in N3 for {amount}. It cannot be undone from
-                HotelHub.
+              {preview.isPending ? (
+                <p className="text-muted-foreground">Checking N3 defaults…</p>
+              ) : preview.error ? (
+                <p style={{ color: ERR }}>{depositErrorMessage(preview.error.code)}</p>
+              ) : p ? (
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+                  <div>
+                    <dt className="text-muted-foreground">Booking</dt>
+                    <dd className="font-mono">{p.bookingReference}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Customer</dt>
+                    <dd>{p.customerLabel}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Amount</dt>
+                    <dd className="tabular-nums">
+                      {p.currency} {p.amount.toFixed(2)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Payment account</dt>
+                    <dd>{p.accountLabel ?? "—"}</dd>
+                  </div>
+                </dl>
+              ) : null}
+              <p className="mt-2 font-semibold" style={{ color: NAVY }}>
+                {p?.warning ?? "This creates a real accounting document in N3."} It cannot be undone
+                from HotelHub.
               </p>
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={create.isPending}
-                  className="rounded-md px-3 py-1.5 font-medium text-white"
+                  disabled={create.isPending || preview.isPending || !p}
+                  className="rounded-md px-3 py-1.5 font-medium text-white disabled:opacity-50"
                   style={{ backgroundColor: NAVY }}
                 >
                   {create.isPending ? "Posting…" : "Confirm and post to N3"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setConfirming(false)}
+                  onClick={cancelConfirm}
                   className="rounded-md border border-input bg-white px-3 py-1.5 font-medium"
                   style={{ color: NAVY }}
                 >
@@ -190,7 +251,7 @@ export function DepositsCard({
             </p>
           ) : null}
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
