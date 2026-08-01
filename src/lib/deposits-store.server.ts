@@ -772,9 +772,18 @@ export async function createDeposit(
   return { deposit, reused: false };
 }
 
+/** Statuses a GET-only reconciliation may act on (interrupted or uncertain). */
+export const RECOVERABLE_DEPOSIT_STATUSES = new Set(["submitting", "unknown"]);
+
+export function isRecoverableDepositStatus(s: string): boolean {
+  return RECOVERABLE_DEPOSIT_STATUSES.has(s);
+}
+
 /**
  * Owner-triggered "Check N3 Result". GET-only against N3: it can move an
- * `unknown` row to `posted`, and can never create a document.
+ * interrupted `submitting` row or an `unknown` row to `posted`, and can never
+ * create a document. A no-match outcome resolves to `unknown` — never
+ * `failed`, and never an automatic retry of the write.
  */
 export async function reconcileDeposit(
   input: {
@@ -790,7 +799,9 @@ export async function reconcileDeposit(
   const n3 = deps.n3 ?? n3Receipts;
   const deposit = await getDeposit(input.tenantId, input.reservationId, input.depositId);
   if (!deposit) throw new DepositError("deposit_not_found");
-  if (deposit.status !== "unknown") throw new DepositError("deposit_not_uncertain");
+  if (!isRecoverableDepositStatus(deposit.status)) {
+    throw new DepositError("deposit_not_recoverable");
+  }
 
   const sb = await admin();
   const snap = await sb
@@ -803,7 +814,7 @@ export async function reconcileDeposit(
   if (!customerId) throw new DepositError("walk_in_customer_not_mapped");
 
   const outcome = await n3.listByReference(input.n3Token, deposit.n3ReferenceNo);
-  if (outcome.kind === "response" && outcome.status === 401) {
+  if (outcome.kind === "response" && (outcome.status === 401 || outcome.status === 403)) {
     throw new DepositError("unauthorized");
   }
   const match = matchExistingReceipt(outcome, {
@@ -813,7 +824,25 @@ export async function reconcileDeposit(
     currencyId: null,
   });
   if (!match || "conflict" in match) {
-    // Still uncertain. Never auto-retry the create.
+    // Still uncertain. Never auto-retry the create, never mark failed.
+    if (deposit.status === "submitting") {
+      const stalled = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        last_error_code: "n3_result_uncertain",
+      });
+      await logAudit({
+        tenantId: input.tenantId,
+        n3UserKey: input.actorN3UserKey,
+        eventType: "hotel.deposit.unknown",
+        detail: {
+          depositId: stalled.id,
+          reservationId: input.reservationId,
+          code: "n3_result_uncertain",
+          via: "manual_check",
+        },
+      });
+      return stalled;
+    }
     return deposit;
   }
   const updated = await updateDeposit(input.tenantId, deposit.id, {
@@ -836,6 +865,73 @@ export async function reconcileDeposit(
   });
   return updated;
 }
+
+/**
+ * Owner-triggered, read-only confirmation preview. Uses the same authoritative
+ * server sources as the create path (reservation, tenant walk-in mapping and
+ * `GET /api/ARReceipts/New`) but returns LABELS ONLY — never internal N3 ids,
+ * tokens or raw payloads. It makes no N3 write of any kind.
+ */
+export type DepositPreview = {
+  bookingReference: string;
+  customerLabel: string;
+  amount: number;
+  currency: string;
+  accountLabel: string | null;
+  warning: string;
+};
+
+export const DEPOSIT_CREATE_WARNING = "This creates a real accounting document in N3.";
+
+export async function buildDepositPreview(
+  input: {
+    tenantId: string;
+    n3TenantKey: string;
+    reservationId: string;
+    n3Token: string;
+    amount: number;
+  },
+  deps: DepositDeps = {},
+): Promise<DepositPreview> {
+  const n3 = deps.n3 ?? n3Receipts;
+  const env = deps.env;
+  if (!isDepositWriteEnabled(input.n3TenantKey, env ?? (process.env as any))) {
+    throw new DepositError("deposit_writes_disabled");
+  }
+  const amount = normalizeAmount(input.amount);
+  if (amount === null) throw new DepositError("invalid_amount");
+  if (!isUuidLike(input.reservationId)) throw new DepositError("reservation_not_found");
+
+  const reservation = await loadEligibleReservation(input.tenantId, input.reservationId);
+  const settings = await getOrCreateHotelSettings(input.tenantId);
+  if (!settings.walkInCustomer?.n3Id || !settings.walkInCustomer?.n3Code) {
+    throw new DepositError("walk_in_customer_not_mapped");
+  }
+
+  const outcome = await n3.getNew(input.n3Token);
+  if (outcome.kind === "response" && (outcome.status === 401 || outcome.status === 403)) {
+    throw new DepositError("unauthorized");
+  }
+  const defaults = parseNewReceiptDefaults(outcome);
+  if (!defaults) {
+    throw new DepositError(
+      outcome.kind === "transport_error" ? "n3_defaults_unavailable" : "n3_defaults_invalid",
+    );
+  }
+
+  return {
+    bookingReference: reservation.booking_reference,
+    customerLabel: settings.walkInCustomer.n3Name ?? settings.walkInCustomer.n3Code,
+    amount,
+    currency: settings.currency,
+    accountLabel:
+      defaults.accountCode && defaults.accountName
+        ? `${defaults.accountCode} — ${defaults.accountName}`
+        : (defaults.accountCode ?? defaults.accountName),
+    warning: DEPOSIT_CREATE_WARNING,
+  };
+}
+
 
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
 export function toDepositDTO(d: DepositRecord) {
