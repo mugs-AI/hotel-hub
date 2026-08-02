@@ -272,6 +272,9 @@ export function classifyCreateOutcome(
   }
   const { status, body } = outcome;
   if (status === 401) return { verdict: "unknown", code: "n3_unauthorized" };
+  // 403 is NOT a session-expiry signal. Fail closed as uncertain: the request
+  // may or may not have been applied, but we never destroy the session for it.
+  if (status === 403) return { verdict: "unknown", code: "n3_forbidden" };
   if (status >= 500) return { verdict: "unknown", code: "n3_server_error" };
   if (status === 400 || status === 409 || status === 422) {
     // Definite business/validation rejection: no document was created.
@@ -368,7 +371,9 @@ export function classifyPreflight(
   if (outcome.kind === "transport_error") {
     return { kind: "unavailable", code: `n3_${outcome.reason}` };
   }
-  if (outcome.status === 401 || outcome.status === 403) return { kind: "unauthorized" };
+  if (outcome.status === 401) return { kind: "unauthorized" };
+  // 403 must never be treated as session expiry.
+  if (outcome.status === 403) return { kind: "unavailable", code: "n3_preflight_forbidden" };
   if (outcome.status < 200 || outcome.status >= 300) {
     return { kind: "unavailable", code: "n3_preflight_status" };
   }
@@ -559,6 +564,10 @@ export async function createDeposit(
   const defaultsOutcome = await n3.getNew(input.n3Token);
   if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 401) {
     throw new DepositError("unauthorized");
+  }
+  if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 403) {
+    // Forbidden is not expiry: fail closed without touching the session.
+    throw new DepositError("n3_defaults_unavailable");
   }
   const defaults = parseNewReceiptDefaults(defaultsOutcome);
   if (!defaults) {
@@ -769,6 +778,11 @@ export async function createDeposit(
     eventType: "hotel.deposit.unknown",
     detail: { depositId: deposit.id, reservationId: input.reservationId, code: verdict.code },
   });
+  if (verdict.code === "n3_unauthorized") {
+    // Definite create-time N3 401: the ledger row stays `unknown` (never
+    // blindly retried) and the caller destroys the HotelHub session.
+    throw new DepositError("unauthorized");
+  }
   return { deposit, reused: false };
 }
 
@@ -814,8 +828,12 @@ export async function reconcileDeposit(
   if (!customerId) throw new DepositError("walk_in_customer_not_mapped");
 
   const outcome = await n3.listByReference(input.n3Token, deposit.n3ReferenceNo);
-  if (outcome.kind === "response" && (outcome.status === 401 || outcome.status === 403)) {
+  if (outcome.kind === "response" && outcome.status === 401) {
     throw new DepositError("unauthorized");
+  }
+  if (outcome.kind === "response" && outcome.status === 403) {
+    // Fail closed, keep the session and the ledger row untouched.
+    throw new DepositError("n3_preflight_unavailable");
   }
   const match = matchExistingReceipt(outcome, {
     customerId,
@@ -909,8 +927,11 @@ export async function buildDepositPreview(
   }
 
   const outcome = await n3.getNew(input.n3Token);
-  if (outcome.kind === "response" && (outcome.status === 401 || outcome.status === 403)) {
+  if (outcome.kind === "response" && outcome.status === 401) {
     throw new DepositError("unauthorized");
+  }
+  if (outcome.kind === "response" && outcome.status === 403) {
+    throw new DepositError("n3_defaults_unavailable");
   }
   const defaults = parseNewReceiptDefaults(outcome);
   if (!defaults) {

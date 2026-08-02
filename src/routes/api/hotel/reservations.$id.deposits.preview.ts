@@ -62,6 +62,14 @@ export async function handleDepositPreview({
       err instanceof DepositError && DEPOSIT_ERROR_CODES.has(err.code)
         ? err.code
         : "deposit_read_failed";
+    if (code === "deposit_writes_disabled") {
+      await logAudit({
+        tenantId: ctx.session.tenantId ?? undefined,
+        n3UserKey: ctx.session.n3UserKey ?? undefined,
+        eventType: "hotel.deposit.denied",
+        detail: { reason: "deposit_writes_disabled", reservationId: id, action: "preview" },
+      });
+    }
     if (code === "unauthorized") return denyN3Unauthorized("deposits.preview");
     if (!(err instanceof DepositError)) {
       console.error("[deposits.preview] failed", (err as Error).message?.slice(0, 200));
