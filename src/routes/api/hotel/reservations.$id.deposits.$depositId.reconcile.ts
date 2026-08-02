@@ -22,6 +22,16 @@ export async function handleDepositReconcile({
   if (!isSameOriginWrite(request)) return deny(403, "cross_site_denied");
   const { ctx, decision } = await requirePermission("hotel:deposits:create");
   if (!decision.ok) {
+    await logAudit({
+      tenantId: ctx.session.tenantId ?? undefined,
+      n3UserKey: ctx.session.n3UserKey ?? undefined,
+      eventType: "hotel.deposit.denied",
+      detail: {
+        reason: decision.reason,
+        permission: "hotel:deposits:create",
+        action: "reconcile",
+      },
+    });
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
   const id = params.id ?? "";
