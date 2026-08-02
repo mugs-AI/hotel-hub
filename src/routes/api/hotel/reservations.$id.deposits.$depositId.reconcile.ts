@@ -3,6 +3,7 @@
 // the server-generated reference. It can never create an N3 document.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
+import { logAudit } from "@/lib/audit.server";
 import {
   DepositError,
   DEPOSIT_ERROR_CODES,
