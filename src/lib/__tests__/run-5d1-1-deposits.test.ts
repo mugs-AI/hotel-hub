@@ -382,3 +382,143 @@ describe("5D1.1 confirmation preview", () => {
     expect(serialized).not.toContain("tok");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Run 5D1.1.1 — create-time 401 and the 401 vs 403 distinction.
+// ---------------------------------------------------------------------------
+
+describe("5D1.1.1 create-time N3 401", () => {
+  it("persists the ledger row as unknown, audits it and throws unauthorized", async () => {
+    const id = crypto.randomUUID();
+    const { client, calls } = makeN3({
+      create: { kind: "response", status: 401, body: null },
+    });
+    await expect(createDeposit(baseInput(id), { n3: client, env: ENV })).rejects.toMatchObject({
+      code: "unauthorized",
+    });
+    expect(calls.create).toBe(1);
+    const row = tables.hotel_reservation_deposits[0]!;
+    expect(row.status).toBe("unknown");
+    expect(row.last_error_code).toBe("n3_unauthorized");
+    expect(auditEvents.some((e) => e.eventType === "hotel.deposit.unknown")).toBe(true);
+  });
+
+  it("retrying the same client request id after relaunch makes zero additional creates", async () => {
+    const id = crypto.randomUUID();
+    const first = makeN3({ create: { kind: "response", status: 401, body: null } });
+    await expect(
+      createDeposit(baseInput(id), { n3: first.client, env: ENV }),
+    ).rejects.toBeInstanceOf(DepositError);
+    const second = makeN3();
+    const out = await createDeposit(baseInput(id), { n3: second.client, env: ENV });
+    expect(second.calls.create).toBe(0);
+    expect(out.reused).toBe(true);
+    expect(out.deposit.status).toBe("unknown");
+  });
+
+  it("the unknown row stays available for GET-only reconciliation", async () => {
+    const id = crypto.randomUUID();
+    const first = makeN3({ create: { kind: "response", status: 401, body: null } });
+    await expect(
+      createDeposit(baseInput(id), { n3: first.client, env: ENV }),
+    ).rejects.toBeInstanceOf(DepositError);
+    const row = tables.hotel_reservation_deposits[0]!;
+    expect(isRecoverableDepositStatus(row.status)).toBe(true);
+    const check = makeN3();
+    await reconcileDeposit(
+      {
+        tenantId: TENANT,
+        n3TenantKey: "tenant-key-1",
+        reservationId: RESERVATION_ID,
+        depositId: row.id,
+        actorN3UserKey: "user-1",
+        n3Token: "tok",
+      },
+      { n3: check.client },
+    );
+    expect(check.calls.create).toBe(0);
+  });
+});
+
+describe("5D1.1.1 N3 403 is never session expiry", () => {
+  it("preflight 403 is unavailable, not unauthorized", () => {
+    const v = classifyPreflight({ kind: "response", status: 403, body: null } as any, {
+      customerId: "c",
+      referenceNo: "HH-000000000000000000000000",
+      amount: 1,
+      currencyId: null,
+    });
+    expect(v.kind).toBe("unavailable");
+  });
+
+  it("preflight 403 fails closed with zero create calls and keeps the session", async () => {
+    const { client, calls } = makeN3({
+      listByReference: { kind: "response", status: 403, body: null },
+    });
+    const { deposit } = await createDeposit(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(calls.create).toBe(0);
+    expect(deposit.status).toBe("failed");
+  });
+
+  it("create-time 403 is uncertain but does not throw unauthorized", async () => {
+    const { client } = makeN3({ create: { kind: "response", status: 403, body: null } });
+    const { deposit } = await createDeposit(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(deposit.status).toBe("unknown");
+    expect(deposit.lastErrorCode).toBe("n3_forbidden");
+  });
+
+  it("preview 403 fails closed without unauthorized", async () => {
+    const { client } = makeN3({ getNew: { kind: "response", status: 403, body: null } });
+    await expect(
+      buildDepositPreview(
+        {
+          tenantId: TENANT,
+          n3TenantKey: "tenant-key-1",
+          reservationId: RESERVATION_ID,
+          n3Token: "tok",
+          amount: 100,
+        },
+        { n3: client, env: ENV },
+      ),
+    ).rejects.toMatchObject({ code: "n3_defaults_unavailable" });
+  });
+
+  it("reconciliation 403 fails closed without unauthorized", async () => {
+    tables.hotel_reservation_deposits.push({
+      id: "33333333-3333-4333-8333-333333333333",
+      tenant_id: TENANT,
+      reservation_id: RESERVATION_ID,
+      amount: 100,
+      currency_code: "MYR",
+      status: "unknown",
+      n3_reference_no: "HH-0123456789abcdef01234567",
+      n3_customer_id: "cust-guid-1",
+      created_by_n3_user_key: "user-1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    const { client, calls } = makeN3({
+      listByReference: { kind: "response", status: 403, body: null },
+    });
+    await expect(
+      reconcileDeposit(
+        {
+          tenantId: TENANT,
+          n3TenantKey: "tenant-key-1",
+          reservationId: RESERVATION_ID,
+          depositId: "33333333-3333-4333-8333-333333333333",
+          actorN3UserKey: "user-1",
+          n3Token: "tok",
+        },
+        { n3: client },
+      ),
+    ).rejects.toMatchObject({ code: "n3_preflight_unavailable" });
+    expect(calls.create).toBe(0);
+  });
+});
