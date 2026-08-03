@@ -45,8 +45,18 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:deposits:view": new Set(["owner", "front_desk"]),
   "hotel:deposits:create": new Set(["owner"]),
 
+  // Front-desk reservation operations. Requesting is a front-desk duty;
+  // approving an exception (early check-in, late checkout, room change,
+  // stay extension, rate change) is Owner-only.
+  "hotel:reservations:check_in": new Set(["owner", "front_desk"]),
+  "hotel:reservations:assign_guests": new Set(["owner", "front_desk"]),
+  "hotel:operations:view": new Set(["owner", "front_desk"]),
+  "hotel:operations:request": new Set(["owner", "front_desk"]),
+  "hotel:operations:approve": new Set(["owner"]),
+
   "roles:manage": new Set(["owner"]),
 };
+
 
 export function isHotelRole(v: unknown): v is HotelRole {
   return typeof v === "string" && (HOTEL_ROLES as readonly string[]).includes(v);
