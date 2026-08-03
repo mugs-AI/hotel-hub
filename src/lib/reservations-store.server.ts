@@ -2,6 +2,8 @@
 // Server-only reservations store. All operations run under the service-role
 // client and require an explicit tenantId supplied by the trusted server
 // context (NEVER accepted from the browser).
+import { resolveActorLabels } from "./tenant-store.server";
+
 
 export const BOOKING_SOURCES = [
   "walk_in",
