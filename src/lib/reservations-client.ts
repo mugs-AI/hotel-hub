@@ -147,7 +147,11 @@ export type ReservationDetailDTO = {
   externalBookingReference: string | null;
   createdAt: string;
   updatedAt: string;
-  createdByN3UserKey: string;
+  /** Safe, server-resolved staff label. The raw N3 user key never crosses this boundary. */
+  createdByLabel: string;
+  checkedInAt: string | null;
+  checkedInByLabel: string | null;
+  expectedCheckOutAt: string | null;
   rooms: Array<{
     id: string;
     hotelRoomId: string;
