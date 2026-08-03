@@ -350,6 +350,7 @@ export type Database = {
           id: string
           is_primary: boolean
           reservation_id: string
+          reservation_room_id: string | null
           tenant_id: string
         }
         Insert: {
@@ -358,6 +359,7 @@ export type Database = {
           id?: string
           is_primary?: boolean
           reservation_id: string
+          reservation_room_id?: string | null
           tenant_id: string
         }
         Update: {
@@ -366,9 +368,17 @@ export type Database = {
           id?: string
           is_primary?: boolean
           reservation_id?: string
+          reservation_room_id?: string | null
           tenant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_guests_reservation_room_id_fkey"
+            columns: ["reservation_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hotel_reservation_guests_tenant_guest_fkey"
             columns: ["tenant_id", "guest_id"]
@@ -838,6 +848,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hotelhub_assign_guest_rooms: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_assignments: Json
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_updated: number
+        }[]
+      }
       hotelhub_check_in_reservation: {
         Args: {
           p_actor_n3_user_key: string
