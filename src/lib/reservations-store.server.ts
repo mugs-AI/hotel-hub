@@ -2,6 +2,8 @@
 // Server-only reservations store. All operations run under the service-role
 // client and require an explicit tenantId supplied by the trusted server
 // context (NEVER accepted from the browser).
+import { resolveActorLabels } from "./tenant-store.server";
+
 
 export const BOOKING_SOURCES = [
   "walk_in",
@@ -440,7 +442,17 @@ export type ReservationDetail = {
   externalBookingReference: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Raw N3 user key. Server-internal — routes must NOT forward this to the
+   * browser; use `createdByLabel` instead.
+   */
   createdByN3UserKey: string;
+  /** Safe, human-readable creator label resolved from the staff directory. */
+  createdByLabel: string;
+  checkedInAt: string | null;
+  checkedInByLabel: string | null;
+  expectedCheckOutAt: string | null;
+
   rooms: Array<{
     id: string;
     hotelRoomId: string;
@@ -487,8 +499,9 @@ export async function getReservationById(
   const head = await sb
     .from("hotel_reservations")
     .select(
-      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, updated_at, created_by_n3_user_key",
+      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, updated_at, created_by_n3_user_key, checked_in_at, checked_in_by_n3_user_key, expected_check_out_at",
     )
+
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
@@ -515,6 +528,10 @@ export async function getReservationById(
     throw new ReservationReadError(`reservation guests failed: ${guests.error.message}`);
   const roomRows = (rooms.data ?? []) as any[];
   const guestRows = (guests.data ?? []) as any[];
+  const actorLabels = await resolveActorLabels(tenantId, [
+    r.created_by_n3_user_key,
+    r.checked_in_by_n3_user_key,
+  ]);
   return {
     id: r.id,
     bookingReference: r.booking_reference,
@@ -528,6 +545,13 @@ export async function getReservationById(
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     createdByN3UserKey: r.created_by_n3_user_key,
+    createdByLabel: actorLabels.get(r.created_by_n3_user_key) ?? "Unknown staff",
+    checkedInAt: r.checked_in_at ?? null,
+    checkedInByLabel: r.checked_in_by_n3_user_key
+      ? (actorLabels.get(r.checked_in_by_n3_user_key) ?? "Unknown staff")
+      : null,
+    expectedCheckOutAt: r.expected_check_out_at ?? null,
+
     rooms: roomRows.map((row) => {
       const nested = Array.isArray(row.hotel_rooms) ? row.hotel_rooms[0] : row.hotel_rooms;
       return {

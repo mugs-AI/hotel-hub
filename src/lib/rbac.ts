@@ -17,7 +17,13 @@ export type Permission =
   | "hotel:reservations:create" // create new reservations
   | "hotel:deposits:view" // read the reservation deposit ledger
   | "hotel:deposits:create" // post a reservation deposit to N3 (AR Receive Payment)
+  | "hotel:reservations:check_in" // perform a standard check-in
+  | "hotel:reservations:assign_guests" // assign guests to rooms within a reservation
+  | "hotel:operations:view" // read the operation request ledger + timeline
+  | "hotel:operations:request" // raise an operation request needing approval
+  | "hotel:operations:approve" // approve / reject an operation request
   | "roles:manage"; // assign / revoke HotelHub roles
+
 
 // Deny-by-default: only listed roles receive the permission.
 const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
@@ -39,8 +45,18 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:deposits:view": new Set(["owner", "front_desk"]),
   "hotel:deposits:create": new Set(["owner"]),
 
+  // Front-desk reservation operations. Requesting is a front-desk duty;
+  // approving an exception (early check-in, late checkout, room change,
+  // stay extension, rate change) is Owner-only.
+  "hotel:reservations:check_in": new Set(["owner", "front_desk"]),
+  "hotel:reservations:assign_guests": new Set(["owner", "front_desk"]),
+  "hotel:operations:view": new Set(["owner", "front_desk"]),
+  "hotel:operations:request": new Set(["owner", "front_desk"]),
+  "hotel:operations:approve": new Set(["owner"]),
+
   "roles:manage": new Set(["owner"]),
 };
+
 
 export function isHotelRole(v: unknown): v is HotelRole {
   return typeof v === "string" && (HOTEL_ROLES as readonly string[]).includes(v);

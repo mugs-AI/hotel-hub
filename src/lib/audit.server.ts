@@ -31,7 +31,18 @@ export type AuditEventType =
   | "hotel.deposit.failed"
   | "hotel.deposit.unknown"
   | "hotel.deposit.reconciled"
-  | "hotel.deposit.denied";
+  | "hotel.deposit.denied"
+  | "hotel.reservation.check_in"
+  | "hotel.reservation.check_in_failed"
+  | "hotel.reservation.guests_assigned"
+  | "hotel.reservation.guests_assign_failed"
+  | "hotel.reservation.operation_requested"
+  | "hotel.reservation.operation_request_failed"
+  | "hotel.reservation.operation_applied"
+  | "hotel.reservation.operation_rejected"
+  | "hotel.reservation.operation_decision_failed"
+  | "hotel.reservation.operation_denied";
+
 
 
 const SENSITIVE_KEYS = new Set([

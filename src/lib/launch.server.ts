@@ -12,7 +12,7 @@ import { getHotelSession } from "./session.server";
 import { callN3Path } from "./n3-gateway.server";
 import { normalizeBasicInfo } from "./n3-basicinfo";
 import { decodeJwtClaims } from "./jwt-claims.server";
-import { upsertTenant } from "./tenant-store.server";
+import { upsertTenant, upsertUserDirectory } from "./tenant-store.server";
 import { logAudit } from "./audit.server";
 
 export type LaunchSource = "path_a" | "root" | "path_b_dev";
@@ -132,6 +132,16 @@ export async function performN3Launch(
       tenantCode: info.tenantCode,
       companyName: info.companyName,
     });
+
+    // Keep a tenant-scoped, human-readable label for this staff member so
+    // the UI never has to render the raw N3 user key.
+    await upsertUserDirectory({
+      tenantId: tenant.id,
+      n3UserKey,
+      displayName: info.userName ?? null,
+      email: info.userEmail ?? null,
+    });
+
 
     const session = await getHotelSession();
     await session.update({

@@ -61,7 +61,12 @@ export async function handleReservationDetail({
   try {
     const res = await getReservationById(ctx.session.tenantId!, id);
     if (!res) return deny(404, "not_found");
-    return Response.json({ reservation: res }, { headers: { "cache-control": "no-store" } });
+    // Never expose the raw N3 user key to the browser — `createdByLabel`
+    // carries the safe, directory-resolved display name instead.
+    const { createdByN3UserKey: _omit, ...safe } = res;
+    void _omit;
+    return Response.json({ reservation: safe }, { headers: { "cache-control": "no-store" } });
+
   } catch (err) {
     console.error("[reservation.detail] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "reservation_detail_failed");

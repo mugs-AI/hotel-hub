@@ -260,7 +260,7 @@ function Detail({
             ) : null}
           </div>
         </div>
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 text-xs sm:grid-cols-[max-content_1fr]">
+        <dl className="mt-4 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-xs lg:grid-cols-[max-content_1fr_max-content_1fr]">
           <dt className="text-muted-foreground">Source</dt>
           <dd>{tenantSourceLabel(sources, data.bookingSource)}</dd>
           <dt className="text-muted-foreground">External reference</dt>
@@ -274,7 +274,13 @@ function Detail({
           <dt className="text-muted-foreground">Last updated</dt>
           <dd>{formatCreatedAt(data.updatedAt)}</dd>
           <dt className="text-muted-foreground">Created by</dt>
-          <dd className="font-mono break-all">{data.createdByN3UserKey}</dd>
+          <dd>{data.createdByLabel}</dd>
+          <dt className="text-muted-foreground">Checked in</dt>
+          <dd>
+            {data.checkedInAt
+              ? `${formatCreatedAt(data.checkedInAt)}${data.checkedInByLabel ? ` · ${data.checkedInByLabel}` : ""}`
+              : "—"}
+          </dd>
           <dt className="text-muted-foreground">Notes</dt>
           <dd>{data.notes || "—"}</dd>
         </dl>
