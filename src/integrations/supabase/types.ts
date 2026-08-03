@@ -292,6 +292,57 @@ export type Database = {
           },
         ]
       }
+      hotel_reservation_events: {
+        Row: {
+          actor_n3_user_key: string | null
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          reservation_id: string
+          summary: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_n3_user_key?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          reservation_id: string
+          summary: string
+          tenant_id: string
+        }
+        Update: {
+          actor_n3_user_key?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          reservation_id?: string
+          summary?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_events_tenant_reservation_fkey"
+            columns: ["reservation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "tenant_id"]
+          },
+        ]
+      }
       hotel_reservation_guests: {
         Row: {
           created_at: string
@@ -338,6 +389,78 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "hotel_reservations"
             referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      hotel_reservation_operation_requests: {
+        Row: {
+          applied_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          decision_idempotency_key: string | null
+          decision_note: string | null
+          id: string
+          idempotency_key: string
+          operation_type: string
+          payload: Json
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          applied_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by_n3_user_key?: string | null
+          decision_idempotency_key?: string | null
+          decision_note?: string | null
+          id?: string
+          idempotency_key: string
+          operation_type: string
+          payload?: Json
+          requested_at?: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          applied_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by_n3_user_key?: string | null
+          decision_idempotency_key?: string | null
+          decision_note?: string | null
+          id?: string
+          idempotency_key?: string
+          operation_type?: string
+          payload?: Json
+          requested_at?: string
+          requested_by_n3_user_key?: string
+          reservation_id?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_operation_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_operation_requests_tenant_reservation_fkey"
+            columns: ["reservation_id", "tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id", "tenant_id"]
           },
         ]
       }
@@ -425,13 +548,17 @@ export type Database = {
           arrival_date: string
           booking_reference: string
           booking_source: string
+          checked_in_at: string | null
+          checked_in_by_n3_user_key: string | null
           created_at: string
           created_by_n3_user_key: string
           currency: string
           departure_date: string
+          expected_check_out_at: string | null
           external_booking_reference: string | null
           id: string
           notes: string | null
+          operational_note: string | null
           status: string
           tenant_id: string
           updated_at: string
@@ -440,13 +567,17 @@ export type Database = {
           arrival_date: string
           booking_reference: string
           booking_source: string
+          checked_in_at?: string | null
+          checked_in_by_n3_user_key?: string | null
           created_at?: string
           created_by_n3_user_key: string
           currency: string
           departure_date: string
+          expected_check_out_at?: string | null
           external_booking_reference?: string | null
           id?: string
           notes?: string | null
+          operational_note?: string | null
           status?: string
           tenant_id: string
           updated_at?: string
@@ -455,13 +586,17 @@ export type Database = {
           arrival_date?: string
           booking_reference?: string
           booking_source?: string
+          checked_in_at?: string | null
+          checked_in_by_n3_user_key?: string | null
           created_at?: string
           created_by_n3_user_key?: string
           currency?: string
           departure_date?: string
+          expected_check_out_at?: string | null
           external_booking_reference?: string | null
           id?: string
           notes?: string | null
+          operational_note?: string | null
           status?: string
           tenant_id?: string
           updated_at?: string
@@ -622,6 +757,44 @@ export type Database = {
         }
         Relationships: []
       }
+      hotel_user_directory: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+          n3_user_key: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          n3_user_key: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          n3_user_key?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_user_directory_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_user_roles: {
         Row: {
           created_at: string
@@ -665,6 +838,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hotelhub_check_in_reservation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_allow_early?: boolean
+          p_expected_updated_at: string
+          p_operation_request_id?: string
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_checked_in_at: string
+          out_status: string
+          out_updated_at: string
+        }[]
+      }
       hotelhub_create_reservation: {
         Args: {
           p_arrival_date: string
@@ -683,6 +871,21 @@ export type Database = {
           out_status: string
         }[]
       }
+      hotelhub_decide_operation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_decision: string
+          p_idempotency_key: string
+          p_note: string
+          p_request_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_request_id: string
+          out_state: string
+        }[]
+      }
+      hotelhub_property_now: { Args: { p_tenant_id: string }; Returns: string }
       hotelhub_provision_owner: {
         Args: { p_n3_tenant_key: string; p_n3_user_key: string }
         Returns: {
@@ -690,6 +893,20 @@ export type Database = {
           out_n3_user_key: string
           out_role: Database["public"]["Enums"]["hotel_role"]
           out_tenant_id: string
+        }[]
+      }
+      hotelhub_request_operation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_idempotency_key: string
+          p_operation_type: string
+          p_payload: Json
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_request_id: string
+          out_state: string
         }[]
       }
       hotelhub_update_reservation: {
