@@ -497,8 +497,9 @@ export async function getReservationById(
   const head = await sb
     .from("hotel_reservations")
     .select(
-      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, updated_at, created_by_n3_user_key",
+      "id, booking_reference, booking_source, status, arrival_date, departure_date, currency, notes, external_booking_reference, created_at, updated_at, created_by_n3_user_key, checked_in_at, checked_in_by_n3_user_key, expected_check_out_at",
     )
+
     .eq("tenant_id", tenantId)
     .eq("id", id)
     .maybeSingle();
