@@ -133,6 +133,16 @@ export async function performN3Launch(
       companyName: info.companyName,
     });
 
+    // Keep a tenant-scoped, human-readable label for this staff member so
+    // the UI never has to render the raw N3 user key.
+    await upsertUserDirectory({
+      tenantId: tenant.id,
+      n3UserKey,
+      displayName: info.userName ?? null,
+      email: info.userEmail ?? null,
+    });
+
+
     const session = await getHotelSession();
     await session.update({
       n3Token: token,
