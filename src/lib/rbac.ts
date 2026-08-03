@@ -17,7 +17,13 @@ export type Permission =
   | "hotel:reservations:create" // create new reservations
   | "hotel:deposits:view" // read the reservation deposit ledger
   | "hotel:deposits:create" // post a reservation deposit to N3 (AR Receive Payment)
+  | "hotel:reservations:check_in" // perform a standard check-in
+  | "hotel:reservations:assign_guests" // assign guests to rooms within a reservation
+  | "hotel:operations:view" // read the operation request ledger + timeline
+  | "hotel:operations:request" // raise an operation request needing approval
+  | "hotel:operations:approve" // approve / reject an operation request
   | "roles:manage"; // assign / revoke HotelHub roles
+
 
 // Deny-by-default: only listed roles receive the permission.
 const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
