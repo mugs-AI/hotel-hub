@@ -526,6 +526,10 @@ export async function getReservationById(
     throw new ReservationReadError(`reservation guests failed: ${guests.error.message}`);
   const roomRows = (rooms.data ?? []) as any[];
   const guestRows = (guests.data ?? []) as any[];
+  const actorLabels = await resolveActorLabels(tenantId, [
+    r.created_by_n3_user_key,
+    r.checked_in_by_n3_user_key,
+  ]);
   return {
     id: r.id,
     bookingReference: r.booking_reference,
@@ -539,6 +543,13 @@ export async function getReservationById(
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     createdByN3UserKey: r.created_by_n3_user_key,
+    createdByLabel: actorLabels.get(r.created_by_n3_user_key) ?? "Unknown staff",
+    checkedInAt: r.checked_in_at ?? null,
+    checkedInByLabel: r.checked_in_by_n3_user_key
+      ? (actorLabels.get(r.checked_in_by_n3_user_key) ?? "Unknown staff")
+      : null,
+    expectedCheckOutAt: r.expected_check_out_at ?? null,
+
     rooms: roomRows.map((row) => {
       const nested = Array.isArray(row.hotel_rooms) ? row.hotel_rooms[0] : row.hotel_rooms;
       return {
