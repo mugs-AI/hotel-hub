@@ -12,7 +12,7 @@ import { getHotelSession } from "./session.server";
 import { callN3Path } from "./n3-gateway.server";
 import { normalizeBasicInfo } from "./n3-basicinfo";
 import { decodeJwtClaims } from "./jwt-claims.server";
-import { upsertTenant } from "./tenant-store.server";
+import { upsertTenant, upsertUserDirectory } from "./tenant-store.server";
 import { logAudit } from "./audit.server";
 
 export type LaunchSource = "path_a" | "root" | "path_b_dev";
