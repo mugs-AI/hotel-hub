@@ -440,7 +440,17 @@ export type ReservationDetail = {
   externalBookingReference: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Raw N3 user key. Server-internal — routes must NOT forward this to the
+   * browser; use `createdByLabel` instead.
+   */
   createdByN3UserKey: string;
+  /** Safe, human-readable creator label resolved from the staff directory. */
+  createdByLabel: string;
+  checkedInAt: string | null;
+  checkedInByLabel: string | null;
+  expectedCheckOutAt: string | null;
+
   rooms: Array<{
     id: string;
     hotelRoomId: string;
