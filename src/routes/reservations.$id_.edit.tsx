@@ -54,7 +54,7 @@ function EditPage() {
   const session = useSessionMe();
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
-  const canEdit = hasPermission(role, "hotel:reservations:create");
+  const canEdit = hasPermission(role, "hotel:reservations:edit");
   const query = useReservationDetail(id);
 
   return (

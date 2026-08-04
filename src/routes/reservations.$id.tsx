@@ -63,7 +63,7 @@ function ReservationDetailPage() {
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
-  const canEdit = hasPermission(role, "hotel:reservations:create");
+  const canEdit = hasPermission(role, "hotel:reservations:edit");
   const canCreate = hasPermission(role, "hotel:reservations:create");
   const isAuthed = data?.authenticated === true;
   const query = useReservationDetail(id);
