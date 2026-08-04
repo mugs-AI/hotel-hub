@@ -72,7 +72,7 @@ export function ReservationActionsCard({
     if (!flow) return;
     const payload: Record<string, unknown> =
       type === "late_checkout"
-        ? { expectedCheckOutAt: detail, reason: reason || undefined }
+        ? { expectedCheckOutAt: detail ? `${detail}:00+08:00` : "", reason: reason || undefined }
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
           : { reason: reason || undefined };
@@ -183,7 +183,7 @@ export function ReservationActionsCard({
                       <input
                         type="datetime-local"
                         value={detail}
-                        onChange={(e) => setDetail(`${e.target.value}:00+08:00`.replace(/:00:00/, ":00"))}
+                        onChange={(e) => setDetail(e.target.value)}
                         className="mt-1 w-full rounded-md border border-input px-2 py-1"
                       />
                     </label>
