@@ -80,7 +80,7 @@ export async function handleReservationPatch({
   request: Request;
   params: { id?: string };
 }): Promise<Response> {
-  const { ctx, decision } = await requirePermission("hotel:reservations:create");
+  const { ctx, decision } = await requirePermission("hotel:reservations:edit");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
@@ -194,8 +194,8 @@ export async function handleReservationPatch({
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
-      eventType: "hotel.reservation.create_failed",
-      detail: { operation: "update", reservationId: id, code },
+      eventType: "hotel.reservation.update_failed",
+      detail: { reservationId: id, code },
     });
     const status =
       code === "stale_reservation"
