@@ -87,19 +87,15 @@ export async function upsertUserDirectory(input: {
 }
 
 /**
- * Derive a short, non-identifying fallback label for a staff member we have
- * never seen launch the app (e.g. a reservation created before the directory
- * existed). NEVER returns the raw key.
+ * Run 5D2.1: there is deliberately NO derived fallback label. A label built
+ * from key characters (e.g. `Staff 9BEB`) is a partial UUID disclosure, so an
+ * unresolved actor is represented by the ABSENCE of a map entry and rendered
+ * as "System" or omitted by the caller.
  */
-export function fallbackActorLabel(n3UserKey: string | null | undefined): string {
-  const k = (n3UserKey ?? "").trim();
-  if (!k) return "Unknown staff";
-  return `Staff ${k.slice(0, 4).toUpperCase()}`;
-}
 
 /**
  * Resolve display labels for a set of N3 user keys within one tenant.
- * Always returns a safe label — the raw key is never part of the output.
+ * Only real directory names/emails are returned; the raw key never is.
  */
 export async function resolveActorLabels(
   tenantId: string,
@@ -107,8 +103,8 @@ export async function resolveActorLabels(
 ): Promise<Map<string, string>> {
   const unique = Array.from(new Set(keys.filter((k): k is string => Boolean(k && k.trim()))));
   const out = new Map<string, string>();
-  for (const k of unique) out.set(k, fallbackActorLabel(k));
   if (unique.length === 0) return out;
+
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
