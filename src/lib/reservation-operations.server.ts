@@ -295,7 +295,7 @@ export async function listReservationTimeline(
     id: r.id,
     eventType: r.event_type,
     summary: r.summary,
-    actorLabel: r.actor_n3_user_key ? (labels.get(r.actor_n3_user_key) ?? "Unknown staff") : null,
+    actorLabel: r.actor_n3_user_key ? (labels.get(r.actor_n3_user_key) ?? null) : null,
     occurredAt: r.occurred_at,
   }));
 }
