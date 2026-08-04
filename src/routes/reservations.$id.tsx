@@ -274,16 +274,19 @@ function Detail({
           <dt className="text-muted-foreground">Last updated</dt>
           <dd>{formatCreatedAt(data.updatedAt)}</dd>
           <dt className="text-muted-foreground">Created by</dt>
-          <dd>{data.createdByLabel}</dd>
+          <dd>{data.createdByLabel ?? "System"}</dd>
           <dt className="text-muted-foreground">Checked in</dt>
           <dd>
             {data.checkedInAt
               ? `${formatCreatedAt(data.checkedInAt)}${data.checkedInByLabel ? ` · ${data.checkedInByLabel}` : ""}`
               : "—"}
           </dd>
-          <dt className="text-muted-foreground">Notes</dt>
-          <dd>{data.notes || "—"}</dd>
         </dl>
+        <div className="mt-4 border-t border-border/60 pt-3 text-xs">
+          <p className="text-muted-foreground">Notes</p>
+          <p className="mt-1 whitespace-pre-wrap">{data.notes || "—"}</p>
+        </div>
+
       </section>
 
       <section
