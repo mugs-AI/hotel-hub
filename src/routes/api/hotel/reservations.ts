@@ -158,7 +158,15 @@ export async function handleListReservations({ request }: { request: Request }):
       limit: pag.limit,
       offset: pag.offset,
     });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+    // Run 5D2.1 privacy: never forward the raw N3 actor key to the browser.
+    const items = result.items.map(({ createdByN3UserKey: _omit, ...rest }) => {
+      void _omit;
+      return rest;
+    });
+    return Response.json(
+      { items, total: result.total },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (err) {
     console.error("[reservations.list] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "reservations_list_failed");
