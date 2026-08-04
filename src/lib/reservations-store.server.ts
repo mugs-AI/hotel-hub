@@ -549,11 +549,12 @@ export async function getReservationById(
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     createdByN3UserKey: r.created_by_n3_user_key,
-    createdByLabel: actorLabels.get(r.created_by_n3_user_key) ?? "Unknown staff",
+    createdByLabel: actorLabels.get(r.created_by_n3_user_key) ?? null,
     checkedInAt: r.checked_in_at ?? null,
     checkedInByLabel: r.checked_in_by_n3_user_key
-      ? (actorLabels.get(r.checked_in_by_n3_user_key) ?? "Unknown staff")
+      ? (actorLabels.get(r.checked_in_by_n3_user_key) ?? null)
       : null,
+
     expectedCheckOutAt: r.expected_check_out_at ?? null,
 
     rooms: roomRows.map((row) => {
