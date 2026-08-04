@@ -447,8 +447,12 @@ export type ReservationDetail = {
    * browser; use `createdByLabel` instead.
    */
   createdByN3UserKey: string;
-  /** Safe, human-readable creator label resolved from the staff directory. */
-  createdByLabel: string;
+  /**
+   * Safe creator label resolved from the tenant staff directory, or `null`
+   * when no real name/email exists. Never a raw or derived key.
+   */
+  createdByLabel: string | null;
+
   checkedInAt: string | null;
   checkedInByLabel: string | null;
   expectedCheckOutAt: string | null;
