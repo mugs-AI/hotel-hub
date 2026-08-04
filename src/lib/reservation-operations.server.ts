@@ -180,7 +180,7 @@ export type OperationRequestDTO = {
   state: OperationState;
   /** Sanitised, display-safe summary of the requested change. */
   summary: string;
-  requestedByLabel: string;
+  requestedByLabel: string | null;
   requestedAt: string;
   decidedByLabel: string | null;
   decidedAt: string | null;
@@ -262,10 +262,10 @@ export async function listOperationRequests(
     operationType: r.operation_type,
     state: r.state,
     summary: summarizeOperation(r.operation_type, r.payload ?? {}),
-    requestedByLabel: labels.get(r.requested_by_n3_user_key) ?? "Unknown staff",
+    requestedByLabel: labels.get(r.requested_by_n3_user_key) ?? null,
     requestedAt: r.requested_at,
     decidedByLabel: r.decided_by_n3_user_key
-      ? (labels.get(r.decided_by_n3_user_key) ?? "Unknown staff")
+      ? (labels.get(r.decided_by_n3_user_key) ?? null)
       : null,
     decidedAt: r.decided_at,
     decisionNote: r.decision_note ?? null,
