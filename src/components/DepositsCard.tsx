@@ -90,7 +90,15 @@ export function DepositsCard({
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
       ) : deposits.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">No deposits recorded.</p>
+        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+          <p>No HotelHub-linked deposits are recorded for this reservation.</p>
+          {!gateOpen ? (
+            <p>Deposit posting is currently disabled for this property.</p>
+          ) : null}
+          <p className="text-xs">
+            A Receive Payment created directly in N3 is not linked here automatically.
+          </p>
+        </div>
       ) : (
         <ul className="mt-3 space-y-2">
           {deposits.map((d) => (
@@ -125,7 +133,7 @@ export function DepositsCard({
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Recorded by</dt>
-                  <dd className="font-mono break-all">{d.createdByN3UserKey}</dd>
+                  <dd>{d.createdByLabel ?? "System"}</dd>
                 </div>
               </dl>
               {isRecoverableDeposit(d.status) ? (

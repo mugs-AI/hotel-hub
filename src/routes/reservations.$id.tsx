@@ -15,6 +15,11 @@ import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
+import {
+  PendingApprovalsCard,
+  ReservationActionsCard,
+  ReservationTimelineCard,
+} from "@/components/ReservationOperations";
 import { ArrowLeft, CalendarDays, ListOrdered, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
 
 const NAVY = "#102A43";
@@ -63,7 +68,7 @@ function ReservationDetailPage() {
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
   const canView = hasPermission(role, "hotel:reservations:view");
-  const canEdit = hasPermission(role, "hotel:reservations:create");
+  const canEdit = hasPermission(role, "hotel:reservations:edit");
   const canCreate = hasPermission(role, "hotel:reservations:create");
   const isAuthed = data?.authenticated === true;
   const query = useReservationDetail(id);
@@ -274,16 +279,19 @@ function Detail({
           <dt className="text-muted-foreground">Last updated</dt>
           <dd>{formatCreatedAt(data.updatedAt)}</dd>
           <dt className="text-muted-foreground">Created by</dt>
-          <dd>{data.createdByLabel}</dd>
+          <dd>{data.createdByLabel ?? "System"}</dd>
           <dt className="text-muted-foreground">Checked in</dt>
           <dd>
             {data.checkedInAt
               ? `${formatCreatedAt(data.checkedInAt)}${data.checkedInByLabel ? ` · ${data.checkedInByLabel}` : ""}`
               : "—"}
           </dd>
-          <dt className="text-muted-foreground">Notes</dt>
-          <dd>{data.notes || "—"}</dd>
         </dl>
+        <div className="mt-4 border-t border-border/60 pt-3 text-xs">
+          <p className="text-muted-foreground">Notes</p>
+          <p className="mt-1 whitespace-pre-wrap">{data.notes || "—"}</p>
+        </div>
+
       </section>
 
       <section
@@ -355,6 +363,26 @@ function Detail({
         canView={canViewDeposits}
         canCreate={canCreateDeposits}
         eligible={data.status === "confirmed"}
+      />
+
+      <ReservationActionsCard
+        reservationId={data.id}
+        updatedAt={data.updatedAt}
+        status={data.status}
+        checkedInAt={data.checkedInAt ?? null}
+        canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
+        canRequest={hasPermission(role, "hotel:operations:request")}
+      />
+
+      <PendingApprovalsCard
+        reservationId={data.id}
+        canView={hasPermission(role, "hotel:operations:view")}
+        canApprove={hasPermission(role, "hotel:operations:approve")}
+      />
+
+      <ReservationTimelineCard
+        reservationId={data.id}
+        canView={hasPermission(role, "hotel:operations:view")}
       />
 
       <section

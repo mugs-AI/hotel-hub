@@ -47,8 +47,10 @@ export async function handleDepositReconcile({
       actorN3UserKey: ctx.session.n3UserKey,
       n3Token: ctx.session.n3Token,
     });
+    const { resolveActorLabels } = await import("@/lib/tenant-store.server");
+    const labels = await resolveActorLabels(ctx.session.tenantId!, [deposit.createdByN3UserKey]);
     return Response.json(
-      { deposit: toDepositDTO(deposit) },
+      { deposit: toDepositDTO(deposit, labels) },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (err) {

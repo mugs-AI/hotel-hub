@@ -91,7 +91,6 @@ export type ReservationListItem = {
   roomCount: number;
   guestCount: number;
   createdAt: string;
-  createdByN3UserKey: string;
 };
 export type ReservationListResponse = { items: ReservationListItem[]; total: number };
 
@@ -147,8 +146,8 @@ export type ReservationDetailDTO = {
   externalBookingReference: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Safe, server-resolved staff label. The raw N3 user key never crosses this boundary. */
-  createdByLabel: string;
+  /** Safe, server-resolved staff label, or null when unresolved. */
+  createdByLabel: string | null;
   checkedInAt: string | null;
   checkedInByLabel: string | null;
   expectedCheckOutAt: string | null;

@@ -955,7 +955,7 @@ export async function buildDepositPreview(
 
 
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
-export function toDepositDTO(d: DepositRecord) {
+export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, string>) {
   return {
     id: d.id,
     status: d.status,
@@ -969,7 +969,8 @@ export function toDepositDTO(d: DepositRecord) {
         ? `${d.n3AccountCode} — ${d.n3AccountName}`
         : (d.n3AccountCode ?? d.n3AccountName),
     description: d.description,
-    createdByN3UserKey: d.createdByN3UserKey,
+    // Run 5D2.1 privacy: the raw N3 user key is NEVER a display value.
+    createdByLabel: labels?.get(d.createdByN3UserKey) ?? null,
     createdAt: d.createdAt,
     errorCode: d.lastErrorCode,
   };

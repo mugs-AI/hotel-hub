@@ -15,6 +15,7 @@ export type Permission =
   | "hotel:rooms:view" // read the rooms & rates table (with base_rate values)
   | "hotel:reservations:view" // read reservation list / detail / availability
   | "hotel:reservations:create" // create new reservations
+  | "hotel:reservations:edit" // edit an existing, still-editable reservation
   | "hotel:deposits:view" // read the reservation deposit ledger
   | "hotel:deposits:create" // post a reservation deposit to N3 (AR Receive Payment)
   | "hotel:reservations:check_in" // perform a standard check-in
@@ -40,6 +41,9 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:rooms:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:view": new Set(["owner", "front_desk"]),
   "hotel:reservations:create": new Set(["owner", "front_desk"]),
+  // Editing is a distinct duty from creating: stage + guest policy are
+  // enforced separately on the server.
+  "hotel:reservations:edit": new Set(["owner", "front_desk"]),
   // Front desk may READ the deposit ledger (operational awareness) but must
   // never post an AR Receive Payment: financial writes to N3 are Owner-only.
   "hotel:deposits:view": new Set(["owner", "front_desk"]),
