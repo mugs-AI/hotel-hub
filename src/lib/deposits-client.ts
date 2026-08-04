@@ -14,7 +14,8 @@ export type DepositDTO = {
   customerLabel: string | null;
   accountLabel: string | null;
   description: string | null;
-  createdByN3UserKey: string;
+  /** Safe staff label, or null when no real directory name/email exists. */
+  createdByLabel: string | null;
   createdAt: string;
   errorCode: string | null;
 };

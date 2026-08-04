@@ -82,9 +82,14 @@ export async function handleDepositsList({
   if (!isUuidLike(id)) return deny(400, "invalid_id");
   try {
     const rowsList = await listDeposits(ctx.session.tenantId!, id);
+    const { resolveActorLabels } = await import("@/lib/tenant-store.server");
+    const labels = await resolveActorLabels(
+      ctx.session.tenantId!,
+      rowsList.map((d) => d.createdByN3UserKey),
+    );
     return Response.json(
       {
-        deposits: rowsList.map(toDepositDTO),
+        deposits: rowsList.map((d) => toDepositDTO(d, labels)),
         capability: { canCreate: isDepositWriteEnabled(ctx.session.n3TenantKey) },
       },
       { headers: { "cache-control": "no-store" } },
@@ -152,7 +157,7 @@ export async function handleDepositCreate({
       clientRequestId: String(body.clientRequestId ?? ""),
     });
     return Response.json(
-      { deposit: toDepositDTO(deposit) },
+      { deposit: toDepositDTO(deposit, await depositActorLabels(ctx.session.tenantId!, deposit)) },
       { status: 200, headers: { "cache-control": "no-store" } },
     );
   } catch (err) {
@@ -172,3 +177,9 @@ export async function handleDepositCreate({
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits")({
   server: { handlers: { GET: handleDepositsList, POST: handleDepositCreate } },
 });
+
+/** Resolve the single safe actor label for one deposit row. */
+async function depositActorLabels(tenantId: string, deposit: { createdByN3UserKey: string }) {
+  const { resolveActorLabels } = await import("@/lib/tenant-store.server");
+  return resolveActorLabels(tenantId, [deposit.createdByN3UserKey]);
+}
