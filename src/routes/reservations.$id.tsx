@@ -15,6 +15,11 @@ import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
+import {
+  PendingApprovalsCard,
+  ReservationActionsCard,
+  ReservationTimelineCard,
+} from "@/components/ReservationOperations";
 import { ArrowLeft, CalendarDays, ListOrdered, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
 
 const NAVY = "#102A43";
@@ -358,6 +363,26 @@ function Detail({
         canView={canViewDeposits}
         canCreate={canCreateDeposits}
         eligible={data.status === "confirmed"}
+      />
+
+      <ReservationActionsCard
+        reservationId={data.id}
+        updatedAt={data.updatedAt}
+        status={data.status}
+        checkedInAt={data.checkedInAt ?? null}
+        canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
+        canRequest={hasPermission(role, "hotel:operations:request")}
+      />
+
+      <PendingApprovalsCard
+        reservationId={data.id}
+        canView={hasPermission(role, "hotel:operations:view")}
+        canApprove={hasPermission(role, "hotel:operations:approve")}
+      />
+
+      <ReservationTimelineCard
+        reservationId={data.id}
+        canView={hasPermission(role, "hotel:operations:view")}
       />
 
       <section
