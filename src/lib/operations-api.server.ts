@@ -87,6 +87,8 @@ export function statusForOperationError(code: string): number {
     case "invalid_json":
     case "invalid_body":
     case "unknown_field":
+    case "late_checkout_out_of_range":
+    case "late_checkout_not_later":
     case "operation_immutable_field":
       return 400;
     case "body_too_large":

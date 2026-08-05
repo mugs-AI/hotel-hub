@@ -20,7 +20,15 @@ import {
   ReservationActionsCard,
   ReservationTimelineCard,
 } from "@/components/ReservationOperations";
-import { ArrowLeft, CalendarDays, ListOrdered, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  ListOrdered,
+  Pencil,
+  Plus,
+  Printer,
+  RefreshCw,
+} from "lucide-react";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -108,6 +116,17 @@ function Header({
       <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
         <Link
           to="/reservations"
+          search={{
+            bookingReference: "",
+            guestName: "",
+            guestMobile: "",
+            bookingSource: "",
+            status: "",
+            arrivalFrom: "",
+            arrivalTo: "",
+            limit: 25,
+            offset: 0,
+          }}
           className="inline-flex items-center gap-1 underline underline-offset-2"
         >
           <ListOrdered className="h-3 w-3" aria-hidden />
@@ -230,8 +249,7 @@ function Detail({
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
   const editable =
-    data.status === "confirmed" &&
-    data.rooms.every((r) => r.allocationStatus === "reserved");
+    data.status === "confirmed" && data.rooms.every((r) => r.allocationStatus === "reserved");
   return (
     <div className="space-y-6">
       <section
@@ -291,7 +309,6 @@ function Detail({
           <p className="text-muted-foreground">Notes</p>
           <p className="mt-1 whitespace-pre-wrap">{data.notes || "—"}</p>
         </div>
-
       </section>
 
       <section
@@ -372,6 +389,11 @@ function Detail({
         checkedInAt={data.checkedInAt ?? null}
         canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
         canRequest={hasPermission(role, "hotel:operations:request")}
+        rooms={data.rooms.map((r) => ({
+          id: r.id,
+          label: roomLabel(r.displayName, r.n3StockName, r.roomNumber),
+          agreedRate: r.agreedRate,
+        }))}
       />
 
       <PendingApprovalsCard

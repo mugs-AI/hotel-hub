@@ -49,6 +49,12 @@ import {
   type BookingSourceDTO,
 } from "@/lib/reservations-client";
 import { friendlyError } from "@/lib/reservations-ui";
+import {
+  GuestControlsPanel,
+  N3IntegrationPanel,
+  PropertyPanel,
+  useHotelSettings,
+} from "@/components/PropertySettingsPanels";
 import { cn } from "@/lib/utils";
 
 const NAVY = "#102A43";
@@ -110,37 +116,104 @@ function SettingsInner() {
       </div>
     );
   }
-  return <BookingSourcesScreen />;
+  return <SettingsWorkspace />;
+}
+
+type SettingsTab = "property" | "guests" | "n3" | "sources";
+
+const TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: "property", label: "Property" },
+  { id: "guests", label: "Guest Controls" },
+  { id: "n3", label: "N3 Integration" },
+  { id: "sources", label: "Booking Sources" },
+];
+
+function SettingsWorkspace() {
+  const [tab, setTab] = useState<SettingsTab>("property");
+  const session = useSessionMe();
+  const { settings, setSettings, error } = useHotelSettings();
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <header>
+        <p
+          className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+          style={{ color: TEAL }}
+        >
+          Owner workspace
+        </p>
+        <h1
+          className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl"
+          style={{ color: NAVY }}
+        >
+          Settings
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          Property defaults, guest-editing rules, the N3 integration mapping and the booking sources
+          used across HotelHub.
+        </p>
+      </header>
+
+      <div
+        role="tablist"
+        aria-label="Settings sections"
+        className="flex flex-wrap gap-1 rounded-lg border bg-white p-1 shadow-sm"
+        style={{ borderColor: `${NAVY}1F` }}
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              tab === t.id ? "text-white" : "text-muted-foreground hover:bg-muted",
+            )}
+            style={tab === t.id ? { backgroundColor: NAVY } : undefined}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "sources" ? (
+        <BookingSourcesScreen />
+      ) : error ? (
+        <p className="text-sm" style={{ color: "#C2413B" }}>
+          {friendlyError(error, "Unable to load property settings.")}
+        </p>
+      ) : !settings ? (
+        <p className="text-sm text-muted-foreground">Loading property settings…</p>
+      ) : tab === "property" ? (
+        <PropertyPanel settings={settings} onChange={setSettings} />
+      ) : tab === "guests" ? (
+        <GuestControlsPanel settings={settings} onChange={setSettings} />
+      ) : (
+        <N3IntegrationPanel
+          settings={settings}
+          onChange={setSettings}
+          onN3Unauthorized={() => void session.refetch()}
+        />
+      )}
+    </div>
+  );
 }
 
 function BookingSourcesScreen() {
   const q = useBookingSources({ activeOnly: false });
   const sources = q.data?.sources ?? [];
 
-  const stats = useMemo(() => {
-    const total = sources.length;
-    const active = sources.filter((s) => s.isActive).length;
-    return { total, active, inactive: total - active };
-  }, [sources]);
-
   const [addOpen, setAddOpen] = useState(false);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:space-y-8 lg:px-8">
+    <div className="space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <p
-            className="text-[11px] font-semibold uppercase tracking-[0.14em]"
-            style={{ color: TEAL }}
-          >
-            Hotel settings
-          </p>
-          <h1
-            className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl"
-            style={{ color: NAVY }}
-          >
+          <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
             Booking Sources
-          </h1>
+          </h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             Booking sources appear in the New Reservation form and the Reservations filter. Only
             active sources can be assigned to new reservations; deactivated sources are retained on
@@ -156,15 +229,6 @@ function BookingSourcesScreen() {
           <Plus className="mr-1.5 h-4 w-4" /> Add booking source
         </Button>
       </header>
-
-      <section
-        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-        aria-label="Booking source overview"
-      >
-        <StatCard label="Total Sources" value={stats.total} accent={NAVY} />
-        <StatCard label="Active" value={stats.active} accent={TEAL} />
-        <StatCard label="Inactive" value={stats.inactive} accent={GOLD} />
-      </section>
 
       <section
         className="overflow-hidden rounded-xl border bg-white shadow-sm"
@@ -200,61 +264,7 @@ function BookingSourcesScreen() {
         )}
       </section>
 
-      <FinancialVerificationCard />
-
       <AddSourceDialog open={addOpen} onOpenChange={setAddOpen} />
-    </div>
-  );
-}
-
-function FinancialVerificationCard() {
-  return (
-    <section
-      className="rounded-xl border bg-white p-5 shadow-sm"
-      style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p
-            className="text-[11px] font-semibold uppercase tracking-[0.14em]"
-            style={{ color: GOLD }}
-          >
-            Owner tools
-          </p>
-          <h2 className="mt-1 text-lg font-semibold" style={{ color: NAVY }}>
-            N3 Financial Verification
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Read-only inquiry that confirms the live N3 Cloud contract for AR
-            Receive Payments, Cash Sales, Customer Refunds and the GL Chart of
-            Accounts. Use it to capture evidence before HotelHub payment writes
-            are enabled. It never creates, voids or refunds an N3 transaction.
-          </p>
-        </div>
-        <a
-          href="/settings/n3-financial-verification"
-          className="shrink-0 rounded-md px-3 py-2 text-sm font-semibold shadow-sm"
-          style={{ backgroundColor: NAVY, color: "white" }}
-        >
-          Open console →
-        </a>
-      </div>
-    </section>
-  );
-}
-
-function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
-  return (
-    <div
-      className="rounded-xl border bg-white px-5 py-4 shadow-sm"
-      style={{ borderColor: `${NAVY}1F`, borderLeft: `3px solid ${accent}` }}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: NAVY }}>
-        {value}
-      </p>
     </div>
   );
 }

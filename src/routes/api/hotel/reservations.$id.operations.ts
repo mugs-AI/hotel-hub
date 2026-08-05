@@ -4,13 +4,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
-import { isUuid } from "@/lib/reservations-store.server";
+import { getReservationById, isUuid } from "@/lib/reservations-store.server";
+import { getOrCreateHotelSettings } from "@/lib/hotel-store.server";
 import {
   isOperationType,
   listOperationRequests,
   OperationError,
   OPERATION_ERROR_CODES,
   requestOperation,
+  validateLateCheckoutWindow,
   validateOperationPayload,
 } from "@/lib/reservation-operations.server";
 import {
@@ -67,7 +69,29 @@ export async function handleOperationCreate({
   const clientRequestId = parsed.body.clientRequestId;
   if (!isUuid(clientRequestId)) return deny(400, "validation_failed");
   const payload = validateOperationPayload(type, parsed.body.payload);
-  if (!payload.ok) return deny(400, payload.code);
+  if (!payload.ok) return deny(statusForOperationError(payload.code), payload.code);
+
+  // Late checkout is bounded by the property's own departure date and
+  // standard checkout time, evaluated in the property's timezone.
+  if (type === "late_checkout") {
+    let reservation, settings;
+    try {
+      [reservation, settings] = await Promise.all([
+        getReservationById(ctx.session.tenantId!, id),
+        getOrCreateHotelSettings(ctx.session.tenantId!),
+      ]);
+    } catch {
+      return deny(500, "operation_request_failed");
+    }
+    if (!reservation) return deny(404, "reservation_not_found");
+    const window = validateLateCheckoutWindow({
+      expectedCheckOutAtIso: String(payload.payload.expected_check_out_at ?? ""),
+      departureDate: reservation.departureDate,
+      standardCheckOutTime: settings.standardCheckOutTime,
+      timezone: settings.timezone,
+    });
+    if (!window.ok) return deny(statusForOperationError(window.code), window.code);
+  }
 
   try {
     const result = await requestOperation({

@@ -26,7 +26,6 @@ export type OperationRequestDTO = {
 };
 
 export type ReservationEventDTO = {
-  id: string;
   eventType: string;
   summary: string;
   actorLabel: string | null;
