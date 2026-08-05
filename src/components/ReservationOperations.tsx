@@ -16,6 +16,8 @@ import {
   type OperationType,
 } from "@/lib/operations-client";
 import { formatCreatedAt } from "@/lib/reservations-ui";
+import { useQuery } from "@tanstack/react-query";
+import { hotelJson } from "@/lib/hotel-settings-client";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -32,7 +34,32 @@ const REQUESTABLE: Array<{ type: OperationType; label: string; help: string }> =
   { type: "early_check_in", label: "Early check-in", help: "Arrive before the standard time." },
   { type: "late_checkout", label: "Late checkout", help: "Leave later on the same day." },
   { type: "stay_extension", label: "Stay extension", help: "Stay one or more extra nights." },
+  { type: "room_change", label: "Room change", help: "Move a stay to a different room." },
+  { type: "rate_change", label: "Rate change", help: "Change the agreed nightly rate." },
 ];
+
+export type ActionRoom = {
+  /** hotel_reservation_rooms.id */
+  id: string;
+  label: string;
+  agreedRate: number;
+};
+
+type PropertyRoom = {
+  id: string;
+  roomNumber: string;
+  displayName: string | null;
+  n3StockName: string | null;
+  isActive: boolean;
+};
+
+function usePropertyRooms(enabled: boolean) {
+  return useQuery({
+    queryKey: ["property-rooms"],
+    enabled,
+    queryFn: () => hotelJson<{ rooms: PropertyRoom[] }>("/api/hotel/rooms"),
+  });
+}
 
 export function ReservationActionsCard({
   reservationId,
@@ -41,6 +68,7 @@ export function ReservationActionsCard({
   checkedInAt,
   canCheckIn,
   canRequest,
+  rooms,
 }: {
   reservationId: string;
   updatedAt: string;
@@ -48,6 +76,7 @@ export function ReservationActionsCard({
   checkedInAt: string | null;
   canCheckIn: boolean;
   canRequest: boolean;
+  rooms: ActionRoom[];
 }) {
   const checkIn = useCheckIn(reservationId);
   const request = useRequestOperation(reservationId);
@@ -56,6 +85,10 @@ export function ReservationActionsCard({
   const [flow, setFlow] = useState<{ kind: "check_in" | OperationType; id: string } | null>(null);
   const [detail, setDetail] = useState("");
   const [reason, setReason] = useState("");
+  const [reservationRoomId, setReservationRoomId] = useState("");
+  const [targetRoomId, setTargetRoomId] = useState("");
+  const [newRate, setNewRate] = useState("");
+  const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
 
   if (!canCheckIn && !canRequest) return null;
   const readOnly = status !== "confirmed";
@@ -64,6 +97,9 @@ export function ReservationActionsCard({
     setFlow(null);
     setDetail("");
     setReason("");
+    setReservationRoomId("");
+    setTargetRoomId("");
+    setNewRate("");
     checkIn.reset();
     request.reset();
   };
@@ -75,7 +111,20 @@ export function ReservationActionsCard({
         ? { expectedCheckOutAt: detail ? `${detail}:00+08:00` : "", reason: reason || undefined }
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
-          : { reason: reason || undefined };
+          : type === "room_change"
+            ? {
+                reservationRoomId,
+                toHotelRoomId: targetRoomId,
+                preserveRate: true,
+                reason: reason || undefined,
+              }
+            : type === "rate_change"
+              ? {
+                  reservationRoomId,
+                  newAgreedRate: Number(newRate),
+                  reason: reason.trim(),
+                }
+              : { reason: reason || undefined };
     request.mutate(
       { operationType: type, payload, clientRequestId: flow.id },
       { onSuccess: close },
@@ -188,6 +237,61 @@ export function ReservationActionsCard({
                       />
                     </label>
                   ) : null}
+                  {flow.kind === "room_change" || flow.kind === "rate_change" ? (
+                    <label className="mt-2 block text-xs">
+                      <span className="text-muted-foreground">Room in this reservation</span>
+                      <select
+                        value={reservationRoomId}
+                        onChange={(e) => setReservationRoomId(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                      >
+                        <option value="">Select a room…</option>
+                        {rooms.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  {flow.kind === "room_change" ? (
+                    <label className="mt-2 block text-xs">
+                      <span className="text-muted-foreground">Move to room</span>
+                      <select
+                        value={targetRoomId}
+                        onChange={(e) => setTargetRoomId(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                      >
+                        <option value="">
+                          {propertyRooms.isPending ? "Loading rooms…" : "Select a room…"}
+                        </option>
+                        {(propertyRooms.data?.rooms ?? [])
+                          .filter((r) => r.isActive)
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.displayName || r.n3StockName || r.roomNumber}
+                            </option>
+                          ))}
+                      </select>
+                      <span className="mt-1 block text-[11px] text-muted-foreground">
+                        The agreed rate is preserved. Availability is re-checked when the Owner
+                        approves.
+                      </span>
+                    </label>
+                  ) : null}
+                  {flow.kind === "rate_change" ? (
+                    <label className="mt-2 block text-xs">
+                      <span className="text-muted-foreground">New agreed rate</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={newRate}
+                        onChange={(e) => setNewRate(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                      />
+                    </label>
+                  ) : null}
                   {flow.kind === "stay_extension" ? (
                     <label className="mt-2 block text-xs">
                       <span className="text-muted-foreground">New departure date</span>
@@ -200,7 +304,9 @@ export function ReservationActionsCard({
                     </label>
                   ) : null}
                   <label className="mt-2 block text-xs">
-                    <span className="text-muted-foreground">Reason (optional)</span>
+                    <span className="text-muted-foreground">
+                      {flow.kind === "rate_change" ? "Reason (required)" : "Reason (optional)"}
+                    </span>
                     <input
                       value={reason}
                       maxLength={300}
@@ -427,8 +533,12 @@ export function ReservationTimelineCard({
         </p>
       ) : (
         <ol className="mt-3 space-y-3">
-          {events.map((e) => (
-            <li key={e.id} className="border-l-2 pl-3" style={{ borderColor: `${TEAL}55` }}>
+          {events.map((e, i) => (
+            <li
+              key={`${e.occurredAt}-${e.eventType}-${i}`}
+              className="border-l-2 pl-3"
+              style={{ borderColor: `${TEAL}55` }}
+            >
               <p className="text-sm font-medium" style={{ color: NAVY }}>
                 {timelineEventLabel(e.eventType)}
               </p>

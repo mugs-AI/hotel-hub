@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import {
   decideOperation,
+  getOperationRequestReservationId,
   OperationError,
   OPERATION_ERROR_CODES,
 } from "@/lib/reservation-operations.server";
@@ -50,6 +51,17 @@ export async function handleOperationDecision({
     return deny(400, "validation_failed");
   }
   const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) || null : null;
+
+  // Bind the request to the reservation in the URL. Without this the audit
+  // trail could name a reservation the request does not belong to.
+  let boundReservationId: string | null;
+  try {
+    boundReservationId = await getOperationRequestReservationId(ctx.session.tenantId!, requestId);
+  } catch {
+    return deny(500, "operation_decision_failed");
+  }
+  if (boundReservationId === null) return deny(404, "operation_not_found");
+  if (boundReservationId !== id) return deny(404, "operation_not_found");
 
   try {
     const result = await decideOperation({

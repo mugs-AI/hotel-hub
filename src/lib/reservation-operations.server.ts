@@ -54,6 +54,9 @@ export const OPERATION_ERROR_CODES = new Set([
   "guest_not_found",
   "validation_failed",
   "operation_immutable_field",
+  "unknown_field",
+  "late_checkout_out_of_range",
+  "late_checkout_not_later",
 ]);
 
 export class OperationError extends Error {
@@ -82,19 +85,31 @@ export type PayloadResult =
   | { ok: true; payload: OperationPayload }
   | { ok: false; code: string };
 
+const PAYLOAD_FIELDS: Record<OperationType, ReadonlySet<string>> = {
+  early_check_in: new Set(["reason"]),
+  late_checkout: new Set(["expectedCheckOutAt", "reason"]),
+  room_change: new Set(["reservationRoomId", "toHotelRoomId", "preserveRate", "reason"]),
+  stay_extension: new Set(["newDepartureDate", "reason"]),
+  rate_change: new Set(["reservationRoomId", "newAgreedRate", "reason"]),
+};
+
 /**
  * Validate and normalise an operation request payload. Unknown keys are
- * dropped rather than forwarded, so the browser can never smuggle fields
- * into the ledger.
+ * REJECTED (never silently dropped), so the browser can neither smuggle
+ * fields into the ledger nor believe a mistyped field was honoured.
  */
 export function validateOperationPayload(
   type: OperationType,
   raw: unknown,
 ): PayloadResult {
-  const body: Record<string, unknown> =
-    typeof raw === "object" && raw !== null && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>)
-      : {};
+  if (raw !== undefined && (typeof raw !== "object" || raw === null || Array.isArray(raw))) {
+    return { ok: false, code: "validation_failed" };
+  }
+  const body: Record<string, unknown> = (raw as Record<string, unknown>) ?? {};
+  const allowed = PAYLOAD_FIELDS[type];
+  for (const k of Object.keys(body)) {
+    if (!allowed.has(k)) return { ok: false, code: "unknown_field" };
+  }
 
   if (type === "early_check_in") {
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
@@ -166,6 +181,60 @@ export function validateOperationPayload(
   };
 }
 
+/**
+ * A requested late checkout must land on the reservation's departure date in
+ * the property's timezone, and must be later than the standard checkout time.
+ * Pure and deterministic so it can be unit tested without a request context.
+ */
+export function validateLateCheckoutWindow(input: {
+  expectedCheckOutAtIso: string;
+  departureDate: string;
+  standardCheckOutTime: string;
+  timezone: string;
+}): { ok: true } | { ok: false; code: string } {
+  const ms = Date.parse(input.expectedCheckOutAtIso);
+  if (!Number.isFinite(ms)) return { ok: false, code: "validation_failed" };
+  let local: string;
+  try {
+    local = new Intl.DateTimeFormat("en-CA", {
+      timeZone: input.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(ms));
+  } catch {
+    return { ok: false, code: "validation_failed" };
+  }
+  // en-CA renders as "YYYY-MM-DD, HH:MM"
+  const [datePart, timePart] = local.split(", ");
+  if (!datePart || !timePart) return { ok: false, code: "validation_failed" };
+  if (datePart !== input.departureDate) return { ok: false, code: "late_checkout_out_of_range" };
+  const normalized = timePart === "24:00" ? "00:00" : timePart;
+  if (normalized <= input.standardCheckOutTime) {
+    return { ok: false, code: "late_checkout_not_later" };
+  }
+  return { ok: true };
+}
+
+/** Minimal, tenant-scoped lookup used to bind a request to its reservation. */
+export async function getOperationRequestReservationId(
+  tenantId: string,
+  requestId: string,
+): Promise<string | null> {
+  const sb = await admin();
+  const res = await sb
+    .from("hotel_reservation_operation_requests")
+    .select("reservation_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", requestId)
+    .maybeSingle();
+  if (res.error) throw new OperationError("operation_read_failed");
+  return (res.data as { reservation_id: string } | null)?.reservation_id ?? null;
+}
+
 /** Operations a front-desk user may perform directly, without approval. */
 export const DIRECT_OPERATIONS: ReadonlySet<OperationType> = new Set();
 
@@ -189,7 +258,6 @@ export type OperationRequestDTO = {
 };
 
 export type ReservationEventDTO = {
-  id: string;
   eventType: string;
   summary: string;
   actorLabel: string | null;
@@ -292,7 +360,6 @@ export async function listReservationTimeline(
     rows.map((r) => r.actor_n3_user_key),
   );
   return rows.map((r) => ({
-    id: r.id,
     eventType: r.event_type,
     summary: r.summary,
     actorLabel: r.actor_n3_user_key ? (labels.get(r.actor_n3_user_key) ?? null) : null,

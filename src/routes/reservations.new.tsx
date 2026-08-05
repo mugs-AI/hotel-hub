@@ -105,6 +105,7 @@ function Header() {
     >
       <Link
         to="/reservations"
+        search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
         className="inline-flex items-center gap-1 text-xs text-white/80 underline underline-offset-2"
       >
         <ArrowLeft className="h-3 w-3" aria-hidden />
@@ -435,6 +436,7 @@ function NewReservationWizard({
         <div className="flex items-center gap-2">
           <Link
             to="/reservations"
+            search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
             className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
             style={{ color: NAVY }}
           >

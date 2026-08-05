@@ -226,6 +226,7 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
     >
       <Link
         to="/reservations"
+        search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
         className="px-3 py-1.5 font-medium"
         style={{
           backgroundColor: active === "list" ? NAVY : "transparent",
@@ -236,6 +237,7 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
       </Link>
       <Link
         to="/reservations/calendar"
+        search={{ startDate: "", days: 14 as const }}
         className="px-3 py-1.5 font-medium"
         style={{
           backgroundColor: active === "calendar" ? NAVY : "transparent",

@@ -40,6 +40,8 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
     timezone?: string;
     standardCheckInTime?: string;
     standardCheckOutTime?: string;
+    postCheckInGuestEditPolicy?: "locked" | "contact_only";
+    allowOwnerPrimaryGuestChangeAfterCheckIn?: boolean;
   } = {};
   if (typeof body.currency === "string" && /^[A-Z]{3}$/.test(body.currency)) {
     patch.currency = body.currency;
@@ -52,6 +54,15 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
   }
   if (typeof body.standardCheckOutTime === "string" && TIME_RE.test(body.standardCheckOutTime)) {
     patch.standardCheckOutTime = body.standardCheckOutTime;
+  }
+  if (
+    body.postCheckInGuestEditPolicy === "locked" ||
+    body.postCheckInGuestEditPolicy === "contact_only"
+  ) {
+    patch.postCheckInGuestEditPolicy = body.postCheckInGuestEditPolicy;
+  }
+  if (typeof body.allowOwnerPrimaryGuestChangeAfterCheckIn === "boolean") {
+    patch.allowOwnerPrimaryGuestChangeAfterCheckIn = body.allowOwnerPrimaryGuestChangeAfterCheckIn;
   }
   if (Object.keys(patch).length === 0) return deny(400, "no_valid_fields");
   const settings = await updateHotelSettings(ctx.session.tenantId!, patch);

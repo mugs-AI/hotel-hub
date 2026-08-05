@@ -689,12 +689,14 @@ export type Database = {
       }
       hotel_settings: {
         Row: {
+          allow_owner_primary_guest_change_after_check_in: boolean
           created_at: string
           currency: string
           id: string
           n3_walk_in_customer_code: string | null
           n3_walk_in_customer_id: string | null
           n3_walk_in_customer_name: string | null
+          post_check_in_guest_edit_policy: string
           standard_check_in_time: string
           standard_check_out_time: string
           tenant_id: string
@@ -702,12 +704,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
           n3_walk_in_customer_name?: string | null
+          post_check_in_guest_edit_policy?: string
           standard_check_in_time?: string
           standard_check_out_time?: string
           tenant_id: string
@@ -715,12 +719,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
           n3_walk_in_customer_name?: string | null
+          post_check_in_guest_edit_policy?: string
           standard_check_in_time?: string
           standard_check_out_time?: string
           tenant_id?: string
