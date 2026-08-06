@@ -23,6 +23,7 @@ import {
 } from "@/lib/room-picker";
 
 const ROOMS_RATES_SRC = readFileSync(resolve(__dirname, "../../routes/rooms-rates.tsx"), "utf8");
+const N3_PICKER_SRC = readFileSync(resolve(__dirname, "../../components/N3Picker.tsx"), "utf8");
 const START_SRC = readFileSync(resolve(__dirname, "../../start.ts"), "utf8");
 const GATEWAY_SRC = readFileSync(resolve(__dirname, "../n3-gateway.server.ts"), "utf8");
 
@@ -112,24 +113,24 @@ describe("N3 stock picker UI", () => {
   });
 
   it("renders Added text and Mapped badge and disables the button for mapped rows", () => {
-    expect(ROOMS_RATES_SRC).toMatch(/\{mapped \? "Added" : "Select"\}/);
-    expect(ROOMS_RATES_SRC).toMatch(/>\s*Mapped\s*</);
-    expect(ROOMS_RATES_SRC).toMatch(/disabled=\{mapped\}/);
-    expect(ROOMS_RATES_SRC).toMatch(/title=\{mapped \? MAPPED_STOCK_TOOLTIP : undefined\}/);
-    expect(ROOMS_RATES_SRC).toMatch(/This N3 Stock Code is already mapped to a room\./);
+    expect(N3_PICKER_SRC).toMatch(/\{mapped \? "Added" : "Select"\}/);
+    expect(N3_PICKER_SRC).toMatch(/>\s*Mapped\s*</);
+    expect(N3_PICKER_SRC).toMatch(/disabled=\{mapped\}/);
+    expect(N3_PICKER_SRC).toMatch(/title=\{mapped \? MAPPED_STOCK_TOOLTIP : undefined\}/);
+    expect(N3_PICKER_SRC).toMatch(/This N3 Stock Code is already mapped to a room\./);
   });
 
   it("does NOT hide mapped rows from search results (they are just disabled)", () => {
     // The mapping loop always renders every filtered row; no `if (mapped) return null;`
-    expect(ROOMS_RATES_SRC).not.toMatch(/if \(mapped\)\s*return null/);
+    expect(N3_PICKER_SRC).not.toMatch(/if \(mapped\)\s*return null/);
   });
 });
 
 // ---------- Task 3.10: global N3 search still loads the full dataset ----------
 describe("Global N3 search preserved", () => {
   it("still calls /api/n3/${kind}/all and filters in memory with matchesQuery", () => {
-    expect(ROOMS_RATES_SRC).toMatch(/`\/api\/n3\/\$\{kind\}\/all`/);
-    expect(ROOMS_RATES_SRC).toMatch(/matchesQuery\(query, r\.code, r\.name\)/);
+    expect(N3_PICKER_SRC).toMatch(/`\/api\/n3\/\$\{kind\}\/all`/);
+    expect(N3_PICKER_SRC).toMatch(/matchesQuery\(query, r\.code, r\.name\)/);
   });
 
   it("gateway still exposes listAllN3Stocks with paged multi-request coverage", () => {
