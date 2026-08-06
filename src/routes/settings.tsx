@@ -248,6 +248,14 @@ function BookingSourcesScreen() {
         </Button>
       </header>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <SummaryCard label="Total Sources" value={sources.length} />
+        <SummaryCard label="Active" value={activeCount} />
+        <SummaryCard label="Inactive" value={sources.length - activeCount} />
+      </div>
+
+
+
       <section
         className="overflow-hidden rounded-xl border bg-white shadow-sm"
         style={{ borderColor: `${NAVY}1F` }}
