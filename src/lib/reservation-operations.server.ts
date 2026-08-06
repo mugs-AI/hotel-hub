@@ -57,7 +57,11 @@ export const OPERATION_ERROR_CODES = new Set([
   "unknown_field",
   "late_checkout_out_of_range",
   "late_checkout_not_later",
+  "primary_guest_required",
+  "guest_assignment_required",
+  "idempotency_conflict",
 ]);
+
 
 export class OperationError extends Error {
   code: string;
