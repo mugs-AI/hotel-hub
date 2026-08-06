@@ -118,19 +118,20 @@ export function validateOperationPayload(
   }
 
   if (type === "late_checkout") {
-    const at = body.expectedCheckOutAt;
-    if (typeof at !== "string" || !ISO_DATETIME_RE.test(at)) {
+    // Property-local contract: the browser must never guess a numeric UTC
+    // offset. The route resolves this in the configured IANA timezone.
+    const at = body.expectedCheckOutLocal;
+    if (typeof at !== "string" || !LOCAL_DATETIME_RE.test(at)) {
       return { ok: false, code: "validation_failed" };
     }
-    const ms = Date.parse(at);
-    if (!Number.isFinite(ms)) return { ok: false, code: "validation_failed" };
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (reason.length > 300) return { ok: false, code: "validation_failed" };
     return {
       ok: true,
-      payload: { expected_check_out_at: new Date(ms).toISOString(), ...(reason ? { reason } : {}) },
+      payload: { expected_check_out_local: at, ...(reason ? { reason } : {}) },
     };
   }
+
 
   if (type === "room_change") {
     if (!isUuid(body.reservationRoomId) || !isUuid(body.toHotelRoomId)) {
