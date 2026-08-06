@@ -237,13 +237,14 @@ export function ReservationActionsCard({
             )
           ) : null}
 
-          {canRequest ? (
+          {canRequest && available.length > 0 ? (
             <div>
               <p className="text-xs text-muted-foreground">
                 Exceptions need Owner approval before they take effect.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {REQUESTABLE.map((r) => (
+                {available.map((r) => (
+
                   <button
                     key={r.type}
                     type="button"
