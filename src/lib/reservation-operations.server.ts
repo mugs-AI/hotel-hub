@@ -79,6 +79,9 @@ function mapRpcError(message: string | null | undefined, fallback: string): Oper
 // ---------------------------------------------------------------------------
 
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+/** Property-local wall-clock datetime — deliberately offset-free. */
+const LOCAL_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+void ISO_DATETIME_RE;
 
 export type OperationPayload = Record<string, unknown>;
 export type PayloadResult =
@@ -87,7 +90,8 @@ export type PayloadResult =
 
 const PAYLOAD_FIELDS: Record<OperationType, ReadonlySet<string>> = {
   early_check_in: new Set(["reason"]),
-  late_checkout: new Set(["expectedCheckOutAt", "reason"]),
+  late_checkout: new Set(["expectedCheckOutLocal", "reason"]),
+
   room_change: new Set(["reservationRoomId", "toHotelRoomId", "preserveRate", "reason"]),
   stay_extension: new Set(["newDepartureDate", "reason"]),
   rate_change: new Set(["reservationRoomId", "newAgreedRate", "reason"]),
