@@ -30,13 +30,51 @@ function errText(err: unknown): string {
   return operationErrorMessage(code);
 }
 
-const REQUESTABLE: Array<{ type: OperationType; label: string; help: string }> = [
-  { type: "early_check_in", label: "Early check-in", help: "Arrive before the standard time." },
-  { type: "late_checkout", label: "Late checkout", help: "Leave later on the same day." },
-  { type: "stay_extension", label: "Stay extension", help: "Stay one or more extra nights." },
-  { type: "room_change", label: "Room change", help: "Move a stay to a different room." },
-  { type: "rate_change", label: "Rate change", help: "Change the agreed nightly rate." },
+/**
+ * Per-action status rules. The server is authoritative; this only keeps the
+ * card usable after check-in instead of blanket read-only.
+ */
+const REQUESTABLE: Array<{
+  type: OperationType;
+  label: string;
+  help: string;
+  statuses: readonly string[];
+}> = [
+  {
+    type: "early_check_in",
+    label: "Early check-in",
+    help: "Arrive before the standard time.",
+    statuses: ["confirmed"],
+  },
+  {
+    type: "late_checkout",
+    label: "Late checkout",
+    help: "Leave later on the same day.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "stay_extension",
+    label: "Stay extension",
+    help: "Stay one or more extra nights.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "room_change",
+    label: "Room change",
+    help: "Move a stay to a different room.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "rate_change",
+    label: "Rate change",
+    help: "Change the agreed nightly rate.",
+    statuses: ["confirmed", "checked_in"],
+  },
 ];
+
+/** Statuses that end the stay: nothing further can be requested. */
+const TERMINAL_STATUSES = new Set(["cancelled", "checked_out", "no_show", "completed"]);
+
 
 export type ActionRoom = {
   /** hotel_reservation_rooms.id */
