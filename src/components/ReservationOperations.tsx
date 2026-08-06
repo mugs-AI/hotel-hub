@@ -188,7 +188,7 @@ export function ReservationActionsCard({
         </p>
       ) : (
         <div className="mt-3 space-y-3">
-          {canCheckIn ? (
+          {showCheckIn || checkedInAt ? (
             checkedInAt ? (
               <p className="text-sm text-muted-foreground">
                 Checked in on {formatCreatedAt(checkedInAt)}.
