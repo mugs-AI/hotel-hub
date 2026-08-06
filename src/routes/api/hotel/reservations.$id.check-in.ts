@@ -43,6 +43,13 @@ export async function handleCheckIn({
   if (expected !== undefined && expected !== null && typeof expected !== "string") {
     return deny(400, "validation_failed");
   }
+  // Idempotency: a retried submit must never check the guest in twice.
+  const clientRequestId = parsed.body.clientRequestId;
+  if (clientRequestId !== undefined && clientRequestId !== null) {
+    if (typeof clientRequestId !== "string" || !isUuid(clientRequestId)) {
+      return deny(400, "validation_failed");
+    }
+  }
 
   try {
     const result = await checkInReservation({
@@ -50,7 +57,9 @@ export async function handleCheckIn({
       reservationId: id,
       actorN3UserKey: ctx.session.n3UserKey,
       expectedUpdatedAt: typeof expected === "string" ? expected : null,
+      clientRequestId: typeof clientRequestId === "string" ? clientRequestId : null,
     });
+
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
