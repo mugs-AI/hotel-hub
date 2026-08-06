@@ -129,7 +129,11 @@ export function ReservationActionsCard({
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
 
   if (!canCheckIn && !canRequest) return null;
-  const readOnly = status !== "confirmed";
+  // Terminal stays only are globally read-only; a checked-in stay keeps its
+  // applicable request actions.
+  const readOnly = TERMINAL_STATUSES.has(status);
+  const available = REQUESTABLE.filter((r) => r.statuses.includes(status));
+  const showCheckIn = canCheckIn && status === "confirmed";
 
   const close = () => {
     setFlow(null);
@@ -146,7 +150,8 @@ export function ReservationActionsCard({
     if (!flow) return;
     const payload: Record<string, unknown> =
       type === "late_checkout"
-        ? { expectedCheckOutAt: detail ? `${detail}:00+08:00` : "", reason: reason || undefined }
+        ? { expectedCheckOutLocal: detail, reason: reason || undefined }
+
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
           : type === "room_change"
