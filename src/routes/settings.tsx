@@ -201,14 +201,32 @@ function SettingsWorkspace() {
   );
 }
 
+function SummaryCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      className="rounded-xl border bg-white px-4 py-3 shadow-sm"
+      style={{ borderColor: `${NAVY}1F` }}
+    >
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: NAVY }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function BookingSourcesScreen() {
   const q = useBookingSources({ activeOnly: false });
   const sources = q.data?.sources ?? [];
+  const activeCount = sources.filter((s) => s.isActive).length;
 
   const [addOpen, setAddOpen] = useState(false);
 
   return (
     <div className="space-y-6">
+
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
