@@ -81,7 +81,11 @@ export function statusForOperationError(code: string): number {
     case "early_check_in_required":
     case "room_unavailable":
     case "room_capacity_exceeded":
+    case "primary_guest_required":
+    case "guest_assignment_required":
+    case "idempotency_conflict":
       return 409;
+
     case "validation_failed":
     case "invalid_id":
     case "invalid_json":
