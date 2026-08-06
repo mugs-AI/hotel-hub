@@ -443,6 +443,7 @@ export async function checkInReservation(input: {
   reservationId: string;
   actorN3UserKey: string;
   expectedUpdatedAt: string | null;
+  clientRequestId?: string | null;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
   const sb = await admin();
   const res = await sb.rpc("hotelhub_check_in_reservation", {
@@ -452,7 +453,9 @@ export async function checkInReservation(input: {
     p_expected_updated_at: input.expectedUpdatedAt,
     p_allow_early: false,
     p_operation_request_id: null,
+    p_client_request_id: input.clientRequestId ?? null,
   });
+
   if (res.error) throw mapRpcError(res.error.message, "check_in_failed");
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("check_in_failed");
