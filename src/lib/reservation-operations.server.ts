@@ -186,19 +186,76 @@ export function validateOperationPayload(
   };
 }
 
+/** Offset (ms) of `timeZone` at instant `ts`, derived from the IANA database. */
+function tzOffsetMs(ts: number, timeZone: string): number | null {
+  let text: string;
+  try {
+    text = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(new Date(ts));
+  } catch {
+    return null;
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2}),?\s(\d{2}):(\d{2}):(\d{2})$/.exec(text);
+  if (!m) return null;
+  const hour = Number(m[4]) === 24 ? 0 : Number(m[4]);
+  const asUtc = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour, Number(m[5]), Number(m[6]));
+  return asUtc - ts;
+}
+
+/**
+ * Resolve a property-local wall-clock datetime to a UTC instant using the
+ * configured IANA timezone. Iterates so DST transitions resolve correctly
+ * instead of assuming a fixed numeric offset.
+ */
+export function zonedLocalToUtcMs(local: string, timeZone: string): number | null {
+  const m = LOCAL_DATETIME_RE.exec(local);
+  if (!m) return null;
+  const [d, t] = local.split("T") as [string, string];
+  const [y, mo, da] = d.split("-").map(Number) as [number, number, number];
+  const [h, mi] = t.split(":").map(Number) as [number, number];
+  if (mo < 1 || mo > 12 || da < 1 || da > 31 || h > 23 || mi > 59) return null;
+  const wall = Date.UTC(y, mo - 1, da, h, mi);
+  let ts = wall;
+  for (let i = 0; i < 4; i += 1) {
+    const off = tzOffsetMs(ts, timeZone);
+    if (off === null) return null;
+    const next = wall - off;
+    if (next === ts) break;
+    ts = next;
+  }
+  return Number.isFinite(ts) ? ts : null;
+}
+
 /**
  * A requested late checkout must land on the reservation's departure date in
  * the property's timezone, and must be later than the standard checkout time.
  * Pure and deterministic so it can be unit tested without a request context.
+ * Accepts either a property-local wall-clock value (preferred) or an absolute
+ * ISO instant.
  */
 export function validateLateCheckoutWindow(input: {
-  expectedCheckOutAtIso: string;
+  expectedCheckOutAtIso?: string;
+  expectedCheckOutLocal?: string;
   departureDate: string;
   standardCheckOutTime: string;
   timezone: string;
-}): { ok: true } | { ok: false; code: string } {
-  const ms = Date.parse(input.expectedCheckOutAtIso);
-  if (!Number.isFinite(ms)) return { ok: false, code: "validation_failed" };
+}): { ok: true; utcIso: string } | { ok: false; code: string } {
+  let ms: number | null = null;
+  if (input.expectedCheckOutLocal) {
+    ms = zonedLocalToUtcMs(input.expectedCheckOutLocal, input.timezone);
+  } else if (input.expectedCheckOutAtIso) {
+    const parsed = Date.parse(input.expectedCheckOutAtIso);
+    ms = Number.isFinite(parsed) ? parsed : null;
+  }
+  if (ms === null) return { ok: false, code: "validation_failed" };
   let local: string;
   try {
     local = new Intl.DateTimeFormat("en-CA", {
@@ -221,8 +278,9 @@ export function validateLateCheckoutWindow(input: {
   if (normalized <= input.standardCheckOutTime) {
     return { ok: false, code: "late_checkout_not_later" };
   }
-  return { ok: true };
+  return { ok: true, utcIso: new Date(ms).toISOString() };
 }
+
 
 /** Minimal, tenant-scoped lookup used to bind a request to its reservation. */
 export async function getOperationRequestReservationId(
