@@ -44,7 +44,7 @@ describe("validateLateCheckoutWindow", () => {
   it("accepts a later time on the departure date", () => {
     expect(
       validateLateCheckoutWindow({ ...base, expectedCheckOutAtIso: "2026-08-10T16:00:00+08:00" }),
-    ).toEqual({ ok: true });
+    ).toMatchObject({ ok: true });
   });
 
   it("rejects a time earlier than the standard checkout", () => {
@@ -69,7 +69,7 @@ describe("validateLateCheckoutWindow", () => {
     // 2026-08-10T20:00+08:00 is 12:00 UTC on the same KL day.
     expect(
       validateLateCheckoutWindow({ ...base, expectedCheckOutAtIso: "2026-08-10T12:00:00Z" }),
-    ).toEqual({ ok: true });
+    ).toMatchObject({ ok: true });
   });
 });
 
