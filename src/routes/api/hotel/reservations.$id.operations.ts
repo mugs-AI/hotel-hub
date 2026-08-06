@@ -72,7 +72,8 @@ export async function handleOperationCreate({
   if (!payload.ok) return deny(statusForOperationError(payload.code), payload.code);
 
   // Late checkout is bounded by the property's own departure date and
-  // standard checkout time, evaluated in the property's timezone.
+  // standard checkout time, evaluated in the property's timezone. The browser
+  // sends a property-local wall clock; the server resolves the instant.
   if (type === "late_checkout") {
     let reservation, settings;
     try {
@@ -85,13 +86,16 @@ export async function handleOperationCreate({
     }
     if (!reservation) return deny(404, "reservation_not_found");
     const window = validateLateCheckoutWindow({
-      expectedCheckOutAtIso: String(payload.payload.expected_check_out_at ?? ""),
+      expectedCheckOutLocal: String(payload.payload.expected_check_out_local ?? ""),
       departureDate: reservation.departureDate,
       standardCheckOutTime: settings.standardCheckOutTime,
       timezone: settings.timezone,
     });
     if (!window.ok) return deny(statusForOperationError(window.code), window.code);
+    delete payload.payload.expected_check_out_local;
+    payload.payload.expected_check_out_at = window.utcIso;
   }
+
 
   try {
     const result = await requestOperation({

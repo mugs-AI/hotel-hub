@@ -30,13 +30,51 @@ function errText(err: unknown): string {
   return operationErrorMessage(code);
 }
 
-const REQUESTABLE: Array<{ type: OperationType; label: string; help: string }> = [
-  { type: "early_check_in", label: "Early check-in", help: "Arrive before the standard time." },
-  { type: "late_checkout", label: "Late checkout", help: "Leave later on the same day." },
-  { type: "stay_extension", label: "Stay extension", help: "Stay one or more extra nights." },
-  { type: "room_change", label: "Room change", help: "Move a stay to a different room." },
-  { type: "rate_change", label: "Rate change", help: "Change the agreed nightly rate." },
+/**
+ * Per-action status rules. The server is authoritative; this only keeps the
+ * card usable after check-in instead of blanket read-only.
+ */
+const REQUESTABLE: Array<{
+  type: OperationType;
+  label: string;
+  help: string;
+  statuses: readonly string[];
+}> = [
+  {
+    type: "early_check_in",
+    label: "Early check-in",
+    help: "Arrive before the standard time.",
+    statuses: ["confirmed"],
+  },
+  {
+    type: "late_checkout",
+    label: "Late checkout",
+    help: "Leave later on the same day.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "stay_extension",
+    label: "Stay extension",
+    help: "Stay one or more extra nights.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "room_change",
+    label: "Room change",
+    help: "Move a stay to a different room.",
+    statuses: ["confirmed", "checked_in"],
+  },
+  {
+    type: "rate_change",
+    label: "Rate change",
+    help: "Change the agreed nightly rate.",
+    statuses: ["confirmed", "checked_in"],
+  },
 ];
+
+/** Statuses that end the stay: nothing further can be requested. */
+const TERMINAL_STATUSES = new Set(["cancelled", "checked_out", "no_show", "completed"]);
+
 
 export type ActionRoom = {
   /** hotel_reservation_rooms.id */
@@ -91,7 +129,11 @@ export function ReservationActionsCard({
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
 
   if (!canCheckIn && !canRequest) return null;
-  const readOnly = status !== "confirmed";
+  // Terminal stays only are globally read-only; a checked-in stay keeps its
+  // applicable request actions.
+  const readOnly = TERMINAL_STATUSES.has(status);
+  const available = REQUESTABLE.filter((r) => r.statuses.includes(status));
+  const showCheckIn = canCheckIn && status === "confirmed";
 
   const close = () => {
     setFlow(null);
@@ -108,7 +150,8 @@ export function ReservationActionsCard({
     if (!flow) return;
     const payload: Record<string, unknown> =
       type === "late_checkout"
-        ? { expectedCheckOutAt: detail ? `${detail}:00+08:00` : "", reason: reason || undefined }
+        ? { expectedCheckOutLocal: detail, reason: reason || undefined }
+
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
           : type === "room_change"
@@ -145,7 +188,7 @@ export function ReservationActionsCard({
         </p>
       ) : (
         <div className="mt-3 space-y-3">
-          {canCheckIn ? (
+          {showCheckIn || checkedInAt ? (
             checkedInAt ? (
               <p className="text-sm text-muted-foreground">
                 Checked in on {formatCreatedAt(checkedInAt)}.
@@ -194,13 +237,14 @@ export function ReservationActionsCard({
             )
           ) : null}
 
-          {canRequest ? (
+          {canRequest && available.length > 0 ? (
             <div>
               <p className="text-xs text-muted-foreground">
                 Exceptions need Owner approval before they take effect.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {REQUESTABLE.map((r) => (
+                {available.map((r) => (
+
                   <button
                     key={r.type}
                     type="button"

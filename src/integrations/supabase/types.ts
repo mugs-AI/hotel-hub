@@ -205,6 +205,44 @@ export type Database = {
           },
         ]
       }
+      hotel_mutation_requests: {
+        Row: {
+          client_request_id: string
+          created_at: string
+          id: string
+          reservation_id: string | null
+          result: Json
+          scope: string
+          tenant_id: string
+        }
+        Insert: {
+          client_request_id: string
+          created_at?: string
+          id?: string
+          reservation_id?: string | null
+          result?: Json
+          scope: string
+          tenant_id: string
+        }
+        Update: {
+          client_request_id?: string
+          created_at?: string
+          id?: string
+          reservation_id?: string | null
+          result?: Json
+          scope?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_mutation_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_reservation_deposits: {
         Row: {
           amount: number
@@ -865,21 +903,38 @@ export type Database = {
           out_updated: number
         }[]
       }
-      hotelhub_check_in_reservation: {
-        Args: {
-          p_actor_n3_user_key: string
-          p_allow_early?: boolean
-          p_expected_updated_at: string
-          p_operation_request_id?: string
-          p_reservation_id: string
-          p_tenant_id: string
-        }
-        Returns: {
-          out_checked_in_at: string
-          out_status: string
-          out_updated_at: string
-        }[]
-      }
+      hotelhub_check_in_reservation:
+        | {
+            Args: {
+              p_actor_n3_user_key: string
+              p_allow_early?: boolean
+              p_expected_updated_at: string
+              p_operation_request_id?: string
+              p_reservation_id: string
+              p_tenant_id: string
+            }
+            Returns: {
+              out_checked_in_at: string
+              out_status: string
+              out_updated_at: string
+            }[]
+          }
+        | {
+            Args: {
+              p_actor_n3_user_key: string
+              p_allow_early?: boolean
+              p_client_request_id?: string
+              p_expected_updated_at: string
+              p_operation_request_id?: string
+              p_reservation_id: string
+              p_tenant_id: string
+            }
+            Returns: {
+              out_checked_in_at: string
+              out_status: string
+              out_updated_at: string
+            }[]
+          }
       hotelhub_create_reservation: {
         Args: {
           p_arrival_date: string

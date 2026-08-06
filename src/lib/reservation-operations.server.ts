@@ -57,7 +57,11 @@ export const OPERATION_ERROR_CODES = new Set([
   "unknown_field",
   "late_checkout_out_of_range",
   "late_checkout_not_later",
+  "primary_guest_required",
+  "guest_assignment_required",
+  "idempotency_conflict",
 ]);
+
 
 export class OperationError extends Error {
   code: string;
@@ -79,6 +83,9 @@ function mapRpcError(message: string | null | undefined, fallback: string): Oper
 // ---------------------------------------------------------------------------
 
 const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+/** Property-local wall-clock datetime — deliberately offset-free. */
+const LOCAL_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+void ISO_DATETIME_RE;
 
 export type OperationPayload = Record<string, unknown>;
 export type PayloadResult =
@@ -87,7 +94,8 @@ export type PayloadResult =
 
 const PAYLOAD_FIELDS: Record<OperationType, ReadonlySet<string>> = {
   early_check_in: new Set(["reason"]),
-  late_checkout: new Set(["expectedCheckOutAt", "reason"]),
+  late_checkout: new Set(["expectedCheckOutLocal", "reason"]),
+
   room_change: new Set(["reservationRoomId", "toHotelRoomId", "preserveRate", "reason"]),
   stay_extension: new Set(["newDepartureDate", "reason"]),
   rate_change: new Set(["reservationRoomId", "newAgreedRate", "reason"]),
@@ -118,19 +126,20 @@ export function validateOperationPayload(
   }
 
   if (type === "late_checkout") {
-    const at = body.expectedCheckOutAt;
-    if (typeof at !== "string" || !ISO_DATETIME_RE.test(at)) {
+    // Property-local contract: the browser must never guess a numeric UTC
+    // offset. The route resolves this in the configured IANA timezone.
+    const at = body.expectedCheckOutLocal;
+    if (typeof at !== "string" || !LOCAL_DATETIME_RE.test(at)) {
       return { ok: false, code: "validation_failed" };
     }
-    const ms = Date.parse(at);
-    if (!Number.isFinite(ms)) return { ok: false, code: "validation_failed" };
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
     if (reason.length > 300) return { ok: false, code: "validation_failed" };
     return {
       ok: true,
-      payload: { expected_check_out_at: new Date(ms).toISOString(), ...(reason ? { reason } : {}) },
+      payload: { expected_check_out_local: at, ...(reason ? { reason } : {}) },
     };
   }
+
 
   if (type === "room_change") {
     if (!isUuid(body.reservationRoomId) || !isUuid(body.toHotelRoomId)) {
@@ -181,19 +190,76 @@ export function validateOperationPayload(
   };
 }
 
+/** Offset (ms) of `timeZone` at instant `ts`, derived from the IANA database. */
+function tzOffsetMs(ts: number, timeZone: string): number | null {
+  let text: string;
+  try {
+    text = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).format(new Date(ts));
+  } catch {
+    return null;
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2}),?\s(\d{2}):(\d{2}):(\d{2})$/.exec(text);
+  if (!m) return null;
+  const hour = Number(m[4]) === 24 ? 0 : Number(m[4]);
+  const asUtc = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour, Number(m[5]), Number(m[6]));
+  return asUtc - ts;
+}
+
+/**
+ * Resolve a property-local wall-clock datetime to a UTC instant using the
+ * configured IANA timezone. Iterates so DST transitions resolve correctly
+ * instead of assuming a fixed numeric offset.
+ */
+export function zonedLocalToUtcMs(local: string, timeZone: string): number | null {
+  const m = LOCAL_DATETIME_RE.exec(local);
+  if (!m) return null;
+  const [d, t] = local.split("T") as [string, string];
+  const [y, mo, da] = d.split("-").map(Number) as [number, number, number];
+  const [h, mi] = t.split(":").map(Number) as [number, number];
+  if (mo < 1 || mo > 12 || da < 1 || da > 31 || h > 23 || mi > 59) return null;
+  const wall = Date.UTC(y, mo - 1, da, h, mi);
+  let ts = wall;
+  for (let i = 0; i < 4; i += 1) {
+    const off = tzOffsetMs(ts, timeZone);
+    if (off === null) return null;
+    const next = wall - off;
+    if (next === ts) break;
+    ts = next;
+  }
+  return Number.isFinite(ts) ? ts : null;
+}
+
 /**
  * A requested late checkout must land on the reservation's departure date in
  * the property's timezone, and must be later than the standard checkout time.
  * Pure and deterministic so it can be unit tested without a request context.
+ * Accepts either a property-local wall-clock value (preferred) or an absolute
+ * ISO instant.
  */
 export function validateLateCheckoutWindow(input: {
-  expectedCheckOutAtIso: string;
+  expectedCheckOutAtIso?: string;
+  expectedCheckOutLocal?: string;
   departureDate: string;
   standardCheckOutTime: string;
   timezone: string;
-}): { ok: true } | { ok: false; code: string } {
-  const ms = Date.parse(input.expectedCheckOutAtIso);
-  if (!Number.isFinite(ms)) return { ok: false, code: "validation_failed" };
+}): { ok: true; utcIso: string } | { ok: false; code: string } {
+  let ms: number | null = null;
+  if (input.expectedCheckOutLocal) {
+    ms = zonedLocalToUtcMs(input.expectedCheckOutLocal, input.timezone);
+  } else if (input.expectedCheckOutAtIso) {
+    const parsed = Date.parse(input.expectedCheckOutAtIso);
+    ms = Number.isFinite(parsed) ? parsed : null;
+  }
+  if (ms === null) return { ok: false, code: "validation_failed" };
   let local: string;
   try {
     local = new Intl.DateTimeFormat("en-CA", {
@@ -216,8 +282,9 @@ export function validateLateCheckoutWindow(input: {
   if (normalized <= input.standardCheckOutTime) {
     return { ok: false, code: "late_checkout_not_later" };
   }
-  return { ok: true };
+  return { ok: true, utcIso: new Date(ms).toISOString() };
 }
+
 
 /** Minimal, tenant-scoped lookup used to bind a request to its reservation. */
 export async function getOperationRequestReservationId(
@@ -376,6 +443,7 @@ export async function checkInReservation(input: {
   reservationId: string;
   actorN3UserKey: string;
   expectedUpdatedAt: string | null;
+  clientRequestId?: string | null;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
   const sb = await admin();
   const res = await sb.rpc("hotelhub_check_in_reservation", {
@@ -385,7 +453,9 @@ export async function checkInReservation(input: {
     p_expected_updated_at: input.expectedUpdatedAt,
     p_allow_early: false,
     p_operation_request_id: null,
+    p_client_request_id: input.clientRequestId ?? null,
   });
+
   if (res.error) throw mapRpcError(res.error.message, "check_in_failed");
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("check_in_failed");
