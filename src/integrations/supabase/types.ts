@@ -1000,6 +1000,24 @@ export type Database = {
           out_state: string
         }[]
       }
+      hotelhub_update_reservation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_arrival_date: string
+          p_booking_source: string
+          p_departure_date: string
+          p_expected_updated_at: string
+          p_external_booking_reference: string
+          p_notes: string
+          p_reservation_id: string
+          p_rooms: Json
+          p_tenant_id: string
+        }
+        Returns: {
+          out_reservation_id: string
+          out_updated_at: string
+        }[]
+      }
       hotelhub_update_reservation_v2: {
         Args: {
           p_actor_n3_user_key: string
