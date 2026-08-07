@@ -1,6 +1,7 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 
 // NOTE: HotelHub is intentionally N3-only. Do NOT reintroduce Supabase
@@ -31,6 +32,6 @@ const rootTokenInterceptor = createMiddleware().server(async ({ next, request })
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [],
+  functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware, rootTokenInterceptor],
 }));
