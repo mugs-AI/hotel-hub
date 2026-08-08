@@ -60,7 +60,17 @@ export const OPERATION_ERROR_CODES = new Set([
   "primary_guest_required",
   "guest_assignment_required",
   "idempotency_conflict",
+  // Run 5D2.5 — guest/room assignment (hotelhub_assign_guest_rooms_v2)
+  "invalid_request",
+  "stale_reservation",
+  "reservation_not_editable",
+  "guest_edit_locked",
+  "correction_reason_required",
+  "correction_reason_too_long",
+  "duplicate_guest",
+  "guest_assignment_failed",
 ]);
+
 
 
 export class OperationError extends Error {
