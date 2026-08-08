@@ -7,6 +7,7 @@ import {
   tenantSourceLabel,
   useBookingSources,
   useReservationDetail,
+  type ReservationEditCapabilitiesDTO,
   type ReservationDetailDTO,
   type ReservationDetailGuestDTO,
 } from "@/lib/reservations-client";
@@ -20,6 +21,7 @@ import {
   ReservationActionsCard,
   ReservationTimelineCard,
 } from "@/components/ReservationOperations";
+import { GuestRoomAssignmentCard } from "@/components/GuestRoomAssignmentCard";
 import {
   ArrowLeft,
   CalendarDays,
@@ -92,7 +94,12 @@ function ReservationDetailPage() {
         ) : query.error ? (
           <ErrorState code={query.error.code} onRetry={() => query.refetch()} />
         ) : query.data ? (
-          <Detail data={query.data.reservation} canEdit={canEdit} role={role} />
+          <Detail
+            data={query.data.reservation}
+            capabilities={query.data.editCapabilities}
+            canEdit={canEdit}
+            role={role}
+          />
         ) : null}
       </div>
     </AppShell>
@@ -237,10 +244,12 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
 
 function Detail({
   data,
+  capabilities,
   canEdit,
   role,
 }: {
   data: ReservationDetailDTO;
+  capabilities: ReservationEditCapabilitiesDTO;
   canEdit: boolean;
   role: Parameters<typeof hasPermission>[0];
 }) {
