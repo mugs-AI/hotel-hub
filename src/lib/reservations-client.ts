@@ -163,12 +163,13 @@ export type ReservationDetailDTO = {
     baseRateSnapshot: number;
     agreedRate: number;
     adults: number;
-    remark: string | null;
+    children: number;
     /** Real capacity from the mapped hotel room. */
     maxOccupancy: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
     remark: string | null;
+
   }>;
   guests: ReservationDetailGuestDTO[];
 };
