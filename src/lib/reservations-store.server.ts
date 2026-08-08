@@ -205,13 +205,25 @@ export type AvailabilityRoom = {
   isActive: boolean;
 };
 
+/**
+ * Tenant-scoped room availability.
+ *
+ * `excludeReservationId` (Run 5D2.5 §7) supports the Edit flow: allocations
+ * that belong to the reservation being edited do not block its own rooms.
+ * Every other reservation's reserved/occupied overlap still blocks. The
+ * caller must have already verified the reservation belongs to `tenantId`;
+ * the allocation query is tenant-scoped regardless. The v2 update RPC
+ * remains the atomic authority and rechecks overlaps on write.
+ */
 export async function checkAvailability(input: {
   tenantId: string;
   arrival: string;
   departure: string;
   adults?: number | null;
   children?: number | null;
+  excludeReservationId?: string | null;
 }): Promise<AvailabilityRoom[]> {
+
   const sb = await admin();
   const settingsRes = await sb
     .from("hotel_settings")
