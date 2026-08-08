@@ -625,6 +625,8 @@ export async function getReservationById(
         stateCode: nested?.state_code ?? null,
         stateProvince: nested?.state_province ?? null,
         isPrimary: !!row.is_primary,
+        assignedReservationRoomId: row.reservation_room_id ?? null,
+
       };
     }),
   };
