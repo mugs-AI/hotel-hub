@@ -547,7 +547,7 @@ export async function getReservationById(
   const guests = await sb
     .from("hotel_reservation_guests")
     .select(
-      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, notes, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
+      "id, guest_id, is_primary, reservation_room_id, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, notes, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
