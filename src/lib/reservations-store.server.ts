@@ -595,7 +595,10 @@ export async function getReservationById(
         agreedRate: typeof row.agreed_rate === "string" ? Number(row.agreed_rate) : row.agreed_rate,
         adults: row.adults,
         children: row.children,
+        maxOccupancy:
+          typeof nested?.max_occupancy === "number" ? nested.max_occupancy : Number(nested?.max_occupancy ?? 0),
         allocationStatus: row.allocation_status,
+
         rateOverrideReason: row.rate_override_reason,
         remark: row.remark ?? null,
       };
