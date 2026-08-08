@@ -255,7 +255,7 @@ export async function checkAvailability(input: {
   if (rooms.length === 0) return [];
 
   const roomIds = rooms.map((r) => r.id);
-  const allocRes = await sb
+  let allocQuery = sb
     .from("hotel_reservation_rooms")
     .select("hotel_room_id, arrival_date, departure_date, allocation_status")
     .eq("tenant_id", input.tenantId)
@@ -263,7 +263,13 @@ export async function checkAvailability(input: {
     .in("allocation_status", ["reserved", "occupied"])
     .lt("arrival_date", input.departure)
     .gt("departure_date", input.arrival);
+  if (input.excludeReservationId) {
+    // Edit flow: the reservation being edited must not block its own rooms.
+    allocQuery = allocQuery.neq("reservation_id", input.excludeReservationId);
+  }
+  const allocRes = await allocQuery;
   if (allocRes.error) throw new Error(`allocations read failed: ${allocRes.error.message}`);
+
   const blocked = new Set<string>(
     ((allocRes.data ?? []) as Array<{ hotel_room_id: string }>).map((r) => r.hotel_room_id),
   );
