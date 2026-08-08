@@ -228,6 +228,13 @@ export function GuestControlsPanel({
         ))}
       </fieldset>
 
+      <p className="mt-3 max-w-2xl text-xs text-muted-foreground">
+        These rules apply to Front Desk. An Owner can always make a controlled correction after
+        check-in, and every such correction requires a written reason that is recorded in the
+        reservation timeline.
+      </p>
+
+
       <label className="mt-4 flex items-start gap-2 text-sm">
         <input
           type="checkbox"

@@ -132,6 +132,9 @@ export type ReservationDetailGuestDTO = {
   stateCode: string | null;
   stateProvince: string | null;
   isPrimary: boolean;
+  /** Reservation-room this guest is assigned to, or null when unassigned. */
+  assignedReservationRoomId: string | null;
+
 };
 
 export type ReservationDetailDTO = {
@@ -161,9 +164,12 @@ export type ReservationDetailDTO = {
     agreedRate: number;
     adults: number;
     children: number;
+    /** Real capacity from the mapped hotel room. */
+    maxOccupancy: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
     remark: string | null;
+
   }>;
   guests: ReservationDetailGuestDTO[];
 };
@@ -259,31 +265,80 @@ export function useReservationList(
 export function useAvailability(
   arrival: string,
   departure: string,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; excludeReservationId?: string | null },
 ) {
   const tenantId = useTenantId();
+  const exclude = options?.excludeReservationId ?? null;
   return useQuery<{ rooms: AvailabilityRoomDTO[] }, ReservationApiError>({
-    queryKey: availabilityKey(tenantId, arrival, departure),
-    queryFn: () =>
-      jsonFetch<{ rooms: AvailabilityRoomDTO[] }>(
-        `/api/hotel/availability?arrival=${encodeURIComponent(arrival)}&departure=${encodeURIComponent(departure)}`,
-      ),
+    queryKey: [...availabilityKey(tenantId, arrival, departure), exclude] as const,
+    queryFn: () => {
+      const qs = new URLSearchParams({ arrival, departure });
+      // When editing, the reservation's own rooms must stay selectable.
+      if (exclude) qs.set("excludeReservationId", exclude);
+      return jsonFetch<{ rooms: AvailabilityRoomDTO[] }>(`/api/hotel/availability?${qs}`);
+    },
     enabled:
       Boolean(tenantId) && Boolean(arrival) && Boolean(departure) && (options?.enabled ?? true),
     staleTime: 0,
   });
 }
 
+/** Server-derived edit capabilities (advisory for the UI; server enforces). */
+export type ReservationEditCapabilitiesDTO = {
+  mode: "full" | "contact" | "owner_correction" | "none";
+  canOpenEditor: boolean;
+  canEditStayAndRooms: boolean;
+  canEditGuestContact: boolean;
+  canEditGuestIdentity: boolean;
+  canAddRemoveGuests: boolean;
+  canChangePrimaryGuest: boolean;
+  canAssignGuestRooms: boolean;
+  correctionReasonRequired: boolean;
+  reasonCode: string | null;
+};
+
+type ReservationDetailResponse = {
+  reservation: ReservationDetailDTO;
+  editCapabilities: ReservationEditCapabilitiesDTO;
+};
+
 export function useReservationDetail(id: string) {
   const tenantId = useTenantId();
-  return useQuery<{ reservation: ReservationDetailDTO }, ReservationApiError>({
+  return useQuery<ReservationDetailResponse, ReservationApiError>({
     queryKey: reservationDetailKey(tenantId, id),
-    queryFn: () =>
-      jsonFetch<{ reservation: ReservationDetailDTO }>(`/api/hotel/reservations/${id}`),
+    queryFn: () => jsonFetch<ReservationDetailResponse>(`/api/hotel/reservations/${id}`),
     enabled: Boolean(tenantId) && Boolean(id),
     retry: false,
   });
 }
+
+export type GuestAssignmentPayload = {
+  clientRequestId: string;
+  expectedUpdatedAt: string;
+  correctionReason?: string | null;
+  assignments: Array<{ reservationGuestId: string; reservationRoomId: string | null }>;
+};
+
+/** Assign reservation guests to rooms (idempotent, optimistic-concurrency). */
+export function useAssignGuestRooms(id: string) {
+  const qc = useQueryClient();
+  const tenantId = useTenantId();
+  return useMutation<
+    { updated: number; updatedAt: string; replayed: boolean },
+    ReservationApiError,
+    GuestAssignmentPayload
+  >({
+    mutationFn: (payload) =>
+      jsonFetch(`/api/hotel/reservations/${id}/guest-assignments`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: reservationDetailKey(tenantId, id) });
+    },
+  });
+}
+
 
 export function useCreateReservation() {
   const qc = useQueryClient();

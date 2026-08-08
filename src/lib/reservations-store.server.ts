@@ -205,13 +205,25 @@ export type AvailabilityRoom = {
   isActive: boolean;
 };
 
+/**
+ * Tenant-scoped room availability.
+ *
+ * `excludeReservationId` (Run 5D2.5 §7) supports the Edit flow: allocations
+ * that belong to the reservation being edited do not block its own rooms.
+ * Every other reservation's reserved/occupied overlap still blocks. The
+ * caller must have already verified the reservation belongs to `tenantId`;
+ * the allocation query is tenant-scoped regardless. The v2 update RPC
+ * remains the atomic authority and rechecks overlaps on write.
+ */
 export async function checkAvailability(input: {
   tenantId: string;
   arrival: string;
   departure: string;
   adults?: number | null;
   children?: number | null;
+  excludeReservationId?: string | null;
 }): Promise<AvailabilityRoom[]> {
+
   const sb = await admin();
   const settingsRes = await sb
     .from("hotel_settings")
@@ -243,7 +255,7 @@ export async function checkAvailability(input: {
   if (rooms.length === 0) return [];
 
   const roomIds = rooms.map((r) => r.id);
-  const allocRes = await sb
+  let allocQuery = sb
     .from("hotel_reservation_rooms")
     .select("hotel_room_id, arrival_date, departure_date, allocation_status")
     .eq("tenant_id", input.tenantId)
@@ -251,7 +263,13 @@ export async function checkAvailability(input: {
     .in("allocation_status", ["reserved", "occupied"])
     .lt("arrival_date", input.departure)
     .gt("departure_date", input.arrival);
+  if (input.excludeReservationId) {
+    // Edit flow: the reservation being edited must not block its own rooms.
+    allocQuery = allocQuery.neq("reservation_id", input.excludeReservationId);
+  }
+  const allocRes = await allocQuery;
   if (allocRes.error) throw new Error(`allocations read failed: ${allocRes.error.message}`);
+
   const blocked = new Set<string>(
     ((allocRes.data ?? []) as Array<{ hotel_room_id: string }>).map((r) => r.hotel_room_id),
   );
@@ -467,6 +485,8 @@ export type ReservationDetail = {
     agreedRate: number;
     adults: number;
     children: number;
+    /** Real capacity from `hotel_rooms.max_occupancy` — never a UI guess. */
+    maxOccupancy: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
     remark: string | null;
@@ -492,8 +512,11 @@ export type ReservationDetail = {
     stateCode: string | null;
     stateProvince: string | null;
     isPrimary: boolean;
+    /** Reservation-room this guest is assigned to, or null when unassigned. */
+    assignedReservationRoomId: string | null;
   }>;
 };
+
 
 export async function getReservationById(
   tenantId: string,
@@ -515,7 +538,7 @@ export async function getReservationById(
   const rooms = await sb
     .from("hotel_reservation_rooms")
     .select(
-      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, remark, hotel_rooms(room_number, display_name, n3_stock_name)",
+      "id, hotel_room_id, base_rate_snapshot, agreed_rate, adults, children, allocation_status, rate_override_reason, remark, hotel_rooms(room_number, display_name, n3_stock_name, max_occupancy)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
@@ -524,7 +547,7 @@ export async function getReservationById(
   const guests = await sb
     .from("hotel_reservation_guests")
     .select(
-      "id, guest_id, is_primary, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, notes, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
+      "id, guest_id, is_primary, reservation_room_id, hotel_guests(full_name, mobile, email, nationality, nationality_code, identity_type, identity_number, notes, address_line_1, address_line_2, address_line_3, city, postcode, country_code, state_code, state_province)",
     )
     .eq("tenant_id", tenantId)
     .eq("reservation_id", id);
@@ -572,7 +595,10 @@ export async function getReservationById(
         agreedRate: typeof row.agreed_rate === "string" ? Number(row.agreed_rate) : row.agreed_rate,
         adults: row.adults,
         children: row.children,
+        maxOccupancy:
+          typeof nested?.max_occupancy === "number" ? nested.max_occupancy : Number(nested?.max_occupancy ?? 0),
         allocationStatus: row.allocation_status,
+
         rateOverrideReason: row.rate_override_reason,
         remark: row.remark ?? null,
       };
@@ -599,6 +625,8 @@ export async function getReservationById(
         stateCode: nested?.state_code ?? null,
         stateProvince: nested?.state_province ?? null,
         isPrimary: !!row.is_primary,
+        assignedReservationRoomId: row.reservation_room_id ?? null,
+
       };
     }),
   };

@@ -4,7 +4,7 @@
 // Never calls N3.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
-import { checkAvailability, isIsoDate } from "@/lib/reservations-store.server";
+import { checkAvailability, isIsoDate, isUuid } from "@/lib/reservations-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
@@ -39,6 +39,10 @@ export async function handleAvailability({ request }: { request: Request }): Pro
   const adults = parseOptionalNonNegInt(url.searchParams.get("adults"));
   const children = parseOptionalNonNegInt(url.searchParams.get("children"));
   if (adults === "invalid" || children === "invalid") return deny(400, "invalid_occupancy");
+  // Editing an existing reservation: its own allocations must not block it.
+  const excludeRaw = url.searchParams.get("excludeReservationId");
+  if (excludeRaw !== null && !isUuid(excludeRaw)) return deny(400, "invalid_id");
+  const excludeReservationId = excludeRaw;
   try {
     const rooms = await checkAvailability({
       tenantId: ctx.session.tenantId!,
@@ -46,14 +50,23 @@ export async function handleAvailability({ request }: { request: Request }): Pro
       departure,
       adults,
       children,
+      excludeReservationId,
     });
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.availability.checked",
-      detail: { arrival, departure, adults, children, roomCount: rooms.length },
+      detail: {
+        arrival,
+        departure,
+        adults,
+        children,
+        roomCount: rooms.length,
+        excluded: excludeReservationId !== null,
+      },
     });
     return Response.json({ rooms }, { headers: { "cache-control": "no-store" } });
+
   } catch (err) {
     console.error("[availability] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "availability_failed");

@@ -60,7 +60,17 @@ export const OPERATION_ERROR_CODES = new Set([
   "primary_guest_required",
   "guest_assignment_required",
   "idempotency_conflict",
+  // Run 5D2.5 — guest/room assignment (hotelhub_assign_guest_rooms_v2)
+  "invalid_request",
+  "stale_reservation",
+  "reservation_not_editable",
+  "guest_edit_locked",
+  "correction_reason_required",
+  "correction_reason_too_long",
+  "duplicate_guest",
+  "guest_assignment_failed",
 ]);
+
 
 
 export class OperationError extends Error {
@@ -512,17 +522,32 @@ export async function decideOperation(input: {
   return { requestId: row.out_request_id, state: row.out_state };
 }
 
-export async function assignGuestRooms(input: {
+/**
+ * Guest -> reservation-room assignment (Run 5D2.5).
+ *
+ * Calls `hotelhub_assign_guest_rooms_v2` ONLY. The dropped v1 RPC must never
+ * be referenced again. Tenant, actor and role are supplied by the trusted
+ * server session — never by the browser.
+ */
+export async function assignGuestRoomsV2(input: {
   tenantId: string;
   reservationId: string;
   actorN3UserKey: string;
+  actorRole: string;
+  clientRequestId: string;
+  expectedUpdatedAt: string;
+  correctionReason: string | null;
   assignments: Array<{ reservationGuestId: string; reservationRoomId: string | null }>;
-}): Promise<{ updated: number }> {
+}): Promise<{ updated: number; updatedAt: string; replayed: boolean }> {
   const sb = await admin();
-  const res = await sb.rpc("hotelhub_assign_guest_rooms", {
+  const res = await sb.rpc("hotelhub_assign_guest_rooms_v2", {
     p_tenant_id: input.tenantId,
     p_reservation_id: input.reservationId,
     p_actor_n3_user_key: input.actorN3UserKey,
+    p_actor_role: input.actorRole,
+    p_client_request_id: input.clientRequestId,
+    p_expected_updated_at: input.expectedUpdatedAt,
+    p_correction_reason: input.correctionReason,
     p_assignments: input.assignments.map((a) => ({
       reservation_guest_id: a.reservationGuestId,
       reservation_room_id: a.reservationRoomId,
@@ -530,5 +555,11 @@ export async function assignGuestRooms(input: {
   });
   if (res.error) throw mapRpcError(res.error.message, "guest_assignment_failed");
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
-  return { updated: row?.out_updated ?? 0 };
+  if (!row) throw new OperationError("guest_assignment_failed");
+  return {
+    updated: row.out_updated ?? 0,
+    updatedAt: row.out_updated_at,
+    replayed: !!row.out_replayed,
+  };
 }
+
