@@ -71,7 +71,7 @@ export async function handleReservationDetail({
     const { computeEditCapabilities } = await import("@/lib/reservation-edit-capabilities");
     const settings = await getOrCreateHotelSettings(ctx.session.tenantId!);
     const editCapabilities = computeEditCapabilities({
-      role: ctx.session.role ?? null,
+      role: ctx.role ?? null,
       status: res.status,
       postCheckInGuestEditPolicy: settings.postCheckInGuestEditPolicy,
       allowOwnerPrimaryGuestChangeAfterCheckIn:
