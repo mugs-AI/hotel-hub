@@ -132,6 +132,9 @@ export type ReservationDetailGuestDTO = {
   stateCode: string | null;
   stateProvince: string | null;
   isPrimary: boolean;
+  /** Reservation-room this guest is assigned to, or null when unassigned. */
+  assignedReservationRoomId: string | null;
+
 };
 
 export type ReservationDetailDTO = {
