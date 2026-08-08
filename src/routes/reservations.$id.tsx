@@ -420,6 +420,13 @@ function Detail({
           ))}
         </ul>
       </section>
+
+      <GuestRoomAssignmentCard
+        reservationId={data.id}
+        data={data}
+        capabilities={capabilities}
+      />
+
     </div>
   );
 }
