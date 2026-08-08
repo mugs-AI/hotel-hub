@@ -65,13 +65,28 @@ export async function handleReservationDetail({
     // carries the safe, directory-resolved display name instead.
     const { createdByN3UserKey: _omit, ...safe } = res;
     void _omit;
-    return Response.json({ reservation: safe }, { headers: { "cache-control": "no-store" } });
-
+    // Server-derived edit capabilities (Run 5D2.5 §5). Advisory for the UI —
+    // the write path re-derives and enforces the same policy.
+    const { getOrCreateHotelSettings } = await import("@/lib/hotel-store.server");
+    const { computeEditCapabilities } = await import("@/lib/reservation-edit-capabilities");
+    const settings = await getOrCreateHotelSettings(ctx.session.tenantId!);
+    const editCapabilities = computeEditCapabilities({
+      role: ctx.session.role ?? null,
+      status: res.status,
+      postCheckInGuestEditPolicy: settings.postCheckInGuestEditPolicy,
+      allowOwnerPrimaryGuestChangeAfterCheckIn:
+        settings.allowOwnerPrimaryGuestChangeAfterCheckIn === true,
+    });
+    return Response.json(
+      { reservation: safe, editCapabilities },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (err) {
     console.error("[reservation.detail] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "reservation_detail_failed");
   }
 }
+
 
 export async function handleReservationPatch({
   request,
