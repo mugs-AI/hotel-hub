@@ -12,7 +12,7 @@ import {
   type ReservationEditCapabilitiesDTO,
   type ReservationDetailDTO,
 } from "@/lib/reservations-client";
-import { roomDisplayName } from "@/lib/reservations-ui";
+import { roomLabel } from "@/lib/reservations-ui";
 
 const NAVY = "#0F2748";
 const TEAL = "#0E7C86";
@@ -121,7 +121,7 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
                 <option value="">Unassigned</option>
                 {data.rooms.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {roomDisplayName(r)} · max {r.maxOccupancy}
+                    {roomLabel(r.displayName, r.n3StockName, r.roomNumber)} · max {r.maxOccupancy}
                   </option>
                 ))}
               </select>
@@ -132,7 +132,7 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
 
       {overCapacity.length > 0 ? (
         <p className="mt-3 text-xs font-medium text-destructive">
-          Over capacity: {overCapacity.map((r) => roomDisplayName(r)).join(", ")}. Reduce guests in
+          Over capacity: {overCapacity.map((r) => roomLabel(r.displayName, r.n3StockName, r.roomNumber)).join(", ")}. Reduce guests in
           these rooms before saving.
         </p>
       ) : null}
