@@ -126,7 +126,7 @@ export async function handleGuestAssignmentsPatch({
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
-      eventType: "hotel.reservation.guest_assignment_failed",
+      eventType: "hotel.reservation.guests_assign_failed",
       // Safe counts only — never guest names, contact details or identities.
       detail: { reservationId: id, code, assignmentCount: assignments.length },
     });
