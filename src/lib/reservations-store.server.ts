@@ -485,6 +485,8 @@ export type ReservationDetail = {
     agreedRate: number;
     adults: number;
     children: number;
+    /** Real capacity from `hotel_rooms.max_occupancy` — never a UI guess. */
+    maxOccupancy: number;
     allocationStatus: string;
     rateOverrideReason: string | null;
     remark: string | null;
@@ -510,8 +512,11 @@ export type ReservationDetail = {
     stateCode: string | null;
     stateProvince: string | null;
     isPrimary: boolean;
+    /** Reservation-room this guest is assigned to, or null when unassigned. */
+    assignedReservationRoomId: string | null;
   }>;
 };
+
 
 export async function getReservationById(
   tenantId: string,
