@@ -4,7 +4,7 @@
 // Never calls N3.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
-import { checkAvailability, isIsoDate } from "@/lib/reservations-store.server";
+import { checkAvailability, isIsoDate, isUuid } from "@/lib/reservations-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
