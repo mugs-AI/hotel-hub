@@ -712,3 +712,134 @@ export async function updateReservationAtomic(
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   return { reservationId: row.out_reservation_id, updatedAt: row.out_updated_at };
 }
+
+// ---------------------------------------------------------------------------
+// Run 5D2.6 §4 — full reservation update bridge to
+// `public.hotelhub_update_reservation_v2` (v2 ONLY).
+//
+// Tenant, actor N3 user key and actor role come exclusively from the trusted
+// server session; the reservation ID from the validated URL; the fingerprint
+// is generated server-side from the normalized payload. None of these may be
+// supplied by the browser.
+// ---------------------------------------------------------------------------
+export const RESERVATION_FULL_UPDATE_ERROR_CODES = new Set([
+  "invalid_request",
+  "unauthorized",
+  "idempotency_conflict",
+  "stale_reservation",
+  "reservation_not_found",
+  "reservation_not_editable",
+  "guest_edit_locked",
+  "correction_reason_required",
+  "correction_reason_too_long",
+  "primary_guest_change_not_allowed",
+  "invalid_stay_dates",
+  "invalid_booking_source",
+  "room_required",
+  "room_not_found",
+  "room_unavailable",
+  "duplicate_room",
+  "duplicate_client_key",
+  "invalid_room",
+  "invalid_occupancy",
+  "room_capacity_exceeded",
+  "room_remark_too_long",
+  "invalid_rate",
+  "rate_override_reason_required",
+  "guest_required",
+  "invalid_guest",
+  "guest_not_found",
+  "duplicate_guest",
+  "primary_guest_required",
+  "multiple_primary_guests",
+  "guest_assignment_required",
+  "invalid_identity_action",
+  "identity_pair_required",
+  "invalid_identity_type",
+  "invalid_identity_number",
+  "external_ref_too_long",
+  "reservation_update_failed",
+]);
+
+export type UpdateReservationFullInput = {
+  /** From the trusted server session — never the browser. */
+  tenantId: string;
+  /** From the validated URL. */
+  reservationId: string;
+  /** From the trusted server session — never the browser. */
+  actorN3UserKey: string;
+  /** From the trusted server session — never the browser. */
+  actorRole: string;
+  payload: import("./reservation-full-update").NormalizedFullUpdate;
+};
+
+export async function updateReservationFull(
+  input: UpdateReservationFullInput,
+): Promise<{ reservationId: string; updatedAt: string; replayed: boolean }> {
+  const { canonicalFingerprint } = await import("./reservation-full-update");
+  const p = input.payload;
+  const fingerprint = canonicalFingerprint(input.reservationId, p);
+  const sb = await admin();
+  const res = await sb.rpc("hotelhub_update_reservation_v2", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_actor_n3_user_key: input.actorN3UserKey,
+    p_actor_role: input.actorRole,
+    p_client_request_id: p.clientRequestId,
+    p_fingerprint: fingerprint,
+    p_expected_updated_at: p.expectedUpdatedAt,
+    p_booking_source: p.bookingSource,
+    p_arrival_date: p.arrivalDate,
+    p_departure_date: p.departureDate,
+    p_notes: p.notes,
+    p_external_booking_reference: p.externalBookingReference,
+    p_rooms: p.rooms.map((r) => ({
+      client_key: r.clientKey,
+      reservation_room_id: r.reservationRoomId,
+      hotel_room_id: r.hotelRoomId,
+      agreed_rate: r.agreedRate,
+      adults: r.adults,
+      children: r.children,
+      rate_override_reason: r.rateOverrideReason,
+      remark: r.remark,
+    })),
+    p_guests: p.guests.map((g) => ({
+      client_key: g.clientKey,
+      reservation_guest_id: g.reservationGuestId,
+      full_name: g.fullName,
+      mobile: g.mobile,
+      email: g.email,
+      notes: g.notes,
+      nationality_code: g.nationalityCode,
+      address_line_1: g.addressLine1,
+      address_line_2: g.addressLine2,
+      address_line_3: g.addressLine3,
+      city: g.city,
+      postcode: g.postcode,
+      country_code: g.countryCode,
+      state_code: g.stateCode,
+      state_province: g.stateProvince,
+      is_primary: g.isPrimary,
+      assigned_room_client_key: g.assignedRoomClientKey,
+      identity_action: g.identityAction,
+      identity_type: g.identityType,
+      identity_number: g.identityNumber,
+    })),
+    p_correction_reason: p.correctionReason,
+  });
+  if (res.error) {
+    // Map to an allow-listed code only; the raw SQL message never escapes.
+    const msg = (res.error.message ?? "").toString();
+    const match = msg
+      .match(/[a-z_]+/g)
+      ?.find((w: string) => RESERVATION_FULL_UPDATE_ERROR_CODES.has(w));
+    throw new ReservationUpdateError(match ?? "reservation_update_failed");
+  }
+  const row = Array.isArray(res.data) ? res.data[0] : res.data;
+  if (!row?.out_reservation_id) throw new ReservationUpdateError("reservation_update_failed");
+  return {
+    reservationId: row.out_reservation_id,
+    updatedAt: row.out_updated_at,
+    replayed: !!row.out_replayed,
+  };
+}

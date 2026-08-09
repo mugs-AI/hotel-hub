@@ -174,27 +174,62 @@ export type ReservationDetailDTO = {
   guests: ReservationDetailGuestDTO[];
 };
 
-export type UpdateReservationPayload = {
+/**
+ * Run 5D2.6 — complete one-page edit payload.
+ *
+ * Never carries tenant, actor, role or fingerprint: those are server-derived.
+ * `identityNumber` is write-only — it is sent once and must never be copied
+ * into query cache, URLs, storage or logs.
+ */
+export type UpdateReservationFullPayload = {
+  clientRequestId: string;
   expectedUpdatedAt: string;
   bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string | null;
   externalBookingReference: string | null;
+  correctionReason: string | null;
   rooms: Array<{
-    id: string;
+    clientKey: string;
+    reservationRoomId: string | null;
+    hotelRoomId: string;
     agreedRate: number;
     adults: number;
     children: number;
     rateOverrideReason: string | null;
     remark: string | null;
   }>;
+  guests: Array<{
+    clientKey: string;
+    reservationGuestId: string | null;
+    fullName: string;
+    mobile: string | null;
+    email: string | null;
+    notes: string | null;
+    nationalityCode: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    addressLine3: string | null;
+    city: string | null;
+    postcode: string | null;
+    countryCode: string | null;
+    stateCode: string | null;
+    stateProvince: string | null;
+    isPrimary: boolean;
+    assignedRoomClientKey: string | null;
+    identityAction: "keep" | "replace" | "clear";
+    identityType: string | null;
+    identityNumber: string | null;
+  }>;
 };
 
-export type UpdateReservationResponse = {
+export type UpdateReservationFullResponse = {
   reservationId: string;
   updatedAt: string;
+  replayed: boolean;
 };
+
 
 export type CreateReservationPayload = {
   bookingSource: string;
@@ -452,16 +487,24 @@ export function tenantSourceLabel(
     .join(" ");
 }
 
-export function useUpdateReservation(id: string) {
+/**
+ * Full one-page reservation update (Run 5D2.6). Replaces the retired v1
+ * `useUpdateReservation` hook — the Edit route must never call v1.
+ *
+ * The mutation variables (which may contain a write-only replacement
+ * identity number) are never written into the query cache: `onSuccess`
+ * only invalidates keys so authoritative data is refetched from the server.
+ */
+export function useUpdateReservationFull(id: string) {
   const qc = useQueryClient();
-  const tenantId = (function useTid() {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const s = useSessionMe();
-    return s.data?.authenticated === true ? s.data.tenant.tenantId : null;
-  })();
-  return useMutation<UpdateReservationResponse, ReservationApiError, UpdateReservationPayload>({
+  const tenantId = useTenantId();
+  return useMutation<
+    UpdateReservationFullResponse,
+    ReservationApiError,
+    UpdateReservationFullPayload
+  >({
     mutationFn: (payload) =>
-      jsonFetch<UpdateReservationResponse>(`/api/hotel/reservations/${id}`, {
+      jsonFetch<UpdateReservationFullResponse>(`/api/hotel/reservations/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       }),
@@ -470,9 +513,21 @@ export function useUpdateReservation(id: string) {
       qc.invalidateQueries({
         predicate: (q) => {
           const k = q.queryKey as unknown[];
-          return k[0] === "reservations" && (k[1] === "list" || k[1] === "availability") && k[2] === tenantId;
+          return (
+            k[0] === "reservations" &&
+            (k[1] === "list" || k[1] === "availability" || k[1] === "calendar") &&
+            k[2] === tenantId
+          );
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["reservation-timeline", tenantId, id] });
+      qc.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey as unknown[];
+          return k[0] === "reservation-calendar" || k[0] === "reservations-calendar";
         },
       });
     },
   });
 }
+
