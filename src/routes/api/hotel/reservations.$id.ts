@@ -1,51 +1,18 @@
 // GET   /api/hotel/reservations/:id — Owner + Front Desk. Tenant-scoped detail.
-// PATCH /api/hotel/reservations/:id — Owner + Front Desk. Atomic head + rooms
-//   update with optimistic concurrency (expectedUpdatedAt).
+// PATCH /api/hotel/reservations/:id — Owner + Front Desk. Full atomic update
+//   (header + rooms + guests + assignments + identity actions) with optimistic
+//   concurrency and server-generated idempotency fingerprint, delegated to
+//   `hotelhub_update_reservation_v2`.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
-import {
-  getReservationById,
-  isIsoDate,
-  isUuid,
-  updateReservationAtomic,
-  ReservationUpdateError,
-  RESERVATION_UPDATE_ERROR_CODES,
-} from "@/lib/reservations-store.server";
-import { findBookingSourceByCode, isSourceCodeFormat } from "@/lib/booking-sources-store.server";
+import { isUuid, ReservationUpdateError } from "@/lib/reservations-store.server";
+import { isSourceCodeFormat } from "@/lib/booking-sources-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-function toStrictInt(v: unknown): number | null {
-  if (typeof v !== "number" || !Number.isFinite(v) || !Number.isInteger(v)) return null;
-  return v;
-}
 
-const ALLOWED_TOP = new Set([
-  "expectedUpdatedAt",
-  "bookingSource",
-  "arrivalDate",
-  "departureDate",
-  "notes",
-  "externalBookingReference",
-  "rooms",
-]);
-const ALLOWED_ROOM = new Set([
-  "id",
-  "agreedRate",
-  "adults",
-  "children",
-  "rateOverrideReason",
-  "remark",
-]);
-function rejectUnknown(obj: Record<string, unknown>, allowed: ReadonlySet<string>): string | null {
-  for (const k of Object.keys(obj)) if (!allowed.has(k)) return k;
-  return null;
-}
 
 export async function handleReservationDetail({
   params,
