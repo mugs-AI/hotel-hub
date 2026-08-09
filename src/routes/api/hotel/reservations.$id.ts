@@ -5,7 +5,11 @@
 //   `hotelhub_update_reservation_v2`.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
-import { isUuid, ReservationUpdateError } from "@/lib/reservations-store.server";
+import {
+  getReservationById,
+  isUuid,
+  ReservationUpdateError,
+} from "@/lib/reservations-store.server";
 import { isSourceCodeFormat } from "@/lib/booking-sources-store.server";
 import { logAudit } from "@/lib/audit.server";
 
