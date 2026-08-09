@@ -174,27 +174,62 @@ export type ReservationDetailDTO = {
   guests: ReservationDetailGuestDTO[];
 };
 
-export type UpdateReservationPayload = {
+/**
+ * Run 5D2.6 — complete one-page edit payload.
+ *
+ * Never carries tenant, actor, role or fingerprint: those are server-derived.
+ * `identityNumber` is write-only — it is sent once and must never be copied
+ * into query cache, URLs, storage or logs.
+ */
+export type UpdateReservationFullPayload = {
+  clientRequestId: string;
   expectedUpdatedAt: string;
   bookingSource: string;
   arrivalDate: string;
   departureDate: string;
   notes: string | null;
   externalBookingReference: string | null;
+  correctionReason: string | null;
   rooms: Array<{
-    id: string;
+    clientKey: string;
+    reservationRoomId: string | null;
+    hotelRoomId: string;
     agreedRate: number;
     adults: number;
     children: number;
     rateOverrideReason: string | null;
     remark: string | null;
   }>;
+  guests: Array<{
+    clientKey: string;
+    reservationGuestId: string | null;
+    fullName: string;
+    mobile: string | null;
+    email: string | null;
+    notes: string | null;
+    nationalityCode: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    addressLine3: string | null;
+    city: string | null;
+    postcode: string | null;
+    countryCode: string | null;
+    stateCode: string | null;
+    stateProvince: string | null;
+    isPrimary: boolean;
+    assignedRoomClientKey: string | null;
+    identityAction: "keep" | "replace" | "clear";
+    identityType: string | null;
+    identityNumber: string | null;
+  }>;
 };
 
-export type UpdateReservationResponse = {
+export type UpdateReservationFullResponse = {
   reservationId: string;
   updatedAt: string;
+  replayed: boolean;
 };
+
 
 export type CreateReservationPayload = {
   bookingSource: string;
