@@ -88,6 +88,15 @@ export async function handleReservationDetail({
 }
 
 
+/**
+ * Run 5D2.6 §5 — full reservation update.
+ *
+ * Strict allow-list validation at top/room/guest level, then delegation to
+ * `updateReservationFull` → `hotelhub_update_reservation_v2` (v2 ONLY).
+ * Tenant, actor key, actor role and the fingerprint are derived server-side.
+ * The browser-supplied capability hints are never trusted; the RPC re-derives
+ * the guest-edit policy and enforces it atomically.
+ */
 export async function handleReservationPatch({
   request,
   params,
@@ -108,124 +117,46 @@ export async function handleReservationPatch({
   } catch {
     return deny(400, "invalid_json");
   }
-  if (!isPlainObject(parsed)) return deny(400, "invalid_body");
-  const body = parsed as Record<string, unknown>;
-  const unk = rejectUnknown(body, ALLOWED_TOP);
-  if (unk !== null) return deny(400, "unknown_field");
 
-  const expected = body.expectedUpdatedAt;
-  if (typeof expected !== "string" || !expected) return deny(400, "stale_reservation");
+  const { normalizeFullUpdateBody, fullUpdateErrorStatus } = await import(
+    "@/lib/reservation-full-update"
+  );
+  const normalized = normalizeFullUpdateBody(parsed);
+  if (!normalized.ok) return deny(fullUpdateErrorStatus(normalized.code), normalized.code);
 
-  const source = body.bookingSource;
-  if (typeof source !== "string" || !isSourceCodeFormat(source))
-    return deny(400, "invalid_booking_source");
-  const arrival = body.arrivalDate;
-  const departure = body.departureDate;
-  if (!isIsoDate(arrival) || !isIsoDate(departure) || departure <= arrival)
-    return deny(400, "invalid_stay_dates");
-
-  const notes =
-    body.notes === undefined || body.notes === null
-      ? null
-      : typeof body.notes === "string"
-        ? body.notes.trim() || null
-        : null;
-  if (body.notes !== undefined && body.notes !== null && typeof body.notes !== "string")
-    return deny(400, "invalid_notes");
-
-  const extRaw = body.externalBookingReference;
-  let externalBookingReference: string | null = null;
-  if (extRaw !== undefined && extRaw !== null && extRaw !== "") {
-    if (typeof extRaw !== "string") return deny(400, "invalid_external_reference");
-    const t = extRaw.trim();
-    if (t.length > 100) return deny(400, "external_ref_too_long");
-    externalBookingReference = t || null;
-  }
-
-  if (!Array.isArray(body.rooms)) return deny(400, "room_required");
-  const rooms: Parameters<typeof updateReservationAtomic>[0]["rooms"] = [];
-  for (const r of body.rooms as unknown[]) {
-    if (!isPlainObject(r)) return deny(400, "invalid_room");
-    const u = rejectUnknown(r as Record<string, unknown>, ALLOWED_ROOM);
-    if (u !== null) return deny(400, "unknown_field");
-    const rid = (r as Record<string, unknown>).id;
-    if (!isUuid(rid)) return deny(400, "invalid_room_id");
-    const agreed = (r as Record<string, unknown>).agreedRate;
-    if (typeof agreed !== "number" || !Number.isFinite(agreed) || agreed < 0)
-      return deny(400, "invalid_rate");
-    const adults = toStrictInt((r as Record<string, unknown>).adults);
-    if (adults === null || adults < 1) return deny(400, "invalid_occupancy");
-    const childrenRaw = (r as Record<string, unknown>).children ?? 0;
-    const children = toStrictInt(childrenRaw);
-    if (children === null || children < 0) return deny(400, "invalid_occupancy");
-    const reasonRaw = (r as Record<string, unknown>).rateOverrideReason;
-    const reason = typeof reasonRaw === "string" ? reasonRaw.trim() || null : null;
-    const remarkRaw = (r as Record<string, unknown>).remark;
-    let remark: string | null = null;
-    if (remarkRaw !== undefined && remarkRaw !== null && remarkRaw !== "") {
-      if (typeof remarkRaw !== "string") return deny(400, "invalid_room");
-      const t = remarkRaw.trim();
-      if (t.length > 500) return deny(400, "room_remark_too_long");
-      remark = t.length > 0 ? t : null;
-    }
-    rooms.push({
-      id: rid as string,
-      agreedRate: agreed,
-      adults,
-      children,
-      rateOverrideReason: reason,
-      remark,
-    });
-  }
-
-  let sourceRow;
-  try {
-    sourceRow = await findBookingSourceByCode(ctx.session.tenantId!, source);
-  } catch (err) {
-    console.error("[reservation.patch] source lookup failed", (err as Error).message?.slice(0, 200));
-    return deny(500, "reservation_update_failed");
-  }
-  if (!sourceRow || !sourceRow.isActive) return deny(400, "invalid_booking_source");
+  const source = normalized.value.bookingSource;
+  if (!isSourceCodeFormat(source)) return deny(400, "invalid_booking_source");
 
   try {
-    const result = await updateReservationAtomic({
+    const { updateReservationFull } = await import("@/lib/reservations-store.server");
+    const result = await updateReservationFull({
       tenantId: ctx.session.tenantId!,
       reservationId: id,
       actorN3UserKey: ctx.session.n3UserKey,
-      expectedUpdatedAt: expected,
-      bookingSource: source,
-      arrivalDate: arrival,
-      departureDate: departure,
-      notes,
-      externalBookingReference,
-      rooms,
+      actorRole: ctx.role ?? "",
+      payload: normalized.value,
     });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const code =
-      err instanceof ReservationUpdateError && RESERVATION_UPDATE_ERROR_CODES.has(err.code)
-        ? err.code
-        : "reservation_update_failed";
+      err instanceof ReservationUpdateError ? err.code : "reservation_update_failed";
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.reservation.update_failed",
-      detail: { reservationId: id, code },
+      // Safe counts + code only. No guest names, contact values or identities.
+      detail: {
+        reservationId: id,
+        code,
+        roomCount: normalized.value.rooms.length,
+        guestCount: normalized.value.guests.length,
+      },
     });
-    const status =
-      code === "stale_reservation"
-        ? 409
-        : code === "reservation_not_editable"
-          ? 409
-          : code === "not_found"
-            ? 404
-            : code === "reservation_update_failed"
-              ? 500
-              : 400;
-    return deny(status, code);
+    return deny(fullUpdateErrorStatus(code), code);
   }
 }
 
 export const Route = createFileRoute("/api/hotel/reservations/$id")({
   server: { handlers: { GET: handleReservationDetail, PATCH: handleReservationPatch } },
 });
+
