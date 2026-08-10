@@ -488,46 +488,51 @@ export function tenantSourceLabel(
 }
 
 /**
- * Full one-page reservation update (Run 5D2.6). Replaces the retired v1
- * `useUpdateReservation` hook — the Edit route must never call v1.
+ * Full one-page reservation update (Run 5D2.6, hardened in Run 5D2.7).
  *
- * The mutation variables (which may contain a write-only replacement
- * identity number) are never written into the query cache: `onSuccess`
- * only invalidates keys so authoritative data is refetched from the server.
+ * Deliberately NOT a TanStack `useMutation`: the payload may carry a
+ * write-only replacement identity number, and React Query retains mutation
+ * variables for observers/devtools. This plain function builds the request
+ * body immediately before a same-origin fetch and keeps no reference to it.
+ * The value never reaches Query state, the cache, a URL, storage or logs.
  */
-export function useUpdateReservationFull(id: string) {
-  const qc = useQueryClient();
-  const tenantId = useTenantId();
-  return useMutation<
-    UpdateReservationFullResponse,
-    ReservationApiError,
-    UpdateReservationFullPayload
-  >({
-    mutationFn: (payload) =>
-      jsonFetch<UpdateReservationFullResponse>(`/api/hotel/reservations/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: reservationDetailKey(tenantId, id) });
-      qc.invalidateQueries({
-        predicate: (q) => {
-          const k = q.queryKey as unknown[];
-          return (
-            k[0] === "reservations" &&
-            (k[1] === "list" || k[1] === "availability" || k[1] === "calendar") &&
-            k[2] === tenantId
-          );
-        },
-      });
-      qc.invalidateQueries({ queryKey: ["reservation-timeline", tenantId, id] });
-      qc.invalidateQueries({
-        predicate: (q) => {
-          const k = q.queryKey as unknown[];
-          return k[0] === "reservation-calendar" || k[0] === "reservations-calendar";
-        },
-      });
-    },
+export async function submitReservationFullUpdate(
+  id: string,
+  payload: UpdateReservationFullPayload,
+): Promise<UpdateReservationFullResponse> {
+  return jsonFetch<UpdateReservationFullResponse>(`/api/hotel/reservations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
 }
+
+/**
+ * Invalidate everything a full reservation update can affect. Kept identical
+ * to the invalidation the retired `useUpdateReservationFull` hook performed.
+ */
+export function useInvalidateReservationUpdate(id: string) {
+  const qc = useQueryClient();
+  const tenantId = useTenantId();
+  return () => {
+    qc.invalidateQueries({ queryKey: reservationDetailKey(tenantId, id) });
+    qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey as unknown[];
+        return (
+          k[0] === "reservations" &&
+          (k[1] === "list" || k[1] === "availability" || k[1] === "calendar") &&
+          k[2] === tenantId
+        );
+      },
+    });
+    qc.invalidateQueries({ queryKey: ["reservation-timeline", tenantId, id] });
+    qc.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey as unknown[];
+        return k[0] === "reservation-calendar" || k[0] === "reservations-calendar";
+      },
+    });
+  };
+}
+
 

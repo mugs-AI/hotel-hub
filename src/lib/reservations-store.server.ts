@@ -776,9 +776,12 @@ export type UpdateReservationFullInput = {
 export async function updateReservationFull(
   input: UpdateReservationFullInput,
 ): Promise<{ reservationId: string; updatedAt: string; replayed: boolean }> {
-  const { canonicalFingerprint } = await import("./reservation-full-update");
+  const { fullUpdateFingerprint } = await import(
+    "./reservation-full-update-fingerprint.server"
+  );
   const p = input.payload;
-  const fingerprint = canonicalFingerprint(input.reservationId, p);
+  // Server-derived, keyed, identity-bound. The browser can never supply it.
+  const fingerprint = fullUpdateFingerprint(input.reservationId, p);
   const sb = await admin();
   const res = await sb.rpc("hotelhub_update_reservation_v2", {
     p_tenant_id: input.tenantId,

@@ -19,7 +19,8 @@ import {
   useAvailability,
   useBookingSources,
   useReservationDetail,
-  useUpdateReservationFull,
+  submitReservationFullUpdate,
+  useInvalidateReservationUpdate,
   type AvailabilityRoomDTO,
   type ReservationDetailDTO,
   type ReservationEditCapabilitiesDTO,
@@ -30,7 +31,10 @@ import { CountryCombobox } from "@/components/country-combobox";
 import { MALAYSIAN_STATES } from "@/lib/malaysia-states";
 import { addDaysIso } from "@/lib/malaysia-date";
 import { useIdempotentRequestId } from "@/lib/idempotency";
-import { canonicalJson } from "@/lib/reservation-full-update";
+import {
+  buildSafeUpdateSignature,
+  newIdentityRevision,
+} from "@/lib/reservation-update-signature";
 import {
   EXTERNAL_REF_MAX,
   friendlyError,
@@ -235,6 +239,13 @@ type GuestDraftState = {
   /** Write-only: never cached, never rendered back from the server. */
   identityType: string;
   identityNumber: string;
+  /**
+   * Opaque, client-only revision token. Rotated whenever the replacement
+   * identity input or action changes so the idempotency signature can react
+   * to an identity change WITHOUT ever containing the number itself.
+   * Never sent to the server.
+   */
+  identityRevision: string;
 };
 
 let keySeq = 0;
@@ -285,6 +296,7 @@ function buildGuestDrafts(data: ReservationDetailDTO): GuestDraftState[] {
     identityAction: "keep",
     identityType: "",
     identityNumber: "",
+    identityRevision: newIdentityRevision(),
   }));
 }
 
@@ -300,7 +312,8 @@ function EditForm({
   role: string | null;
 }) {
   const navigate = useNavigate();
-  const update = useUpdateReservationFull(id);
+  const invalidateAfterUpdate = useInvalidateReservationUpdate(id);
+  const [saving, setSaving] = useState(false);
   const sourcesQ = useBookingSources({ activeOnly: true });
   const sources = sourcesQ.data?.sources ?? [];
   const requestId = useIdempotentRequestId();
@@ -475,23 +488,81 @@ function EditForm({
   }
 
   /**
-   * Idempotency signature: the payload WITHOUT the request ID. Retrying the
-   * same content reuses the same UUID; changing anything creates a new one.
+   * Safe idempotency signature (Run 5D2.7 §5.3). Built field by field from
+   * non-sensitive values only — a replacement identity number NEVER enters
+   * it; each guest contributes its opaque `identityRevision` instead.
    */
-  function payloadSignature(): string {
-    const { clientRequestId: _omit, ...rest } = buildPayload("00000000-0000-4000-8000-000000000000");
-    void _omit;
-    return canonicalJson(rest);
+  function safeSignature(): string {
+    return buildSafeUpdateSignature({
+      reservationId: id,
+      expectedUpdatedAt: data.updatedAt,
+      bookingSource: full ? bookingSource : data.bookingSource,
+      arrivalDate: full ? arrival : data.arrivalDate,
+      departureDate: full ? departure : data.departureDate,
+      notes: full ? notes.trim() || null : data.notes,
+      externalBookingReference: full
+        ? extCheck.ok
+          ? extCheck.value
+          : null
+        : data.externalBookingReference,
+      correctionReason: correctionReason.trim() || null,
+      rooms: rooms.map((r) => ({
+        clientKey: r.clientKey,
+        reservationRoomId: r.reservationRoomId,
+        hotelRoomId: r.hotelRoomId,
+        agreedRate: r.agreedRate,
+        adults: r.adults,
+        children: r.children,
+        rateOverrideReason: rateOverrideRequired(r.baseRate, r.agreedRate)
+          ? r.rateOverrideReason.trim() || null
+          : null,
+        remark: r.remark.trim() || null,
+      })),
+      guests: guests.map((g) => ({
+        clientKey: g.clientKey,
+        reservationGuestId: g.reservationGuestId,
+        fullName: g.fullName.trim(),
+        mobile: g.mobile.trim() || null,
+        email: g.email.trim() || null,
+        notes: g.notes.trim() || null,
+        nationalityCode: g.nationalityCode.trim() || null,
+        addressLine1: g.addressLine1.trim() || null,
+        addressLine2: g.addressLine2.trim() || null,
+        addressLine3: g.addressLine3.trim() || null,
+        city: g.city.trim() || null,
+        postcode: g.postcode.trim() || null,
+        countryCode: g.countryCode.trim() || null,
+        stateCode: g.countryCode === "MYS" ? g.stateCode.trim() || null : null,
+        stateProvince: g.countryCode === "MYS" ? null : g.stateProvince.trim() || null,
+        isPrimary: g.isPrimary,
+        assignedRoomClientKey: g.assignedRoomClientKey || null,
+        identityAction: g.identityAction,
+        identityType: g.identityAction === "replace" ? g.identityType || null : null,
+        identityRevision: g.identityRevision,
+      })),
+    });
   }
 
   async function submit() {
     const issues = validate();
     setErrors(issues);
     if (issues.length > 0) return;
-    const clientRequestId = requestId.get(payloadSignature());
+    const clientRequestId = requestId.get(safeSignature());
+    setSaving(true);
     try {
-      const result = await update.mutateAsync(buildPayload(clientRequestId));
+      // The payload (which may carry a write-only replacement number) is
+      // created here, sent once, and never handed to React Query.
+      const result = await submitReservationFullUpdate(id, buildPayload(clientRequestId));
       requestId.rotate();
+      // Authoritative success: drop the replacement values from memory.
+      setGuests((prev) =>
+        prev.map((g) => ({
+          ...g,
+          identityNumber: "",
+          identityRevision: newIdentityRevision(),
+        })),
+      );
+      invalidateAfterUpdate();
       toast.success(result.replayed ? "Changes already applied." : "Reservation updated.");
       navigate({ to: "/reservations/$id", params: { id } });
     } catch (err) {
@@ -516,6 +587,8 @@ function EditForm({
         return;
       }
       setErrors([editErrorMessage(code)]);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -848,6 +921,7 @@ function EditForm({
                     identityAction: "replace",
                     identityType: "",
                     identityNumber: "",
+                    identityRevision: newIdentityRevision(),
                   },
                 ]);
               }}
@@ -924,12 +998,12 @@ function EditForm({
         <button
           type="button"
           onClick={submit}
-          disabled={update.isPending || blockingIssues}
+          disabled={saving || blockingIssues}
           className="inline-flex items-center gap-1 rounded-md px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: NAVY }}
         >
           <Save className="h-3.5 w-3.5" aria-hidden />
-          {update.isPending ? "Saving…" : "Save changes"}
+          {saving ? "Saving…" : "Save changes"}
         </button>
       </div>
       {ownerCorrection && !capabilities.canChangePrimaryGuest ? (
@@ -1279,6 +1353,7 @@ function GuestCard({
                         identityAction: action,
                         identityType: "",
                         identityNumber: "",
+                        identityRevision: newIdentityRevision(),
                       });
                     }}
                   />
@@ -1317,7 +1392,13 @@ function GuestCard({
                     autoComplete="off"
                     maxLength={50}
                     placeholder="Enter the new number"
-                    onChange={(e) => onChange({ ...guest, identityNumber: e.target.value })}
+                    onChange={(e) =>
+                      onChange({
+                        ...guest,
+                        identityNumber: e.target.value,
+                        identityRevision: newIdentityRevision(),
+                      })
+                    }
                   />
                 </Field>
               </div>

@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 
 const hasPg = Boolean(process.env.PGHOST && process.env.PGUSER);
-const d = hasPg ? describe : describe.skip;
 
 function psql(sql: string): { stdout: string; ok: boolean; err?: string } {
   try {
@@ -22,6 +21,23 @@ function psql(sql: string): { stdout: string; ok: boolean; err?: string } {
     return { stdout: "", ok: false, err };
   }
 }
+
+/**
+ * `hotelhub_provision_owner` is intentionally EXECUTE-restricted to
+ * `service_role` (the app calls it through the service-role client). A
+ * read-only diagnostic DB login therefore cannot exercise it, so this suite
+ * skips instead of reporting a false failure when the connected role lacks
+ * the privilege. It still runs — and must pass — for a privileged login.
+ */
+function canExecuteRpc(): boolean {
+  if (!hasPg) return false;
+  const probe = psql(
+    "SELECT has_function_privilege(current_user, 'public.hotelhub_provision_owner(text,text)', 'EXECUTE')",
+  );
+  return probe.ok && probe.stdout === "t";
+}
+
+const d = canExecuteRpc() ? describe : describe.skip;
 
 d("hotelhub_provision_owner (live DB)", () => {
   const testUser = `regression-provision-${Date.now()}`;
