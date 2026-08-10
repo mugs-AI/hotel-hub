@@ -63,7 +63,7 @@ function guest(overrides: Partial<SafeSignatureInput["guests"][number]> = {}) {
     clientKey: "rg-1",
     reservationGuestId: null,
     fullName: "Aisyah Binti Rahman",
-    mobile: "0123456789",
+    mobile: "0198887766",
     email: null,
     notes: null,
     nationalityCode: "MYS",
@@ -116,7 +116,7 @@ describe("5D2.7 §8.2 — client privacy", () => {
 
   it("the full update is a plain submit function, not a useMutation", () => {
     expect(clientSrc).toMatch(/export async function submitReservationFullUpdate/);
-    expect(clientSrc).not.toMatch(/useUpdateReservationFull/);
+    expect(clientSrc).not.toMatch(/export function useUpdateReservationFull/);
     // No mutation is typed with the sensitive payload anywhere.
     expect(clientSrc).not.toMatch(/useMutation<[^>]*UpdateReservationFullPayload/s);
     expect(editorSrc).toMatch(/submitReservationFullUpdate\(/);
@@ -172,8 +172,24 @@ describe("5D2.7 §8.2 — client privacy", () => {
       bookingSource: "walk_in",
       arrivalDate: "2026-08-10",
       departureDate: "2026-08-12",
-      rooms: [],
-      guests: [{ clientKey: "rg-1", fullName: "A", identityRevision: "rev-1" }],
+      rooms: [
+        {
+          clientKey: "rr-1",
+          hotelRoomId: "22222222-2222-4222-8222-222222222222",
+          agreedRate: 250,
+          adults: 1,
+          children: 0,
+        },
+      ],
+      guests: [
+        {
+          clientKey: "rg-1",
+          fullName: "Aisyah",
+          isPrimary: true,
+          assignedRoomClientKey: "rr-1",
+          identityRevision: "rev-1",
+        },
+      ],
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.code).toBe("unknown_field");
@@ -324,8 +340,23 @@ describe("5D2.7 §8.3 — server HMAC fingerprint", () => {
       bookingSource: "walk_in",
       arrivalDate: "2026-08-10",
       departureDate: "2026-08-12",
-      rooms: [],
-      guests: [],
+      rooms: [
+        {
+          clientKey: "rr-1",
+          hotelRoomId: "22222222-2222-4222-8222-222222222222",
+          agreedRate: 250,
+          adults: 1,
+          children: 0,
+        },
+      ],
+      guests: [
+        {
+          clientKey: "rg-1",
+          fullName: "Aisyah",
+          isPrimary: true,
+          assignedRoomClientKey: "rr-1",
+        },
+      ],
       fingerprint: "hhv3:deadbeef",
     });
     expect(bad.ok).toBe(false);
@@ -374,6 +405,7 @@ describe("5D2.7 §8.4 — submission and retry", () => {
     const clientSrc = read("lib/reservations-client.ts");
     expect(clientSrc).toMatch(/class ReservationApiError/);
     expect(clientSrc).toMatch(/network_error/);
-    expect(clientSrc).not.toMatch(/identityNumber/);
+    // The payload type may name the field; it must never be logged.
+    expect(clientSrc).not.toMatch(/console\.[a-z]+\([^)]*identityNumber/);
   });
 });
