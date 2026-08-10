@@ -165,11 +165,15 @@ describe("Settings UI — file-level guarantees", () => {
     expect(src).toMatch(/isLast\s*\|\|\s*disabled/);
   });
 
-  it("summary cards render Total/Active/Inactive counts", () => {
-    expect(src).toMatch(/Total Sources/);
-    expect(src).toMatch(/label="Active"/);
-    expect(src).toMatch(/label="Inactive"/);
+  // Run 5D2.4 removed the Booking Sources summary cards by design (accepted
+  // Settings layout). They must stay absent — this assertion is inverted on
+  // purpose so the cards cannot silently return.
+  it("does not render Total Sources / Active / Inactive summary cards", () => {
+    expect(src).not.toMatch(/Total Sources/);
+    expect(src).not.toMatch(/label="Active"/);
+    expect(src).not.toMatch(/label="Inactive"/);
   });
+
 
   it("gates on hasPermission(role, 'hotel:setup')", () => {
     expect(src).toMatch(/hasPermission\(\s*role,\s*["']hotel:setup["']\s*\)/);
