@@ -390,3 +390,33 @@ export function canonicalJson(value: unknown): string {
 // deliberately excluded identity numbers, which let one reused clientRequestId
 // cover two different replacement numbers. Fingerprinting now happens only in
 // `reservation-full-update-fingerprint.server.ts` using a keyed HMAC.
+
+/**
+ * Map a stable full-update error code to an HTTP status. Unknown codes fall
+ * back to 400 so a new validation code can never leak a 500 stack.
+ */
+export function fullUpdateErrorStatus(code: string): number {
+  switch (code) {
+    case "unauthenticated":
+      return 401;
+    case "forbidden":
+    case "role_not_allowed":
+    case "edit_not_allowed":
+    case "guest_edit_not_allowed":
+    case "stay_edit_not_allowed":
+    case "primary_guest_change_not_allowed":
+    case "correction_reason_required":
+      return 403;
+    case "reservation_not_found":
+      return 404;
+    case "stale_reservation":
+    case "idempotency_conflict":
+    case "room_unavailable":
+    case "room_capacity_exceeded":
+      return 409;
+    case "reservation_update_failed":
+      return 500;
+    default:
+      return 400;
+  }
+}
