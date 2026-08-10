@@ -236,6 +236,8 @@ describe("5D2.7 §8.3 — server HMAC fingerprint", () => {
       guests: [
         {
           clientKey: "rg-1",
+          // keep/clear only apply to an already-persisted guest link.
+          reservationGuestId: "55555555-5555-4555-8555-555555555555",
           fullName: "Aisyah Binti Rahman",
           isPrimary: true,
           assignedRoomClientKey: "rr-1",
