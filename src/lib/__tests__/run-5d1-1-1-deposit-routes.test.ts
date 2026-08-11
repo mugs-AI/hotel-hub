@@ -100,7 +100,12 @@ describe("5D1.1.1 deposit create route", () => {
     const res = await handleDepositCreate({ request: req(), params: { id: RES } });
     expect(res.status).toBe(403);
     const denial = auditEvents.find((e) => e.eventType === "hotel.deposit.denied");
-    expect(denial?.detail?.reason).toBe("forbidden");
+    const detail = denial?.detail;
+    expect(
+      typeof detail === "object" && detail !== null && "reason" in detail
+        ? (detail as { reason?: unknown }).reason
+        : undefined,
+    ).toBe("forbidden");
     expect(JSON.stringify(denial)).not.toContain("tok");
   });
 });
