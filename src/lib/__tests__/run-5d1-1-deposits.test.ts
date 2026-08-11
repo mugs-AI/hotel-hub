@@ -26,19 +26,29 @@ vi.mock("@/lib/hotel-store.server", () => ({
 }));
 
 // ---------- supabaseAdmin stub ----------
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
+type QueryResult = { data: Row | null; error: { code: string } | null };
+type MockBuilder = {
+  select(): MockBuilder;
+  eq(column: string, value: unknown): MockBuilder;
+  order(): MockBuilder;
+  insert(row: Row): MockBuilder;
+  update(patch: Row): MockBuilder;
+  maybeSingle(): Promise<QueryResult>;
+  then<T = QueryResult>(resolve?: (result: QueryResult) => T | PromiseLike<T>): Promise<T>;
+};
 const tables: Record<string, Row[]> = { hotel_reservations: [], hotel_reservation_deposits: [] };
 
-function makeBuilder(table: string) {
-  const filters: Array<[string, any]> = [];
+function makeBuilder(table: string): MockBuilder {
+  const filters: Array<[string, unknown]> = [];
   let mode: "select" | "insert" | "update" = "select";
   let payload: Row | null = null;
   const match = (r: Row) => filters.every(([k, v]) => r[k] === v);
-  const builder: any = {
+  const builder: MockBuilder = {
     select() {
       return builder;
     },
-    eq(k: string, v: any) {
+    eq(k: string, v: unknown) {
       filters.push([k, v]);
       return builder;
     },
@@ -58,17 +68,17 @@ function makeBuilder(table: string) {
     async maybeSingle() {
       return builder.then();
     },
-    then(resolve?: any) {
-      let result: { data: any; error: any };
+    then<T = QueryResult>(resolve?: (result: QueryResult) => T | PromiseLike<T>): Promise<T> {
+      let result: QueryResult;
       if (mode === "insert") {
         const rows = tables[table]!;
         const dup = rows.some(
-          (r) => payload!.idempotency_key && r.idempotency_key === payload!.idempotency_key,
+          (r) => payload!["idempotency_key"] && r["idempotency_key"] === payload!["idempotency_key"],
         );
         if (dup) {
           result = { data: null, error: { code: "23505" } };
         } else {
-          const row = {
+          const row: Row = {
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
             ...payload,
@@ -84,7 +94,9 @@ function makeBuilder(table: string) {
         const rows = tables[table]!.filter(match);
         result = { data: rows[0] ?? null, error: null };
       }
-      return resolve ? Promise.resolve(resolve(result)) : Promise.resolve(result);
+      return resolve
+        ? Promise.resolve(resolve(result))
+        : (Promise.resolve(result) as Promise<T>);
     },
   };
   return builder;
