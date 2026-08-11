@@ -74,7 +74,8 @@ function makeBuilder(table: string): MockBuilder {
       if (mode === "insert") {
         const rows = tables[table]!;
         const dup = rows.some(
-          (r) => payload!["idempotency_key"] && r["idempotency_key"] === payload!["idempotency_key"],
+          (r) =>
+            payload!["idempotency_key"] && r["idempotency_key"] === payload!["idempotency_key"],
         );
         if (dup) {
           result = { data: null, error: { code: "23505" } };
@@ -95,9 +96,7 @@ function makeBuilder(table: string): MockBuilder {
         const rows = tables[table]!.filter(match);
         result = { data: rows[0] ?? null, error: null };
       }
-      return resolve
-        ? Promise.resolve(resolve(result))
-        : (Promise.resolve(result) as Promise<T>);
+      return resolve ? Promise.resolve(resolve(result)) : (Promise.resolve(result) as Promise<T>);
     },
   };
   return builder;
@@ -148,7 +147,9 @@ type TestOutcome =
   | { kind: "response"; status: number; body: unknown; durationMs?: number }
   | { kind: "transport_error"; reason: "timeout" | "network" | "too_large"; durationMs?: number };
 
-function makeN3(overrides: Partial<Record<"getNew" | "listByReference" | "create", TestOutcome>> = {}) {
+function makeN3(
+  overrides: Partial<Record<"getNew" | "listByReference" | "create", TestOutcome>> = {},
+) {
   const calls = { getNew: 0, listByReference: 0, create: 0 };
   const client = {
     async getNew(): Promise<TestOutcome> {
@@ -240,8 +241,10 @@ describe("5D1.1 preflight fail-closed", () => {
   });
   it("unreadable (non-list) body is unavailable, not zero-match", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as N3Outcome, expected)
-        .kind,
+      classifyPreflight(
+        { kind: "response", status: 200, body: { data: {} } } as N3Outcome,
+        expected,
+      ).kind,
     ).toBe("unavailable");
   });
   it("readable empty page is a zero match", () => {

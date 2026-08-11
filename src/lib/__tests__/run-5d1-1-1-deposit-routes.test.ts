@@ -35,10 +35,9 @@ vi.mock("@/lib/session-context.server", () => ({
 
 let createBehaviour: () => never | Promise<unknown> = async () => ({ deposit: {} });
 vi.mock("@/lib/deposits-store.server", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/deposits-store.server")>(
-      "@/lib/deposits-store.server",
-    );
+  const actual = await vi.importActual<typeof import("@/lib/deposits-store.server")>(
+    "@/lib/deposits-store.server",
+  );
   return {
     ...actual,
     isDepositWriteEnabled: () => true,
