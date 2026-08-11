@@ -7,11 +7,7 @@ import { isUuid } from "@/lib/reservations-store.server";
 import { listReservationTimeline } from "@/lib/reservation-operations.server";
 import { deny } from "@/lib/operations-api.server";
 
-export async function handleTimeline({
-  params,
-}: {
-  params: { id?: string };
-}): Promise<Response> {
+export async function handleTimeline({ params }: { params: { id?: string } }): Promise<Response> {
   const { ctx, decision } = await requirePermission("hotel:operations:view");
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);

@@ -8,7 +8,6 @@ import { renderErrorPage } from "./lib/error-page";
 // `supabase.auth.getSession()` on every RPC and leak a client-side
 // Supabase session into the request path.
 
-
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();

@@ -167,7 +167,6 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
     filters.arrivalTo,
   ]);
 
-
   const query = useReservationList(filters, { limit, offset });
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
@@ -226,7 +225,17 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
     >
       <Link
         to="/reservations"
-        search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
+        search={{
+          bookingReference: "",
+          guestName: "",
+          guestMobile: "",
+          bookingSource: "",
+          status: "",
+          arrivalFrom: "",
+          arrivalTo: "",
+          limit: 25,
+          offset: 0,
+        }}
         className="px-3 py-1.5 font-medium"
         style={{
           backgroundColor: active === "list" ? NAVY : "transparent",
@@ -249,7 +258,6 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
     </nav>
   );
 }
-
 
 function BookingSourceSelect({
   value,

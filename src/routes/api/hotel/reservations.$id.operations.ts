@@ -96,7 +96,6 @@ export async function handleOperationCreate({
     payload.payload.expected_check_out_at = window.utcIso;
   }
 
-
   try {
     const result = await requestOperation({
       tenantId: ctx.session.tenantId!,

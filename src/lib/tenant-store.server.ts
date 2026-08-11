@@ -122,4 +122,3 @@ export async function resolveActorLabels(
   }
   return out;
 }
-

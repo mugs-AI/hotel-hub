@@ -66,7 +66,6 @@ export async function handleAvailability({ request }: { request: Request }): Pro
       },
     });
     return Response.json({ rooms }, { headers: { "cache-control": "no-store" } });
-
   } catch (err) {
     console.error("[availability] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "availability_failed");

@@ -134,7 +134,6 @@ export type ReservationDetailGuestDTO = {
   isPrimary: boolean;
   /** Reservation-room this guest is assigned to, or null when unassigned. */
   assignedReservationRoomId: string | null;
-
 };
 
 export type ReservationDetailDTO = {
@@ -169,7 +168,6 @@ export type ReservationDetailDTO = {
     allocationStatus: string;
     rateOverrideReason: string | null;
     remark: string | null;
-
   }>;
   guests: ReservationDetailGuestDTO[];
 };
@@ -229,7 +227,6 @@ export type UpdateReservationFullResponse = {
   updatedAt: string;
   replayed: boolean;
 };
-
 
 export type CreateReservationPayload = {
   bookingSource: string;
@@ -373,7 +370,6 @@ export function useAssignGuestRooms(id: string) {
     },
   });
 }
-
 
 export function useCreateReservation() {
   const qc = useQueryClient();
@@ -534,5 +530,3 @@ export function useInvalidateReservationUpdate(id: string) {
     });
   };
 }
-
-

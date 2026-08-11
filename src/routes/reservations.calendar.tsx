@@ -9,9 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { formatMyDate } from "@/lib/malaysia-date";
 import { ViewSwitcher } from "@/routes/reservations.index";
-import { groupRoomsByFloor, naturalCompare, roomLabel, UNASSIGNED_FLOOR } from "@/lib/reservations-ui";
+import {
+  groupRoomsByFloor,
+  naturalCompare,
+  roomLabel,
+  UNASSIGNED_FLOOR,
+} from "@/lib/reservations-ui";
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, Plus } from "lucide-react";
-
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -62,7 +66,8 @@ export const Route = createFileRoute("/reservations/calendar")({
       { title: "Reservation Calendar — HotelHub" },
       {
         name: "description",
-        content: "Read-only room-planning calendar for reservations across the selected date range.",
+        content:
+          "Read-only room-planning calendar for reservations across the selected date range.",
       },
     ],
   }),
@@ -150,7 +155,6 @@ function Header({ canCreate }: { canCreate: boolean }) {
   );
 }
 
-
 function NoAccess() {
   return (
     <div
@@ -196,7 +200,9 @@ function Grid() {
   const today = todayKlIso();
 
   function move(delta: number) {
-    navigate({ search: (prev: Search) => ({ ...prev, startDate: addDays(prev.startDate || today, delta) }) });
+    navigate({
+      search: (prev: Search) => ({ ...prev, startDate: addDays(prev.startDate || today, delta) }),
+    });
   }
 
   return (
@@ -221,7 +227,11 @@ function Grid() {
           <label className="mb-1 block text-xs font-medium" style={{ color: NAVY }}>
             Range
           </label>
-          <div role="radiogroup" aria-label="Range" className="inline-flex rounded-md border border-input bg-white p-0.5 text-xs">
+          <div
+            role="radiogroup"
+            aria-label="Range"
+            className="inline-flex rounded-md border border-input bg-white p-0.5 text-xs"
+          >
             {[7, 14, 30].map((d) => {
               const active = d === days;
               return (
@@ -232,7 +242,10 @@ function Grid() {
                   aria-checked={active}
                   onClick={() => navigate({ search: (prev: Search) => ({ ...prev, days: d }) })}
                   className="rounded px-2 py-1 font-medium"
-                  style={{ backgroundColor: active ? NAVY : "transparent", color: active ? "white" : NAVY }}
+                  style={{
+                    backgroundColor: active ? NAVY : "transparent",
+                    color: active ? "white" : NAVY,
+                  }}
                 >
                   {d} days
                 </button>
@@ -273,7 +286,10 @@ function Grid() {
         <p className="py-8 text-center text-sm text-muted-foreground">Loading calendar…</p>
       ) : q.error ? (
         <p className="py-8 text-center text-sm text-destructive">
-          Failed to load calendar. <button onClick={() => q.refetch()} className="underline">Retry</button>
+          Failed to load calendar.{" "}
+          <button onClick={() => q.refetch()} className="underline">
+            Retry
+          </button>
         </p>
       ) : !q.data || q.data.rooms.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
@@ -322,9 +338,7 @@ function FloorGrid({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const visibleFloors =
-    activeFloor === "__all__"
-      ? grouped.floors
-      : grouped.floors.filter((f) => f === activeFloor);
+    activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
 
   const sortedByFloor = new Map(
     grouped.floors.map((f) => [
@@ -438,9 +452,7 @@ function FloorGrid({
                         dates={dates}
                         days={days}
                         today={today}
-                        allocations={allocations.filter(
-                          (a) => a.hotelRoomId === room.hotelRoomId,
-                        )}
+                        allocations={allocations.filter((a) => a.hotelRoomId === room.hotelRoomId)}
                         rangeStart={rangeStart}
                         rangeEndExclusive={rangeEndExclusive}
                         template={rowTemplate}
@@ -617,7 +629,7 @@ function RoomRow({
             key={a.reservationId + a.hotelRoomId}
             to="/reservations/$id"
             params={{ id: a.reservationId }}
-            search={{ from: "calendar", calStart: rangeStart, calDays: (days as 7 | 14 | 30) }}
+            search={{ from: "calendar", calStart: rangeStart, calDays: days as 7 | 14 | 30 }}
             className="absolute flex items-center overflow-hidden rounded px-2 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
             style={{
               left,

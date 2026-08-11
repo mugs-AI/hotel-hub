@@ -4,7 +4,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const auditEvents: Array<{ eventType: string; detail?: any }> = [];
+const auditEvents: Array<{ eventType: string; detail?: unknown }> = [];
 vi.mock("@/lib/audit.server", () => ({
   logAudit: async (e: { eventType: string; detail?: unknown }) => {
     auditEvents.push({ eventType: e.eventType, detail: e.detail });
@@ -33,20 +33,20 @@ vi.mock("@/lib/session-context.server", () => ({
   },
 }));
 
-let createBehaviour: () => never | Promise<any> = async () => ({ deposit: {} });
+let createBehaviour: () => never | Promise<unknown> = async () => ({ deposit: {} });
 vi.mock("@/lib/deposits-store.server", async () => {
-  const actual = await vi.importActual<any>("@/lib/deposits-store.server");
+  const actual = await vi.importActual<typeof import("@/lib/deposits-store.server")>(
+    "@/lib/deposits-store.server",
+  );
   return {
     ...actual,
     isDepositWriteEnabled: () => true,
     createDeposit: async () => createBehaviour(),
-    toDepositDTO: (d: any) => d,
+    toDepositDTO: (d: unknown) => d,
   };
 });
 
-const { handleDepositCreate } = await import(
-  "@/routes/api/hotel/reservations.$id.deposits"
-);
+const { handleDepositCreate } = await import("@/routes/api/hotel/reservations.$id.deposits");
 const { DepositError } = await import("@/lib/deposits-store.server");
 
 const RES = "11111111-1111-4111-8111-111111111111";
@@ -99,7 +99,12 @@ describe("5D1.1.1 deposit create route", () => {
     const res = await handleDepositCreate({ request: req(), params: { id: RES } });
     expect(res.status).toBe(403);
     const denial = auditEvents.find((e) => e.eventType === "hotel.deposit.denied");
-    expect(denial?.detail?.reason).toBe("forbidden");
+    const detail = denial?.detail;
+    expect(
+      typeof detail === "object" && detail !== null && "reason" in detail
+        ? (detail as { reason?: unknown }).reason
+        : undefined,
+    ).toBe("forbidden");
     expect(JSON.stringify(denial)).not.toContain("tok");
   });
 });

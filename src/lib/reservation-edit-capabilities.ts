@@ -45,9 +45,7 @@ const NONE: ReservationEditCapabilities = {
   reasonCode: null,
 };
 
-export function computeEditCapabilities(
-  input: EditCapabilityInput,
-): ReservationEditCapabilities {
+export function computeEditCapabilities(input: EditCapabilityInput): ReservationEditCapabilities {
   const role = input.role;
   if (role !== "owner" && role !== "front_desk") {
     return { ...NONE, reasonCode: "role_not_permitted" };

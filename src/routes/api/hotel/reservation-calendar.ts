@@ -45,14 +45,15 @@ async function admin() {
   const mod = await import("@/integrations/supabase/client.server");
   return mod.supabaseAdmin as unknown as {
     from: (t: string) => {
-      select: (
-        cols: string,
-      ) => {
+      select: (cols: string) => {
         eq: (
           k: string,
           v: unknown,
         ) => {
-          in: (k: string, v: unknown[]) => Promise<{ data: unknown[]; error: { message: string } | null }>;
+          in: (
+            k: string,
+            v: unknown[],
+          ) => Promise<{ data: unknown[]; error: { message: string } | null }>;
         } & Promise<{ data: unknown[]; error: { message: string } | null }>;
       };
     };
@@ -134,9 +135,7 @@ export async function handleCalendar({ request }: { request: Request }): Promise
     // Overlap: arrival_date < rangeEndExclusive AND departure_date > startDate.
     const allocRes = await sb
       .from("hotel_reservation_rooms")
-      .select(
-        "reservation_id, hotel_room_id, arrival_date, departure_date, allocation_status",
-      )
+      .select("reservation_id, hotel_room_id, arrival_date, departure_date, allocation_status")
       .eq("tenant_id", tenantId)
       .lt("arrival_date", rangeEndExclusive)
       .gt("departure_date", startDate);
@@ -150,10 +149,7 @@ export async function handleCalendar({ request }: { request: Request }): Promise
     }>;
 
     const reservationIds = Array.from(new Set(allocs.map((a) => a.reservation_id)));
-    let reservationMap = new Map<
-      string,
-      { bookingReference: string; status: string }
-    >();
+    let reservationMap = new Map<string, { bookingReference: string; status: string }>();
     if (reservationIds.length > 0) {
       const resRes = await sb
         .from("hotel_reservations")

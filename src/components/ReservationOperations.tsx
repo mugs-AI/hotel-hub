@@ -75,7 +75,6 @@ const REQUESTABLE: Array<{
 /** Statuses that end the stay: nothing further can be requested. */
 const TERMINAL_STATUSES = new Set(["cancelled", "checked_out", "no_show", "completed"]);
 
-
 export type ActionRoom = {
   /** hotel_reservation_rooms.id */
   id: string;
@@ -151,7 +150,6 @@ export function ReservationActionsCard({
     const payload: Record<string, unknown> =
       type === "late_checkout"
         ? { expectedCheckOutLocal: detail, reason: reason || undefined }
-
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
           : type === "room_change"
@@ -244,7 +242,6 @@ export function ReservationActionsCard({
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {available.map((r) => (
-
                   <button
                     key={r.type}
                     type="button"

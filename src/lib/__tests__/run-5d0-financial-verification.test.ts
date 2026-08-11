@@ -872,7 +872,6 @@ describe("Run 5D0.3B.1 — mixed document-type safety", () => {
   });
 });
 
-
 describe("Run 5D0.3B — live refund detail normalization", () => {
   const detailBody = {
     code: "0000",
@@ -923,7 +922,8 @@ describe("Run 5D0.3B — live refund detail normalization", () => {
 });
 
 describe("Run 5D0.3B — refund link state derivation", () => {
-  const normalized = () => normalizeRefundDetail({ data: { value: { ...LIVE_RF_ROW, knockoff: [] } } })!;
+  const normalized = () =>
+    normalizeRefundDetail({ data: { value: { ...LIVE_RF_ROW, knockoff: [] } } })!;
   it("successful refund with zero knockoffs is unapplied, not not_available", () => {
     const s = deriveRefundLinkState({
       resourceStatus: "success",

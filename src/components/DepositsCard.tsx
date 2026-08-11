@@ -92,9 +92,7 @@ export function DepositsCard({
       ) : deposits.length === 0 ? (
         <div className="mt-3 space-y-1 text-sm text-muted-foreground">
           <p>No HotelHub-linked deposits are recorded for this reservation.</p>
-          {!gateOpen ? (
-            <p>Deposit posting is currently disabled for this property.</p>
-          ) : null}
+          {!gateOpen ? <p>Deposit posting is currently disabled for this property.</p> : null}
           <p className="text-xs">
             A Receive Payment created directly in N3 is not linked here automatically.
           </p>
@@ -102,7 +100,11 @@ export function DepositsCard({
       ) : (
         <ul className="mt-3 space-y-2">
           {deposits.map((d) => (
-            <li key={d.id} className="rounded-md border p-3 text-xs" style={{ borderColor: `${NAVY}22` }}>
+            <li
+              key={d.id}
+              className="rounded-md border p-3 text-xs"
+              style={{ borderColor: `${NAVY}22` }}
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-semibold tabular-nums" style={{ color: NAVY }}>
                   {d.currency} {d.amount.toFixed(2)}
@@ -111,7 +113,11 @@ export function DepositsCard({
                   className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
                   style={{
                     backgroundColor:
-                      d.status === "posted" ? `${TEAL}22` : d.status === "failed" ? `${ERR}1A` : `${GOLD}22`,
+                      d.status === "posted"
+                        ? `${TEAL}22`
+                        : d.status === "failed"
+                          ? `${ERR}1A`
+                          : `${GOLD}22`,
                     color: d.status === "posted" ? TEAL : d.status === "failed" ? ERR : GOLD,
                   }}
                 >

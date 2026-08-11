@@ -11,7 +11,12 @@ import {
   reconcileDeposit,
   toDepositDTO,
 } from "@/lib/deposits-store.server";
-import { deny, denyN3Unauthorized, isSameOriginWrite, statusForDepositError } from "./reservations.$id.deposits";
+import {
+  deny,
+  denyN3Unauthorized,
+  isSameOriginWrite,
+  statusForDepositError,
+} from "./reservations.$id.deposits";
 
 export async function handleDepositReconcile({
   request,
@@ -64,7 +69,6 @@ export async function handleDepositReconcile({
     }
     return deny(statusForDepositError(code), code);
   }
-
 }
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits/$depositId/reconcile")({

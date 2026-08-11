@@ -13,10 +13,7 @@
  * returned, logged or serialized.
  */
 import { createHmac } from "node:crypto";
-import {
-  canonicalJson,
-  type NormalizedFullUpdate,
-} from "./reservation-full-update";
+import { canonicalJson, type NormalizedFullUpdate } from "./reservation-full-update";
 
 /** Domain separation — this secret is also the session-cookie password. */
 const DOMAIN = "hotelhub:reservation-update-fingerprint:v3\n";
@@ -97,10 +94,7 @@ export function canonicalFingerprintInput(
 }
 
 /** Opaque, versioned, keyed fingerprint: `hhv3:<64 hex chars>`. */
-export function fullUpdateFingerprint(
-  reservationId: string,
-  input: NormalizedFullUpdate,
-): string {
+export function fullUpdateFingerprint(reservationId: string, input: NormalizedFullUpdate): string {
   const key = requireKey();
   const mac = createHmac("sha256", key)
     .update(canonicalFingerprintInput(reservationId, input), "utf8")

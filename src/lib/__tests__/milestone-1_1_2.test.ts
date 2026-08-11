@@ -145,7 +145,6 @@ describe("reservations-ui — pure helpers", () => {
         status: "",
         arrivalFrom: "2027-07-20",
         arrivalTo: "",
-
       },
       { limit: 25, offset: 50 },
     );

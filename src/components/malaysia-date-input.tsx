@@ -59,7 +59,19 @@ function isoToLocalDate(iso: string): Date | undefined {
 
 export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInputProps>(
   function MalaysianDateInput(
-    { value, onChange, className, disabled, required, id, name, pickerLabel, minIso, maxIso, ...aria },
+    {
+      value,
+      onChange,
+      className,
+      disabled,
+      required,
+      id,
+      name,
+      pickerLabel,
+      minIso,
+      maxIso,
+      ...aria
+    },
     ref,
   ) {
     const [display, setDisplay] = useState<string>(() =>
@@ -139,7 +151,11 @@ export const MalaysianDateInput = forwardRef<HTMLInputElement, MalaysianDateInpu
               <CalendarIcon className="h-4 w-4" aria-hidden />
             </button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-auto p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <PopoverContent
+            align="end"
+            className="w-auto p-0"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
             <Calendar
               mode="single"
               selected={selected}

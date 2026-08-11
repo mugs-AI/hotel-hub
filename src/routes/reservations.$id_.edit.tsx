@@ -31,10 +31,7 @@ import { CountryCombobox } from "@/components/country-combobox";
 import { MALAYSIAN_STATES } from "@/lib/malaysia-states";
 import { addDaysIso } from "@/lib/malaysia-date";
 import { useIdempotentRequestId } from "@/lib/idempotency";
-import {
-  buildSafeUpdateSignature,
-  newIdentityRevision,
-} from "@/lib/reservation-update-signature";
+import { buildSafeUpdateSignature, newIdentityRevision } from "@/lib/reservation-update-signature";
 import {
   EXTERNAL_REF_MAX,
   friendlyError,
@@ -288,9 +285,7 @@ function buildGuestDrafts(data: ReservationDetailDTO): GuestDraftState[] {
     stateCode: g.stateCode ?? "",
     stateProvince: g.stateProvince ?? "",
     isPrimary: g.isPrimary,
-    assignedRoomClientKey: g.assignedReservationRoomId
-      ? `rr-${g.assignedReservationRoomId}`
-      : "",
+    assignedRoomClientKey: g.assignedReservationRoomId ? `rr-${g.assignedReservationRoomId}` : "",
     identityMasked: g.identityNumberMasked,
     identityTypeExisting: g.identityType,
     identityAction: "keep",
@@ -369,9 +364,7 @@ function EditForm({
       perRoomGuests[g.assignedRoomClientKey] = (perRoomGuests[g.assignedRoomClientKey] ?? 0) + 1;
     }
   }
-  const overCapacityRooms = rooms.filter(
-    (r) => (perRoomGuests[r.clientKey] ?? 0) > r.maxOccupancy,
-  );
+  const overCapacityRooms = rooms.filter((r) => (perRoomGuests[r.clientKey] ?? 0) > r.maxOccupancy);
   const unassignedGuests = guests.filter(
     (g) => !g.assignedRoomClientKey || !rooms.some((r) => r.clientKey === g.assignedRoomClientKey),
   );
@@ -399,8 +392,7 @@ function EditForm({
           r.rateOverrideReason.trim().length === 0
         )
           out.push(`${r.label}: a rate override reason is required.`);
-        if (r.remark.trim().length > ROOM_REMARK_MAX)
-          out.push(`${r.label}: remark is too long.`);
+        if (r.remark.trim().length > ROOM_REMARK_MAX) out.push(`${r.label}: remark is too long.`);
       }
     }
     if (guests.length === 0) out.push("At least one guest is required.");
@@ -481,8 +473,7 @@ function EditForm({
         assignedRoomClientKey: g.assignedRoomClientKey || null,
         identityAction: g.identityAction,
         identityType: g.identityAction === "replace" ? g.identityType || null : null,
-        identityNumber:
-          g.identityAction === "replace" ? g.identityNumber.trim() || null : null,
+        identityNumber: g.identityAction === "replace" ? g.identityNumber.trim() || null : null,
       })),
     };
   }
@@ -716,17 +707,14 @@ function EditForm({
                 }}
                 disabled={sourcesQ.isPending}
               >
-                <option value="">
-                  {sourcesQ.isPending ? "Loading…" : "Select a source…"}
-                </option>
+                <option value="">{sourcesQ.isPending ? "Loading…" : "Select a source…"}</option>
                 {sources.map((s) => (
                   <option key={s.id} value={s.sourceCode}>
                     {s.displayName}
                   </option>
                 ))}
                 {/* An inactive historical source stays selectable, unchanged. */}
-                {data.bookingSource &&
-                !sources.some((s) => s.sourceCode === data.bookingSource) ? (
+                {data.bookingSource && !sources.some((s) => s.sourceCode === data.bookingSource) ? (
                   <option value={data.bookingSource}>
                     {tenantSourceLabel(sources, data.bookingSource)} (inactive)
                   </option>
@@ -806,9 +794,7 @@ function EditForm({
                 setRooms(rooms.map((x, j) => (i === j ? next : x)));
               }}
               onRemove={() => {
-                if (
-                  !window.confirm(`Remove ${r.label} from this reservation?`)
-                ) {
+                if (!window.confirm(`Remove ${r.label} from this reservation?`)) {
                   return;
                 }
                 markDirty();
@@ -1336,38 +1322,37 @@ function GuestCard({
         {identityEditable ? (
           <>
             <div className="mt-2 flex flex-wrap gap-3 text-[11px]">
-              {(isNew
-                ? (["replace"] as const)
-                : (["keep", "replace", "clear"] as const)
-              ).map((action) => (
-                <label key={action} className="inline-flex items-center gap-1">
-                  <input
-                    type="radio"
-                    name={`identity-${guest.clientKey}`}
-                    checked={guest.identityAction === action}
-                    onChange={() => {
-                      if (action === "clear" && !window.confirm("Clear the stored identity?"))
-                        return;
-                      onChange({
-                        ...guest,
-                        identityAction: action,
-                        identityType: "",
-                        identityNumber: "",
-                        identityRevision: newIdentityRevision(),
-                      });
-                    }}
-                  />
-                  <span className="capitalize">
-                    {action === "keep"
-                      ? "Keep existing"
-                      : action === "replace"
-                        ? isNew
-                          ? "Add identity"
-                          : "Replace"
-                        : "Clear"}
-                  </span>
-                </label>
-              ))}
+              {(isNew ? (["replace"] as const) : (["keep", "replace", "clear"] as const)).map(
+                (action) => (
+                  <label key={action} className="inline-flex items-center gap-1">
+                    <input
+                      type="radio"
+                      name={`identity-${guest.clientKey}`}
+                      checked={guest.identityAction === action}
+                      onChange={() => {
+                        if (action === "clear" && !window.confirm("Clear the stored identity?"))
+                          return;
+                        onChange({
+                          ...guest,
+                          identityAction: action,
+                          identityType: "",
+                          identityNumber: "",
+                          identityRevision: newIdentityRevision(),
+                        });
+                      }}
+                    />
+                    <span className="capitalize">
+                      {action === "keep"
+                        ? "Keep existing"
+                        : action === "replace"
+                          ? isNew
+                            ? "Add identity"
+                            : "Replace"
+                          : "Clear"}
+                    </span>
+                  </label>
+                ),
+              )}
             </div>
             {guest.identityAction === "replace" ? (
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">

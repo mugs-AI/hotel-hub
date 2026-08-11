@@ -51,9 +51,7 @@ function safeStorage(): Storage | null {
 }
 
 /** Strip the raw identity number from every guest before persistence. */
-export function stripIdentityNumbers(
-  guests: readonly GuestDraft[],
-): DraftGuest[] {
+export function stripIdentityNumbers(guests: readonly GuestDraft[]): DraftGuest[] {
   return guests.map((g) => ({ ...g, identityNumber: "" }));
 }
 
@@ -80,10 +78,7 @@ export function saveDraft(input: DraftInput): boolean {
   }
 }
 
-export function loadDraft(
-  tenantId: string,
-  n3UserKey: string,
-): ReservationDraftV2 | null {
+export function loadDraft(tenantId: string, n3UserKey: string): ReservationDraftV2 | null {
   const s = safeStorage();
   if (!s) return null;
   const raw = s.getItem(draftKey(tenantId, n3UserKey));

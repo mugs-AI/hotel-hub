@@ -50,8 +50,6 @@ export type AuditEventType =
   | "hotel.reservation.operation_decision_failed"
   | "hotel.reservation.operation_denied";
 
-
-
 const SENSITIVE_KEYS = new Set([
   "token",
   "access_token",

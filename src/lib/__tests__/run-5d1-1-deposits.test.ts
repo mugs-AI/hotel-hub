@@ -8,9 +8,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasPermission } from "@/lib/rbac";
+import type { N3Outcome, N3ReceiptsClient } from "@/lib/n3-receipts.server";
 
 // ---------- audit sink ----------
-const auditEvents: Array<{ eventType: string; detail?: any }> = [];
+const auditEvents: Array<{ eventType: string; detail?: unknown }> = [];
 vi.mock("@/lib/audit.server", () => ({
   logAudit: async (e: { eventType: string; detail?: unknown }) => {
     auditEvents.push({ eventType: e.eventType, detail: e.detail });
@@ -26,19 +27,29 @@ vi.mock("@/lib/hotel-store.server", () => ({
 }));
 
 // ---------- supabaseAdmin stub ----------
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
+type QueryResult = { data: Row | null; error: { code: string } | null };
+type MockBuilder = {
+  select(): MockBuilder;
+  eq(column: string, value: unknown): MockBuilder;
+  order(): MockBuilder;
+  insert(row: Row): MockBuilder;
+  update(patch: Row): MockBuilder;
+  maybeSingle(): Promise<QueryResult>;
+  then<T = QueryResult>(resolve?: (result: QueryResult) => T | PromiseLike<T>): Promise<T>;
+};
 const tables: Record<string, Row[]> = { hotel_reservations: [], hotel_reservation_deposits: [] };
 
-function makeBuilder(table: string) {
-  const filters: Array<[string, any]> = [];
+function makeBuilder(table: string): MockBuilder {
+  const filters: Array<[string, unknown]> = [];
   let mode: "select" | "insert" | "update" = "select";
   let payload: Row | null = null;
   const match = (r: Row) => filters.every(([k, v]) => r[k] === v);
-  const builder: any = {
+  const builder: MockBuilder = {
     select() {
       return builder;
     },
-    eq(k: string, v: any) {
+    eq(k: string, v: unknown) {
       filters.push([k, v]);
       return builder;
     },
@@ -58,17 +69,18 @@ function makeBuilder(table: string) {
     async maybeSingle() {
       return builder.then();
     },
-    then(resolve?: any) {
-      let result: { data: any; error: any };
+    then<T = QueryResult>(resolve?: (result: QueryResult) => T | PromiseLike<T>): Promise<T> {
+      let result: QueryResult;
       if (mode === "insert") {
         const rows = tables[table]!;
         const dup = rows.some(
-          (r) => payload!.idempotency_key && r.idempotency_key === payload!.idempotency_key,
+          (r) =>
+            payload!["idempotency_key"] && r["idempotency_key"] === payload!["idempotency_key"],
         );
         if (dup) {
           result = { data: null, error: { code: "23505" } };
         } else {
-          const row = {
+          const row: Row = {
             created_at: "2026-01-01T00:00:00Z",
             updated_at: "2026-01-01T00:00:00Z",
             ...payload,
@@ -84,7 +96,7 @@ function makeBuilder(table: string) {
         const rows = tables[table]!.filter(match);
         result = { data: rows[0] ?? null, error: null };
       }
-      return resolve ? Promise.resolve(resolve(result)) : Promise.resolve(result);
+      return resolve ? Promise.resolve(resolve(result)) : (Promise.resolve(result) as Promise<T>);
     },
   };
   return builder;
@@ -130,23 +142,37 @@ function newDefaults() {
   };
 }
 
-function makeN3(overrides: Partial<Record<string, any>> = {}) {
+/** Only the fields the deposit store reads; `durationMs` is irrelevant here. */
+type TestOutcome =
+  | { kind: "response"; status: number; body: unknown; durationMs?: number }
+  | { kind: "transport_error"; reason: "timeout" | "network" | "too_large"; durationMs?: number };
+
+function makeN3(
+  overrides: Partial<Record<"getNew" | "listByReference" | "create", TestOutcome>> = {},
+) {
   const calls = { getNew: 0, listByReference: 0, create: 0 };
   const client = {
-    async getNew() {
+    async getNew(): Promise<TestOutcome> {
       calls.getNew++;
       return overrides.getNew ?? newDefaults();
     },
-    async listByReference() {
+    async listByReference(): Promise<TestOutcome> {
       calls.listByReference++;
-      return overrides.listByReference ?? { kind: "response", status: 200, body: { data: { value: [] } } };
+      return (
+        overrides.listByReference ?? {
+          kind: "response",
+          status: 200,
+          body: { data: { value: [] } },
+        }
+      );
     },
-    async create() {
+    async create(): Promise<TestOutcome> {
       calls.create++;
       return overrides.create ?? { kind: "transport_error", reason: "timeout" };
     },
-  } as any;
-  return { client, calls };
+  };
+  // Partial double: only the methods exercised by these tests are provided.
+  return { client: client as unknown as N3ReceiptsClient, calls };
 }
 
 function baseInput(clientRequestId: string) {
@@ -200,28 +226,31 @@ describe("5D1.1 preflight fail-closed", () => {
 
   it("transport failure is unavailable", () => {
     expect(
-      classifyPreflight({ kind: "transport_error", reason: "timeout" } as any, expected).kind,
+      classifyPreflight({ kind: "transport_error", reason: "timeout" } as N3Outcome, expected).kind,
     ).toBe("unavailable");
   });
   it("5xx is unavailable", () => {
-    expect(classifyPreflight({ kind: "response", status: 503, body: {} } as any, expected).kind).toBe(
-      "unavailable",
-    );
+    expect(
+      classifyPreflight({ kind: "response", status: 503, body: {} } as N3Outcome, expected).kind,
+    ).toBe("unavailable");
   });
   it("401 is unauthorized", () => {
-    expect(classifyPreflight({ kind: "response", status: 401, body: {} } as any, expected).kind).toBe(
-      "unauthorized",
-    );
+    expect(
+      classifyPreflight({ kind: "response", status: 401, body: {} } as N3Outcome, expected).kind,
+    ).toBe("unauthorized");
   });
   it("unreadable (non-list) body is unavailable, not zero-match", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as any, expected).kind,
+      classifyPreflight(
+        { kind: "response", status: 200, body: { data: {} } } as N3Outcome,
+        expected,
+      ).kind,
     ).toBe("unavailable");
   });
   it("readable empty page is a zero match", () => {
     expect(
       classifyPreflight(
-        { kind: "response", status: 200, body: { data: { value: [] } } } as any,
+        { kind: "response", status: 200, body: { data: { value: [] } } } as N3Outcome,
         expected,
       ).kind,
     ).toBe("none");
@@ -423,14 +452,14 @@ describe("5D1.1.1 create-time N3 401", () => {
       createDeposit(baseInput(id), { n3: first.client, env: ENV }),
     ).rejects.toBeInstanceOf(DepositError);
     const row = tables.hotel_reservation_deposits[0]!;
-    expect(isRecoverableDepositStatus(row.status)).toBe(true);
+    expect(isRecoverableDepositStatus(String(row["status"]))).toBe(true);
     const check = makeN3();
     await reconcileDeposit(
       {
         tenantId: TENANT,
         n3TenantKey: "tenant-key-1",
         reservationId: RESERVATION_ID,
-        depositId: row.id,
+        depositId: String(row["id"]),
         actorN3UserKey: "user-1",
         n3Token: "tok",
       },
@@ -442,7 +471,7 @@ describe("5D1.1.1 create-time N3 401", () => {
 
 describe("5D1.1.1 N3 403 is never session expiry", () => {
   it("preflight 403 is unavailable, not unauthorized", () => {
-    const v = classifyPreflight({ kind: "response", status: 403, body: null } as any, {
+    const v = classifyPreflight({ kind: "response", status: 403, body: null } as N3Outcome, {
       customerId: "c",
       referenceNo: "HH-000000000000000000000000",
       amount: 1,

@@ -4,7 +4,6 @@ import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/s
 import { hasPermission, type Permission } from "@/lib/rbac";
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 
-
 type NavItem = {
   to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings";
   label: string;
@@ -98,7 +97,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <div className={`${containerClass} flex gap-6 py-6`}>
-
         <nav
           aria-label="Primary"
           className="w-56 shrink-0 rounded-lg p-3 shadow-sm"
@@ -210,7 +208,6 @@ function DisplayWidthToggle({
     </div>
   );
 }
-
 
 /**
  * Full-page gate shown to authenticated N3 users who do not yet have a

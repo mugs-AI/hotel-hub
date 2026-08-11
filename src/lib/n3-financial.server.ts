@@ -34,7 +34,11 @@ export type MafLabel =
   | "Mismatch";
 
 export type FetchStatus =
-  "success" | "unavailable" | "unauthorized" | "invalid_contract" | "failed";
+  | "success"
+  | "unavailable"
+  | "unauthorized"
+  | "invalid_contract"
+  | "failed";
 
 const RESOURCE_CANDIDATES: Record<FinResource, string[]> = {
   ar_receipts: ["/api/arreceipts/list", "/api/arreceive/list"],
@@ -576,7 +580,8 @@ export function validateContract(
             envelopeMentionsCreditNote: envelopeIdentifiesCreditNote(envelopeMessage),
           },
           suspectedResource:
-            envelopeIdentifiesSalesCreditNote(envelopeMessage) || foreignDocTypes.some((t) => t === "SCN")
+            envelopeIdentifiesSalesCreditNote(envelopeMessage) ||
+            foreignDocTypes.some((t) => t === "SCN")
               ? "sales_credit_note"
               : "ar_credit_note",
           reason: "non_rf_document_type_rejected_as_refund",
@@ -586,7 +591,8 @@ export function validateContract(
 
       // 5d0.3B.1: structural proof must come from ONE single RF row.
       // Never combine required fields across different rows.
-      const rowHasId = (r: Record<string, unknown>) => !!normStr(pick(r, ["Id", "id", "Guid", "guid"]));
+      const rowHasId = (r: Record<string, unknown>) =>
+        !!normStr(pick(r, ["Id", "id", "Guid", "guid"]));
       const rowHasDoc = (r: Record<string, unknown>) =>
         !!normStr(pick(r, ["DocNo", "docNo", "DocCode", "docCode"]));
       const rowHasCustomer = (r: Record<string, unknown>) => {
@@ -604,7 +610,10 @@ export function validateContract(
         );
         if (direct) return true;
         const c = r.customer ?? r.Customer;
-        return isPlainObject(c) && (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])));
+        return (
+          isPlainObject(c) &&
+          (!!normStr(pick(c, ["Id", "id"])) || !!normStr(pick(c, ["Code", "code"])))
+        );
       };
       const rowHasAmount = (r: Record<string, unknown>) =>
         toNumber(
@@ -622,8 +631,9 @@ export function validateContract(
 
       const rfRows = objRows.filter(
         (r) =>
-          (normStr(pick(r, ["docType", "DocType", "documentType", "DocumentType"])) ?? "").toUpperCase() ===
-          "RF",
+          (
+            normStr(pick(r, ["docType", "DocType", "documentType", "DocumentType"])) ?? ""
+          ).toUpperCase() === "RF",
       );
       const completeRfRow = rfRows.find(
         (r) => rowHasId(r) && rowHasDoc(r) && rowHasCustomer(r) && rowHasAmount(r),
@@ -633,7 +643,14 @@ export function validateContract(
       const hasDoc = rfRows.some(rowHasDoc);
       const hasCustomer = rfRows.some(rowHasCustomer);
       const hasAmount = rfRows.some(rowHasAmount);
-      const hasAccount = hasAnyKey(obs, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+      const hasAccount = hasAnyKey(obs, [
+        "Account",
+        "account",
+        "PaymentBy",
+        "paymentBy",
+        "PayFrom",
+        "payFrom",
+      ]);
 
       const passed = !!completeRfRow;
       return {
@@ -664,7 +681,6 @@ export function validateContract(
             : "missing_rf_document_type_discriminator",
         envelopeMessage,
       };
-
     }
 
     case "gl_accounts": {
@@ -882,7 +898,6 @@ export type NormalizedRefund = {
   sourceFields: Record<string, string>;
 };
 
-
 function pickWithField(
   row: Record<string, unknown>,
   keys: string[],
@@ -1056,7 +1071,14 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   }
 
   // Payment-By account object
-  const acctRaw = pickWithField(dto, ["Account", "account", "PaymentBy", "paymentBy", "PayFrom", "payFrom"]);
+  const acctRaw = pickWithField(dto, [
+    "Account",
+    "account",
+    "PaymentBy",
+    "paymentBy",
+    "PayFrom",
+    "payFrom",
+  ]);
   let account: NormalizedRefundAccount | null = null;
   if (isPlainObject(acctRaw.value)) {
     const a = acctRaw.value;
@@ -1093,7 +1115,6 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
     sourceFields: src,
   };
 }
-
 
 type NormalizedTransactionDetail = NormalizedReceipt | NormalizedCashSale | NormalizedRefund;
 
@@ -1677,7 +1698,6 @@ export function deriveRefundLinkState(input: {
   };
 }
 
-
 export async function runFinancialVerification(input: {
   token: string;
   dateFrom: string;
@@ -1770,7 +1790,6 @@ export async function runFinancialVerification(input: {
       comparisonRows: refundToOr.length,
     }),
     elapsedMs: run.elapsedMs,
-
   };
 
   return { run, bundle, _internal: internals };
@@ -1944,7 +1963,10 @@ export type KnockoffMatch = {
   customerMatch: boolean | null;
   correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
-    "Immutable ID confirmed" | "Document-number only — not proven" | "Mismatch" | "Not available";
+    | "Immutable ID confirmed"
+    | "Document-number only — not proven"
+    | "Mismatch"
+    | "Not available";
 };
 
 // Union input: legacy list-row shape OR NormalizedReceipt / NormalizedCashSale.
@@ -2122,7 +2144,10 @@ export type RefundKnockoffMatch = {
   customerMatch: boolean | null;
   correlation: "immutable_id" | "document_number_only" | "mismatch" | "not_available";
   evidenceLabel:
-    "Immutable ID confirmed" | "Document-number only — not proven" | "Mismatch" | "Not available";
+    | "Immutable ID confirmed"
+    | "Document-number only — not proven"
+    | "Mismatch"
+    | "Not available";
 };
 
 export function compareRefundKnockoffs(

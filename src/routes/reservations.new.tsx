@@ -45,7 +45,6 @@ import {
   vaultSetIdentity,
 } from "@/lib/reservation-draft";
 
-
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { CountryCombobox } from "@/components/country-combobox";
 import { countryName } from "@/lib/iso-countries";
@@ -105,7 +104,17 @@ function Header() {
     >
       <Link
         to="/reservations"
-        search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
+        search={{
+          bookingReference: "",
+          guestName: "",
+          guestMobile: "",
+          bookingSource: "",
+          status: "",
+          arrivalFrom: "",
+          arrivalTo: "",
+          limit: 25,
+          offset: 0,
+        }}
         className="inline-flex items-center gap-1 text-xs text-white/80 underline underline-offset-2"
       >
         <ArrowLeft className="h-3 w-3" aria-hidden />
@@ -152,13 +161,7 @@ const STEP_LABELS: Record<Step, string> = {
   4: "Review & create",
 };
 
-function NewReservationWizard({
-  tenantId,
-  n3UserKey,
-}: {
-  tenantId: string;
-  n3UserKey: string;
-}) {
+function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3UserKey: string }) {
   const navigate = useNavigate();
   const create = useCreateReservation();
 
@@ -227,7 +230,18 @@ function NewReservationWizard({
         setTimeout(() => setDraftStatus((s) => (s === "saved" ? null : s)), 1500);
       }
     });
-  }, [tenantId, n3UserKey, step, arrival, departure, bookingSource, externalRef, notes, rooms, guests]);
+  }, [
+    tenantId,
+    n3UserKey,
+    step,
+    arrival,
+    departure,
+    bookingSource,
+    externalRef,
+    notes,
+    rooms,
+    guests,
+  ]);
 
   // Cancel any pending debounced save when the wizard unmounts so a stale
   // write can never fire after navigation.
@@ -343,10 +357,7 @@ function NewReservationWizard({
         onGoto={setStep}
         complete={{ 1: stayComplete, 2: roomsComplete, 3: guestsComplete, 4: false }}
       />
-      <DraftBar
-        status={draftStatus}
-        onDiscard={() => setShowDiscard(true)}
-      />
+      <DraftBar status={draftStatus} onDiscard={() => setShowDiscard(true)} />
       {showDiscard ? (
         <DiscardConfirm
           onCancel={() => setShowDiscard(false)}
@@ -400,7 +411,12 @@ function NewReservationWizard({
           onRefetch={() => availability.refetch()}
         />
       ) : step === 3 ? (
-        <GuestsStep guests={guests} onChange={setGuests} tenantId={tenantId} n3UserKey={n3UserKey} />
+        <GuestsStep
+          guests={guests}
+          onChange={setGuests}
+          tenantId={tenantId}
+          n3UserKey={n3UserKey}
+        />
       ) : (
         <ReviewStep
           arrival={arrival}
@@ -436,7 +452,17 @@ function NewReservationWizard({
         <div className="flex items-center gap-2">
           <Link
             to="/reservations"
-            search={{ bookingReference: "", guestName: "", guestMobile: "", bookingSource: "", status: "", arrivalFrom: "", arrivalTo: "", limit: 25, offset: 0 }}
+            search={{
+              bookingReference: "",
+              guestName: "",
+              guestMobile: "",
+              bookingSource: "",
+              status: "",
+              arrivalFrom: "",
+              arrivalTo: "",
+              limit: 25,
+              offset: 0,
+            }}
             className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
             style={{ color: NAVY }}
           >
@@ -486,7 +512,7 @@ function Stepper({
         {steps.map((n, i) => {
           const active = n === step;
           const isComplete = complete[n];
-          const canJump = n < step || (n === step);
+          const canJump = n < step || n === step;
           return (
             <li key={n} className="flex items-center gap-2">
               <button
@@ -590,7 +616,10 @@ function DiscardConfirm({ onCancel, onConfirm }: { onCancel: () => void; onConfi
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border bg-white p-4 shadow-sm" style={{ borderColor: `${NAVY}22` }}>
+    <section
+      className="rounded-lg border bg-white p-4 shadow-sm"
+      style={{ borderColor: `${NAVY}22` }}
+    >
       <h2 className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>
         {title}
       </h2>
@@ -772,7 +801,8 @@ function RoomsStep({
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.hotelRoomId)), [selected]);
   const grouped = useMemo(() => groupRoomsByFloor(availability), [availability]);
   const roomTypes = useMemo(
-    () => Array.from(new Set(availability.map((r) => r.roomType))).sort((a, b) => naturalCompare(a, b)),
+    () =>
+      Array.from(new Set(availability.map((r) => r.roomType))).sort((a, b) => naturalCompare(a, b)),
     [availability],
   );
 
@@ -886,7 +916,10 @@ function RoomsStep({
             />
 
             {/* Result table */}
-            <div className="mt-3 max-h-[520px] overflow-auto rounded-md border" style={{ borderColor: `${NAVY}22` }}>
+            <div
+              className="mt-3 max-h-[520px] overflow-auto rounded-md border"
+              style={{ borderColor: `${NAVY}22` }}
+            >
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-white">
                   <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
@@ -1245,7 +1278,10 @@ function GuestsStep({
   n3UserKey: string;
 }) {
   const [active, setActive] = useState<number>(() =>
-    Math.max(0, guests.findIndex((g) => g.isPrimary)),
+    Math.max(
+      0,
+      guests.findIndex((g) => g.isPrimary),
+    ),
   );
   useEffect(() => {
     if (active >= guests.length) setActive(Math.max(0, guests.length - 1));
@@ -1366,11 +1402,7 @@ function GuestsStep({
                 </button>
               ) : null}
             </div>
-            <GuestForm
-              guest={g}
-              index={active}
-              onChange={(next) => updateGuest(active, next)}
-            />
+            <GuestForm guest={g} index={active} onChange={(next) => updateGuest(active, next)} />
           </div>
         ) : null}
       </div>
@@ -1587,7 +1619,9 @@ function ReviewStep({
                 {roomLabel(r.displayName, r.n3StockName, r.roomNumber)}
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">{r.roomNumber}</span>
-              <span>· {r.adults}A/{r.children}C</span>
+              <span>
+                · {r.adults}A/{r.children}C
+              </span>
               <span>
                 · {r.currency} {r.agreedRate.toFixed(2)}
                 {overridden ? ` (base ${r.baseRate.toFixed(2)})` : ""}
@@ -1607,7 +1641,9 @@ function ReviewStep({
       <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
         Primary booking contact
       </h3>
-      {primary ? <GuestReview g={primary} /> : (
+      {primary ? (
+        <GuestReview g={primary} />
+      ) : (
         <p className="text-xs text-muted-foreground">No primary guest set.</p>
       )}
       <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
@@ -1618,7 +1654,11 @@ function ReviewStep({
       ) : (
         <ul className="space-y-2 text-xs">
           {additional.map((g, i) => (
-            <li key={g.clientId ?? i} className="rounded border p-2" style={{ borderColor: `${NAVY}22` }}>
+            <li
+              key={g.clientId ?? i}
+              className="rounded border p-2"
+              style={{ borderColor: `${NAVY}22` }}
+            >
               <GuestReview g={g} />
             </li>
           ))}
