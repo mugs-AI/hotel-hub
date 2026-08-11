@@ -25,7 +25,6 @@ export type Permission =
   | "hotel:operations:approve" // approve / reject an operation request
   | "roles:manage"; // assign / revoke HotelHub roles
 
-
 // Deny-by-default: only listed roles receive the permission.
 const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "app:view": new Set(["owner", "front_desk", "housekeeper"]),
@@ -60,7 +59,6 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
 
   "roles:manage": new Set(["owner"]),
 };
-
 
 export function isHotelRole(v: unknown): v is HotelRole {
   return typeof v === "string" && (HOTEL_ROLES as readonly string[]).includes(v);

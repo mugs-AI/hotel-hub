@@ -44,9 +44,7 @@ vi.mock("@/lib/deposits-store.server", async () => {
   };
 });
 
-const { handleDepositCreate } = await import(
-  "@/routes/api/hotel/reservations.$id.deposits"
-);
+const { handleDepositCreate } = await import("@/routes/api/hotel/reservations.$id.deposits");
 const { DepositError } = await import("@/lib/deposits-store.server");
 
 const RES = "11111111-1111-4111-8111-111111111111";

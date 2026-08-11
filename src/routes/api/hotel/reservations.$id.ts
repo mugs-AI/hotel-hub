@@ -17,7 +17,6 @@ function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
 }
 
-
 export async function handleReservationDetail({
   params,
 }: {
@@ -58,7 +57,6 @@ export async function handleReservationDetail({
   }
 }
 
-
 /**
  * Run 5D2.6 §5 — full reservation update.
  *
@@ -89,9 +87,8 @@ export async function handleReservationPatch({
     return deny(400, "invalid_json");
   }
 
-  const { normalizeFullUpdateBody, fullUpdateErrorStatus } = await import(
-    "@/lib/reservation-full-update"
-  );
+  const { normalizeFullUpdateBody, fullUpdateErrorStatus } =
+    await import("@/lib/reservation-full-update");
   const normalized = normalizeFullUpdateBody(parsed);
   if (!normalized.ok) return deny(fullUpdateErrorStatus(normalized.code), normalized.code);
 
@@ -109,8 +106,7 @@ export async function handleReservationPatch({
     });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
-    const code =
-      err instanceof ReservationUpdateError ? err.code : "reservation_update_failed";
+    const code = err instanceof ReservationUpdateError ? err.code : "reservation_update_failed";
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
@@ -130,4 +126,3 @@ export async function handleReservationPatch({
 export const Route = createFileRoute("/api/hotel/reservations/$id")({
   server: { handlers: { GET: handleReservationDetail, PATCH: handleReservationPatch } },
 });
-

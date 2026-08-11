@@ -73,7 +73,6 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "unauthorized",
 ]);
 
-
 export class DepositError extends Error {
   code: string;
   constructor(code: string) {
@@ -398,7 +397,6 @@ export function classifyPreflight(
 
 // ---------------------------------------------------------------- persistence
 
-
 export type DepositRecord = {
   id: string;
   reservationId: string;
@@ -476,10 +474,7 @@ export async function getDeposit(
   return res.data ? toRecord(res.data) : null;
 }
 
-async function findByIdempotencyKey(
-  tenantId: string,
-  key: string,
-): Promise<DepositRecord | null> {
+async function findByIdempotencyKey(tenantId: string, key: string): Promise<DepositRecord | null> {
   const sb = await admin();
   const res = await sb
     .from("hotel_reservation_deposits")
@@ -691,7 +686,11 @@ export async function createDeposit(
       tenantId: input.tenantId,
       n3UserKey: input.actorN3UserKey,
       eventType: "hotel.deposit.failed",
-      detail: { depositId: deposit.id, reservationId: input.reservationId, code: "reference_conflict" },
+      detail: {
+        depositId: deposit.id,
+        reservationId: input.reservationId,
+        code: "reference_conflict",
+      },
     });
     return { deposit, reused: false };
   }
@@ -717,7 +716,6 @@ export async function createDeposit(
     });
     return { deposit, reused: false };
   }
-
 
   const payload = buildDepositPayload({
     defaults,
@@ -952,7 +950,6 @@ export async function buildDepositPreview(
     warning: DEPOSIT_CREATE_WARNING,
   };
 }
-
 
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
 export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, string>) {

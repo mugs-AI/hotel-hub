@@ -86,7 +86,6 @@ export function buildListQuery(
   return p;
 }
 
-
 // ---------- Guest helpers ----------
 // Correction B (Turn 2) — GuestDraft field names match the migration:
 // nationality_code, address_line_{1,2,3}, city, postcode, country_code,
@@ -388,8 +387,7 @@ export function validateStayDates(
   if (!arrival || !departure) return { ok: false, code: "invalid_stay_dates" };
   if (!isValidIsoDateStr(arrival) || !isValidIsoDateStr(departure))
     return { ok: false, code: "invalid_stay_dates" };
-  if (opts?.today && arrival < opts.today)
-    return { ok: false, code: "arrival_date_in_past" };
+  if (opts?.today && arrival < opts.today) return { ok: false, code: "arrival_date_in_past" };
   if (departure <= arrival) return { ok: false, code: "invalid_stay_dates" };
   return { ok: true };
 }

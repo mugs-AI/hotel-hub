@@ -21,12 +21,12 @@ The current build establishes a secure, tenant-aware foundation:
 
 Server-only:
 
-| Name | Purpose |
-| --- | --- |
-| `HOTELHUB_SESSION_SECRET` | Encryption key for the session cookie (≥ 32 chars). Generated automatically in Lovable Cloud. |
-| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Lovable Cloud (Supabase) service access. Managed by Cloud. |
-| `OPEN_API_BASE_URL` | Overrides the N3 Open API host (defaults to `https://openapi.account.qne.cloud`). |
-| `NODE_ENV` | `production` disables the developer API-key sign-in route. |
+| Name                                                                      | Purpose                                                                                       |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `HOTELHUB_SESSION_SECRET`                                                 | Encryption key for the session cookie (≥ 32 chars). Generated automatically in Lovable Cloud. |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Lovable Cloud (Supabase) service access. Managed by Cloud.                                    |
+| `OPEN_API_BASE_URL`                                                       | Overrides the N3 Open API host (defaults to `https://openapi.account.qne.cloud`).             |
+| `NODE_ENV`                                                                | `production` disables the developer API-key sign-in route.                                    |
 
 There are no `VITE_*` variables carrying N3 credentials — the browser has
 no access to any N3 secret.
@@ -55,6 +55,7 @@ are guaranteed to be identical.
    entry (it is a query parameter, by protocol construction); it never
    enters client JavaScript, `localStorage`, `sessionStorage`, rendered
    HTML, or application logs.
+
 2. **Path A2 — explicit launch endpoint.**
    `GET /api/auth/launch?token=<jwt>` behaves identically to Path A1 and
    is available for programmatic re-launch and testing.
@@ -129,6 +130,7 @@ Steps:
    The function verifies the tenant exists, inserts (or activates) an
    `owner` row in `hotel_user_roles`, and writes a `role.assigned`
    audit event with `source = 'first_owner_runbook'`.
+
 4. The user refreshes the app. `/api/session/me` now resolves the role
    as `owner` and the full shell renders.
 
@@ -136,18 +138,17 @@ Future role management (adding another Owner, granting front_desk /
 housekeeper) is Owner-only and will ship in a later milestone; the
 runbook is intentionally the only path to bootstrap the initial Owner.
 
-
 ## Allowed N3 verification endpoints
 
 Only these three read-only GETs are reachable through the server
 gateway (`GET /api/n3/probe/:name`); anything else is rejected with a
 403 or 405.
 
-| Probe | Upstream path |
-| --- | --- |
-| `companyprofile` | `GET /api/companyprofile/BasicInfo` |
-| `customers` | `GET /api/customers/list?$top=5&$skip=0` |
-| `stocks` | `GET /api/stocks/list?$top=5&$skip=0` |
+| Probe            | Upstream path                            |
+| ---------------- | ---------------------------------------- |
+| `companyprofile` | `GET /api/companyprofile/BasicInfo`      |
+| `customers`      | `GET /api/customers/list?$top=5&$skip=0` |
+| `stocks`         | `GET /api/stocks/list?$top=5&$skip=0`    |
 
 `n3:verify` is granted to `owner` only. Front desk and housekeeping do
 not receive N3 accounting integration surfaces.
@@ -169,11 +170,11 @@ expected and intended.
 
 The permission matrix lives in `src/lib/rbac.ts`:
 
-| Permission | owner | front_desk | housekeeper |
-| --- | --- | --- | --- |
-| `app:view` | ✅ | ✅ | ✅ |
-| `n3:verify` | ✅ |   |   |
-| `roles:manage` | ✅ |   |   |
+| Permission     | owner | front_desk | housekeeper |
+| -------------- | ----- | ---------- | ----------- |
+| `app:view`     | ✅    | ✅         | ✅          |
+| `n3:verify`    | ✅    |            |             |
+| `roles:manage` | ✅    |            |             |
 
 `authorize()` is the single choke-point. Missing session, missing
 tenant, missing role, unknown role, and inactive assignment all resolve
@@ -233,7 +234,6 @@ values are shown or logged):
 N3 base URL: no secret is required. `OPEN_API_BASE_URL` is optional and
 defaults to `https://openapi.account.qne.cloud`.
 
-
 ## Manual verification
 
 1. Open the deployed URL — the app shows the unauthenticated relaunch
@@ -267,6 +267,7 @@ defaults to `https://openapi.account.qne.cloud`.
   callback or an N3-side invitation flow.
 
   link, Marketplace subscription callback, manual N3 support step).
+
 - **N3 user identity key.** The current build derives the immutable
   user key from the JWT `sub` claim, falling back to email or display
   name. This should be re-validated once N3 publishes an official user

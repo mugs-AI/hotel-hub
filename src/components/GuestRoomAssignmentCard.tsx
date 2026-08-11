@@ -45,9 +45,7 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
     const rid = draft[g.id] ?? "";
     if (rid) perRoomCount[rid] = (perRoomCount[rid] ?? 0) + 1;
   }
-  const overCapacity = data.rooms.filter(
-    (r) => (perRoomCount[r.id] ?? 0) > (r.maxOccupancy || 0),
-  );
+  const overCapacity = data.rooms.filter((r) => (perRoomCount[r.id] ?? 0) > (r.maxOccupancy || 0));
 
   const reasonRequired = capabilities.correctionReasonRequired;
   const canSave = dirty && !mutation.isPending && (!reasonRequired || reason.trim().length > 0);
@@ -132,8 +130,11 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
 
       {overCapacity.length > 0 ? (
         <p className="mt-3 text-xs font-medium text-destructive">
-          Over capacity: {overCapacity.map((r) => roomLabel(r.displayName, r.n3StockName, r.roomNumber)).join(", ")}. Reduce guests in
-          these rooms before saving.
+          Over capacity:{" "}
+          {overCapacity
+            .map((r) => roomLabel(r.displayName, r.n3StockName, r.roomNumber))
+            .join(", ")}
+          . Reduce guests in these rooms before saving.
         </p>
       ) : null}
 

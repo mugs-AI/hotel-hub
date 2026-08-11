@@ -68,7 +68,6 @@ export function statusForDepositError(code: string): number {
   }
 }
 
-
 export async function handleDepositsList({
   params,
 }: {
@@ -172,7 +171,6 @@ export async function handleDepositCreate({
     return deny(statusForDepositError(code), code);
   }
 }
-
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/deposits")({
   server: { handlers: { GET: handleDepositsList, POST: handleDepositCreate } },

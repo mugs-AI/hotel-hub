@@ -142,7 +142,6 @@ export async function performN3Launch(
       email: info.userEmail ?? null,
     });
 
-
     const session = await getHotelSession();
     await session.update({
       n3Token: token,

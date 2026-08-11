@@ -209,7 +209,6 @@ function BookingSourcesScreen() {
 
   return (
     <div className="space-y-6">
-
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
@@ -230,9 +229,6 @@ function BookingSourcesScreen() {
           <Plus className="mr-1.5 h-4 w-4" /> Add booking source
         </Button>
       </header>
-
-
-
 
       <section
         className="overflow-hidden rounded-xl border bg-white shadow-sm"

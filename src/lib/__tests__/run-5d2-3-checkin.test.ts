@@ -14,7 +14,10 @@ const CHECKIN_ROUTE = readFileSync(
   resolve(__dirname, "../../routes/api/hotel/reservations.$id.check-in.ts"),
   "utf8",
 );
-const OPS_UI = readFileSync(resolve(__dirname, "../../components/ReservationOperations.tsx"), "utf8");
+const OPS_UI = readFileSync(
+  resolve(__dirname, "../../components/ReservationOperations.tsx"),
+  "utf8",
+);
 
 describe("zonedLocalToUtcMs", () => {
   it("resolves a KL wall clock through the IANA database", () => {

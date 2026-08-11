@@ -589,7 +589,6 @@ function RefundKnockoffCard({ data }: { data: ApiResponse }) {
               : "No refund knockoff rows matched an AR Receipt in this date range.")}
         </p>
       ) : (
-
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>

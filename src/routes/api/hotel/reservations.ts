@@ -173,7 +173,6 @@ export async function handleListReservations({ request }: { request: Request }):
   }
 }
 
-
 export async function handleCreateReservation({
   request,
 }: {

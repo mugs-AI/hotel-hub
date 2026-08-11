@@ -61,7 +61,8 @@ export function useReservationDeposits(reservationId: string, enabled: boolean) 
   const tenantKey = useTenantKey();
   return useQuery<DepositsResponse, DepositApiError>({
     queryKey: depositsKey(tenantKey, reservationId),
-    queryFn: () => depositFetch<DepositsResponse>(`/api/hotel/reservations/${reservationId}/deposits`),
+    queryFn: () =>
+      depositFetch<DepositsResponse>(`/api/hotel/reservations/${reservationId}/deposits`),
     enabled: enabled && Boolean(reservationId),
     retry: false,
   });
@@ -168,4 +169,3 @@ export function depositErrorMessage(code: string | null | undefined): string {
       return "The deposit could not be completed.";
   }
 }
-

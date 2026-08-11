@@ -4,7 +4,6 @@
 // context (NEVER accepted from the browser).
 import { resolveActorLabels } from "./tenant-store.server";
 
-
 export const BOOKING_SOURCES = [
   "walk_in",
   "phone",
@@ -223,7 +222,6 @@ export async function checkAvailability(input: {
   children?: number | null;
   excludeReservationId?: string | null;
 }): Promise<AvailabilityRoom[]> {
-
   const sb = await admin();
   const settingsRes = await sb
     .from("hotel_settings")
@@ -332,10 +330,8 @@ export async function listReservations(input: {
   const mobileNeedle = input.guestMobile?.trim() ?? "";
   if (guestNeedle || mobileNeedle) {
     let gq = sb.from("hotel_guests").select("id").eq("tenant_id", input.tenantId);
-    if (guestNeedle)
-      gq = gq.ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
-    if (mobileNeedle)
-      gq = gq.ilike("mobile", `%${mobileNeedle.replace(/[%_]/g, "")}%`);
+    if (guestNeedle) gq = gq.ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
+    if (mobileNeedle) gq = gq.ilike("mobile", `%${mobileNeedle.replace(/[%_]/g, "")}%`);
     const g = await gq;
     if (g.error) throw new ReservationReadError(`guest search failed: ${g.error.message}`);
     const guestIds = ((g.data ?? []) as Array<{ id: string }>).map((r) => r.id);
@@ -353,7 +349,6 @@ export async function listReservations(input: {
     );
     if (restrictIds.length === 0) return { items: [], total: 0 };
   }
-
 
   let q = sb
     .from("hotel_reservations")
@@ -517,7 +512,6 @@ export type ReservationDetail = {
   }>;
 };
 
-
 export async function getReservationById(
   tenantId: string,
   id: string,
@@ -596,7 +590,9 @@ export async function getReservationById(
         adults: row.adults,
         children: row.children,
         maxOccupancy:
-          typeof nested?.max_occupancy === "number" ? nested.max_occupancy : Number(nested?.max_occupancy ?? 0),
+          typeof nested?.max_occupancy === "number"
+            ? nested.max_occupancy
+            : Number(nested?.max_occupancy ?? 0),
         allocationStatus: row.allocation_status,
 
         rateOverrideReason: row.rate_override_reason,
@@ -626,7 +622,6 @@ export async function getReservationById(
         stateProvince: nested?.state_province ?? null,
         isPrimary: !!row.is_primary,
         assignedReservationRoomId: row.reservation_room_id ?? null,
-
       };
     }),
   };
@@ -776,9 +771,7 @@ export type UpdateReservationFullInput = {
 export async function updateReservationFull(
   input: UpdateReservationFullInput,
 ): Promise<{ reservationId: string; updatedAt: string; replayed: boolean }> {
-  const { fullUpdateFingerprint } = await import(
-    "./reservation-full-update-fingerprint.server"
-  );
+  const { fullUpdateFingerprint } = await import("./reservation-full-update-fingerprint.server");
   const p = input.payload;
   // Server-derived, keyed, identity-bound. The browser can never supply it.
   const fingerprint = fullUpdateFingerprint(input.reservationId, p);

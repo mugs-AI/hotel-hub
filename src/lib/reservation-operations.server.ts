@@ -71,8 +71,6 @@ export const OPERATION_ERROR_CODES = new Set([
   "guest_assignment_failed",
 ]);
 
-
-
 export class OperationError extends Error {
   code: string;
   constructor(code: string) {
@@ -98,9 +96,7 @@ const LOCAL_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 void ISO_DATETIME_RE;
 
 export type OperationPayload = Record<string, unknown>;
-export type PayloadResult =
-  | { ok: true; payload: OperationPayload }
-  | { ok: false; code: string };
+export type PayloadResult = { ok: true; payload: OperationPayload } | { ok: false; code: string };
 
 const PAYLOAD_FIELDS: Record<OperationType, ReadonlySet<string>> = {
   early_check_in: new Set(["reason"]),
@@ -116,10 +112,7 @@ const PAYLOAD_FIELDS: Record<OperationType, ReadonlySet<string>> = {
  * REJECTED (never silently dropped), so the browser can neither smuggle
  * fields into the ledger nor believe a mistyped field was honoured.
  */
-export function validateOperationPayload(
-  type: OperationType,
-  raw: unknown,
-): PayloadResult {
+export function validateOperationPayload(type: OperationType, raw: unknown): PayloadResult {
   if (raw !== undefined && (typeof raw !== "object" || raw === null || Array.isArray(raw))) {
     return { ok: false, code: "validation_failed" };
   }
@@ -149,7 +142,6 @@ export function validateOperationPayload(
       payload: { expected_check_out_local: at, ...(reason ? { reason } : {}) },
     };
   }
-
 
   if (type === "room_change") {
     if (!isUuid(body.reservationRoomId) || !isUuid(body.toHotelRoomId)) {
@@ -220,7 +212,14 @@ function tzOffsetMs(ts: number, timeZone: string): number | null {
   const m = /^(\d{4})-(\d{2})-(\d{2}),?\s(\d{2}):(\d{2}):(\d{2})$/.exec(text);
   if (!m) return null;
   const hour = Number(m[4]) === 24 ? 0 : Number(m[4]);
-  const asUtc = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour, Number(m[5]), Number(m[6]));
+  const asUtc = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    hour,
+    Number(m[5]),
+    Number(m[6]),
+  );
   return asUtc - ts;
 }
 
@@ -294,7 +293,6 @@ export function validateLateCheckoutWindow(input: {
   }
   return { ok: true, utcIso: new Date(ms).toISOString() };
 }
-
 
 /** Minimal, tenant-scoped lookup used to bind a request to its reservation. */
 export async function getOperationRequestReservationId(
@@ -562,4 +560,3 @@ export async function assignGuestRoomsV2(input: {
     replayed: !!row.out_replayed,
   };
 }
-

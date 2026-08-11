@@ -174,7 +174,6 @@ describe("Settings UI — file-level guarantees", () => {
     expect(src).not.toMatch(/label="Inactive"/);
   });
 
-
   it("gates on hasPermission(role, 'hotel:setup')", () => {
     expect(src).toMatch(/hasPermission\(\s*role,\s*["']hotel:setup["']\s*\)/);
   });

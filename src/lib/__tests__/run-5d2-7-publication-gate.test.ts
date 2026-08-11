@@ -276,10 +276,7 @@ describe("5D2.7 §8.3 — server HMAC fingerprint", () => {
   it("is bound to the reservation ID", async () => {
     const { fullUpdateFingerprint } = await import("../reservation-full-update-fingerprint.server");
     expect(fullUpdateFingerprint(RESERVATION_ID, payload("replace", NUMBER_A))).not.toBe(
-      fullUpdateFingerprint(
-        "44444444-4444-4444-8444-444444444444",
-        payload("replace", NUMBER_A),
-      ),
+      fullUpdateFingerprint("44444444-4444-4444-8444-444444444444", payload("replace", NUMBER_A)),
     );
   });
 
@@ -397,7 +394,9 @@ describe("5D2.7 §8.4 — submission and retry", () => {
 
   it("an authoritative success rotates request-ID state and clears the input", () => {
     const editorSrc = read("routes/reservations.$id_.edit.tsx");
-    const success = editorSrc.slice(editorSrc.indexOf("const result = await submitReservationFullUpdate"));
+    const success = editorSrc.slice(
+      editorSrc.indexOf("const result = await submitReservationFullUpdate"),
+    );
     expect(success).toMatch(/requestId\.rotate\(\)/);
     expect(success).toMatch(/identityNumber:\s*""/);
     expect(success).toMatch(/identityRevision:\s*newIdentityRevision\(\)/);

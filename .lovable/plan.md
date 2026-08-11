@@ -1,4 +1,3 @@
-
 # Run 5D0 Correction — Lock the N3 Financial Read Contract
 
 Read-only correction to the existing Owner console. No N3 writes, no schema changes, no route renames, no publish. Preserve `functionMiddleware: []` and N3-only identity.
@@ -50,6 +49,7 @@ Add small normalized adapters per resource. Each returns `{ normalized, sourceFi
 ### OR ↔ Cash Memo comparison (rewritten)
 
 For each OR knockoff, resolve target Cash Sales by immutable id first, then by docNo only when id is missing. Emit one of:
+
 - `Immutable ID confirmed`
 - `Document-number only — not proven`
 - `Mismatch` (both id and docNo present but disagree)
@@ -79,6 +79,7 @@ Bundle schema (`schemaVersion: "5d0.2"`):
 ```
 
 Sanitizer changes:
+
 - Recursive, case-insensitive; expanded key blacklist (`bearer`, `apikey`, `api_key`, `api-key`, `x-api-key`, `secret`, `access_token`, `refresh_token`, `connection`, `dbpassword`, `ic`, `icNo`, `nric`, `mykad`, `mykadNo`, `mypr`, `passport`, `passportNo`, `phone`, `mobile`, `email`, `address`, `postcode`, `city`, `state`, `country`, `dob`, `birth`).
 - Whitelisted synthetic marker fields (`ReferenceNo`, `Description`, `Remark`) pass through **only for transaction tables**, still capped in length.
 - Filename: `hotelhub-5d0-{yyyymmddThhmmss}-{hotelRef|noref}.json`.
@@ -86,6 +87,7 @@ Sanitizer changes:
 ## Regression tests (append to existing file)
 
 Add cases for:
+
 1. `/api/GLAccounts/Query` is tried first; envelope pages correctly.
 2. Wrong-resource 2xx → `Mismatch`.
 3. Credit-note payload rejected for Customer Refunds.

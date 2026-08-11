@@ -234,7 +234,6 @@ export function GuestControlsPanel({
         reservation timeline.
       </p>
 
-
       <label className="mt-4 flex items-start gap-2 text-sm">
         <input
           type="checkbox"

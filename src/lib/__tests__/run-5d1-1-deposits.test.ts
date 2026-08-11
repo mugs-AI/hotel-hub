@@ -139,7 +139,13 @@ function makeN3(overrides: Partial<Record<string, any>> = {}) {
     },
     async listByReference() {
       calls.listByReference++;
-      return overrides.listByReference ?? { kind: "response", status: 200, body: { data: { value: [] } } };
+      return (
+        overrides.listByReference ?? {
+          kind: "response",
+          status: 200,
+          body: { data: { value: [] } },
+        }
+      );
     },
     async create() {
       calls.create++;
@@ -204,18 +210,19 @@ describe("5D1.1 preflight fail-closed", () => {
     ).toBe("unavailable");
   });
   it("5xx is unavailable", () => {
-    expect(classifyPreflight({ kind: "response", status: 503, body: {} } as any, expected).kind).toBe(
-      "unavailable",
-    );
+    expect(
+      classifyPreflight({ kind: "response", status: 503, body: {} } as any, expected).kind,
+    ).toBe("unavailable");
   });
   it("401 is unauthorized", () => {
-    expect(classifyPreflight({ kind: "response", status: 401, body: {} } as any, expected).kind).toBe(
-      "unauthorized",
-    );
+    expect(
+      classifyPreflight({ kind: "response", status: 401, body: {} } as any, expected).kind,
+    ).toBe("unauthorized");
   });
   it("unreadable (non-list) body is unavailable, not zero-match", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as any, expected).kind,
+      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as any, expected)
+        .kind,
     ).toBe("unavailable");
   });
   it("readable empty page is a zero match", () => {

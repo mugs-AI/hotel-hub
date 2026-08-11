@@ -30,9 +30,7 @@ export type CountryComboboxProps = {
 function commitFromText(text: string): string {
   const t = text.trim().toLowerCase();
   if (!t) return "";
-  const exact = COUNTRIES.find(
-    (c) => c.name.toLowerCase() === t || c.alpha3.toLowerCase() === t,
-  );
+  const exact = COUNTRIES.find((c) => c.name.toLowerCase() === t || c.alpha3.toLowerCase() === t);
   return exact ? exact.alpha3 : "";
 }
 
