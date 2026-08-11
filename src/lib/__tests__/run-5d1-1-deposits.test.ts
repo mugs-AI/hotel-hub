@@ -8,9 +8,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hasPermission } from "@/lib/rbac";
+import type { N3Outcome, N3ReceiptsClient } from "@/lib/n3-receipts.server";
 
 // ---------- audit sink ----------
-const auditEvents: Array<{ eventType: string; detail?: any }> = [];
+const auditEvents: Array<{ eventType: string; detail?: unknown }> = [];
 vi.mock("@/lib/audit.server", () => ({
   logAudit: async (e: { eventType: string; detail?: unknown }) => {
     auditEvents.push({ eventType: e.eventType, detail: e.detail });
@@ -142,14 +143,19 @@ function newDefaults() {
   };
 }
 
-function makeN3(overrides: Partial<Record<string, any>> = {}) {
+/** Only the fields the deposit store reads; `durationMs` is irrelevant here. */
+type TestOutcome =
+  | { kind: "response"; status: number; body: unknown; durationMs?: number }
+  | { kind: "transport_error"; reason: "timeout" | "network" | "too_large"; durationMs?: number };
+
+function makeN3(overrides: Partial<Record<"getNew" | "listByReference" | "create", TestOutcome>> = {}) {
   const calls = { getNew: 0, listByReference: 0, create: 0 };
   const client = {
-    async getNew() {
+    async getNew(): Promise<TestOutcome> {
       calls.getNew++;
       return overrides.getNew ?? newDefaults();
     },
-    async listByReference() {
+    async listByReference(): Promise<TestOutcome> {
       calls.listByReference++;
       return (
         overrides.listByReference ?? {
@@ -159,12 +165,13 @@ function makeN3(overrides: Partial<Record<string, any>> = {}) {
         }
       );
     },
-    async create() {
+    async create(): Promise<TestOutcome> {
       calls.create++;
       return overrides.create ?? { kind: "transport_error", reason: "timeout" };
     },
-  } as any;
-  return { client, calls };
+  };
+  // Partial double: only the methods exercised by these tests are provided.
+  return { client: client as unknown as N3ReceiptsClient, calls };
 }
 
 function baseInput(clientRequestId: string) {
@@ -218,29 +225,29 @@ describe("5D1.1 preflight fail-closed", () => {
 
   it("transport failure is unavailable", () => {
     expect(
-      classifyPreflight({ kind: "transport_error", reason: "timeout" } as any, expected).kind,
+      classifyPreflight({ kind: "transport_error", reason: "timeout" } as N3Outcome, expected).kind,
     ).toBe("unavailable");
   });
   it("5xx is unavailable", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 503, body: {} } as any, expected).kind,
+      classifyPreflight({ kind: "response", status: 503, body: {} } as N3Outcome, expected).kind,
     ).toBe("unavailable");
   });
   it("401 is unauthorized", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 401, body: {} } as any, expected).kind,
+      classifyPreflight({ kind: "response", status: 401, body: {} } as N3Outcome, expected).kind,
     ).toBe("unauthorized");
   });
   it("unreadable (non-list) body is unavailable, not zero-match", () => {
     expect(
-      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as any, expected)
+      classifyPreflight({ kind: "response", status: 200, body: { data: {} } } as N3Outcome, expected)
         .kind,
     ).toBe("unavailable");
   });
   it("readable empty page is a zero match", () => {
     expect(
       classifyPreflight(
-        { kind: "response", status: 200, body: { data: { value: [] } } } as any,
+        { kind: "response", status: 200, body: { data: { value: [] } } } as N3Outcome,
         expected,
       ).kind,
     ).toBe("none");
@@ -442,14 +449,14 @@ describe("5D1.1.1 create-time N3 401", () => {
       createDeposit(baseInput(id), { n3: first.client, env: ENV }),
     ).rejects.toBeInstanceOf(DepositError);
     const row = tables.hotel_reservation_deposits[0]!;
-    expect(isRecoverableDepositStatus(row.status)).toBe(true);
+    expect(isRecoverableDepositStatus(String(row["status"]))).toBe(true);
     const check = makeN3();
     await reconcileDeposit(
       {
         tenantId: TENANT,
         n3TenantKey: "tenant-key-1",
         reservationId: RESERVATION_ID,
-        depositId: row.id,
+        depositId: String(row["id"]),
         actorN3UserKey: "user-1",
         n3Token: "tok",
       },
@@ -461,7 +468,7 @@ describe("5D1.1.1 create-time N3 401", () => {
 
 describe("5D1.1.1 N3 403 is never session expiry", () => {
   it("preflight 403 is unavailable, not unauthorized", () => {
-    const v = classifyPreflight({ kind: "response", status: 403, body: null } as any, {
+    const v = classifyPreflight({ kind: "response", status: 403, body: null } as N3Outcome, {
       customerId: "c",
       referenceNo: "HH-000000000000000000000000",
       amount: 1,
