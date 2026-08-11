@@ -42,15 +42,23 @@ async function depositFetch<T>(url: string, init?: RequestInit): Promise<T> {
     credentials: "same-origin",
     headers: { accept: "application/json", "content-type": "application/json" },
   });
-  const body = (await res.json().catch(() => null)) as any;
-  if (!res.ok) throw new DepositApiError(body?.error ?? "request_failed", res.status);
+  const body: unknown = await res.json().catch(() => null);
+  if (!res.ok) {
+    const code =
+      typeof body === "object" && body !== null && "error" in body
+        ? ((body as { error?: unknown }).error ?? "request_failed")
+        : "request_failed";
+    throw new DepositApiError(typeof code === "string" ? code : "request_failed", res.status);
+  }
   return body as T;
 }
 
 function useTenantKey(): string | null {
   const me = useSessionMe();
-  const d = me.data as any;
-  return d?.authenticated === true ? (d.tenantCode ?? "tenant") : null;
+  const d = me.data;
+  // Unchanged behaviour: the browser only needs a stable per-session cache
+  // namespace, never a tenant identifier from the payload.
+  return d?.authenticated === true ? "tenant" : null;
 }
 
 export function depositsKey(tenantKey: string | null, reservationId: string) {
