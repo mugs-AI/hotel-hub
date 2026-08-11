@@ -4,7 +4,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const auditEvents: Array<{ eventType: string; detail?: any }> = [];
+const auditEvents: Array<{ eventType: string; detail?: unknown }> = [];
 vi.mock("@/lib/audit.server", () => ({
   logAudit: async (e: { eventType: string; detail?: unknown }) => {
     auditEvents.push({ eventType: e.eventType, detail: e.detail });
@@ -33,14 +33,17 @@ vi.mock("@/lib/session-context.server", () => ({
   },
 }));
 
-let createBehaviour: () => never | Promise<any> = async () => ({ deposit: {} });
+let createBehaviour: () => never | Promise<unknown> = async () => ({ deposit: {} });
 vi.mock("@/lib/deposits-store.server", async () => {
-  const actual = await vi.importActual<any>("@/lib/deposits-store.server");
+  const actual =
+    await vi.importActual<typeof import("@/lib/deposits-store.server")>(
+      "@/lib/deposits-store.server",
+    );
   return {
     ...actual,
     isDepositWriteEnabled: () => true,
     createDeposit: async () => createBehaviour(),
-    toDepositDTO: (d: any) => d,
+    toDepositDTO: (d: unknown) => d,
   };
 });
 
