@@ -116,8 +116,7 @@ function CheckoutPreviewPage() {
                 </table>
               </div>
               <p className="mt-3 text-right text-sm font-semibold">
-                Room charge total:{" "}
-                {formatMoney(d.folio.roomChargeTotal, d.reservation.currency)}
+                Room charge total: {formatMoney(d.folio.roomChargeTotal, d.reservation.currency)}
               </p>
             </section>
 

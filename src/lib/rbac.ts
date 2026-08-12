@@ -26,7 +26,6 @@ export type Permission =
   | "hotel:checkout:view" // read the departures board and the read-only checkout preview
   | "roles:manage"; // assign / revoke HotelHub roles
 
-
 // Deny-by-default: only listed roles receive the permission.
 const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "app:view": new Set(["owner", "front_desk", "housekeeper"]),
@@ -62,7 +61,6 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
   // excluded: the preview exposes room rates and deposit money.
   "hotel:checkout:view": new Set(["owner", "front_desk"]),
-
 
   "roles:manage": new Set(["owner"]),
 };

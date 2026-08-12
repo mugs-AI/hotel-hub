@@ -108,9 +108,9 @@ describe("property date + buckets", () => {
     expect(departuresDateRange({ bucket: "overdue", from: null, to: null }, "2026-08-02").lt).toBe(
       "2026-08-02",
     );
-    expect(departuresDateRange({ bucket: "today", from: null, to: null }, "2026-08-02")).toMatchObject(
-      { gte: "2026-08-02", lte: "2026-08-02" },
-    );
+    expect(
+      departuresDateRange({ bucket: "today", from: null, to: null }, "2026-08-02"),
+    ).toMatchObject({ gte: "2026-08-02", lte: "2026-08-02" });
   });
 });
 
@@ -169,36 +169,44 @@ describe("classifyDepositReceipt — fail closed", () => {
   it("rejects a customer mismatch", () => {
     const body = structuredClone(goodBody);
     body.data.value.customerId = "55555555-5555-4555-8555-555555555555";
-    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject({
-      counted: false,
-      code: "deposit_customer_mismatch",
-    });
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+        code: "deposit_customer_mismatch",
+      },
+    );
   });
 
   it("rejects a currency mismatch", () => {
     const body = structuredClone(goodBody);
     body.data.value.currencyCode = "SGD";
-    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject({
-      counted: false,
-      code: "deposit_currency_mismatch",
-    });
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+        code: "deposit_currency_mismatch",
+      },
+    );
   });
 
   it("rejects an amount mismatch", () => {
     const body = structuredClone(goodBody);
     body.data.value.netTotalAmount = 250;
-    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject({
-      counted: false,
-      code: "deposit_live_evidence_incomplete",
-    });
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+        code: "deposit_live_evidence_incomplete",
+      },
+    );
   });
 
   it("rejects a receipt that is already knocked off", () => {
     const body = structuredClone(goodBody) as Record<string, any>;
     body.data.value.knockoff = [{ amount: 300 }];
-    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject({
-      counted: false,
-    });
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+      },
+    );
   });
 });
 

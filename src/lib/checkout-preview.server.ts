@@ -265,7 +265,11 @@ export async function buildCheckoutPreview(input: {
     deps,
   });
 
-  const blockers: Blocker[] = [...folio.blockers, ...depositOutcome.blockers, ...standingBlockers()];
+  const blockers: Blocker[] = [
+    ...folio.blockers,
+    ...depositOutcome.blockers,
+    ...standingBlockers(),
+  ];
 
   const summary = buildSummary(folio.roomChargeTotalCents, depositOutcome.verifiedTotalCents);
   const calculationComplete =
