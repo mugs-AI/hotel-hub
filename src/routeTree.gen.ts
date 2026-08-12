@@ -13,6 +13,7 @@ import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
+import { Route as DeparturesRouteImport } from './routes/departures'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
 import { Route as SettingsN3FinancialVerificationRouteImport } from './routes/settings_.n3-financial-verification'
@@ -71,6 +72,11 @@ const RoomsRatesRoute = RoomsRatesRouteImport.update({
 const LaunchErrorRoute = LaunchErrorRouteImport.update({
   id: '/launch-error',
   path: '/launch-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeparturesRoute = DeparturesRouteImport.update({
+  id: '/departures',
+  path: '/departures',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -284,6 +290,7 @@ const ApiHotelReservationsIdDepositsDepositIdReconcileRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/departures': typeof DeparturesRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -329,6 +336,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/departures': typeof DeparturesRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -375,6 +383,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/departures': typeof DeparturesRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -422,6 +431,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/departures'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/departures'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/departures'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -558,6 +570,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DeparturesRoute: typeof DeparturesRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
   SettingsRoute: typeof SettingsRoute
@@ -616,6 +629,13 @@ declare module '@tanstack/react-router' {
       path: '/launch-error'
       fullPath: '/launch-error'
       preLoaderRoute: typeof LaunchErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/departures': {
+      id: '/departures'
+      path: '/departures'
+      fullPath: '/departures'
+      preLoaderRoute: typeof DeparturesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -1018,6 +1038,7 @@ const ApiN3StocksRouteWithChildren = ApiN3StocksRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DeparturesRoute: DeparturesRoute,
   LaunchErrorRoute: LaunchErrorRoute,
   RoomsRatesRoute: RoomsRatesRoute,
   SettingsRoute: SettingsRoute,
