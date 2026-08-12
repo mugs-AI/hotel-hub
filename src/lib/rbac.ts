@@ -59,6 +59,11 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:operations:request": new Set(["owner", "front_desk"]),
   "hotel:operations:approve": new Set(["owner"]),
 
+  // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
+  // excluded: the preview exposes room rates and deposit money.
+  "hotel:checkout:view": new Set(["owner", "front_desk"]),
+
+
   "roles:manage": new Set(["owner"]),
 };
 
