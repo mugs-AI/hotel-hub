@@ -22,6 +22,7 @@ import { Route as ReservationsCalendarRouteImport } from './routes/reservations.
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
 import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$id_.edit'
+import { Route as ReservationsIdCheckoutRouteImport } from './routes/reservations.$id_.checkout'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
 import { Route as ApiN3FinancialVerificationRouteImport } from './routes/api/n3/financial-verification'
@@ -118,6 +119,11 @@ const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
 const ReservationsIdEditRoute = ReservationsIdEditRouteImport.update({
   id: '/reservations/$id_/edit',
   path: '/reservations/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdCheckoutRoute = ReservationsIdCheckoutRouteImport.update({
+  id: '/reservations/$id_/checkout',
+  path: '/reservations/$id/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
@@ -315,6 +321,7 @@ export interface FileRoutesByFullPath {
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
@@ -361,6 +368,7 @@ export interface FileRoutesByTo {
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
@@ -408,6 +416,7 @@ export interface FileRoutesById {
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
+  '/reservations/$id_/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id_/edit': typeof ReservationsIdEditRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
@@ -456,6 +465,7 @@ export interface FileRouteTypes {
     | '/api/n3/financial-verification'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id/checkout'
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/api/n3/financial-verification'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id/checkout'
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
@@ -548,6 +559,7 @@ export interface FileRouteTypes {
     | '/api/n3/financial-verification'
     | '/api/n3/stocks'
     | '/api/session/me'
+    | '/reservations/$id_/checkout'
     | '/reservations/$id_/edit'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
@@ -595,6 +607,7 @@ export interface RootRouteChildren {
   ApiN3FinancialVerificationRoute: typeof ApiN3FinancialVerificationRoute
   ApiN3StocksRoute: typeof ApiN3StocksRouteWithChildren
   ApiSessionMeRoute: typeof ApiSessionMeRoute
+  ReservationsIdCheckoutRoute: typeof ReservationsIdCheckoutRoute
   ReservationsIdEditRoute: typeof ReservationsIdEditRoute
   ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
@@ -692,6 +705,13 @@ declare module '@tanstack/react-router' {
       path: '/reservations/$id/edit'
       fullPath: '/reservations/$id/edit'
       preLoaderRoute: typeof ReservationsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/checkout': {
+      id: '/reservations/$id_/checkout'
+      path: '/reservations/$id/checkout'
+      fullPath: '/reservations/$id/checkout'
+      preLoaderRoute: typeof ReservationsIdCheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/session/me': {
@@ -1063,6 +1083,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiN3FinancialVerificationRoute: ApiN3FinancialVerificationRoute,
   ApiN3StocksRoute: ApiN3StocksRouteWithChildren,
   ApiSessionMeRoute: ApiSessionMeRoute,
+  ReservationsIdCheckoutRoute: ReservationsIdCheckoutRoute,
   ReservationsIdEditRoute: ReservationsIdEditRoute,
   ReservationsIdPrintRoute: ReservationsIdPrintRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,

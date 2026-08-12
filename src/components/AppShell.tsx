@@ -5,7 +5,7 @@ import { hasPermission, type Permission } from "@/lib/rbac";
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 
 type NavItem = {
-  to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings";
+  to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings" | "/departures";
   label: string;
   permission?: Permission;
   disabled?: boolean;
