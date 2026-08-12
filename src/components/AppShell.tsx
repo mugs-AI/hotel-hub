@@ -20,7 +20,9 @@ const NAV_ITEMS: NavItem[] = [
     permission: "hotel:reservations:view",
     matchPrefix: "/reservations",
   },
+  { to: "/departures", label: "Departures", permission: "hotel:checkout:view" },
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
+
   { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
   { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
