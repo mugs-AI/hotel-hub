@@ -23,6 +23,7 @@ export type Permission =
   | "hotel:operations:view" // read the operation request ledger + timeline
   | "hotel:operations:request" // raise an operation request needing approval
   | "hotel:operations:approve" // approve / reject an operation request
+  | "hotel:checkout:view" // read the departures board and the read-only checkout preview
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
@@ -56,6 +57,10 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:operations:view": new Set(["owner", "front_desk"]),
   "hotel:operations:request": new Set(["owner", "front_desk"]),
   "hotel:operations:approve": new Set(["owner"]),
+
+  // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
+  // excluded: the preview exposes room rates and deposit money.
+  "hotel:checkout:view": new Set(["owner", "front_desk"]),
 
   "roles:manage": new Set(["owner"]),
 };
