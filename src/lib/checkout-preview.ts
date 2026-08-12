@@ -624,3 +624,8 @@ export type DeparturesResponseDTO = {
   limit: number;
   offset: number;
 };
+
+/** Checked sum for already-validated cent values; null on overflow. */
+export function sumOrNull(values: readonly number[]): number | null {
+  return sumCents(values);
+}
