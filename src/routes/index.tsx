@@ -22,25 +22,35 @@ function Home() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Welcome to HotelHub</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Foundation build. Business modules ship in later MAF milestones.
+            Boutique hotel operations, integrated with N3 AI Cloud Accounting.
           </p>
         </div>
 
         <section className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">Deferred MAF milestones</h2>
+          <h2 className="text-sm font-semibold">Available today</h2>
           <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-            <li>· Rooms, rates &amp; reservations</li>
-            <li>· Deposit &amp; check-in</li>
-            <li>· Checkout &amp; AR matching (RM100 / RM300 / RM200 flow)</li>
-            <li>· Housekeeping &amp; maintenance</li>
-            <li>· Cancellation, no-show &amp; refund approvals</li>
-            <li>· Dashboard &amp; reports</li>
-            <li>· Production verification</li>
+            <li>· Rooms &amp; Rates — N3 Stock Code mapping with local base rates</li>
+            <li>· Reservations — create, edit, cancel, calendar and registration print</li>
+            <li>· Guest and room editing with capacity-aware assignment</li>
+            <li>· Deposit ledger with controlled Owner-only N3 deposit write</li>
+            <li>· Check-in and in-stay operations with Owner approvals</li>
+            <li>· Departures and read-only Prepare Checkout preview</li>
           </ul>
         </section>
 
         <section className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">What this foundation provides</h2>
+          <h2 className="text-sm font-semibold">Planned next</h2>
+          <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+            <li>· CashMemo posting and deposit matching</li>
+            <li>· Final balance collection and checkout completion</li>
+            <li>· Housekeeping &amp; maintenance workflow</li>
+            <li>· Refund approvals</li>
+            <li>· Dashboard &amp; reports</li>
+          </ul>
+        </section>
+
+        <section className="rounded-lg border border-border bg-card p-6">
+          <h2 className="text-sm font-semibold">Platform foundations</h2>
           <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
             <li>
               · Secure N3 launch/auth (Path A: <code>?token=</code> from My Apps)
@@ -51,12 +61,10 @@ function Home() {
               · Session header (company, tenant, user) captured at launch and read from the
               encrypted HttpOnly session cookie on each page load — not re-fetched from N3.
             </li>
-            <li>
-              · Rooms &amp; Rates setup — map N3 Stock Codes to rooms with local MYR base rates
-            </li>
             <li>· N3 verification console (Owner-only) for capability probing</li>
           </ul>
         </section>
+
       </div>
     </AppShell>
   );
