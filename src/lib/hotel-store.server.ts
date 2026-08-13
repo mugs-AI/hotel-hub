@@ -70,6 +70,28 @@ function toSettings(row: SettingsRow): HotelSettings {
   };
 }
 
+const SETTINGS_COLS =
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+
+/**
+ * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
+ * (Departures, Prepare Checkout) so a GET can never insert a default row.
+ * Returns null when the tenant has no settings row yet.
+ */
+export async function getHotelSettingsReadOnly(tenantId: string): Promise<HotelSettings | null> {
+  const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
+  const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
+  const res = await supabaseAdmin
+    .from("hotel_settings" as never)
+    .select(SETTINGS_COLS)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (res.error) throw new Error(`hotel_settings read failed: ${res.error.message}`);
+  if (!res.data) return null;
+  return toSettings(res.data as SettingsRow);
+}
+
+
 export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelSettings> {
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
