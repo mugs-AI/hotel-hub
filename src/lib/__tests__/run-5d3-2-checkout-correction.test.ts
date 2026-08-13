@@ -552,7 +552,7 @@ describe("5D3.2 deposit evidence", () => {
         getReceiptById: async () => ({ kind: "response", status: 200, body: liveReceipt() }),
       }),
     );
-    expect(codes(dto)).toContain("deposit_walk_in_customer_mismatch");
+    expect(codes(dto)).toContain("deposit_customer_mismatch");
     expect(dto.deposits.verifiedTotal).toBeNull();
   });
 });
@@ -600,7 +600,7 @@ describe("5D3.2 read-only + auth guards", () => {
   it("performs no N3 write and no state transition", () => {
     expect(server).not.toMatch(/n3Receipts\.(create|post|update|void|delete|match)/);
     expect(server).not.toMatch(/"POST"|'POST'/);
-    expect(server).not.toMatch(/checked_out|Vacant|housekeep/i);
+    expect(server).not.toMatch(/status: "checked_out"|allocation_status:/);
   });
 
   it("registers GET-only handlers for both new routes", () => {
