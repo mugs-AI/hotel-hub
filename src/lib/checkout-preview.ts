@@ -586,24 +586,25 @@ export function classifyDepositReceipt(
   const cust =
     str(pick(v, ["customerId", "CustomerId"])) ??
     str(pick((custObj as Record<string, unknown>) ?? null, ["id", "Id"]));
-  if (expected.n3CustomerId) {
-    if (!cust) return { counted: false, code: "deposit_live_evidence_incomplete" };
-    if (cust !== expected.n3CustomerId) {
-      return { counted: false, code: "deposit_customer_mismatch" };
-    }
-    proven.push("customerId");
+  // Live customer evidence is MANDATORY: a receipt that does not expose its
+  // customer can never be counted.
+  if (!cust) return { counted: false, code: "deposit_live_evidence_incomplete" };
+  if (cust !== expected.n3CustomerId) {
+    return { counted: false, code: "deposit_customer_mismatch" };
   }
+  proven.push("customerId");
 
   const currencyObj = pick(v, ["currency", "Currency"]);
   const currencyCode =
     str(pick(v, ["currencyCode", "CurrencyCode"])) ??
     str(pick((currencyObj as Record<string, unknown>) ?? null, ["code", "Code"]));
-  if (currencyCode) {
-    if (currencyCode.toUpperCase() !== expected.currencyCode.toUpperCase()) {
-      return { counted: false, code: "deposit_currency_mismatch" };
-    }
-    proven.push("currency");
+  // Live currency evidence is MANDATORY.
+  if (!currencyCode) return { counted: false, code: "deposit_live_evidence_incomplete" };
+  if (currencyCode.toUpperCase() !== expected.currencyCode.toUpperCase()) {
+    return { counted: false, code: "deposit_currency_mismatch" };
   }
+  proven.push("currency");
+
 
   const amount = num(
     pick(v, ["netTotalAmount", "NetTotalAmount", "totalAmount", "amount", "paymentAmount"]),
