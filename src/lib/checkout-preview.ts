@@ -28,8 +28,17 @@ export const CHECKOUT_ERROR_CODES = new Set([
   "reservation_not_found",
   "reservation_not_checked_in",
   "property_timezone_invalid",
+  "hotel_settings_missing",
+  "reservation_currency_invalid",
+  "reservation_currency_mismatch",
+  "walk_in_customer_not_mapped",
   "room_allocation_missing",
   "room_allocation_not_occupied",
+  "guest_assignment_required",
+  "guest_assignment_invalid",
+  "room_capacity_exceeded",
+  "room_max_occupancy_invalid",
+  "primary_guest_invalid",
   "invalid_stay_dates",
   "invalid_money_scale",
   "room_stock_mapping_missing",
@@ -39,6 +48,7 @@ export const CHECKOUT_ERROR_CODES = new Set([
   "deposit_identity_missing",
   "deposit_live_evidence_incomplete",
   "deposit_customer_mismatch",
+  "deposit_walk_in_customer_mismatch",
   "deposit_currency_mismatch",
   "multiple_deposit_customers",
   "deposit_verification_cap_exceeded",
@@ -50,9 +60,24 @@ export type BlockerSeverity = "blocking" | "warning";
 export type Blocker = { code: string; severity: BlockerSeverity; message: string };
 
 const BLOCKER_MESSAGES: Record<string, string> = {
+  hotel_settings_missing:
+    "Property settings have not been configured yet, so the folio cannot be proven.",
+  property_timezone_invalid: "The property timezone is not configured correctly.",
+  reservation_currency_invalid:
+    "The reservation or property currency is not a valid three-letter code.",
+  reservation_currency_mismatch:
+    "The reservation currency does not match the property settings currency.",
+  walk_in_customer_not_mapped:
+    "No N3 Walk-in customer is currently mapped, so deposit ownership cannot be proven.",
   room_allocation_missing: "This reservation has no current room allocation to charge.",
   room_allocation_not_occupied:
     "One or more allocated rooms are not currently occupied, so the stay cannot be charged yet.",
+  guest_assignment_required: "One or more guests are not assigned to a room.",
+  guest_assignment_invalid:
+    "A guest is assigned to a room that does not belong to this reservation.",
+  room_capacity_exceeded: "A room has more guests than its maximum occupancy allows.",
+  room_max_occupancy_invalid: "A room has no valid maximum occupancy configured.",
+  primary_guest_invalid: "This reservation does not have exactly one primary guest.",
   invalid_stay_dates: "The stay dates are invalid, so nights cannot be calculated.",
   invalid_money_scale: "A stored rate is not a valid two-decimal amount, so the folio is blocked.",
   room_stock_mapping_missing:
@@ -67,6 +92,8 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   deposit_live_evidence_incomplete:
     "A deposit could not be fully proven against its N3 receipt, so it is not counted.",
   deposit_customer_mismatch: "A deposit belongs to a different N3 customer than expected.",
+  deposit_walk_in_customer_mismatch:
+    "A verified deposit does not belong to the property's current N3 Walk-in customer mapping.",
   deposit_currency_mismatch: "A deposit currency does not match the reservation currency.",
   multiple_deposit_customers: "Verified deposits belong to more than one N3 customer.",
   deposit_verification_cap_exceeded:
@@ -76,6 +103,7 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   posting_not_enabled: "N3 CashMemo posting is not enabled in this milestone.",
   matching_not_enabled: "Deposit matching and balance collection are not enabled.",
 };
+
 
 export function blocker(code: string, severity: BlockerSeverity = "blocking"): Blocker {
   return { code, severity, message: BLOCKER_MESSAGES[code] ?? code.replace(/_/g, " ") };
