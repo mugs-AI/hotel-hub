@@ -480,7 +480,9 @@ export type DepositExpectation = {
   n3ReceiptId: string;
   n3DocCode: string;
   n3ReferenceNo: string;
-  n3CustomerId: string | null;
+  /** Immutable local N3 customer ID. Required — a posted deposit without it is never verified. */
+  n3CustomerId: string;
+
   currencyCode: string;
   amountCents: number;
 };
