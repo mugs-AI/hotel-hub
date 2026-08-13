@@ -251,6 +251,103 @@ export function hasHistoricalEvidenceGap(eventTypes: readonly string[]): boolean
   return eventTypes.some((t) => HISTORY_BLOCKING_EVENT_TYPES.has(t));
 }
 
+// ------------------------------------------------- currency + assignment evidence
+
+const CURRENCY_RE = /^[A-Za-z]{3}$/;
+
+/**
+ * Both the tenant settings currency and the reservation currency must be valid
+ * three-letter codes and must agree. Fails closed with a visible blocker.
+ */
+export function validateCurrencyEvidence(
+  settingsCurrency: string | null | undefined,
+  reservationCurrency: string | null | undefined,
+): Blocker[] {
+  const s = typeof settingsCurrency === "string" ? settingsCurrency.trim() : "";
+  const r = typeof reservationCurrency === "string" ? reservationCurrency.trim() : "";
+  if (!CURRENCY_RE.test(s) || !CURRENCY_RE.test(r)) {
+    return [blocker("reservation_currency_invalid")];
+  }
+  if (s.toUpperCase() !== r.toUpperCase()) return [blocker("reservation_currency_mismatch")];
+  return [];
+}
+
+export type AssignmentRoomEvidence = {
+  reservationRoomId: string;
+  hotelRoomId: string | null;
+  maxOccupancy: number | null;
+  adults: number | null;
+  children: number | null;
+  allocationStatus: string;
+};
+
+export type AssignmentGuestEvidence = {
+  guestId: string;
+  isPrimary: boolean;
+  reservationRoomId: string | null;
+};
+
+/**
+ * Server-authoritative revalidation of stored guest-to-room assignments and
+ * room capacity. Every rule fails closed — the browser never decides this.
+ */
+export function validateAssignmentEvidence(input: {
+  rooms: readonly AssignmentRoomEvidence[];
+  guests: readonly AssignmentGuestEvidence[];
+}): Blocker[] {
+  const out: Blocker[] = [];
+  const { rooms, guests } = input;
+  if (rooms.length === 0) return [blocker("room_allocation_missing")];
+
+  const byId = new Map<string, AssignmentRoomEvidence>();
+  for (const r of rooms) byId.set(r.reservationRoomId, r);
+
+  let capacityInvalid = false;
+  for (const r of rooms) {
+    if (!Number.isInteger(r.maxOccupancy) || (r.maxOccupancy ?? 0) <= 0) capacityInvalid = true;
+  }
+  if (capacityInvalid) out.push(blocker("room_max_occupancy_invalid"));
+
+  if (guests.length === 0) out.push(blocker("guest_assignment_required"));
+  if (guests.some((g) => !g.reservationRoomId)) out.push(blocker("guest_assignment_required"));
+  if (guests.some((g) => g.reservationRoomId && !byId.has(g.reservationRoomId))) {
+    out.push(blocker("guest_assignment_invalid"));
+  }
+  if (guests.filter((g) => g.isPrimary).length !== 1) out.push(blocker("primary_guest_invalid"));
+
+  let overCapacity = false;
+  for (const r of rooms) {
+    const cap = Number.isInteger(r.maxOccupancy) ? (r.maxOccupancy as number) : null;
+    if (cap === null || cap <= 0) continue;
+    const assigned = guests.filter((g) => g.reservationRoomId === r.reservationRoomId).length;
+    if (assigned > cap) overCapacity = true;
+    const adults = Number.isInteger(r.adults) ? (r.adults as number) : null;
+    const children = Number.isInteger(r.children) ? (r.children as number) : 0;
+    if (adults === null || adults < 0 || children < 0) {
+      overCapacity = overCapacity || false;
+      out.push(blocker("room_capacity_exceeded"));
+      continue;
+    }
+    if (adults + children > cap) overCapacity = true;
+  }
+  if (overCapacity) out.push(blocker("room_capacity_exceeded"));
+
+  return dedupeBlockers(out);
+}
+
+export function dedupeBlockers(list: readonly Blocker[]): Blocker[] {
+  const seen = new Set<string>();
+  const out: Blocker[] = [];
+  for (const b of list) {
+    if (seen.has(b.code)) continue;
+    seen.add(b.code);
+    out.push(b);
+  }
+  return out;
+}
+
+
+
 export type FolioRoomInput = {
   reservationRoomId: string;
   roomNumber: string;
