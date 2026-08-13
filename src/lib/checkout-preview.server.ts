@@ -1,11 +1,11 @@
-// Run 5D3.1 — server-only orchestration for departures and the read-only
-// checkout folio preview.
+// Run 5D3.1 / 5D3.2 — server-only orchestration for departures and the
+// read-only checkout folio preview.
 //
 // HARD SCOPE BOUNDARY (enforced by review + tests):
 //   * Every N3 interaction in this module is a GET. Nothing here creates,
 //     matches, updates, refunds, voids or deletes an N3 document.
 //   * Nothing here mutates reservation status, room allocation status or
-//     housekeeping state.
+//     housekeeping state, and nothing here inserts a settings row.
 //   * All money is computed here from server-owned rows; the browser never
 //     computes a financial value.
 
@@ -14,16 +14,20 @@ import {
   blocker,
   classifyDepositReceipt,
   computeRoomFolio,
+  dedupeBlockers,
   departureBucket,
   departuresDateRange,
   DEPOSIT_VERIFICATION_CAP,
   DEPOSIT_VERIFICATION_CONCURRENCY,
-  hasHistoricalEvidenceGap,
+  HISTORY_BLOCKING_EVENT_TYPES,
   mapWithConcurrency,
   propertyTodayIso,
   roomDisplayLabel,
   standingBlockers,
   sumOrNull,
+  validateAssignmentEvidence,
+  validateCurrencyEvidence,
+  type AssignmentGuestEvidence,
   type Blocker,
   type CheckoutPreviewDTO,
   type DeparturesQuery,
@@ -35,10 +39,33 @@ import {
 } from "./checkout-preview";
 import { centsToAmount, toCents } from "./checkout-money";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-async function admin() {
+// ---------------------------------------------------------------- typed client
+
+type PgError = { message: string } | null;
+type ListResult<T> = { data: T[] | null; error: PgError; count?: number | null };
+type SingleResult<T> = { data: T | null; error: PgError };
+
+interface Builder<T> extends PromiseLike<ListResult<T>> {
+  select(cols: string, opts?: { count?: "exact"; head?: boolean }): Builder<T>;
+  eq(col: string, value: unknown): Builder<T>;
+  in(col: string, values: readonly unknown[]): Builder<T>;
+  gte(col: string, value: unknown): Builder<T>;
+  lte(col: string, value: unknown): Builder<T>;
+  lt(col: string, value: unknown): Builder<T>;
+  gt(col: string, value: unknown): Builder<T>;
+  order(col: string, opts?: { ascending?: boolean }): Builder<T>;
+  range(from: number, to: number): Builder<T>;
+  limit(n: number): Builder<T>;
+  maybeSingle(): PromiseLike<SingleResult<T>>;
+}
+
+interface ReadDb {
+  from<T>(table: string): Builder<T>;
+}
+
+async function db(): Promise<ReadDb> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return supabaseAdmin as any;
+  return supabaseAdmin as unknown as ReadDb;
 }
 
 export class CheckoutPreviewError extends Error {
@@ -52,6 +79,11 @@ export class CheckoutPreviewError extends Error {
   }
 }
 
+function nested<T>(v: T | T[] | null | undefined): T | null {
+  if (Array.isArray(v)) return v[0] ?? null;
+  return v ?? null;
+}
+
 // ---------------------------------------------------------------- departures
 
 type DepartureRow = {
@@ -62,25 +94,36 @@ type DepartureRow = {
   expected_check_out_at: string | null;
 };
 
+type DepartureRoomRow = {
+  reservation_id: string;
+  hotel_rooms:
+    | { room_number: string; display_name: string | null; n3_stock_name: string | null }
+    | { room_number: string; display_name: string | null; n3_stock_name: string | null }[]
+    | null;
+};
+
+type DepartureGuestRow = {
+  reservation_id: string;
+  is_primary: boolean;
+  hotel_guests: { full_name: string } | { full_name: string }[] | null;
+};
+
 export async function listDepartures(input: {
   tenantId: string;
   query: DeparturesQuery;
   propertyToday: string;
 }): Promise<DeparturesResponseDTO> {
-  const sb = await admin();
+  const sb = await db();
   const { tenantId, query, propertyToday } = input;
   const range = departuresDateRange(query, propertyToday);
 
-  const base = () =>
-    sb
-      .from("hotel_reservations")
-      .select("id, booking_reference, arrival_date, departure_date, expected_check_out_at", {
-        count: "exact",
-      })
-      .eq("tenant_id", tenantId)
-      .eq("status", "checked_in");
-
-  let q = base();
+  let q = sb
+    .from<DepartureRow>("hotel_reservations")
+    .select("id, booking_reference, arrival_date, departure_date, expected_check_out_at", {
+      count: "exact",
+    })
+    .eq("tenant_id", tenantId)
+    .eq("status", "checked_in");
   if (range.gte) q = q.gte("departure_date", range.gte);
   if (range.lte) q = q.lte("departure_date", range.lte);
   if (range.lt) q = q.lt("departure_date", range.lt);
@@ -90,7 +133,7 @@ export async function listDepartures(input: {
     .order("booking_reference", { ascending: true })
     .range(query.offset, query.offset + query.limit - 1);
   if (res.error) throw new CheckoutPreviewError("checkout_preview_failed");
-  const rows = (res.data ?? []) as DepartureRow[];
+  const rows = res.data ?? [];
 
   const counts = await departureCounts(sb, tenantId, propertyToday);
 
@@ -100,34 +143,34 @@ export async function listDepartures(input: {
   const primaryByRes = new Map<string, string>();
   if (ids.length > 0) {
     const rr = await sb
-      .from("hotel_reservation_rooms")
+      .from<DepartureRoomRow>("hotel_reservation_rooms")
       .select("reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)")
       .eq("tenant_id", tenantId)
       .in("reservation_id", ids)
       .eq("allocation_status", "occupied");
     if (rr.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    for (const row of (rr.data ?? []) as any[]) {
-      const nested = Array.isArray(row.hotel_rooms) ? row.hotel_rooms[0] : row.hotel_rooms;
+    for (const row of rr.data ?? []) {
+      const room = nested(row.hotel_rooms);
       const label = roomDisplayLabel({
-        displayName: nested?.display_name ?? null,
-        n3StockName: nested?.n3_stock_name ?? null,
-        roomNumber: nested?.room_number ?? "",
+        displayName: room?.display_name ?? null,
+        n3StockName: room?.n3_stock_name ?? null,
+        roomNumber: room?.room_number ?? "",
       });
       const list = roomsByRes.get(row.reservation_id) ?? [];
       list.push(label);
       roomsByRes.set(row.reservation_id, list);
     }
     const gg = await sb
-      .from("hotel_reservation_guests")
+      .from<DepartureGuestRow>("hotel_reservation_guests")
       .select("reservation_id, is_primary, hotel_guests(full_name)")
       .eq("tenant_id", tenantId)
       .in("reservation_id", ids);
     if (gg.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    for (const row of (gg.data ?? []) as any[]) {
+    for (const row of gg.data ?? []) {
       guestsByRes.set(row.reservation_id, (guestsByRes.get(row.reservation_id) ?? 0) + 1);
       if (row.is_primary) {
-        const nested = Array.isArray(row.hotel_guests) ? row.hotel_guests[0] : row.hotel_guests;
-        if (nested?.full_name) primaryByRes.set(row.reservation_id, nested.full_name);
+        const g = nested(row.hotel_guests);
+        if (g?.full_name) primaryByRes.set(row.reservation_id, g.full_name);
       }
     }
   }
@@ -156,10 +199,10 @@ export async function listDepartures(input: {
   };
 }
 
-async function departureCounts(sb: any, tenantId: string, propertyToday: string) {
+async function departureCounts(sb: ReadDb, tenantId: string, propertyToday: string) {
   const head = () =>
     sb
-      .from("hotel_reservations")
+      .from<{ id: string }>("hotel_reservations")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .eq("status", "checked_in");
@@ -177,9 +220,14 @@ async function departureCounts(sb: any, tenantId: string, propertyToday: string)
   return { today: t, overdue: o, upcoming: u, all: t + o + u };
 }
 
+/**
+ * READ-ONLY property date. Never creates a settings row: an unconfigured
+ * tenant fails closed with `hotel_settings_missing`.
+ */
 export async function resolvePropertyToday(tenantId: string, now = new Date()): Promise<string> {
-  const { getOrCreateHotelSettings } = await import("./hotel-store.server");
-  const settings = await getOrCreateHotelSettings(tenantId);
+  const { getHotelSettingsReadOnly } = await import("./hotel-store.server");
+  const settings = await getHotelSettingsReadOnly(tenantId);
+  if (!settings) throw new CheckoutPreviewError("hotel_settings_missing", 409);
   const today = propertyTodayIso(settings.timezone, now);
   if (!today) throw new CheckoutPreviewError("property_timezone_invalid", 409);
   return today;
@@ -187,24 +235,42 @@ export async function resolvePropertyToday(tenantId: string, now = new Date()): 
 
 // ---------------------------------------------------------------- preview
 
+export type CheckoutSettingsEvidence = {
+  timezone: string;
+  currency: string;
+  walkInCustomerId: string | null;
+};
+
+export type CheckoutReservationEvidence = {
+  id: string;
+  bookingReference: string;
+  status: string;
+  arrivalDate: string;
+  departureDate: string;
+  currency: string;
+  expectedCheckOutAt: string | null;
+  primaryGuestName: string | null;
+  rooms: CheckoutRoomEvidence[];
+  guests: AssignmentGuestEvidence[];
+};
+
+export type CheckoutRoomEvidence = FolioRoomInput & {
+  hotelRoomId: string | null;
+  maxOccupancy: number | null;
+  adults: number | null;
+  children: number | null;
+};
+
 export type CheckoutPreviewDeps = {
   loadReservation(
     tenantId: string,
     reservationId: string,
-  ): Promise<{
-    id: string;
-    bookingReference: string;
-    status: string;
-    arrivalDate: string;
-    departureDate: string;
-    currency: string;
-    expectedCheckOutAt: string | null;
-    primaryGuestName: string | null;
-    rooms: FolioRoomInput[];
-  } | null>;
-  loadEventTypes(tenantId: string, reservationId: string): Promise<string[]>;
+  ): Promise<CheckoutReservationEvidence | null>;
+  /** Existence-only, tenant-scoped query for blocking applied event types. */
+  hasHistoryGap(tenantId: string, reservationId: string): Promise<boolean>;
   loadDeposits(tenantId: string, reservationId: string): Promise<DepositLite[]>;
-  loadSettings(tenantId: string): Promise<{ timezone: string; currency: string }>;
+  /** SELECT-only settings read; null when the tenant has no settings row. */
+  loadSettings(tenantId: string): Promise<CheckoutSettingsEvidence | null>;
   getReceiptById(token: string, receiptId: string): Promise<N3ReadOutcome>;
   now?: Date;
 };
@@ -237,6 +303,7 @@ export async function buildCheckoutPreview(input: {
   const now = deps.now ?? new Date();
 
   const settings = await deps.loadSettings(tenantId);
+  if (!settings) throw new CheckoutPreviewError("hotel_settings_missing", 409);
   const propertyDate = propertyTodayIso(settings.timezone, now);
   if (!propertyDate) throw new CheckoutPreviewError("property_timezone_invalid", 409);
 
@@ -246,8 +313,20 @@ export async function buildCheckoutPreview(input: {
     throw new CheckoutPreviewError("reservation_not_checked_in", 409);
   }
 
-  const eventTypes = await deps.loadEventTypes(tenantId, reservationId);
-  const historyGap = hasHistoricalEvidenceGap(eventTypes);
+  const currencyBlockers = validateCurrencyEvidence(settings.currency, reservation.currency);
+  const assignmentBlockers = validateAssignmentEvidence({
+    rooms: reservation.rooms.map((r) => ({
+      reservationRoomId: r.reservationRoomId,
+      hotelRoomId: r.hotelRoomId,
+      maxOccupancy: r.maxOccupancy,
+      adults: r.adults,
+      children: r.children,
+      allocationStatus: r.allocationStatus,
+    })),
+    guests: reservation.guests,
+  });
+
+  const historyGap = await deps.hasHistoryGap(tenantId, reservationId);
 
   const folio = computeRoomFolio({
     rooms: reservation.rooms,
@@ -261,21 +340,25 @@ export async function buildCheckoutPreview(input: {
     tenantId,
     reservationId,
     reservationCurrency: reservation.currency,
+    walkInCustomerId: settings.walkInCustomerId,
     n3Token,
     deps,
   });
 
-  const blockers: Blocker[] = [
+  const blockers = dedupeBlockers([
+    ...currencyBlockers,
+    ...assignmentBlockers,
     ...folio.blockers,
     ...depositOutcome.blockers,
     ...standingBlockers(),
-  ];
+  ]);
 
-  const summary = buildSummary(folio.roomChargeTotalCents, depositOutcome.verifiedTotalCents);
+  const hardBlocked = blockers.some((b) => b.severity === "blocking");
+  const roomChargeTotalCents = hardBlocked ? null : folio.roomChargeTotalCents;
+  const verifiedTotalCents = hardBlocked ? null : depositOutcome.verifiedTotalCents;
+  const summary = buildSummary(roomChargeTotalCents, verifiedTotalCents);
   const calculationComplete =
-    folio.calculationStatus === "calculated" &&
-    depositOutcome.verifiedTotalCents !== null &&
-    !blockers.some((b) => b.severity === "blocking");
+    !hardBlocked && folio.calculationStatus === "calculated" && verifiedTotalCents !== null;
 
   return {
     generatedAt: now.toISOString(),
@@ -293,17 +376,13 @@ export async function buildCheckoutPreview(input: {
     },
     folio: {
       scope: "room_only",
-      calculationStatus: folio.calculationStatus,
-      lines: folio.lines,
-      roomChargeTotal:
-        folio.roomChargeTotalCents === null ? null : centsToAmount(folio.roomChargeTotalCents),
+      calculationStatus: hardBlocked ? "blocked" : folio.calculationStatus,
+      lines: hardBlocked ? folio.lines.map((l) => ({ ...l, lineTotal: null })) : folio.lines,
+      roomChargeTotal: roomChargeTotalCents === null ? null : centsToAmount(roomChargeTotalCents),
     },
     deposits: {
       rows: depositOutcome.rows,
-      verifiedTotal:
-        depositOutcome.verifiedTotalCents === null
-          ? null
-          : centsToAmount(depositOutcome.verifiedTotalCents),
+      verifiedTotal: verifiedTotalCents === null ? null : centsToAmount(verifiedTotalCents),
       hasUncertainRows: depositOutcome.rows.some((r) => r.verification !== "verified"),
     },
     summary,
@@ -315,10 +394,17 @@ export async function buildCheckoutPreview(input: {
   };
 }
 
+type Verdict = {
+  row: SafeVerifiedDepositRow;
+  cents: number | null;
+  customerId?: string | null;
+};
+
 async function verifyDeposits(input: {
   tenantId: string;
   reservationId: string;
   reservationCurrency: string;
+  walkInCustomerId: string | null;
   n3Token: string;
   deps: CheckoutPreviewDeps;
 }): Promise<{
@@ -336,7 +422,7 @@ async function verifyDeposits(input: {
   }
   const considered = all.slice(0, DEPOSIT_VERIFICATION_CAP);
 
-  const verdicts = await mapWithConcurrency(
+  const verdicts = await mapWithConcurrency<DepositLite, Verdict>(
     considered,
     DEPOSIT_VERIFICATION_CONCURRENCY,
     async (d) => {
@@ -355,13 +441,18 @@ async function verifyDeposits(input: {
       if (d.status === "failed") {
         return { row: mk(base, "failed", null), cents: 0 };
       }
+      // Only a POSTED local row is eligible for live verification.
+      if (d.status !== "posted") {
+        return { row: mk(base, "not_counted", "deposit_identity_missing"), cents: null };
+      }
       if (amountCents === null) {
         return { row: mk(base, "not_counted", "invalid_money_scale"), cents: null };
       }
       if (d.currencyCode.toUpperCase() !== input.reservationCurrency.toUpperCase()) {
         return { row: mk(base, "not_counted", "deposit_currency_mismatch"), cents: null };
       }
-      if (!d.n3ReceiptId || !d.n3DocCode) {
+      // Minimum immutable LOCAL identity, including the customer ID.
+      if (!d.n3ReceiptId || !d.n3DocCode || !d.n3ReferenceNo || !d.n3CustomerId) {
         return { row: mk(base, "not_counted", "deposit_identity_missing"), cents: null };
       }
       const outcome = await deps.getReceiptById(input.n3Token, d.n3ReceiptId);
@@ -374,6 +465,16 @@ async function verifyDeposits(input: {
         amountCents,
       });
       if (verdict.counted) {
+        // Compare the proven customer with the tenant's CURRENT Walk-in mapping.
+        if (!input.walkInCustomerId) {
+          return { row: mk(base, "not_counted", "walk_in_customer_not_mapped"), cents: null };
+        }
+        if (d.n3CustomerId !== input.walkInCustomerId) {
+          return {
+            row: mk(base, "not_counted", "deposit_walk_in_customer_mismatch"),
+            cents: null,
+          };
+        }
         return {
           row: mk(base, "verified", null),
           cents: amountCents,
@@ -395,14 +496,13 @@ async function verifyDeposits(input: {
       if (v.row.reasonCode) blockers.push(blocker(v.row.reasonCode));
     } else if (v.cents > 0) {
       countedCents.push(v.cents);
-      const c = (v as { customerId?: string | null }).customerId;
-      if (c) customers.add(c);
+      if (v.customerId) customers.add(v.customerId);
     }
   }
   if (customers.size > 1) blockers.push(blocker("multiple_deposit_customers"));
 
   const verifiedTotalCents = uncertain ? null : sumOrNull(countedCents);
-  return { rows, verifiedTotalCents, blockers: dedupe(blockers) };
+  return { rows, verifiedTotalCents, blockers: dedupeBlockers(blockers) };
 }
 
 function mk(
@@ -418,24 +518,67 @@ function mk(
   };
 }
 
-function dedupe(list: Blocker[]): Blocker[] {
-  const seen = new Set<string>();
-  const out: Blocker[] = [];
-  for (const b of list) {
-    if (seen.has(b.code)) continue;
-    seen.add(b.code);
-    out.push(b);
-  }
-  return out;
-}
-
 // ---------------------------------------------------------------- real deps
+
+type ReservationHeadRow = {
+  id: string;
+  booking_reference: string;
+  status: string;
+  arrival_date: string;
+  departure_date: string;
+  currency: string;
+  expected_check_out_at: string | null;
+};
+
+type ReservationRoomRow = {
+  id: string;
+  hotel_room_id: string | null;
+  agreed_rate: number | string;
+  base_rate_snapshot: number | string | null;
+  allocation_status: string;
+  adults: number | null;
+  children: number | null;
+  hotel_rooms:
+    | ReservationRoomNested
+    | ReservationRoomNested[]
+    | null;
+};
+
+type ReservationRoomNested = {
+  room_number: string;
+  display_name: string | null;
+  n3_stock_name: string | null;
+  n3_stock_id: string | null;
+  n3_stock_code: string | null;
+  max_occupancy: number | null;
+};
+
+type ReservationGuestRow = {
+  guest_id: string;
+  is_primary: boolean;
+  reservation_room_id: string | null;
+  hotel_guests: { full_name: string } | { full_name: string }[] | null;
+};
+
+type DepositRow = {
+  id: string;
+  status: string;
+  amount: number | string;
+  currency_code: string;
+  n3_receipt_id: string | null;
+  n3_doc_code: string | null;
+  n3_reference_no: string;
+  n3_customer_id: string | null;
+  n3_customer_code: string | null;
+  n3_customer_name: string | null;
+  created_at: string;
+};
 
 export const liveCheckoutDeps: CheckoutPreviewDeps = {
   async loadReservation(tenantId, reservationId) {
-    const sb = await admin();
+    const sb = await db();
     const head = await sb
-      .from("hotel_reservations")
+      .from<ReservationHeadRow>("hotel_reservations")
       .select(
         "id, booking_reference, status, arrival_date, departure_date, currency, expected_check_out_at",
       )
@@ -444,25 +587,26 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       .maybeSingle();
     if (head.error) throw new CheckoutPreviewError("checkout_preview_failed");
     if (!head.data) return null;
-    const r = head.data as any;
+    const r = head.data;
+
     const rooms = await sb
-      .from("hotel_reservation_rooms")
+      .from<ReservationRoomRow>("hotel_reservation_rooms")
       .select(
-        "id, agreed_rate, base_rate_snapshot, allocation_status, hotel_rooms(room_number, display_name, n3_stock_name, n3_stock_id, n3_stock_code)",
+        "id, hotel_room_id, agreed_rate, base_rate_snapshot, allocation_status, adults, children, hotel_rooms(room_number, display_name, n3_stock_name, n3_stock_id, n3_stock_code, max_occupancy)",
       )
       .eq("tenant_id", tenantId)
       .eq("reservation_id", reservationId);
     if (rooms.error) throw new CheckoutPreviewError("checkout_preview_failed");
+
     const guests = await sb
-      .from("hotel_reservation_guests")
-      .select("is_primary, hotel_guests(full_name)")
+      .from<ReservationGuestRow>("hotel_reservation_guests")
+      .select("guest_id, is_primary, reservation_room_id, hotel_guests(full_name)")
       .eq("tenant_id", tenantId)
-      .eq("reservation_id", reservationId)
-      .eq("is_primary", true)
-      .limit(1);
+      .eq("reservation_id", reservationId);
     if (guests.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    const g = (guests.data ?? [])[0] as any;
-    const gn = g ? (Array.isArray(g.hotel_guests) ? g.hotel_guests[0] : g.hotel_guests) : null;
+    const guestRows = guests.data ?? [];
+    const primary = guestRows.find((g) => g.is_primary);
+
     return {
       id: r.id,
       bookingReference: r.booking_reference,
@@ -471,11 +615,12 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       departureDate: r.departure_date,
       currency: r.currency,
       expectedCheckOutAt: r.expected_check_out_at ?? null,
-      primaryGuestName: gn?.full_name ?? null,
-      rooms: ((rooms.data ?? []) as any[]).map((row) => {
-        const n = Array.isArray(row.hotel_rooms) ? row.hotel_rooms[0] : row.hotel_rooms;
+      primaryGuestName: nested(primary?.hotel_guests ?? null)?.full_name ?? null,
+      rooms: (rooms.data ?? []).map((row) => {
+        const n = nested(row.hotel_rooms);
         return {
           reservationRoomId: row.id,
+          hotelRoomId: row.hotel_room_id,
           roomNumber: n?.room_number ?? "",
           displayName: n?.display_name ?? null,
           n3StockName: n?.n3_stock_name ?? null,
@@ -484,27 +629,36 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
           agreedRate: row.agreed_rate,
           baseRateSnapshot: row.base_rate_snapshot ?? null,
           allocationStatus: row.allocation_status,
+          maxOccupancy: n?.max_occupancy ?? null,
+          adults: row.adults,
+          children: row.children,
         };
       }),
+      guests: guestRows.map((g) => ({
+        guestId: g.guest_id,
+        isPrimary: Boolean(g.is_primary),
+        reservationRoomId: g.reservation_room_id ?? null,
+      })),
     };
   },
 
-  async loadEventTypes(tenantId, reservationId) {
-    const sb = await admin();
+  async hasHistoryGap(tenantId, reservationId) {
+    const sb = await db();
     const res = await sb
-      .from("hotel_reservation_events")
+      .from<{ event_type: string }>("hotel_reservation_events")
       .select("event_type")
       .eq("tenant_id", tenantId)
       .eq("reservation_id", reservationId)
-      .limit(500);
+      .in("event_type", [...HISTORY_BLOCKING_EVENT_TYPES])
+      .limit(1);
     if (res.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    return ((res.data ?? []) as any[]).map((r) => String(r.event_type));
+    return (res.data ?? []).length > 0;
   },
 
   async loadDeposits(tenantId, reservationId) {
-    const sb = await admin();
+    const sb = await db();
     const res = await sb
-      .from("hotel_reservation_deposits")
+      .from<DepositRow>("hotel_reservation_deposits")
       .select(
         "id, status, amount, currency_code, n3_receipt_id, n3_doc_code, n3_reference_no, n3_customer_id, n3_customer_code, n3_customer_name, created_at",
       )
@@ -513,7 +667,7 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       .order("created_at", { ascending: true })
       .limit(100);
     if (res.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    return ((res.data ?? []) as any[]).map((r) => ({
+    return (res.data ?? []).map((r) => ({
       id: r.id,
       status: r.status,
       amount: r.amount,
@@ -529,9 +683,14 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
   },
 
   async loadSettings(tenantId) {
-    const { getOrCreateHotelSettings } = await import("./hotel-store.server");
-    const s = await getOrCreateHotelSettings(tenantId);
-    return { timezone: s.timezone, currency: s.currency };
+    const { getHotelSettingsReadOnly } = await import("./hotel-store.server");
+    const s = await getHotelSettingsReadOnly(tenantId);
+    if (!s) return null;
+    return {
+      timezone: s.timezone,
+      currency: s.currency,
+      walkInCustomerId: s.walkInCustomer?.n3Id ?? null,
+    };
   },
 
   async getReceiptById(token, receiptId) {
