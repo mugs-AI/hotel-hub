@@ -91,7 +91,6 @@ export async function getHotelSettingsReadOnly(tenantId: string): Promise<HotelS
   return toSettings(res.data as SettingsRow);
 }
 
-
 export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelSettings> {
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };

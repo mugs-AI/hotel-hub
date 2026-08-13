@@ -104,7 +104,6 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   matching_not_enabled: "Deposit matching and balance collection are not enabled.",
 };
 
-
 export function blocker(code: string, severity: BlockerSeverity = "blocking"): Blocker {
   return { code, severity, message: BLOCKER_MESSAGES[code] ?? code.replace(/_/g, " ") };
 }
@@ -345,8 +344,6 @@ export function dedupeBlockers(list: readonly Blocker[]): Blocker[] {
   }
   return out;
 }
-
-
 
 export type FolioRoomInput = {
   reservationRoomId: string;
@@ -604,7 +601,6 @@ export function classifyDepositReceipt(
     return { counted: false, code: "deposit_currency_mismatch" };
   }
   proven.push("currency");
-
 
   const amount = num(
     pick(v, ["netTotalAmount", "NetTotalAmount", "totalAmount", "amount", "paymentAmount"]),

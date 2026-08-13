@@ -231,7 +231,9 @@ describe("5D3.2 currency evidence", () => {
 });
 
 describe("5D3.2 assignment + capacity evidence", () => {
-  const g = (over: Partial<{ guestId: string; isPrimary: boolean; reservationRoomId: string | null }> = {}) => ({
+  const g = (
+    over: Partial<{ guestId: string; isPrimary: boolean; reservationRoomId: string | null }> = {},
+  ) => ({
     guestId: "g",
     isPrimary: false,
     reservationRoomId: ROOM_ALLOC,
@@ -359,15 +361,12 @@ describe("5D3.2 historical evidence", () => {
   });
 
   it("cannot be defeated by more than 500 unrelated events", async () => {
-    const stored = [...Array(600).keys()]
-      .map(() => "guest_updated")
-      .concat(["rate_changed"]);
+    const stored = [...Array(600).keys()].map(() => "guest_updated").concat(["rate_changed"]);
     const dto = await run(
       makeDeps({
         // Simulates the real existence query: it filters on event_type in SQL,
         // so position in an unbounded list is irrelevant.
-        hasHistoryGap: async () =>
-          stored.some((t) => t === "room_changed" || t === "rate_changed"),
+        hasHistoryGap: async () => stored.some((t) => t === "room_changed" || t === "rate_changed"),
       }),
     );
     expect(codes(dto)).toContain("historical_charge_evidence_incomplete");

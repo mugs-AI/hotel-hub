@@ -538,10 +538,7 @@ type ReservationRoomRow = {
   allocation_status: string;
   adults: number | null;
   children: number | null;
-  hotel_rooms:
-    | ReservationRoomNested
-    | ReservationRoomNested[]
-    | null;
+  hotel_rooms: ReservationRoomNested | ReservationRoomNested[] | null;
 };
 
 type ReservationRoomNested = {

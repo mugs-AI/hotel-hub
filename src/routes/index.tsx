@@ -64,7 +64,6 @@ function Home() {
             <li>· N3 verification console (Owner-only) for capability probing</li>
           </ul>
         </section>
-
       </div>
     </AppShell>
   );

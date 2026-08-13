@@ -48,7 +48,6 @@ The current build establishes a secure, tenant-aware foundation:
 - Every authenticated route and endpoint runs through a central RBAC guard.
 - HotelHub roles are strictly `owner`, `front_desk`, `housekeeper`.
 
-
 ## Environment variables
 
 Server-only:
