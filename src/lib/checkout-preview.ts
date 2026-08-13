@@ -28,8 +28,17 @@ export const CHECKOUT_ERROR_CODES = new Set([
   "reservation_not_found",
   "reservation_not_checked_in",
   "property_timezone_invalid",
+  "hotel_settings_missing",
+  "reservation_currency_invalid",
+  "reservation_currency_mismatch",
+  "walk_in_customer_not_mapped",
   "room_allocation_missing",
   "room_allocation_not_occupied",
+  "guest_assignment_required",
+  "guest_assignment_invalid",
+  "room_capacity_exceeded",
+  "room_max_occupancy_invalid",
+  "primary_guest_invalid",
   "invalid_stay_dates",
   "invalid_money_scale",
   "room_stock_mapping_missing",
@@ -39,6 +48,7 @@ export const CHECKOUT_ERROR_CODES = new Set([
   "deposit_identity_missing",
   "deposit_live_evidence_incomplete",
   "deposit_customer_mismatch",
+  "deposit_walk_in_customer_mismatch",
   "deposit_currency_mismatch",
   "multiple_deposit_customers",
   "deposit_verification_cap_exceeded",
@@ -50,9 +60,24 @@ export type BlockerSeverity = "blocking" | "warning";
 export type Blocker = { code: string; severity: BlockerSeverity; message: string };
 
 const BLOCKER_MESSAGES: Record<string, string> = {
+  hotel_settings_missing:
+    "Property settings have not been configured yet, so the folio cannot be proven.",
+  property_timezone_invalid: "The property timezone is not configured correctly.",
+  reservation_currency_invalid:
+    "The reservation or property currency is not a valid three-letter code.",
+  reservation_currency_mismatch:
+    "The reservation currency does not match the property settings currency.",
+  walk_in_customer_not_mapped:
+    "No N3 Walk-in customer is currently mapped, so deposit ownership cannot be proven.",
   room_allocation_missing: "This reservation has no current room allocation to charge.",
   room_allocation_not_occupied:
     "One or more allocated rooms are not currently occupied, so the stay cannot be charged yet.",
+  guest_assignment_required: "One or more guests are not assigned to a room.",
+  guest_assignment_invalid:
+    "A guest is assigned to a room that does not belong to this reservation.",
+  room_capacity_exceeded: "A room has more guests than its maximum occupancy allows.",
+  room_max_occupancy_invalid: "A room has no valid maximum occupancy configured.",
+  primary_guest_invalid: "This reservation does not have exactly one primary guest.",
   invalid_stay_dates: "The stay dates are invalid, so nights cannot be calculated.",
   invalid_money_scale: "A stored rate is not a valid two-decimal amount, so the folio is blocked.",
   room_stock_mapping_missing:
@@ -67,6 +92,8 @@ const BLOCKER_MESSAGES: Record<string, string> = {
   deposit_live_evidence_incomplete:
     "A deposit could not be fully proven against its N3 receipt, so it is not counted.",
   deposit_customer_mismatch: "A deposit belongs to a different N3 customer than expected.",
+  deposit_walk_in_customer_mismatch:
+    "A verified deposit does not belong to the property's current N3 Walk-in customer mapping.",
   deposit_currency_mismatch: "A deposit currency does not match the reservation currency.",
   multiple_deposit_customers: "Verified deposits belong to more than one N3 customer.",
   deposit_verification_cap_exceeded:
@@ -223,6 +250,101 @@ export function hasHistoricalEvidenceGap(eventTypes: readonly string[]): boolean
   return eventTypes.some((t) => HISTORY_BLOCKING_EVENT_TYPES.has(t));
 }
 
+// ------------------------------------------------- currency + assignment evidence
+
+const CURRENCY_RE = /^[A-Za-z]{3}$/;
+
+/**
+ * Both the tenant settings currency and the reservation currency must be valid
+ * three-letter codes and must agree. Fails closed with a visible blocker.
+ */
+export function validateCurrencyEvidence(
+  settingsCurrency: string | null | undefined,
+  reservationCurrency: string | null | undefined,
+): Blocker[] {
+  const s = typeof settingsCurrency === "string" ? settingsCurrency.trim() : "";
+  const r = typeof reservationCurrency === "string" ? reservationCurrency.trim() : "";
+  if (!CURRENCY_RE.test(s) || !CURRENCY_RE.test(r)) {
+    return [blocker("reservation_currency_invalid")];
+  }
+  if (s.toUpperCase() !== r.toUpperCase()) return [blocker("reservation_currency_mismatch")];
+  return [];
+}
+
+export type AssignmentRoomEvidence = {
+  reservationRoomId: string;
+  hotelRoomId: string | null;
+  maxOccupancy: number | null;
+  adults: number | null;
+  children: number | null;
+  allocationStatus: string;
+};
+
+export type AssignmentGuestEvidence = {
+  guestId: string;
+  isPrimary: boolean;
+  reservationRoomId: string | null;
+};
+
+/**
+ * Server-authoritative revalidation of stored guest-to-room assignments and
+ * room capacity. Every rule fails closed — the browser never decides this.
+ */
+export function validateAssignmentEvidence(input: {
+  rooms: readonly AssignmentRoomEvidence[];
+  guests: readonly AssignmentGuestEvidence[];
+}): Blocker[] {
+  const out: Blocker[] = [];
+  const { rooms, guests } = input;
+  if (rooms.length === 0) return [blocker("room_allocation_missing")];
+
+  const byId = new Map<string, AssignmentRoomEvidence>();
+  for (const r of rooms) byId.set(r.reservationRoomId, r);
+
+  let capacityInvalid = false;
+  for (const r of rooms) {
+    if (!Number.isInteger(r.maxOccupancy) || (r.maxOccupancy ?? 0) <= 0) capacityInvalid = true;
+  }
+  if (capacityInvalid) out.push(blocker("room_max_occupancy_invalid"));
+
+  if (guests.length === 0) out.push(blocker("guest_assignment_required"));
+  if (guests.some((g) => !g.reservationRoomId)) out.push(blocker("guest_assignment_required"));
+  if (guests.some((g) => g.reservationRoomId && !byId.has(g.reservationRoomId))) {
+    out.push(blocker("guest_assignment_invalid"));
+  }
+  if (guests.filter((g) => g.isPrimary).length !== 1) out.push(blocker("primary_guest_invalid"));
+
+  let overCapacity = false;
+  for (const r of rooms) {
+    const cap = Number.isInteger(r.maxOccupancy) ? (r.maxOccupancy as number) : null;
+    if (cap === null || cap <= 0) continue;
+    const assigned = guests.filter((g) => g.reservationRoomId === r.reservationRoomId).length;
+    if (assigned > cap) overCapacity = true;
+    const adults = Number.isInteger(r.adults) ? (r.adults as number) : null;
+    const children = Number.isInteger(r.children) ? (r.children as number) : 0;
+    if (adults === null || adults < 0 || children < 0) {
+      overCapacity = overCapacity || false;
+      out.push(blocker("room_capacity_exceeded"));
+      continue;
+    }
+    if (adults + children > cap) overCapacity = true;
+  }
+  if (overCapacity) out.push(blocker("room_capacity_exceeded"));
+
+  return dedupeBlockers(out);
+}
+
+export function dedupeBlockers(list: readonly Blocker[]): Blocker[] {
+  const seen = new Set<string>();
+  const out: Blocker[] = [];
+  for (const b of list) {
+    if (seen.has(b.code)) continue;
+    seen.add(b.code);
+    out.push(b);
+  }
+  return out;
+}
+
 export type FolioRoomInput = {
   reservationRoomId: string;
   roomNumber: string;
@@ -355,7 +477,9 @@ export type DepositExpectation = {
   n3ReceiptId: string;
   n3DocCode: string;
   n3ReferenceNo: string;
-  n3CustomerId: string | null;
+  /** Immutable local N3 customer ID. Required — a posted deposit without it is never verified. */
+  n3CustomerId: string;
+
   currencyCode: string;
   amountCents: number;
 };
@@ -459,24 +583,24 @@ export function classifyDepositReceipt(
   const cust =
     str(pick(v, ["customerId", "CustomerId"])) ??
     str(pick((custObj as Record<string, unknown>) ?? null, ["id", "Id"]));
-  if (expected.n3CustomerId) {
-    if (!cust) return { counted: false, code: "deposit_live_evidence_incomplete" };
-    if (cust !== expected.n3CustomerId) {
-      return { counted: false, code: "deposit_customer_mismatch" };
-    }
-    proven.push("customerId");
+  // Live customer evidence is MANDATORY: a receipt that does not expose its
+  // customer can never be counted.
+  if (!cust) return { counted: false, code: "deposit_live_evidence_incomplete" };
+  if (cust !== expected.n3CustomerId) {
+    return { counted: false, code: "deposit_customer_mismatch" };
   }
+  proven.push("customerId");
 
   const currencyObj = pick(v, ["currency", "Currency"]);
   const currencyCode =
     str(pick(v, ["currencyCode", "CurrencyCode"])) ??
     str(pick((currencyObj as Record<string, unknown>) ?? null, ["code", "Code"]));
-  if (currencyCode) {
-    if (currencyCode.toUpperCase() !== expected.currencyCode.toUpperCase()) {
-      return { counted: false, code: "deposit_currency_mismatch" };
-    }
-    proven.push("currency");
+  // Live currency evidence is MANDATORY.
+  if (!currencyCode) return { counted: false, code: "deposit_live_evidence_incomplete" };
+  if (currencyCode.toUpperCase() !== expected.currencyCode.toUpperCase()) {
+    return { counted: false, code: "deposit_currency_mismatch" };
   }
+  proven.push("currency");
 
   const amount = num(
     pick(v, ["netTotalAmount", "NetTotalAmount", "totalAmount", "amount", "paymentAmount"]),

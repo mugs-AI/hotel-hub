@@ -163,7 +163,8 @@ function CheckoutPreviewPage() {
                 <dd className="text-right font-semibold">
                   {formatMoney(d.summary.estimatedBalance, d.reservation.currency)}
                 </dd>
-                <dt className="text-muted-foreground">Excess deposit (review required)</dt>
+                <dt className="text-muted-foreground">Excess deposit / credit requiring review</dt>
+
                 <dd className="text-right">
                   {formatMoney(d.summary.excessDeposit, d.reservation.currency)}
                 </dd>

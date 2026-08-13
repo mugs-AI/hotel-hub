@@ -1,9 +1,39 @@
 # HotelHub
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
-This repository contains the foundation only — hotel business modules
-(rooms, reservations, folios, housekeeping, reports) are deferred to
-later MAF milestones.
+
+## Project status (through Run 5D3.2)
+
+Delivered:
+
+- **Rooms & Rates** — N3 Stock Code mapping with local base rates. Complete.
+- **Reservations** — creation, one-page editing, cancellation, calendar, and
+  registration printing. Complete.
+- **Guest and room editing** — capacity-aware assignment, policy-governed
+  post-check-in guest editing, identity privacy with a server-only keyed HMAC
+  idempotency fingerprint. Complete.
+- **Deposit ledger** — local ledger plus a controlled, Owner-only N3 AR
+  Receive Payment write that stays behind the existing deployment gates.
+- **Check-in and in-stay operations** — check-in, early check-in / late
+  checkout / room change / extension requests with Owner approval. Complete.
+- **Departures & Prepare Checkout** — **read-only**. Property-timezone
+  departure buckets, a server-authoritative room-only folio, GET-only
+  verification of linked N3 AR Receipts, estimated balance / excess deposit,
+  and a full blocker list. No N3 write, no reservation, room-allocation or
+  housekeeping transition.
+
+Future work (not built):
+
+- CashMemo / Cash Sale posting;
+- deposit matching (knock-off);
+- final balance collection and checkout completion;
+- housekeeping & maintenance workflow;
+- refunds and later accounting;
+- dashboard & reports.
+
+Test counts are environment-dependent: some suites skip when live N3 or
+database credentials are unavailable. Run `bun run test` locally for the
+authoritative figure.
 
 ## Milestone 1.0.1 — Foundation security, tenant context & RBAC
 
@@ -13,7 +43,8 @@ The current build establishes a secure, tenant-aware foundation:
 - N3 access tokens live **only** in an encrypted, HttpOnly server session
   cookie. They are never sent to the browser, never written to
   `localStorage` / `sessionStorage`, and never logged.
-- A deny-by-default N3 gateway allows only three read-only GET probes.
+- A deny-by-default N3 gateway allows only read-only GET probes plus the
+  gated deposit write.
 - Every authenticated route and endpoint runs through a central RBAC guard.
 - HotelHub roles are strictly `owner`, `front_desk`, `housekeeper`.
 

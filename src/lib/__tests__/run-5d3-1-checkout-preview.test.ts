@@ -200,7 +200,7 @@ describe("classifyDepositReceipt — fail closed", () => {
   });
 
   it("rejects a receipt that is already knocked off", () => {
-    const body = structuredClone(goodBody) as Record<string, any>;
+    const body: { data: { value: Record<string, unknown> } } = structuredClone(goodBody);
     body.data.value.knockoff = [{ amount: 300 }];
     expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
       {
