@@ -83,6 +83,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   reservation_not_found: "Reservation not found.",
   reservation_not_checked_in: "Only checked-in reservations can be prepared for checkout.",
   property_timezone_invalid: "The property timezone is not configured correctly.",
+  hotel_settings_missing: "Property settings have not been configured yet.",
+
   checkout_preview_failed: "The checkout preview could not be prepared. Please try again.",
 };
 
