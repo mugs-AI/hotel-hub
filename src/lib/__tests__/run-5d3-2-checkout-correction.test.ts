@@ -600,7 +600,7 @@ describe("5D3.2 read-only + auth guards", () => {
   it("performs no N3 write and no state transition", () => {
     expect(server).not.toMatch(/n3Receipts\.(create|post|update|void|delete|match)/);
     expect(server).not.toMatch(/"POST"|'POST'/);
-    expect(server).not.toMatch(/status: "checked_out"|allocation_status:/);
+    expect(server).not.toMatch(/checked_out|"vacant"|"dirty"/i);
   });
 
   it("registers GET-only handlers for both new routes", () => {
