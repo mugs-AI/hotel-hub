@@ -147,9 +147,12 @@ describe("classifyDepositReceipt — fail closed", () => {
         customerId: expected.n3CustomerId,
         currencyCode: "MYR",
         netTotalAmount: 300,
+        // Affirmative proof the receipt is still entirely unapplied.
+        knockoff: [] as unknown[],
       },
     },
   };
+
 
   it("counts a fully matching, unapplied receipt", () => {
     const v = classifyDepositReceipt({ kind: "response", status: 200, body: goodBody }, expected);
