@@ -618,18 +618,39 @@ export function classifyDepositReceipt(
     (str(pick(v, ["status", "Status", "documentStatus"])) ?? "").toLowerCase() === "cancelled";
   if (voided) return { counted: false, code: "deposit_live_evidence_incomplete" };
 
-  const knockoff = pick(v, ["knockoff", "Knockoff", "knockOff", "knockOffs"]);
-  if (Array.isArray(knockoff) && knockoff.length > 0) {
-    return { counted: false, code: "deposit_live_evidence_incomplete" };
+  // Affirmative "entirely unapplied" evidence is MANDATORY (fail-closed).
+  // A receipt is counted only when at least one recognized evidence form is
+  // present AND valid, and no present evidence form contradicts it.
+  const knock = presentField(v, ["knockoff", "Knockoff", "knockOff", "knockOffs"]);
+  const outstandingField = presentField(v, [
+    "outstandingAmount",
+    "OutstandingAmount",
+    "unappliedAmount",
+  ]);
+
+  let unappliedProven = false;
+
+  if (knock.present) {
+    if (!Array.isArray(knock.value) || knock.value.length > 0) {
+      return { counted: false, code: "deposit_live_evidence_incomplete" };
+    }
+    unappliedProven = true;
   }
-  const outstanding = num(pick(v, ["outstandingAmount", "OutstandingAmount", "unappliedAmount"]));
-  if (outstanding !== null) {
-    const outstandingCents = toCents(outstanding);
+
+  if (outstandingField.present) {
+    const outstanding = num(outstandingField.value);
+    const outstandingCents = outstanding === null ? null : toCents(outstanding);
     if (outstandingCents === null || outstandingCents !== expected.amountCents) {
       return { counted: false, code: "deposit_live_evidence_incomplete" };
     }
-    proven.push("stillUnapplied");
+    unappliedProven = true;
   }
+
+  if (!unappliedProven) {
+    return { counted: false, code: "deposit_live_evidence_incomplete" };
+  }
+  proven.push("stillUnapplied");
+
 
   return { counted: true, provenFields: proven };
 }
