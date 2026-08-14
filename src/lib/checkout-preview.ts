@@ -514,6 +514,23 @@ function pick(obj: Record<string, unknown> | null, keys: string[]): unknown {
   return undefined;
 }
 
+/**
+ * Presence-aware field read. Unlike `pick`, this distinguishes "key absent"
+ * from "key present but null/blank/malformed" so evidence checks can fail
+ * closed instead of silently skipping a malformed value.
+ */
+function presentField(
+  obj: Record<string, unknown>,
+  keys: string[],
+): { present: boolean; value: unknown } {
+  for (const k of keys) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) return { present: true, value: obj[k] };
+    const alt = Object.keys(obj).find((x) => x.toLowerCase() === k.toLowerCase());
+    if (alt !== undefined) return { present: true, value: obj[alt] };
+  }
+  return { present: false, value: undefined };
+}
+
 function str(v: unknown): string | null {
   if (typeof v === "string" && v.trim()) return v.trim();
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
