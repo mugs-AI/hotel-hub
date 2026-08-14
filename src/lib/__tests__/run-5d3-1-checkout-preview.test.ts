@@ -147,6 +147,8 @@ describe("classifyDepositReceipt — fail closed", () => {
         customerId: expected.n3CustomerId,
         currencyCode: "MYR",
         netTotalAmount: 300,
+        // Affirmative proof the receipt is still entirely unapplied.
+        knockoff: [] as unknown[],
       },
     },
   };
@@ -206,6 +208,26 @@ describe("classifyDepositReceipt — fail closed", () => {
       {
         counted: false,
       },
+    );
+  });
+
+  it("rejects a receipt with no affirmative entirely-unapplied evidence", () => {
+    const body: { data: { value: Record<string, unknown> } } = structuredClone(goodBody);
+    delete body.data.value.knockoff;
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+        code: "deposit_live_evidence_incomplete",
+      },
+    );
+  });
+
+  it("counts a receipt proven unapplied by a full outstanding amount", () => {
+    const body: { data: { value: Record<string, unknown> } } = structuredClone(goodBody);
+    delete body.data.value.knockoff;
+    body.data.value.outstandingAmount = 300;
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected).counted).toBe(
+      true,
     );
   });
 });
