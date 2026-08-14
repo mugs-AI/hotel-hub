@@ -668,7 +668,6 @@ export function classifyDepositReceipt(
   }
   proven.push("stillUnapplied");
 
-
   return { counted: true, provenFields: proven };
 }
 

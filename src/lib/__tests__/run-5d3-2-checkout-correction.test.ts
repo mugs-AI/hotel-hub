@@ -104,7 +104,6 @@ const liveReceipt = (over: Record<string, unknown> = {}) => ({
   },
 });
 
-
 type DepsOverride = Partial<CheckoutPreviewDeps> & {
   n3Calls?: string[];
 };
@@ -643,7 +642,6 @@ describe("5D3.2 deposit evidence", () => {
       expect(dto.readiness.financialPostingEnabled).toBe(false);
     });
   });
-
 });
 
 function expectation() {

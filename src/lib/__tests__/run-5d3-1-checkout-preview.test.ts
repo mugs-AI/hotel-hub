@@ -153,7 +153,6 @@ describe("classifyDepositReceipt — fail closed", () => {
     },
   };
 
-
   it("counts a fully matching, unapplied receipt", () => {
     const v = classifyDepositReceipt({ kind: "response", status: 200, body: goodBody }, expected);
     expect(v.counted).toBe(true);
@@ -215,10 +214,12 @@ describe("classifyDepositReceipt — fail closed", () => {
   it("rejects a receipt with no affirmative entirely-unapplied evidence", () => {
     const body: { data: { value: Record<string, unknown> } } = structuredClone(goodBody);
     delete body.data.value.knockoff;
-    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject({
-      counted: false,
-      code: "deposit_live_evidence_incomplete",
-    });
+    expect(classifyDepositReceipt({ kind: "response", status: 200, body }, expected)).toMatchObject(
+      {
+        counted: false,
+        code: "deposit_live_evidence_incomplete",
+      },
+    );
   });
 
   it("counts a receipt proven unapplied by a full outstanding amount", () => {
@@ -229,7 +230,6 @@ describe("classifyDepositReceipt — fail closed", () => {
       true,
     );
   });
-
 });
 
 describe("summary", () => {
