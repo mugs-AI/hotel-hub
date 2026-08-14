@@ -561,11 +561,13 @@ describe("5D3.2 deposit evidence", () => {
 
   // ---------------------------------------------- P1-5D32-DEPOSIT-01
   describe("affirmative entirely-unapplied evidence (fail-closed)", () => {
-    const classify = (over: Record<string, unknown>) =>
-      classifyDepositReceipt(
-        { kind: "response", status: 200, body: liveReceipt(over) },
-        expectation(),
-      );
+    const classify = (over: Record<string, unknown>) => {
+      const body = liveReceipt(over);
+      for (const [k, val] of Object.entries(over)) {
+        if (val === undefined) delete (body.data.value as Record<string, unknown>)[k];
+      }
+      return classifyDepositReceipt({ kind: "response", status: 200, body }, expectation());
+    };
     const withoutEvidence = () => {
       const body = liveReceipt();
       delete (body.data.value as Record<string, unknown>).knockoff;
