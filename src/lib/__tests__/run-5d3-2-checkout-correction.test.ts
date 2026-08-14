@@ -96,10 +96,14 @@ const liveReceipt = (over: Record<string, unknown> = {}) => ({
       customerId: WALK_IN,
       currencyCode: "MYR",
       netTotalAmount: 300,
+      // Affirmative "entirely unapplied" evidence is required for a receipt
+      // to be counted.
+      knockoff: [],
       ...over,
     },
   },
 });
+
 
 type DepsOverride = Partial<CheckoutPreviewDeps> & {
   n3Calls?: string[];
