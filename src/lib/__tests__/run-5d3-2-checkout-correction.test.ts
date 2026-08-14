@@ -558,6 +558,90 @@ describe("5D3.2 deposit evidence", () => {
     expect(codes(dto)).toContain("deposit_customer_mismatch");
     expect(dto.deposits.verifiedTotal).toBeNull();
   });
+
+  // ---------------------------------------------- P1-5D32-DEPOSIT-01
+  describe("affirmative entirely-unapplied evidence (fail-closed)", () => {
+    const classify = (over: Record<string, unknown>) =>
+      classifyDepositReceipt(
+        { kind: "response", status: 200, body: liveReceipt(over) },
+        expectation(),
+      );
+    const withoutEvidence = () => {
+      const body = liveReceipt();
+      delete (body.data.value as Record<string, unknown>).knockoff;
+      return body;
+    };
+
+    it("counts an explicit empty knock-off collection", () => {
+      expect(classify({ knockoff: [] }).counted).toBe(true);
+    });
+
+    it("counts a full outstanding amount equal to the receipt amount", () => {
+      const body = withoutEvidence();
+      (body.data.value as Record<string, unknown>).outstandingAmount = 300;
+      expect(
+        classifyDepositReceipt({ kind: "response", status: 200, body }, expectation()).counted,
+      ).toBe(true);
+    });
+
+    it("counts when both consistent evidence forms are present", () => {
+      expect(classify({ knockoff: [], outstandingAmount: 300 }).counted).toBe(true);
+    });
+
+    it("does not count when neither evidence form is present", () => {
+      expect(
+        classifyDepositReceipt(
+          { kind: "response", status: 200, body: withoutEvidence() },
+          expectation(),
+        ),
+      ).toMatchObject({ counted: false, code: "deposit_live_evidence_incomplete" });
+    });
+
+    it.each([
+      ["non-empty knock-off array", { knockoff: [{ amount: 300 }] }],
+      ["partial outstanding amount", { knockoff: undefined, outstandingAmount: 150 }],
+      ["zero outstanding amount", { knockoff: undefined, outstandingAmount: 0 }],
+      ["excessive outstanding amount", { knockoff: undefined, outstandingAmount: 400 }],
+      ["malformed outstanding value", { knockoff: undefined, outstandingAmount: "abc" }],
+      ["malformed non-array knock-off", { knockoff: { amount: 300 } }],
+      ["null knock-off", { knockoff: null }],
+      ["empty knock-off with contradictory outstanding", { knockoff: [], outstandingAmount: 150 }],
+      ["full outstanding with contradictory knock-off", { knockoff: [{}], outstandingAmount: 300 }],
+    ])("does not count a receipt with %s", (_label, over) => {
+      expect(classify(over)).toMatchObject({
+        counted: false,
+        code: "deposit_live_evidence_incomplete",
+      });
+    });
+
+    it("leaves the whole preview incomplete when unapplied evidence is missing", async () => {
+      const dto = await run(
+        makeDeps({
+          loadDeposits: async () => [depositLite()],
+          getReceiptById: async () => ({
+            kind: "response",
+            status: 200,
+            body: withoutEvidence(),
+          }),
+        }),
+      );
+      expect(dto.deposits.rows[0].verification).toBe("not_counted");
+      expect(dto.deposits.verifiedTotal).toBeNull();
+      expect(dto.summary.estimatedBalance).toBeNull();
+      expect(dto.summary.excessDeposit).toBeNull();
+      expect(dto.readiness.calculationComplete).toBe(false);
+      expect(dto.readiness.financialPostingEnabled).toBe(false);
+      expect(codes(dto)).toContain("deposit_live_evidence_incomplete");
+    });
+
+    it("still calculates with a fully matching, affirmatively unapplied receipt", async () => {
+      const dto = await run(makeDeps({ loadDeposits: async () => [depositLite()] }));
+      expect(dto.deposits.rows[0].verification).toBe("verified");
+      expect(dto.deposits.verifiedTotal).toBe(300);
+      expect(dto.readiness.financialPostingEnabled).toBe(false);
+    });
+  });
+
 });
 
 function expectation() {
