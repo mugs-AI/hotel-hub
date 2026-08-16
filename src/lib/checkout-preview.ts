@@ -514,23 +514,6 @@ function pick(obj: Record<string, unknown> | null, keys: string[]): unknown {
   return undefined;
 }
 
-/**
- * Presence-aware field read. Unlike `pick`, this distinguishes "key absent"
- * from "key present but null/blank/malformed" so evidence checks can fail
- * closed instead of silently skipping a malformed value.
- */
-function presentField(
-  obj: Record<string, unknown>,
-  keys: string[],
-): { present: boolean; value: unknown } {
-  for (const k of keys) {
-    if (Object.prototype.hasOwnProperty.call(obj, k)) return { present: true, value: obj[k] };
-    const alt = Object.keys(obj).find((x) => x.toLowerCase() === k.toLowerCase());
-    if (alt !== undefined) return { present: true, value: obj[alt] };
-  }
-  return { present: false, value: undefined };
-}
-
 function str(v: unknown): string | null {
   if (typeof v === "string" && v.trim()) return v.trim();
   if (typeof v === "number" && Number.isFinite(v)) return String(v);
@@ -635,38 +618,18 @@ export function classifyDepositReceipt(
     (str(pick(v, ["status", "Status", "documentStatus"])) ?? "").toLowerCase() === "cancelled";
   if (voided) return { counted: false, code: "deposit_live_evidence_incomplete" };
 
-  // Affirmative "entirely unapplied" evidence is MANDATORY (fail-closed).
-  // A receipt is counted only when at least one recognized evidence form is
-  // present AND valid, and no present evidence form contradicts it.
-  const knock = presentField(v, ["knockoff", "Knockoff", "knockOff", "knockOffs"]);
-  const outstandingField = presentField(v, [
-    "outstandingAmount",
-    "OutstandingAmount",
-    "unappliedAmount",
-  ]);
-
-  let unappliedProven = false;
-
-  if (knock.present) {
-    if (!Array.isArray(knock.value) || knock.value.length > 0) {
-      return { counted: false, code: "deposit_live_evidence_incomplete" };
-    }
-    unappliedProven = true;
+  const knockoff = pick(v, ["knockoff", "Knockoff", "knockOff", "knockOffs"]);
+  if (Array.isArray(knockoff) && knockoff.length > 0) {
+    return { counted: false, code: "deposit_live_evidence_incomplete" };
   }
-
-  if (outstandingField.present) {
-    const outstanding = num(outstandingField.value);
-    const outstandingCents = outstanding === null ? null : toCents(outstanding);
+  const outstanding = num(pick(v, ["outstandingAmount", "OutstandingAmount", "unappliedAmount"]));
+  if (outstanding !== null) {
+    const outstandingCents = toCents(outstanding);
     if (outstandingCents === null || outstandingCents !== expected.amountCents) {
       return { counted: false, code: "deposit_live_evidence_incomplete" };
     }
-    unappliedProven = true;
+    proven.push("stillUnapplied");
   }
-
-  if (!unappliedProven) {
-    return { counted: false, code: "deposit_live_evidence_incomplete" };
-  }
-  proven.push("stillUnapplied");
 
   return { counted: true, provenFields: proven };
 }
