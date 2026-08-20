@@ -264,7 +264,7 @@ describe("P1-RES-ASSIGN-01 — form helpers", () => {
       externalRef: "",
       notes: "",
       rooms: [],
-      guests: [g],
+      guests: [g] as unknown as Parameters<typeof serializeDraft>[0]["guests"],
     });
     expect(record.guests[0].assignedHotelRoomId).toBe(ROOM_A);
     expect(record.guests[0].identityNumber).toBe("");
@@ -406,8 +406,8 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
 // =========================================================================
 describe("P1-RES-ASSIGN-01 — edit repair contract", () => {
   it("normalizes an existing unassigned guest being assigned to an existing room with an adults correction", async () => {
-    const { normalizeFullUpdate } = await import("@/lib/reservation-full-update");
-    const result = normalizeFullUpdate({
+    const { normalizeFullUpdateBody } = await import("@/lib/reservation-full-update");
+    const result = normalizeFullUpdateBody({
       clientRequestId: "55555555-5555-4555-8555-555555555555",
       expectedUpdatedAt: "2026-08-20T00:00:00.000Z",
       arrivalDate: "2030-01-01",
@@ -437,7 +437,7 @@ describe("P1-RES-ASSIGN-01 — edit repair contract", () => {
           identityAction: "keep",
         },
       ],
-    } as unknown as Parameters<typeof normalizeFullUpdate>[0]);
+    } as unknown as Parameters<typeof normalizeFullUpdateBody>[0]);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.guests[0].assignedRoomClientKey).toBe("rr-existing");
@@ -450,8 +450,8 @@ describe("P1-RES-ASSIGN-01 — edit repair contract", () => {
   });
 
   it("rejects an assignment key that is not one of this reservation's rooms", async () => {
-    const { normalizeFullUpdate } = await import("@/lib/reservation-full-update");
-    const result = normalizeFullUpdate({
+    const { normalizeFullUpdateBody } = await import("@/lib/reservation-full-update");
+    const result = normalizeFullUpdateBody({
       clientRequestId: "55555555-5555-4555-8555-555555555555",
       expectedUpdatedAt: "2026-08-20T00:00:00.000Z",
       arrivalDate: "2030-01-01",
@@ -481,7 +481,7 @@ describe("P1-RES-ASSIGN-01 — edit repair contract", () => {
           identityAction: "keep",
         },
       ],
-    } as unknown as Parameters<typeof normalizeFullUpdate>[0]);
+    } as unknown as Parameters<typeof normalizeFullUpdateBody>[0]);
     expect(result.ok).toBe(false);
   });
 
