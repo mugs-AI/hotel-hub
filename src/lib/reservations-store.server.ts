@@ -68,6 +68,9 @@ export type CreateReservationInput = {
     nationality?: string | null;
     notes?: string | null;
     isPrimary: boolean;
+    /** hotel_room_id of the room this guest occupies; resolved to the new
+     *  hotel_reservation_rooms.id inside the create transaction. */
+    assignedHotelRoomId?: string | null;
     identityType?: string | null;
     identityNumber?: string | null;
     nationalityCode?: string | null;
