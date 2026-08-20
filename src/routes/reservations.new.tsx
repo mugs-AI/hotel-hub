@@ -28,6 +28,8 @@ import {
   setPrimaryGuest,
   UNASSIGNED_FLOOR,
   validateGuests,
+  validateGuestAssignments,
+  reconcileGuestAssignments,
   validateRoom,
   validateStayDates,
   type GuestDraft,
@@ -285,10 +287,17 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
     });
   }, [availability.data]);
 
+  // P1-RES-ASSIGN-01 — keep guest→room assignments in step with the selected
+  // rooms: removing a room clears its assignments; a single room auto-assigns.
+  useEffect(() => {
+    setGuests((prev) => reconcileGuestAssignments(prev, rooms));
+  }, [rooms]);
+
   // ---------- Step completion helpers ----------
   const stayComplete = stayValid.ok && !!bookingSource && extRefCheck.ok;
   const roomsComplete = rooms.length > 0 && rooms.every((r) => validateRoom(r).ok);
-  const guestsComplete = validateGuests(guests).ok;
+  const assignmentsValid = validateGuestAssignments(guests, rooms);
+  const guestsComplete = validateGuests(guests).ok && assignmentsValid.ok;
 
   const canSubmit = stayComplete && roomsComplete && guestsComplete && !create.isPending;
 
@@ -304,6 +313,8 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
     }
     const g = validateGuests(guests);
     if (!g.ok) return setFormError(friendlyError(g.code));
+    const a = validateGuestAssignments(guests, rooms);
+    if (!a.ok) return setFormError(friendlyError(a.code));
 
     const payload = buildCreatePayload({
       bookingSource,
@@ -342,6 +353,8 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
     } else if (step === 3) {
       const v = validateGuests(guests);
       if (!v.ok) return setFormError(friendlyError(v.code));
+      const a = validateGuestAssignments(guests, rooms);
+      if (!a.ok) return setFormError(friendlyError(a.code));
       setStep(4);
     }
   }
@@ -413,6 +426,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
       ) : step === 3 ? (
         <GuestsStep
           guests={guests}
+          rooms={rooms}
           onChange={setGuests}
           tenantId={tenantId}
           n3UserKey={n3UserKey}
@@ -1268,11 +1282,13 @@ function CompactRoomRow({
 
 function GuestsStep({
   guests,
+  rooms,
   onChange,
   tenantId,
   n3UserKey,
 }: {
   guests: GuestDraft[];
+  rooms: RoomDraft[];
   onChange: (g: GuestDraft[]) => void;
   tenantId: string;
   n3UserKey: string;
@@ -1402,11 +1418,78 @@ function GuestsStep({
                 </button>
               ) : null}
             </div>
+            <GuestRoomSelect
+              guest={g}
+              rooms={rooms}
+              guests={guests}
+              onChange={(roomId) => updateGuest(active, { ...g, assignedHotelRoomId: roomId })}
+            />
             <GuestForm guest={g} index={active} onChange={(next) => updateGuest(active, next)} />
           </div>
         ) : null}
       </div>
     </Card>
+  );
+}
+
+/** Guest → room assignment. Only rooms selected for THIS reservation are
+ *  offered; the server and database independently re-validate the choice. */
+function GuestRoomSelect({
+  guest,
+  rooms,
+  guests,
+  onChange,
+}: {
+  guest: GuestDraft;
+  rooms: RoomDraft[];
+  guests: GuestDraft[];
+  onChange: (hotelRoomId: string) => void;
+}) {
+  const counts: Record<string, number> = {};
+  for (const g of guests) {
+    if (g.assignedHotelRoomId) counts[g.assignedHotelRoomId] = (counts[g.assignedHotelRoomId] ?? 0) + 1;
+  }
+  const assigned = guest.assignedHotelRoomId ?? "";
+  const room = rooms.find((r) => r.hotelRoomId === assigned) ?? null;
+  const over = room ? (counts[room.hotelRoomId] ?? 0) > room.maxOccupancy : false;
+  return (
+    <div className="rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
+      <Field label="Room for this guest">
+        {rooms.length === 0 ? (
+          <p className="text-xs" style={{ color: ERR }}>
+            Select at least one room in step 2 first.
+          </p>
+        ) : rooms.length === 1 ? (
+          <p className="text-xs" style={{ color: NAVY }}>
+            {roomLabel(rooms[0].displayName, rooms[0].n3StockName, rooms[0].roomNumber)} · assigned
+            automatically
+          </p>
+        ) : (
+          <select
+            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+            value={assigned}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            <option value="">Select a room…</option>
+            {rooms.map((r) => (
+              <option key={r.hotelRoomId} value={r.hotelRoomId}>
+                {roomLabel(r.displayName, r.n3StockName, r.roomNumber)} · max {r.maxOccupancy}
+              </option>
+            ))}
+          </select>
+        )}
+      </Field>
+      {!assigned && rooms.length > 1 ? (
+        <p className="mt-1 text-[11px]" style={{ color: ERR }}>
+          Every guest must be assigned to one of the selected rooms.
+        </p>
+      ) : null}
+      {over ? (
+        <p className="mt-1 text-[11px]" style={{ color: ERR }}>
+          This room now has more guests than its maximum occupancy.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
