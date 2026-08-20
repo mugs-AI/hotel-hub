@@ -1447,7 +1447,8 @@ function GuestRoomSelect({
 }) {
   const counts: Record<string, number> = {};
   for (const g of guests) {
-    if (g.assignedHotelRoomId) counts[g.assignedHotelRoomId] = (counts[g.assignedHotelRoomId] ?? 0) + 1;
+    if (g.assignedHotelRoomId)
+      counts[g.assignedHotelRoomId] = (counts[g.assignedHotelRoomId] ?? 0) + 1;
   }
   const assigned = guest.assignedHotelRoomId ?? "";
   const room = rooms.find((r) => r.hotelRoomId === assigned) ?? null;

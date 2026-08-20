@@ -297,10 +297,7 @@ export function addRoomIfNew(
  * currently selected. Removing a room clears any assignment to it; with
  * exactly one selected room every guest is auto-assigned to it.
  */
-export function reconcileGuestAssignments(
-  guests: GuestDraft[],
-  rooms: RoomDraft[],
-): GuestDraft[] {
+export function reconcileGuestAssignments(guests: GuestDraft[], rooms: RoomDraft[]): GuestDraft[] {
   const ids = new Set(rooms.map((r) => r.hotelRoomId));
   const only = rooms.length === 1 ? rooms[0].hotelRoomId : "";
   let changed = false;
@@ -507,7 +504,8 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Hotel setup is incomplete. Add at least one active room and a walk-in customer.",
   reservation_create_failed: "We couldn’t create the reservation. Please try again.",
   guest_assignment_required: "Assign every guest to one of the selected rooms.",
-  guest_assignment_invalid_room: "A guest is assigned to a room that is not part of this reservation.",
+  guest_assignment_invalid_room:
+    "A guest is assigned to a room that is not part of this reservation.",
   room_capacity_exceeded: "A room has more guests than its maximum occupancy.",
   invalid_pagination: "Invalid page.",
   invalid_date_filter: "Invalid arrival date filter.",

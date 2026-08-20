@@ -283,7 +283,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
   it("single room + single guest is auto-assigned and reaches the RPC", async () => {
     seedOwnerSession();
     seedActiveWalkIn();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
@@ -298,7 +300,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
 
   it("multi-room requires an explicit assignment", async () => {
     seedOwnerSession();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [
@@ -317,7 +321,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
   it("multi-room explicit assignment is forwarded per guest", async () => {
     seedOwnerSession();
     seedActiveWalkIn();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [
@@ -338,7 +344,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
 
   it("assignment to a room outside this reservation is rejected before the RPC", async () => {
     seedOwnerSession();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
@@ -353,7 +361,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
 
   it("malformed room key is rejected", async () => {
     seedOwnerSession();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
@@ -367,7 +377,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
 
   it("browser cannot smuggle a reservation_room_id or tenant", async () => {
     seedOwnerSession();
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
@@ -388,7 +400,9 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       data: null,
       error: { message: "guest_assignment_invalid_room" },
     });
-    const res = await (await handler())({
+    const res = await (
+      await handler()
+    )({
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
@@ -486,9 +500,7 @@ describe("P1-RES-ASSIGN-01 — edit repair contract", () => {
   });
 
   it("update failures stay atomic behind an allow-listed code", async () => {
-    const { RESERVATION_FULL_UPDATE_ERROR_CODES } = await import(
-      "@/lib/reservations-store.server"
-    );
+    const { RESERVATION_FULL_UPDATE_ERROR_CODES } = await import("@/lib/reservations-store.server");
     expect(RESERVATION_FULL_UPDATE_ERROR_CODES.has("stale_reservation")).toBe(true);
     expect(RESERVATION_FULL_UPDATE_ERROR_CODES.has("guest_assignment_required")).toBe(true);
   });
