@@ -309,6 +309,7 @@ describe("reservations-ui — pure helpers", () => {
       "email",
       "notes",
       "isPrimary",
+      "assignedHotelRoomId",
       "identityType",
       "identityNumber",
       "nationalityCode",

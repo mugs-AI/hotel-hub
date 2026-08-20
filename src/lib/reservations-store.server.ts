@@ -68,6 +68,9 @@ export type CreateReservationInput = {
     nationality?: string | null;
     notes?: string | null;
     isPrimary: boolean;
+    /** hotel_room_id of the room this guest occupies; resolved to the new
+     *  hotel_reservation_rooms.id inside the create transaction. */
+    assignedHotelRoomId?: string | null;
     identityType?: string | null;
     identityNumber?: string | null;
     nationalityCode?: string | null;
@@ -112,6 +115,9 @@ export const RESERVATION_ERROR_CODES = new Set([
   "identity_pair_required",
   "invalid_identity_type",
   "invalid_identity_number",
+  "guest_assignment_required",
+  "guest_assignment_invalid_room",
+  "room_capacity_exceeded",
 ]);
 
 export class ReservationCreateError extends Error {
@@ -162,6 +168,9 @@ export async function createReservationAtomic(
       nationality: g.nationality ?? null,
       notes: g.notes ?? null,
       is_primary: g.isPrimary,
+      // P1-RES-ASSIGN-01 — the RPC resolves this to the new
+      // hotel_reservation_rooms.id created in the same transaction.
+      assigned_hotel_room_id: g.assignedHotelRoomId ?? null,
       identity_type: g.identityType ?? null,
       identity_number: g.identityNumber ?? null,
       nationality_code: g.nationalityCode ?? null,
