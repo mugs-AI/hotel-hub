@@ -107,6 +107,10 @@ export type GuestDraft = {
   nationalityCode: string; // ISO 3166-1 alpha-3 or ""
   notes: string;
   isPrimary: boolean;
+  /** hotel_room_id of the reservation room this guest occupies ("" = unset).
+   *  Safe to persist in the session draft: it is a room reference, never
+   *  identity data. The server independently re-validates it. */
+  assignedHotelRoomId: string;
   // Identity
   identityType: "" | IdentityType;
   identityNumber: string;
@@ -141,6 +145,7 @@ export function emptyGuestDraft(isPrimary = false): GuestDraft {
     nationalityCode: "",
     notes: "",
     isPrimary,
+    assignedHotelRoomId: "",
     identityType: "",
     identityNumber: "",
     addressLine1: "",
@@ -287,6 +292,50 @@ export function addRoomIfNew(
   return { rooms: [...rooms, candidate], added: true };
 }
 
+/**
+ * P1-RES-ASSIGN-01 — keep guest→room assignments coherent with the rooms
+ * currently selected. Removing a room clears any assignment to it; with
+ * exactly one selected room every guest is auto-assigned to it.
+ */
+export function reconcileGuestAssignments(
+  guests: GuestDraft[],
+  rooms: RoomDraft[],
+): GuestDraft[] {
+  const ids = new Set(rooms.map((r) => r.hotelRoomId));
+  const only = rooms.length === 1 ? rooms[0].hotelRoomId : "";
+  let changed = false;
+  const next = guests.map((g) => {
+    let assigned = g.assignedHotelRoomId ?? "";
+    if (assigned && !ids.has(assigned)) assigned = "";
+    if (!assigned && only) assigned = only;
+    if (assigned === (g.assignedHotelRoomId ?? "")) return g;
+    changed = true;
+    return { ...g, assignedHotelRoomId: assigned };
+  });
+  return changed ? next : guests;
+}
+
+/** Every guest must occupy exactly one selected room, within its capacity. */
+export function validateGuestAssignments(
+  guests: GuestDraft[],
+  rooms: RoomDraft[],
+): ValidationResult {
+  if (rooms.length === 0) return { ok: false, code: "room_required" };
+  const ids = new Set(rooms.map((r) => r.hotelRoomId));
+  const used: Record<string, number> = {};
+  for (const g of guests) {
+    const assigned = g.assignedHotelRoomId ?? "";
+    if (!assigned) return { ok: false, code: "guest_assignment_required" };
+    if (!ids.has(assigned)) return { ok: false, code: "guest_assignment_invalid_room" };
+    used[assigned] = (used[assigned] ?? 0) + 1;
+  }
+  for (const r of rooms) {
+    if ((used[r.hotelRoomId] ?? 0) > r.maxOccupancy)
+      return { ok: false, code: "room_capacity_exceeded" };
+  }
+  return { ok: true };
+}
+
 export function rateOverrideRequired(baseRate: number, agreedRate: number): boolean {
   return Number.isFinite(baseRate) && Number.isFinite(agreedRate) && agreedRate !== baseRate;
 }
@@ -351,6 +400,10 @@ export function buildCreatePayload(input: {
         email: g.email.trim() || null,
         notes: g.notes.trim() || null,
         isPrimary: g.isPrimary === true,
+        assignedHotelRoomId:
+          (g.assignedHotelRoomId ?? "") ||
+          (input.rooms.length === 1 ? input.rooms[0].hotelRoomId : null) ||
+          null,
         identityType: identity.ok ? identity.type : null,
         identityNumber: identity.ok ? identity.number : null,
         nationalityCode: normalizeCountryCode(g.nationalityCode) ?? null,
@@ -453,6 +506,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   setup_incomplete:
     "Hotel setup is incomplete. Add at least one active room and a walk-in customer.",
   reservation_create_failed: "We couldn’t create the reservation. Please try again.",
+  guest_assignment_required: "Assign every guest to one of the selected rooms.",
+  guest_assignment_invalid_room: "A guest is assigned to a room that is not part of this reservation.",
+  room_capacity_exceeded: "A room has more guests than its maximum occupancy.",
   invalid_pagination: "Invalid page.",
   invalid_date_filter: "Invalid arrival date filter.",
   reservations_list_failed: "Unable to load reservations right now.",
