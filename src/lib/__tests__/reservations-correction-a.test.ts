@@ -503,6 +503,7 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
           rateOverrideReason: "discount",
         },
       ],
+      guests: [{ fullName: "John Doe", isPrimary: true, assignedHotelRoomId: ROOM_UUID }],
     };
     const res = await handleCreateReservation({ request: post(body) });
     expect(res.status).toBe(201);

@@ -395,8 +395,8 @@ describe("POST /api/hotel/reservations", () => {
         },
       ],
       guests: [
-        { fullName: "Primary", isPrimary: true },
-        { fullName: "Companion", isPrimary: false },
+        { fullName: "Primary", isPrimary: true, assignedHotelRoomId: ROOM_UUID_1 },
+        { fullName: "Companion", isPrimary: false, assignedHotelRoomId: ROOM_UUID_2 },
       ],
     };
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");

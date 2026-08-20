@@ -71,6 +71,7 @@ const ALLOWED_GUEST = new Set([
   "email",
   "notes",
   "isPrimary",
+  "assignedHotelRoomId",
   "identityType",
   "identityNumber",
   "nationalityCode",
@@ -283,6 +284,23 @@ export async function handleCreateReservation({
     const primary = toStrictBoolean(gg.isPrimary, false);
     if (primary === null) return deny(400, "invalid_primary_flag");
 
+    // P1-RES-ASSIGN-01 — guest → room assignment. The browser may only name
+    // a room selected in THIS payload; everything else fails closed. The
+    // database re-validates and resolves the real reservation_room_id.
+    let assignedHotelRoomId: string | null = null;
+    const assignedRaw = gg.assignedHotelRoomId;
+    if (assignedRaw !== undefined && assignedRaw !== null && assignedRaw !== "") {
+      if (!isUuid(assignedRaw)) return deny(400, "guest_assignment_invalid_room");
+      assignedHotelRoomId = assignedRaw as string;
+    }
+    if (assignedHotelRoomId === null) {
+      if (rooms.length === 1) assignedHotelRoomId = rooms[0].hotelRoomId;
+      else return deny(400, "guest_assignment_required");
+    }
+    if (!rooms.some((r) => r.hotelRoomId === assignedHotelRoomId)) {
+      return deny(400, "guest_assignment_invalid_room");
+    }
+
     // Nationality — controlled ISO alpha-3.
     let nationalityCode: string | null = null;
     if (
@@ -340,6 +358,7 @@ export async function handleCreateReservation({
       nationality: null, // legacy field never accepted for new guests
       notes: typeof gg.notes === "string" ? gg.notes.trim() || null : null,
       isPrimary: primary,
+      assignedHotelRoomId,
       identityType,
       identityNumber,
       nationalityCode,
