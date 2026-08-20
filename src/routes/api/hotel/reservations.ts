@@ -372,12 +372,6 @@ export async function handleCreateReservation({
       stateProvince,
     });
   }
-  const perRoom = new Map<string, number>();
-  for (const g of guests) {
-    const k = g.assignedHotelRoomId ?? "";
-    perRoom.set(k, (perRoom.get(k) ?? 0) + 1);
-  }
-
   const primaryCount = guests.filter((g) => g.isPrimary).length;
   if (primaryCount === 0) return deny(400, "primary_guest_required");
   if (primaryCount > 1) return deny(400, "multiple_primary_guests");
