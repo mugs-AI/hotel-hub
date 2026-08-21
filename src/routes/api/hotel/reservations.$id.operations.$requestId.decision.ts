@@ -118,13 +118,18 @@ export async function handleOperationDecision({
       }
     }
 
-    // ---- Durable handoff intent ---------------------------------------
+    // ---- Durable handoff intent (FAILS CLOSED) -------------------------
+    // The room the guest leaves must have a recoverable "make this dirty"
+    // record BEFORE the move is applied. If that record cannot be written,
+    // the move does not happen at all — a bed that looks sellable and is not
+    // is exactly the failure WP1 exists to prevent.
     if (req && req.operationType === "room_change" && req.state === "pending") {
       const rrid = req.payload["reservation_room_id"] ?? req.payload["reservationRoomId"];
-      if (typeof rrid === "string") {
-        handoffReservationRoomId = rrid;
-        roomBeingVacated = await getReservationRoomHotelRoomId(tenantId, rrid);
-        if (roomBeingVacated) {
+      if (typeof rrid !== "string" || !isUuid(rrid)) return deny(400, "validation_failed");
+      handoffReservationRoomId = rrid;
+      roomBeingVacated = await getReservationRoomHotelRoomId(tenantId, rrid);
+      if (roomBeingVacated) {
+        try {
           handoffId = await enqueueRoomHandoff({
             tenantId,
             roomId: roomBeingVacated,
@@ -133,6 +138,17 @@ export async function handleOperationDecision({
             operationRequestId: requestId,
             source: "room_change",
           });
+        } catch {
+          handoffId = null;
+        }
+        if (!handoffId) {
+          await logAudit({
+            tenantId,
+            n3UserKey: actor,
+            eventType: "hotel.housekeeping.handoff_not_recorded",
+            detail: { reservationId: id, requestId, roomId: roomBeingVacated },
+          });
+          return deny(503, "handoff_not_recorded");
         }
       }
     }
