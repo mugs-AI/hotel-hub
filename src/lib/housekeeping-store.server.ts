@@ -675,6 +675,8 @@ export async function countPendingHandoffs(tenantId: string): Promise<number> {
  * `approved` row is NOT proof of anything and is only ever deferred.
  */
 const HANDOFF_PROVEN_OPERATION_STATE = "applied";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Operation states that prove the move will never happen. */
 const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
 /** Operation states that are simply not decided yet. */
