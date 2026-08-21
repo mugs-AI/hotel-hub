@@ -50,6 +50,7 @@ export const HOUSEKEEPING_ERROR_CODES = new Set([
   "validation_failed",
   "not_permitted_in_mode",
   "handoff_pending",
+  "handoff_not_recorded",
 ]);
 
 export class HousekeepingError extends Error {
