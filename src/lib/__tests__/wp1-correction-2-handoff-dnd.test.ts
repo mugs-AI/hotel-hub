@@ -80,7 +80,30 @@ type RpcResult = { data?: any; error?: { message: string } };
 const rpcScript: Record<string, () => RpcResult | Promise<RpcResult>> = {};
 const rpcCalls: { name: string; args: any }[] = [];
 let pendingRows: any[] = [];
-let operationRows: Record<string, { tenant_id: string; state: string }> = {};
+let operationRows: Record<string, any> = {};
+let reservationRoomRows: Record<string, any> = {};
+
+// Correction 3: a proven room change needs an authoritative operation row AND a
+// reservation-room that has actually moved off the old room.
+const RESERVATION = "77777777-7777-4777-8777-777777777777";
+const RES_ROOM = "88888888-8888-4888-8888-888888888888";
+const NEW_ROOM = "99999999-9999-4999-8999-999999999999";
+
+function provenOperation(state: string) {
+  reservationRoomRows[RES_ROOM] = {
+    tenant_id: TENANT,
+    reservation_id: RESERVATION,
+    hotel_room_id: NEW_ROOM,
+  };
+  return {
+    tenant_id: TENANT,
+    reservation_id: RESERVATION,
+    operation_type: "room_change",
+    state,
+    applied_at: state === "applied" ? "2026-08-21T10:00:00Z" : null,
+    payload: { reservation_room_id: RES_ROOM },
+  };
+}
 
 function tableStub(table: string) {
   const filters: Record<string, unknown> = {};
@@ -94,9 +117,11 @@ function tableStub(table: string) {
     order: () => chain,
     limit: () => chain,
     maybeSingle: async () => {
-      const row = operationRows[String(filters["id"])];
+      const source =
+        table === "hotel_reservation_rooms" ? reservationRoomRows : operationRows;
+      const row = source[String(filters["id"])];
       if (!row || row.tenant_id !== filters["tenant_id"]) return { data: null, error: null };
-      return { data: { state: row.state }, error: null };
+      return { data: row, error: null };
     },
     then: (resolve: (v: any) => unknown) => {
       const rows =
@@ -146,6 +171,7 @@ beforeEach(() => {
   rpcCalls.length = 0;
   pendingRows = [];
   operationRows = {};
+  reservationRoomRows = {};
   currentTenant = TENANT;
   for (const key of Object.keys(rpcScript)) delete rpcScript[key];
 });
@@ -271,13 +297,14 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
         attempts: 0,
       },
     ];
-    operationRows[OP] = { tenant_id: TENANT, state: "rejected" };
+    operationRows[OP] = { ...provenOperation("applied"), state: "rejected", applied_at: null };
     rpcScript["hotelhub_hk_cancel_handoff"] = () => ({ data: null });
 
     const out = await store.reconcilePendingHandoffs(TENANT);
@@ -290,6 +317,7 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
@@ -307,13 +335,14 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
         attempts: 3,
       },
     ];
-    operationRows[OP] = { tenant_id: TENANT, state: "pending" };
+    operationRows[OP] = { ...provenOperation("applied"), state: "pending", applied_at: null };
     const out = await store.reconcilePendingHandoffs(TENANT);
     expect(out).toMatchObject({ applied: 0, cancelled: 0, deferred: 1 });
     expect(rpcCalls.some((c) => c.name === "hotelhub_hk_vacate_room_v2")).toBe(false);
@@ -347,13 +376,14 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
         attempts: 1,
       },
     ];
-    operationRows[OP] = { tenant_id: TENANT, state: "applied" };
+    operationRows[OP] = provenOperation("applied");
     rpcScript["hotelhub_hk_vacate_room_v2"] = () => ({
       data: [{ out_applied: true, out_created: true }],
     });
@@ -371,7 +401,7 @@ describe("2. The vacated-room instruction must be durable before the guest moves
   });
 
   it("F. a duplicate retry is idempotent: the queue is already empty", async () => {
-    operationRows[OP] = { tenant_id: TENANT, state: "applied" };
+    operationRows[OP] = provenOperation("applied");
     pendingRows = []; // the row was closed by the first successful pass
     const out = await store.reconcilePendingHandoffs(TENANT);
     expect(out).toMatchObject({ attempted: 0, applied: 0 });
@@ -383,13 +413,14 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
         attempts: 0,
       },
     ];
-    operationRows[OP] = { tenant_id: TENANT, state: "applied" };
+    operationRows[OP] = provenOperation("applied");
     rpcScript["hotelhub_hk_vacate_room_v2"] = () => ({ data: [{ out_applied: true }] });
 
     const out = await store.reconcilePendingHandoffs(OTHER_TENANT);
@@ -402,13 +433,14 @@ describe("2. The vacated-room instruction must be durable before the guest moves
       {
         id: HANDOFF,
         hotel_room_id: ROOM,
+        reservation_id: RESERVATION,
         actor_n3_user_key: "user-1",
         source: "room_change",
         operation_request_id: OP,
         attempts: 0,
       },
     ];
-    operationRows[OP] = { tenant_id: OTHER_TENANT, state: "applied" };
+    operationRows[OP] = { ...provenOperation("applied"), tenant_id: OTHER_TENANT };
     rpcScript["hotelhub_hk_cancel_handoff"] = () => ({ data: null });
     const out = await store.reconcilePendingHandoffs(TENANT);
     expect(out.applied).toBe(0);
