@@ -718,24 +718,39 @@ export async function reconcilePendingHandoffs(
     if (res.error) return { attempted, applied, cancelled, deferred };
 
     for (const row of (res.data ?? []) as any[]) {
-      const opId = row.operation_request_id as string | null;
-      if (opId) {
-        const verdict = await operationHandoffVerdict(sb, {
-          tenantId,
-          operationRequestId: opId,
-          handoffReservationId: (row.reservation_id as string | null) ?? null,
-          oldHotelRoomId: row.hotel_room_id as string,
-        });
-        if (verdict === "abandoned") {
-          if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
-          continue;
-        }
-        if (verdict !== "proven") {
-          // Not proven (undecided, unreadable, or inconsistent): stay pending.
-          deferred += 1;
-          continue;
-        }
+      // WP1 supports durable reconciliation for room changes only, and only
+      // for rows that are fully correlated. Anything less can never prove a
+      // vacancy, so it is deferred — never applied, never retired.
+      const source = typeof row.source === "string" ? row.source : null;
+      const opId = typeof row.operation_request_id === "string" ? row.operation_request_id : null;
+      const handoffReservationId =
+        typeof row.reservation_id === "string" ? row.reservation_id : null;
+      if (
+        source !== "room_change" ||
+        !opId ||
+        !UUID_RE.test(opId) ||
+        !handoffReservationId ||
+        !UUID_RE.test(handoffReservationId)
+      ) {
+        deferred += 1;
+        continue;
       }
+      const verdict = await operationHandoffVerdict(sb, {
+        tenantId,
+        operationRequestId: opId,
+        handoffReservationId,
+        oldHotelRoomId: row.hotel_room_id as string,
+      });
+      if (verdict === "abandoned") {
+        if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
+        continue;
+      }
+      if (verdict !== "proven") {
+        // Not proven (undecided, unreadable, or inconsistent): stay pending.
+        deferred += 1;
+        continue;
+      }
+
       attempted += 1;
       const result = await applyRoomHandoff({
         tenantId,
