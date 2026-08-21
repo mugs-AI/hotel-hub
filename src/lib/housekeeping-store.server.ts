@@ -718,24 +718,39 @@ export async function reconcilePendingHandoffs(
     if (res.error) return { attempted, applied, cancelled, deferred };
 
     for (const row of (res.data ?? []) as any[]) {
-      const opId = row.operation_request_id as string | null;
-      if (opId) {
-        const verdict = await operationHandoffVerdict(sb, {
-          tenantId,
-          operationRequestId: opId,
-          handoffReservationId: (row.reservation_id as string | null) ?? null,
-          oldHotelRoomId: row.hotel_room_id as string,
-        });
-        if (verdict === "abandoned") {
-          if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
-          continue;
-        }
-        if (verdict !== "proven") {
-          // Not proven (undecided, unreadable, or inconsistent): stay pending.
-          deferred += 1;
-          continue;
-        }
+      // WP1 supports durable reconciliation for room changes only, and only
+      // for rows that are fully correlated. Anything less can never prove a
+      // vacancy, so it is deferred — never applied, never retired.
+      const source = typeof row.source === "string" ? row.source : null;
+      const opId = typeof row.operation_request_id === "string" ? row.operation_request_id : null;
+      const handoffReservationId =
+        typeof row.reservation_id === "string" ? row.reservation_id : null;
+      if (
+        source !== "room_change" ||
+        !opId ||
+        !UUID_RE.test(opId) ||
+        !handoffReservationId ||
+        !UUID_RE.test(handoffReservationId)
+      ) {
+        deferred += 1;
+        continue;
       }
+      const verdict = await operationHandoffVerdict(sb, {
+        tenantId,
+        operationRequestId: opId,
+        handoffReservationId,
+        oldHotelRoomId: row.hotel_room_id as string,
+      });
+      if (verdict === "abandoned") {
+        if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
+        continue;
+      }
+      if (verdict !== "proven") {
+        // Not proven (undecided, unreadable, or inconsistent): stay pending.
+        deferred += 1;
+        continue;
+      }
+
       attempted += 1;
       const result = await applyRoomHandoff({
         tenantId,
@@ -768,7 +783,7 @@ async function operationHandoffVerdict(
   input: {
     tenantId: string;
     operationRequestId: string;
-    handoffReservationId: string | null;
+    handoffReservationId: string;
     oldHotelRoomId: string;
   },
 ): Promise<"proven" | "abandoned" | "undecided"> {
@@ -789,9 +804,11 @@ async function operationHandoffVerdict(
       applied_at?: string | null;
       payload?: Record<string, unknown> | null;
     } | null;
-    // No such operation for this tenant — nothing proves a move happened.
-    if (!op || !op.state) return "abandoned";
-    if (op.tenant_id && op.tenant_id !== input.tenantId) return "abandoned";
+    // Missing evidence is NOT proof the move failed: defer, keep the durable row.
+    if (!op || !op.state) return "undecided";
+    // Positive tenant equality, never a mere mismatch rejection.
+    if (op.tenant_id !== input.tenantId) return "undecided";
+    // Only genuine terminal states retire the queue row.
     if (HANDOFF_ABANDONED_OPERATION_STATES.has(op.state)) return "abandoned";
     if (op.state !== HANDOFF_PROVEN_OPERATION_STATE) {
       // `approved`, `pending`, or an unrecognised state: defer, never dirty.
@@ -801,9 +818,7 @@ async function operationHandoffVerdict(
     // From here on the row claims to be applied; every claim is verified.
     if (!op.applied_at) return "undecided";
     if (op.operation_type !== "room_change") return "undecided";
-    if (input.handoffReservationId && op.reservation_id !== input.handoffReservationId) {
-      return "undecided";
-    }
+    if (!op.reservation_id || op.reservation_id !== input.handoffReservationId) return "undecided";
     const payload = (op.payload ?? {}) as Record<string, unknown>;
     const rrid = payload["reservation_room_id"] ?? payload["reservationRoomId"];
     if (typeof rrid !== "string" || !UUID_RE.test(rrid)) return "undecided";
@@ -821,8 +836,11 @@ async function operationHandoffVerdict(
       hotel_room_id?: string;
     } | null;
     if (!link || !link.hotel_room_id) return "undecided";
-    if (link.tenant_id && link.tenant_id !== input.tenantId) return "undecided";
-    if (op.reservation_id && link.reservation_id !== op.reservation_id) return "undecided";
+    if (link.tenant_id !== input.tenantId) return "undecided";
+    if (!link.reservation_id || link.reservation_id !== input.handoffReservationId) {
+      return "undecided";
+    }
+    if (link.reservation_id !== op.reservation_id) return "undecided";
     if (link.hotel_room_id === input.oldHotelRoomId) return "undecided";
     return "proven";
   } catch {

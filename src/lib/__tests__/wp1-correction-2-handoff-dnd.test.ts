@@ -311,7 +311,7 @@ describe("2. The vacated-room instruction must be durable before the guest moves
     expect(rpcCalls.some((c) => c.name === "hotelhub_hk_vacate_room_v2")).toBe(false);
   });
 
-  it("B. an operation that no longer exists retires the queue row", async () => {
+  it("B. an operation that no longer exists is deferred, never retired (Correction 4)", async () => {
     pendingRows = [
       {
         id: HANDOFF,
@@ -325,8 +325,9 @@ describe("2. The vacated-room instruction must be durable before the guest moves
     ];
     rpcScript["hotelhub_hk_cancel_handoff"] = () => ({ data: null });
     const out = await store.reconcilePendingHandoffs(TENANT);
-    expect(out.cancelled).toBe(1);
+    expect(out).toMatchObject({ applied: 0, cancelled: 0, deferred: 1 });
     expect(rpcCalls.some((c) => c.name === "hotelhub_hk_vacate_room_v2")).toBe(false);
+    expect(rpcCalls.some((c) => c.name === "hotelhub_hk_cancel_handoff")).toBe(false);
   });
 
   it("C. an undecided operation is deferred, not applied and not thrown away", async () => {
