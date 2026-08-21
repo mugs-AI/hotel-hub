@@ -668,38 +668,98 @@ export async function countPendingHandoffs(tenantId: string): Promise<number> {
   }
 }
 
+/** Operation states that PROVE the guest actually moved rooms. */
+const HANDOFF_PROVEN_OPERATION_STATES = new Set(["applied"]);
+/** Operation states that prove the move will never happen. */
+const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
+
 /**
  * Retry every handoff still waiting. Called on each board read and after each
  * room-change decision, so a transient failure self-heals without staff ever
  * having to know it happened.
+ *
+ * A pending row is NEVER applied on trust. When it is correlated with a
+ * reservation operation, that operation must have actually reached the state
+ * proving the guest moved before the old room is dirtied. An operation that
+ * was rejected, cancelled or has vanished retires the queue row as `cancelled`
+ * — an approval that never happened must never dirty a sellable room. An
+ * operation still awaiting its decision is simply left pending and retried.
+ *
+ * Every read and every write is scoped to `tenantId`, so one property can
+ * never reconcile — or even observe — another property's queue.
  */
 export async function reconcilePendingHandoffs(
   tenantId: string,
-): Promise<{ attempted: number; applied: number }> {
+): Promise<{ attempted: number; applied: number; cancelled: number; deferred: number }> {
   let attempted = 0;
   let applied = 0;
+  let cancelled = 0;
+  let deferred = 0;
   try {
     const sb = await admin();
-    const res = await sb.rpc("hotelhub_hk_list_pending_handoffs", {
-      p_tenant_id: tenantId,
-      p_limit: 20,
-    });
-    if (res.error) return { attempted, applied };
-    for (const row of (Array.isArray(res.data) ? res.data : []) as any[]) {
+    const res = await sb
+      .from("hotel_housekeeping_handoffs")
+      .select("id, hotel_room_id, actor_n3_user_key, source, operation_request_id, attempts")
+      .eq("tenant_id", tenantId)
+      .eq("state", "pending")
+      .lt("attempts", 10)
+      .order("created_at", { ascending: true })
+      .limit(20);
+    if (res.error) return { attempted, applied, cancelled, deferred };
+
+    for (const row of (res.data ?? []) as any[]) {
+      const opId = row.operation_request_id as string | null;
+      if (opId) {
+        const verdict = await operationHandoffVerdict(sb, tenantId, opId);
+        if (verdict === "abandoned") {
+          if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
+          continue;
+        }
+        if (verdict !== "proven") {
+          // Not yet decided, or the check itself failed: stay pending.
+          deferred += 1;
+          continue;
+        }
+      }
       attempted += 1;
       const result = await applyRoomHandoff({
         tenantId,
-        roomId: row.out_hotel_room_id,
-        actorN3UserKey: row.out_actor_n3_user_key,
-        source: row.out_source ?? "room_change",
-        handoffId: row.out_id,
+        roomId: row.hotel_room_id,
+        actorN3UserKey: row.actor_n3_user_key,
+        source: row.source ?? "room_change",
+        handoffId: row.id,
       });
       if (result.applied) applied += 1;
     }
   } catch (err) {
     console.error("[housekeeping] reconcile failed", (err as Error).message);
   }
-  return { attempted, applied };
+  return { attempted, applied, cancelled, deferred };
+}
+
+async function operationHandoffVerdict(
+  sb: any,
+  tenantId: string,
+  operationRequestId: string,
+): Promise<"proven" | "abandoned" | "undecided"> {
+  try {
+    const res = await sb
+      .from("hotel_reservation_operation_requests")
+      .select("state")
+      .eq("tenant_id", tenantId)
+      .eq("id", operationRequestId)
+      .maybeSingle();
+    // A read failure must not decide anything: leave the row pending.
+    if (res.error) return "undecided";
+    const state = (res.data as { state?: string } | null)?.state;
+    // No such operation for this tenant — nothing proves a move happened.
+    if (!state) return "abandoned";
+    if (HANDOFF_PROVEN_OPERATION_STATES.has(state)) return "proven";
+    if (HANDOFF_ABANDONED_OPERATION_STATES.has(state)) return "abandoned";
+    return "undecided";
+  } catch {
+    return "undecided";
+  }
 }
 
 /**
