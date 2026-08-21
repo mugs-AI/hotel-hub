@@ -85,8 +85,8 @@ export function statusForOperationError(code: string): number {
     case "guest_assignment_required":
     case "idempotency_conflict":
     case "housekeeping_not_initialized":
-
     case "room_not_ready":
+
     case "dnd_active":
     case "illegal_transition":
     case "room_not_occupied":
