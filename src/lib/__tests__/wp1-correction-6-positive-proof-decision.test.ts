@@ -161,6 +161,7 @@ describe("Correction 6 — immediate Dirty requires APPLIED plus a proven move",
     for (const st of ["pending", "weird_unknown_state"]) {
       calls.apply = [];
       calls.cancel = [];
+      calls.decide = [];
       state.decisionResult = { requestId: REQUEST, state: st };
       const { body } = await run();
       expect(calls.apply).toHaveLength(0);
@@ -186,6 +187,7 @@ describe("Correction 6 — immediate Dirty requires APPLIED plus a proven move",
     for (const post of cases) {
       calls.apply = [];
       calls.cancel = [];
+      calls.decide = [];
       state.postRoom = post;
       const { body } = await run();
       expect(calls.apply).toHaveLength(0);
