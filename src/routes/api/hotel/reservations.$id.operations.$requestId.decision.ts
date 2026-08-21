@@ -214,7 +214,6 @@ export async function handleOperationDecision({
     return deny(statusForOperationError(code), code);
   }
 
-
   await logAudit({
     tenantId,
     n3UserKey: actor,
@@ -239,7 +238,10 @@ export async function handleOperationDecision({
       ? null
       : await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
     const movedAway =
-      post !== null && post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
+      post !== null &&
+      post.status === "ok" &&
+      post.value !== null &&
+      post.value !== roomBeingVacated;
 
     if (positivelyApplied && movedAway) {
       const applied = await applyRoomHandoff({
@@ -273,7 +275,6 @@ export async function handleOperationDecision({
       });
     }
   }
-
 
   // Retry anything still outstanding (including this one on failure) so the
   // board self-heals rather than reporting a stale "Ready".

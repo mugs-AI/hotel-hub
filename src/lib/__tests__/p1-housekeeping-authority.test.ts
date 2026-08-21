@@ -203,10 +203,11 @@ describe("4. Room-change handoff is durable", () => {
     expect(decideAt).toBeGreaterThan(enqueueAt);
     // Correction 6 — an uncertain decision result must never cancel the
     // durable intent; only a positively terminal state may withdraw it.
-    expect(decisionSrc).not.toMatch(/if \(handoffId\) await cancelRoomHandoff\(tenantId, handoffId\)/);
+    expect(decisionSrc).not.toMatch(
+      /if \(handoffId\) await cancelRoomHandoff\(tenantId, handoffId\)/,
+    );
     expect(decisionSrc).toMatch(/positivelyNotApplied && handoffId/);
   });
-
 
   it("applies the handoff atomically and never swallows a failure", () => {
     expect(storeSrc).toMatch(/hotelhub_hk_vacate_room_v2/);
