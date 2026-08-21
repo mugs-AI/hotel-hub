@@ -11,6 +11,8 @@
 // DND is a TEMPORARY OVERLAY on occupied rooms only. It never replaces a
 // condition and never survives the room being vacated.
 
+import { hasPermission, type HotelRole } from "./rbac";
+
 export const HOUSEKEEPING_CONDITIONS = ["dirty", "cleaning", "inspected", "ready"] as const;
 export type HousekeepingCondition = (typeof HOUSEKEEPING_CONDITIONS)[number];
 
@@ -239,3 +241,95 @@ export const BOARD_GROUP_LABELS: Record<BoardGroup, string> = {
   ready: "Ready",
   not_set_up: "Not set up",
 };
+
+// ---------------------------------------------------------------------------
+// Mode-aware authority — the workflow the property actually runs decides who
+// may move a room, NOT the static role matrix alone.
+//
+// Simple (Front Desk): the desk turns rooms around itself. There is no
+// housekeeping team, so a housekeeper has no board and no authority at all.
+// Dedicated: the housekeeping team owns the cleaning lifecycle. The desk may
+// still report a room as dirty (a guest complained, a walk-through found it),
+// but must never advance a clean it did not perform or verify.
+//
+// This is pure and shared: the server enforces it, the board only renders what
+// the server already authorised.
+// ---------------------------------------------------------------------------
+
+export type HousekeepingAuthority = {
+  mode: HousekeepingMode;
+  role: HotelRole | null;
+  canViewBoard: boolean;
+  canUseDedicatedWorkspace: boolean;
+  canInitialize: boolean;
+  canToggleDnd: boolean;
+  /** Lifecycle transitions this role may ever perform in this mode. */
+  roleTransitions: HousekeepingTransition[];
+  /** In dedicated mode the desk may only report a sellable room as dirty. */
+  markDirtyOnlyFromReady: boolean;
+};
+
+export function housekeepingAuthority(
+  mode: HousekeepingMode,
+  role: HotelRole | null,
+): HousekeepingAuthority {
+  // Static matrix is the OUTER gate; mode can only narrow it, never widen it.
+  const staticView = hasPermission(role, "hotel:housekeeping:view");
+  const staticUpdate = hasPermission(role, "hotel:housekeeping:update");
+  const staticDnd = hasPermission(role, "hotel:housekeeping:dnd");
+  const staticInit = hasPermission(role, "hotel:housekeeping:initialize");
+
+  const housekeeperInSimple = mode === "simple" && role === "housekeeper";
+  const canViewBoard = staticView && !housekeeperInSimple;
+
+  let roleTransitions: HousekeepingTransition[] = [];
+  let markDirtyOnlyFromReady = false;
+  if (staticUpdate && !housekeeperInSimple) {
+    if (mode === "dedicated" && role === "front_desk") {
+      roleTransitions = ["mark_dirty"];
+      markDirtyOnlyFromReady = true;
+    } else {
+      roleTransitions = [...HOUSEKEEPING_TRANSITIONS];
+    }
+  }
+
+  return {
+    mode,
+    role,
+    canViewBoard,
+    canUseDedicatedWorkspace: canViewBoard && mode === "dedicated",
+    canInitialize: staticInit,
+    canToggleDnd: staticDnd && !housekeeperInSimple,
+    roleTransitions,
+    markDirtyOnlyFromReady,
+  };
+}
+
+/**
+ * The transitions this actor may perform on THIS room right now: legal by the
+ * lifecycle AND permitted by the property's workflow.
+ */
+export function authorizedTransitions(
+  authority: HousekeepingAuthority,
+  state: RoomTurnaroundState,
+): HousekeepingTransition[] {
+  return allowedTransitions(state).filter((t) => {
+    if (!authority.roleTransitions.includes(t)) return false;
+    if (authority.markDirtyOnlyFromReady && t === "mark_dirty" && state.condition !== "ready") {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function canPerformTransition(
+  authority: HousekeepingAuthority,
+  state: RoomTurnaroundState,
+  transition: HousekeepingTransition,
+): boolean {
+  return authorizedTransitions(authority, state).includes(transition);
+}
+
+/** Why the dedicated workspace is unavailable, in the property's own terms. */
+export const DEDICATED_UNAVAILABLE_SIMPLE =
+  "This property runs simple front-desk housekeeping, so there is no separate housekeeping workspace. Room readiness lives on Rooms & Rates. The Owner can switch to a dedicated housekeeping team in Settings.";

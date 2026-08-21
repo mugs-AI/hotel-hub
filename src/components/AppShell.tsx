@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
+import { housekeepingAuthority } from "@/lib/housekeeping";
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 
 type NavItem = {
@@ -77,6 +78,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const role = session.role;
+  // Mode authority: a simple front-desk property has no separate housekeeping
+  // workspace, so the link must not exist for anyone.
+  const hkAuthority = housekeepingAuthority(session.housekeepingMode ?? "simple", role);
   const containerClass = widthContainerClass(displayWidth);
 
   return (
@@ -124,7 +128,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   (item.matchPrefix
                     ? path === item.matchPrefix || path.startsWith(item.matchPrefix + "/")
                     : false));
-              const visible = !item.permission || hasPermission(role, item.permission);
+              const visible =
+                item.to === "/housekeeping"
+                  ? hkAuthority.canUseDedicatedWorkspace
+                  : !item.permission || hasPermission(role, item.permission);
               if (item.disabled || !visible) {
                 const title = item.disabled
                   ? "Deferred MAF milestone"

@@ -55,8 +55,11 @@ export type AuditEventType =
   | "hotel.housekeeping.dnd_set"
   | "hotel.housekeeping.dnd_cleared"
   | "hotel.housekeeping.action_failed"
+  | "hotel.housekeeping.action_denied"
   | "hotel.housekeeping.mode_updated"
   | "hotel.housekeeping.vacated"
+  | "hotel.housekeeping.vacate_pending"
+  | "hotel.housekeeping.destination_not_ready"
   | "hotel.reservation.check_in_blocked";
 
 const SENSITIVE_KEYS = new Set([

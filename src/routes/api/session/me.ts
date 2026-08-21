@@ -7,6 +7,7 @@
 // provisioning — those identifiers are not secrets, unlike the N3 token.
 import { createFileRoute } from "@tanstack/react-router";
 import { readRequestContext } from "@/lib/session-context.server";
+import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 
 export type SessionMeResponse =
   | {
@@ -28,6 +29,8 @@ export type SessionMeResponse =
       };
       role: import("@/lib/rbac").HotelRole | null;
       roleStatus: "assigned" | "role_unassigned";
+      /** Which housekeeping workflow this property runs (P1 mode authority). */
+      housekeepingMode: "simple" | "dedicated";
     };
 
 export async function handleSessionMe(): Promise<Response> {
@@ -38,6 +41,14 @@ export async function handleSessionMe(): Promise<Response> {
     return Response.json(body, { headers: { "cache-control": "no-store" } });
   }
   const s = ctx.session;
+  // Read-only: never creates a settings row as a side effect of loading.
+  let housekeepingMode: "simple" | "dedicated" = "simple";
+  try {
+    const settings = s.tenantId ? await getHotelSettingsReadOnly(s.tenantId) : null;
+    housekeepingMode = settings?.housekeepingMode ?? "simple";
+  } catch {
+    housekeepingMode = "simple";
+  }
   const body: SessionMeResponse = {
     authenticated: true,
     tenant: {
@@ -53,6 +64,7 @@ export async function handleSessionMe(): Promise<Response> {
     },
     role: ctx.role,
     roleStatus: ctx.roleStatus,
+    housekeepingMode,
   };
   return Response.json(body, { headers: { "cache-control": "no-store" } });
 }
