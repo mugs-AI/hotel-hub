@@ -2,7 +2,7 @@
 //
 // This is the single board component. `variant="dedicated"` is the full
 // housekeeping workspace; `variant="simple"` is the compact Front Desk strip
-// that answers only "which rooms can I sell right now, and what is blocking
+// that answers only "which rooms are housekeeping-clear right now, and what is blocking
 // the rest". Both read the same server board and the same allowed actions,
 // so they can never disagree.
 import { useMemo, useState } from "react";

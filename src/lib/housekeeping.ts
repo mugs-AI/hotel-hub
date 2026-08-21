@@ -265,7 +265,7 @@ export type HousekeepingAuthority = {
   canToggleDnd: boolean;
   /** Lifecycle transitions this role may ever perform in this mode. */
   roleTransitions: HousekeepingTransition[];
-  /** In dedicated mode the desk may only report a sellable room as dirty. */
+  /** In dedicated mode the desk may only report a housekeeping-Ready room as dirty. */
   markDirtyOnlyFromReady: boolean;
 };
 
