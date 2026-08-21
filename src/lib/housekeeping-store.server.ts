@@ -783,7 +783,7 @@ async function operationHandoffVerdict(
   input: {
     tenantId: string;
     operationRequestId: string;
-    handoffReservationId: string | null;
+    handoffReservationId: string;
     oldHotelRoomId: string;
   },
 ): Promise<"proven" | "abandoned" | "undecided"> {
@@ -804,9 +804,11 @@ async function operationHandoffVerdict(
       applied_at?: string | null;
       payload?: Record<string, unknown> | null;
     } | null;
-    // No such operation for this tenant — nothing proves a move happened.
-    if (!op || !op.state) return "abandoned";
-    if (op.tenant_id && op.tenant_id !== input.tenantId) return "abandoned";
+    // Missing evidence is NOT proof the move failed: defer, keep the durable row.
+    if (!op || !op.state) return "undecided";
+    // Positive tenant equality, never a mere mismatch rejection.
+    if (op.tenant_id !== input.tenantId) return "undecided";
+    // Only genuine terminal states retire the queue row.
     if (HANDOFF_ABANDONED_OPERATION_STATES.has(op.state)) return "abandoned";
     if (op.state !== HANDOFF_PROVEN_OPERATION_STATE) {
       // `approved`, `pending`, or an unrecognised state: defer, never dirty.
@@ -816,9 +818,7 @@ async function operationHandoffVerdict(
     // From here on the row claims to be applied; every claim is verified.
     if (!op.applied_at) return "undecided";
     if (op.operation_type !== "room_change") return "undecided";
-    if (input.handoffReservationId && op.reservation_id !== input.handoffReservationId) {
-      return "undecided";
-    }
+    if (!op.reservation_id || op.reservation_id !== input.handoffReservationId) return "undecided";
     const payload = (op.payload ?? {}) as Record<string, unknown>;
     const rrid = payload["reservation_room_id"] ?? payload["reservationRoomId"];
     if (typeof rrid !== "string" || !UUID_RE.test(rrid)) return "undecided";
@@ -836,10 +836,14 @@ async function operationHandoffVerdict(
       hotel_room_id?: string;
     } | null;
     if (!link || !link.hotel_room_id) return "undecided";
-    if (link.tenant_id && link.tenant_id !== input.tenantId) return "undecided";
-    if (op.reservation_id && link.reservation_id !== op.reservation_id) return "undecided";
+    if (link.tenant_id !== input.tenantId) return "undecided";
+    if (!link.reservation_id || link.reservation_id !== input.handoffReservationId) {
+      return "undecided";
+    }
+    if (link.reservation_id !== op.reservation_id) return "undecided";
     if (link.hotel_room_id === input.oldHotelRoomId) return "undecided";
     return "proven";
+
   } catch {
     return "undecided";
   }
