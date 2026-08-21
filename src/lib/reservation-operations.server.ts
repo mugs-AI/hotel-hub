@@ -514,40 +514,89 @@ export async function housekeepingCheckInBlocker(
 }
 
 /** Minimal read used by the WP1 vacated-room handoff. */
-export async function readOperationRequestForHandoff(
+/**
+ * WP1 Correction 5 — authoritative reads must be able to say "I could not
+ * read this". A `null` that means both "absent" and "database error" lets a
+ * guest-safety gate fail OPEN, so every safety-critical caller uses the
+ * three-way outcome below instead.
+ */
+export type ReadOutcome<T> = { status: "ok"; value: T } | { status: "missing" } | { status: "error" };
+
+export type HandoffOperationDetail = {
+  operationType: string;
+  state: string;
+  payload: Record<string, unknown>;
+};
+
+export async function readOperationRequestForHandoffOutcome(
   tenantId: string,
   requestId: string,
-): Promise<{ operationType: string; state: string; payload: Record<string, unknown> } | null> {
+): Promise<ReadOutcome<HandoffOperationDetail>> {
   const sb = await admin();
-  const res = await sb
-    .from("hotel_reservation_operation_requests")
-    .select("operation_type, state, payload")
-    .eq("tenant_id", tenantId)
-    .eq("id", requestId)
-    .maybeSingle();
-  if (res.error || !res.data) return null;
+  let res: any;
+  try {
+    res = await sb
+      .from("hotel_reservation_operation_requests")
+      .select("operation_type, state, payload")
+      .eq("tenant_id", tenantId)
+      .eq("id", requestId)
+      .maybeSingle();
+  } catch {
+    return { status: "error" };
+  }
+  if (res?.error) return { status: "error" };
+  if (!res?.data) return { status: "missing" };
   const row = res.data as any;
   return {
-    operationType: row.operation_type,
-    state: row.state,
-    payload: (row.payload ?? {}) as Record<string, unknown>,
+    status: "ok",
+    value: {
+      operationType: row.operation_type,
+      state: row.state,
+      payload: (row.payload ?? {}) as Record<string, unknown>,
+    },
   };
 }
 
-/** Which physical room a reservation-room row currently points at. */
+export async function readOperationRequestForHandoff(
+  tenantId: string,
+  requestId: string,
+): Promise<HandoffOperationDetail | null> {
+  const out = await readOperationRequestForHandoffOutcome(tenantId, requestId);
+  return out.status === "ok" ? out.value : null;
+}
+
+/**
+ * Which physical room a reservation-room row currently points at, with the
+ * read failure distinguishable from a genuinely absent row.
+ */
+export async function resolveReservationRoomHotelRoomId(
+  tenantId: string,
+  reservationRoomId: string,
+): Promise<ReadOutcome<string | null>> {
+  const sb = await admin();
+  let res: any;
+  try {
+    res = await sb
+      .from("hotel_reservation_rooms")
+      .select("hotel_room_id")
+      .eq("tenant_id", tenantId)
+      .eq("id", reservationRoomId)
+      .maybeSingle();
+  } catch {
+    return { status: "error" };
+  }
+  if (res?.error) return { status: "error" };
+  if (!res?.data) return { status: "missing" };
+  return { status: "ok", value: (res.data as { hotel_room_id: string | null }).hotel_room_id ?? null };
+}
+
+/** Legacy convenience wrapper — never use for a guest-safety gate. */
 export async function getReservationRoomHotelRoomId(
   tenantId: string,
   reservationRoomId: string,
 ): Promise<string | null> {
-  const sb = await admin();
-  const res = await sb
-    .from("hotel_reservation_rooms")
-    .select("hotel_room_id")
-    .eq("tenant_id", tenantId)
-    .eq("id", reservationRoomId)
-    .maybeSingle();
-  if (res.error) return null;
-  return (res.data as { hotel_room_id: string } | null)?.hotel_room_id ?? null;
+  const out = await resolveReservationRoomHotelRoomId(tenantId, reservationRoomId);
+  return out.status === "ok" ? out.value : null;
 }
 
 export async function checkInReservation(input: {
