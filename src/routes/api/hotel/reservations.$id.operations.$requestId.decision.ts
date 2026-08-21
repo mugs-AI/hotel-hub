@@ -197,9 +197,10 @@ export async function handleOperationDecision({
       idempotencyKey: clientRequestId as string,
     });
   } catch (err) {
-    // The room change did not happen: withdraw the recorded handoff intent so
-    // no room is later marked dirty for a move that never occurred.
-    if (handoffId) await cancelRoomHandoff(tenantId, handoffId);
+    // Correction 6 — an RPC/transport error does NOT prove the room change
+    // failed to commit. Never blindly cancel the durable handoff here: leave
+    // it pending so reconciliation can re-prove the authoritative operation
+    // state later. No Dirty, no automatic mutation retry.
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
         ? err.code
@@ -208,7 +209,7 @@ export async function handleOperationDecision({
       tenantId,
       n3UserKey: actor,
       eventType: "hotel.reservation.operation_decision_failed",
-      detail: { reservationId: id, requestId, code },
+      detail: { reservationId: id, requestId, code, handoffPending: handoffId !== null },
     });
     return deny(statusForOperationError(code), code);
   }
@@ -225,16 +226,24 @@ export async function handleOperationDecision({
 
   let handoff: { applied: boolean; pending: boolean } | null = null;
   if (roomBeingVacated && handoffReservationRoomId) {
-    // Correction 5 — uncertainty must never destroy the only retry record.
-    // The handoff is cancelled ONLY when the decision positively did not
-    // apply. An unreadable or missing post-decision read leaves the durable
-    // intent pending for reconciliation, which re-proves it from scratch.
-    const post = await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
-    const movedAway =
-      post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
+    // Correction 6 — a room may become Dirty ONLY on positive proof that the
+    // correlated room_change is APPLIED *and* the authoritative post-decision
+    // reservation_room read shows it physically moved off the old room.
+    // Anything less (approved, pending, unknown, unreadable, missing, still
+    // on the old room) keeps the durable intent pending for reconciliation.
+    // Cancellation requires a positively terminal rejected/cancelled result.
+    const positivelyApplied = result.state === "applied";
     const positivelyNotApplied = result.state === "rejected" || result.state === "cancelled";
+    const post = positivelyNotApplied
+      ? null
+      : await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
+    const movedAway =
+      post !== null &&
+      post.status === "ok" &&
+      post.value !== null &&
+      post.value !== roomBeingVacated;
 
-    if (movedAway) {
+    if (positivelyApplied && movedAway) {
       const applied = await applyRoomHandoff({
         tenantId,
         roomId: roomBeingVacated,
@@ -255,7 +264,8 @@ export async function handleOperationDecision({
       // The guest demonstrably did not change room — safe, idempotent withdrawal.
       await cancelRoomHandoff(tenantId, handoffId);
     } else if (handoffId) {
-      // Applied, or simply not knowable right now: keep the pending intent.
+      // Applied-but-unproven, approved, pending, or simply not knowable right
+      // now: keep the pending intent. Reconciliation is the final authority.
       handoff = { applied: false, pending: true };
       await logAudit({
         tenantId,

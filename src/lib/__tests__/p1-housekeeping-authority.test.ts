@@ -196,12 +196,17 @@ describe("4. Room-change handoff is durable", () => {
   );
   const storeSrc = readFileSync(resolve(__dirname, "../housekeeping-store.server.ts"), "utf8");
 
-  it("records the intent before approval and cancels it if approval fails", () => {
+  it("records the intent before approval and keeps it pending when approval errors", () => {
     const enqueueAt = decisionSrc.indexOf("enqueueRoomHandoff(");
     const decideAt = decisionSrc.indexOf("await decideOperation(");
     expect(enqueueAt).toBeGreaterThan(-1);
     expect(decideAt).toBeGreaterThan(enqueueAt);
-    expect(decisionSrc).toMatch(/if \(handoffId\) await cancelRoomHandoff\(tenantId, handoffId\)/);
+    // Correction 6 — an uncertain decision result must never cancel the
+    // durable intent; only a positively terminal state may withdraw it.
+    expect(decisionSrc).not.toMatch(
+      /if \(handoffId\) await cancelRoomHandoff\(tenantId, handoffId\)/,
+    );
+    expect(decisionSrc).toMatch(/positivelyNotApplied && handoffId/);
   });
 
   it("applies the handoff atomically and never swallows a failure", () => {
