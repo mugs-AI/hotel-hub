@@ -538,6 +538,14 @@ export async function setRoomDnd(input: {
 // atomically after it, and retried until it lands — it is never swallowed.
 // ---------------------------------------------------------------------------
 
+/**
+ * Record the intent to dirty the room a guest is about to leave.
+ *
+ * This FAILS CLOSED. If the intent cannot be written durably the caller must
+ * not proceed with the room change: a move applied without a recoverable
+ * handoff leaves a bed that looks sellable and is not. There is no null
+ * "best effort" result any more — either a durable id, or a thrown refusal.
+ */
 export async function enqueueRoomHandoff(input: {
   tenantId: string;
   roomId: string;
@@ -545,7 +553,8 @@ export async function enqueueRoomHandoff(input: {
   reservationId: string | null;
   operationRequestId: string | null;
   source: string;
-}): Promise<string | null> {
+}): Promise<string> {
+  let handoffId: string | null = null;
   try {
     const sb = await admin();
     const res = await sb.rpc("hotelhub_hk_enqueue_handoff", {
@@ -558,22 +567,32 @@ export async function enqueueRoomHandoff(input: {
     });
     if (res.error) throw new Error(res.error.message);
     const row = Array.isArray(res.data) ? res.data[0] : res.data;
-    return (row?.out_handoff_id as string | undefined) ?? null;
-  } catch (err) {
-    console.error("[housekeeping] enqueue handoff failed", (err as Error).message);
-    return null;
+    handoffId = (row?.out_handoff_id as string | undefined) ?? null;
+  } catch {
+    throw new HousekeepingError("handoff_not_recorded");
   }
+  if (!handoffId) throw new HousekeepingError("handoff_not_recorded");
+  return handoffId;
 }
 
-export async function cancelRoomHandoff(tenantId: string, handoffId: string): Promise<void> {
+/**
+ * Withdraw a recorded intent. Idempotent: the routine only moves a row that is
+ * still `pending`, so repeating it is harmless. Returns whether the withdrawal
+ * was durably confirmed — an unconfirmed cancel is still safe because the
+ * reconciler re-verifies the correlated operation before it ever dirties a room.
+ */
+export async function cancelRoomHandoff(tenantId: string, handoffId: string): Promise<boolean> {
   try {
     const sb = await admin();
-    await sb.rpc("hotelhub_hk_cancel_handoff", {
+    const res = await sb.rpc("hotelhub_hk_cancel_handoff", {
       p_tenant_id: tenantId,
       p_handoff_id: handoffId,
     });
+    if (res?.error) throw new Error(res.error.message);
+    return true;
   } catch (err) {
     console.error("[housekeeping] cancel handoff failed", (err as Error).message);
+    return false;
   }
 }
 
