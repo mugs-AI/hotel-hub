@@ -102,7 +102,7 @@ function RoomsRatesPage() {
                   but not listed — the full board lives under Housekeeping.
                 </p>
                 <div className="mt-4">
-                  <HousekeepingBoard role={authed.role} variant="simple" />
+                  <HousekeepingBoard variant="simple" />
                 </div>
               </section>
             )}

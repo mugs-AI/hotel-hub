@@ -1,19 +1,35 @@
 // POST /api/hotel/reservations/:id/operations/:requestId/decision — Owner only.
 // Approves or rejects a pending reservation-operation request. Never touches
 // N3 or deposit records.
+//
+// P1 correction. Two guest-safety rules are enforced here, before anything is
+// applied:
+//   1. Readiness — an early check-in or a room change may only be approved
+//      into a room that is set up, Ready, and not under Do Not Disturb.
+//   2. Handoff — the room the guest LEAVES is recorded as a durable pending
+//      handoff before approval, applied atomically after it, and retried until
+//      it lands. It is never silently swallowed.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import {
   decideOperation,
+  destinationBlockerCode,
   getOperationRequestReservationId,
   getReservationRoomHotelRoomId,
+  housekeepingCheckInBlocker,
   OperationError,
   OPERATION_ERROR_CODES,
   readOperationRequestForHandoff,
 } from "@/lib/reservation-operations.server";
-import { vacateRoomSafely } from "@/lib/housekeeping-store.server";
+import {
+  applyRoomHandoff,
+  cancelRoomHandoff,
+  enqueueRoomHandoff,
+  reconcilePendingHandoffs,
+  roomReadinessBlocker,
+} from "@/lib/housekeeping-store.server";
 import {
   deny,
   isSameOriginWrite,
@@ -55,90 +71,144 @@ export async function handleOperationDecision({
   }
   const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) || null : null;
 
+  const tenantId = ctx.session.tenantId!;
+  const actor = ctx.session.n3UserKey;
+
   // Bind the request to the reservation in the URL. Without this the audit
   // trail could name a reservation the request does not belong to.
   let boundReservationId: string | null;
   try {
-    boundReservationId = await getOperationRequestReservationId(ctx.session.tenantId!, requestId);
+    boundReservationId = await getOperationRequestReservationId(tenantId, requestId);
   } catch {
     return deny(500, "operation_decision_failed");
   }
   if (boundReservationId === null) return deny(404, "operation_not_found");
   if (boundReservationId !== id) return deny(404, "operation_not_found");
 
-  // WP1 vacated-room handoff. Capture the room the guest is LEAVING before
-  // the approval moves them, otherwise the old room is unrecoverable and
-  // silently stays "Ready" while it is actually dirty.
+  // WP1 vacated-room handoff + readiness. Capture the room the guest is
+  // LEAVING before the approval moves them, otherwise the old room is
+  // unrecoverable and silently stays "Ready" while it is actually dirty.
   let handoffReservationRoomId: string | null = null;
   let roomBeingVacated: string | null = null;
+  let handoffId: string | null = null;
+
   if (verdict === "approve") {
-    const req = await readOperationRequestForHandoff(ctx.session.tenantId!, requestId);
+    const req = await readOperationRequestForHandoff(tenantId, requestId);
+
+    // ---- Readiness gate (fails CLOSED) --------------------------------
+    if (req && req.state === "pending") {
+      let blocker: string | null = null;
+      if (req.operationType === "early_check_in") {
+        // The guest is coming in NOW: every allocated room must be verified.
+        blocker = await housekeepingCheckInBlocker(tenantId, id);
+      } else if (req.operationType === "room_change") {
+        const dest = req.payload["to_hotel_room_id"] ?? req.payload["toHotelRoomId"];
+        if (typeof dest !== "string" || !isUuid(dest)) return deny(400, "validation_failed");
+        blocker = await roomReadinessBlocker(tenantId, [dest]);
+        if (blocker) blocker = destinationBlockerCode(blocker);
+      }
+      if (blocker) {
+        await logAudit({
+          tenantId,
+          n3UserKey: actor,
+          eventType: "hotel.housekeeping.destination_not_ready",
+          detail: { reservationId: id, requestId, operationType: req.operationType, code: blocker },
+        });
+        return deny(statusForOperationError(blocker), blocker);
+      }
+    }
+
+    // ---- Durable handoff intent ---------------------------------------
     if (req && req.operationType === "room_change" && req.state === "pending") {
       const rrid = req.payload["reservation_room_id"] ?? req.payload["reservationRoomId"];
       if (typeof rrid === "string") {
         handoffReservationRoomId = rrid;
-        roomBeingVacated = await getReservationRoomHotelRoomId(ctx.session.tenantId!, rrid);
-      }
-    }
-  }
-
-  try {
-    const result = await decideOperation({
-      tenantId: ctx.session.tenantId!,
-      requestId,
-      actorN3UserKey: ctx.session.n3UserKey,
-      decision: verdict,
-      note,
-      idempotencyKey: clientRequestId as string,
-    });
-    await logAudit({
-      tenantId: ctx.session.tenantId,
-      n3UserKey: ctx.session.n3UserKey,
-      eventType:
-        verdict === "approve"
-          ? "hotel.reservation.operation_applied"
-          : "hotel.reservation.operation_rejected",
-      detail: { reservationId: id, requestId, state: result.state },
-    });
-
-    if (roomBeingVacated && handoffReservationRoomId) {
-      const newRoomId = await getReservationRoomHotelRoomId(
-        ctx.session.tenantId!,
-        handoffReservationRoomId,
-      );
-      // Only hand off when the guest genuinely moved to a different room.
-      if (newRoomId && newRoomId !== roomBeingVacated) {
-        const handoff = await vacateRoomSafely({
-          tenantId: ctx.session.tenantId!,
-          roomId: roomBeingVacated,
-          actorN3UserKey: ctx.session.n3UserKey,
-          source: "room_change",
-        });
-        if (handoff.applied) {
-          await logAudit({
-            tenantId: ctx.session.tenantId,
-            n3UserKey: ctx.session.n3UserKey,
-            eventType: "hotel.housekeeping.vacated",
-            detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
+        roomBeingVacated = await getReservationRoomHotelRoomId(tenantId, rrid);
+        if (roomBeingVacated) {
+          handoffId = await enqueueRoomHandoff({
+            tenantId,
+            roomId: roomBeingVacated,
+            actorN3UserKey: actor,
+            reservationId: id,
+            operationRequestId: requestId,
+            source: "room_change",
           });
         }
       }
     }
+  }
 
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+  let result: { requestId: string; state: string };
+  try {
+    result = await decideOperation({
+      tenantId,
+      requestId,
+      actorN3UserKey: actor,
+      decision: verdict,
+      note,
+      idempotencyKey: clientRequestId as string,
+    });
   } catch (err) {
+    // The room change did not happen: withdraw the recorded handoff intent so
+    // no room is later marked dirty for a move that never occurred.
+    if (handoffId) await cancelRoomHandoff(tenantId, handoffId);
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
         ? err.code
         : "operation_decision_failed";
     await logAudit({
-      tenantId: ctx.session.tenantId,
-      n3UserKey: ctx.session.n3UserKey,
+      tenantId,
+      n3UserKey: actor,
       eventType: "hotel.reservation.operation_decision_failed",
       detail: { reservationId: id, requestId, code },
     });
     return deny(statusForOperationError(code), code);
   }
+
+  await logAudit({
+    tenantId,
+    n3UserKey: actor,
+    eventType:
+      verdict === "approve"
+        ? "hotel.reservation.operation_applied"
+        : "hotel.reservation.operation_rejected",
+    detail: { reservationId: id, requestId, state: result.state },
+  });
+
+  let handoff: { applied: boolean; pending: boolean } | null = null;
+  if (roomBeingVacated && handoffReservationRoomId) {
+    const newRoomId = await getReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
+    if (newRoomId && newRoomId !== roomBeingVacated) {
+      const applied = await applyRoomHandoff({
+        tenantId,
+        roomId: roomBeingVacated,
+        actorN3UserKey: actor,
+        source: "room_change",
+        handoffId,
+      });
+      handoff = { applied: applied.applied, pending: applied.pending };
+      await logAudit({
+        tenantId,
+        n3UserKey: actor,
+        eventType: applied.applied
+          ? "hotel.housekeeping.vacated"
+          : "hotel.housekeeping.vacate_pending",
+        detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
+      });
+    } else if (handoffId) {
+      // The guest did not actually change room — nothing to hand off.
+      await cancelRoomHandoff(tenantId, handoffId);
+    }
+  }
+
+  // Retry anything still outstanding (including this one on failure) so the
+  // board self-heals rather than reporting a stale "Ready".
+  if (handoff?.pending) await reconcilePendingHandoffs(tenantId);
+
+  return Response.json(
+    { ...result, ...(handoff ? { housekeepingHandoff: handoff } : {}) },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/operations/$requestId/decision")({

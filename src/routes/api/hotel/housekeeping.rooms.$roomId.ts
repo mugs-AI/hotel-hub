@@ -2,15 +2,20 @@
 // GET  /api/hotel/housekeeping/rooms/:roomId — that room's history.
 //
 // One write endpoint with an explicit `action` discriminator. Each action is
-// permission-gated separately: everyone operational may move the cleaning
-// lifecycle, only the desk records a guest's Do Not Disturb, and only the
-// Owner bootstraps a room that has never been tracked.
+// permission-gated separately AND narrowed by the property's housekeeping
+// mode: the static role matrix is the outer gate, the active workflow decides
+// what that role may actually do today.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { deny, isSameOriginWrite, readJsonBody, rejectUnknown } from "@/lib/operations-api.server";
-import { isBootstrapCondition, isHousekeepingTransition } from "@/lib/housekeeping";
+import {
+  housekeepingAuthority,
+  isBootstrapCondition,
+  isHousekeepingTransition,
+} from "@/lib/housekeeping";
+import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 import {
   HousekeepingError,
   initializeRoom,
@@ -34,6 +39,9 @@ export async function handleRoomHistory({
   const roomId = params.roomId ?? "";
   if (!isUuid(roomId)) return deny(400, "invalid_id");
   try {
+    const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
+    const authority = housekeepingAuthority(settings?.housekeepingMode ?? "simple", ctx.role);
+    if (!authority.canViewBoard) return deny(403, "not_permitted_in_mode");
     const events = await listRoomHistory(ctx.session.tenantId!, roomId);
     return Response.json({ events }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
@@ -82,6 +90,34 @@ export async function handleRoomAction({
   const tenantId = ctx.session.tenantId!;
   const actor = ctx.session.n3UserKey;
 
+  // Mode-aware authority. Enforced HERE, on the server, before any write.
+  let authority;
+  try {
+    const settings = await getHotelSettingsReadOnly(tenantId);
+    authority = housekeepingAuthority(settings?.housekeepingMode ?? "simple", ctx.role);
+  } catch {
+    return deny(500, "housekeeping_failed");
+  }
+  if (!authority.canViewBoard) return deny(403, "not_permitted_in_mode");
+  if (action === "dnd" && !authority.canToggleDnd) {
+    await logAudit({
+      tenantId,
+      n3UserKey: actor,
+      eventType: "hotel.housekeeping.action_denied",
+      detail: { roomId, action, mode: authority.mode, reason: "not_permitted_in_mode" },
+    });
+    return deny(403, "not_permitted_in_mode");
+  }
+  if (action === "transition" && authority.roleTransitions.length === 0) {
+    await logAudit({
+      tenantId,
+      n3UserKey: actor,
+      eventType: "hotel.housekeeping.action_denied",
+      detail: { roomId, action, mode: authority.mode, reason: "not_permitted_in_mode" },
+    });
+    return deny(403, "not_permitted_in_mode");
+  }
+
   try {
     if (action === "initialize") {
       const condition = parsed.body.condition;
@@ -112,6 +148,7 @@ export async function handleRoomAction({
         actorN3UserKey: actor,
         transition,
         note,
+        authority,
       });
       await logAudit({
         tenantId,
@@ -122,6 +159,7 @@ export async function handleRoomAction({
           transition,
           from: result.previousCondition,
           to: result.condition,
+          mode: authority.mode,
         },
       });
       return Response.json(result, { headers: { "cache-control": "no-store" } });
@@ -130,7 +168,13 @@ export async function handleRoomAction({
     // action === "dnd"
     const active = parsed.body.active;
     if (typeof active !== "boolean") return deny(400, "validation_failed");
-    const result = await setRoomDnd({ tenantId, roomId, actorN3UserKey: actor, active });
+    const result = await setRoomDnd({
+      tenantId,
+      roomId,
+      actorN3UserKey: actor,
+      active,
+      authority,
+    });
     await logAudit({
       tenantId,
       n3UserKey: actor,
@@ -143,8 +187,11 @@ export async function handleRoomAction({
     await logAudit({
       tenantId,
       n3UserKey: actor,
-      eventType: "hotel.housekeeping.action_failed",
-      detail: { roomId, action, code },
+      eventType:
+        code === "not_permitted_in_mode"
+          ? "hotel.housekeeping.action_denied"
+          : "hotel.housekeeping.action_failed",
+      detail: { roomId, action, code, mode: authority.mode },
     });
     return deny(statusForHousekeepingError(code), code);
   }

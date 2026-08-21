@@ -74,7 +74,27 @@ export const OPERATION_ERROR_CODES = new Set([
   "housekeeping_not_initialized",
   "room_not_ready",
   "dnd_active",
+  // P1 correction — readiness of the room a guest is being moved INTO, or
+  // brought into early. Same rule, stated from the destination's side.
+  "destination_housekeeping_not_initialized",
+  "destination_room_not_ready",
+  "destination_dnd_active",
+  "operation_read_failed",
 ]);
+
+/** Restate a room-readiness blocker from the destination room's point of view. */
+export function destinationBlockerCode(blocker: string): string {
+  switch (blocker) {
+    case "housekeeping_not_initialized":
+      return "destination_housekeeping_not_initialized";
+    case "room_not_ready":
+      return "destination_room_not_ready";
+    case "dnd_active":
+      return "destination_dnd_active";
+    default:
+      return blocker;
+  }
+}
 
 export class OperationError extends Error {
   code: string;

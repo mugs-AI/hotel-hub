@@ -26,30 +26,19 @@ import {
   useRoomHistory,
 } from "@/lib/housekeeping-client";
 import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
-import { hasPermission, type HotelRole } from "@/lib/rbac";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 
 const GROUP_ORDER: BoardGroup[] = ["needs_attention", "in_progress", "not_set_up", "ready"];
 
-export function HousekeepingBoard({
-  role,
-  variant,
-}: {
-  role: HotelRole;
-  variant: "simple" | "dedicated";
-}) {
+export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated" }) {
   const board = useHousekeepingBoard();
   const act = useHousekeepingAction();
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [floorFilter, setFloorFilter] = useState<string>("all");
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
-
-  const canUpdate = hasPermission(role, "hotel:housekeeping:update");
-  const canDnd = hasPermission(role, "hotel:housekeeping:dnd");
-  const canInitialize = hasPermission(role, "hotel:housekeeping:initialize");
 
   const rooms = board.data?.rooms ?? [];
   const floors = useMemo(() => {
@@ -112,6 +101,13 @@ export function HousekeepingBoard({
   }
 
   const counts = board.data!.counts;
+  // Authority comes from the SERVER, decided by role AND the property's
+  // housekeeping mode, so a button can never appear that the server refuses.
+  const authority = board.data!.authority;
+  const canUpdate = authority.canUpdate;
+  const canDnd = authority.canToggleDnd;
+  const canInitialize = authority.canInitialize;
+  const pendingHandoffs = board.data!.pendingHandoffs;
 
   return (
     <div className="space-y-4">
@@ -119,7 +115,16 @@ export function HousekeepingBoard({
         <Stat label="Needs attention" value={counts.needs_attention} tone="#9B1C1C" />
         <Stat label="In progress" value={counts.in_progress} tone="#8A6100" />
         <Stat label="Ready to sell" value={counts.ready} tone="#0B6B5C" />
-        {counts.uninitialized > 0 && (
+        {pendingHandoffs > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>
+            {pendingHandoffs} room(s) a guest has just left are still being updated.
+          </strong>{" "}
+          HotelHub keeps retrying automatically — refresh in a moment to see them as Dirty.
+        </div>
+      )}
+
+      {counts.uninitialized > 0 && (
           <Stat label="Not set up" value={counts.uninitialized} tone={NAVY} />
         )}
         {counts.dnd > 0 && <Stat label="Do Not Disturb" value={counts.dnd} tone="#1B4F86" />}

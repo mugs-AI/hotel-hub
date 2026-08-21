@@ -87,6 +87,9 @@ export function statusForOperationError(code: string): number {
     case "housekeeping_not_initialized":
     case "room_not_ready":
     case "dnd_active":
+    case "destination_housekeeping_not_initialized":
+    case "destination_room_not_ready":
+    case "destination_dnd_active":
     case "illegal_transition":
     case "room_not_occupied":
     case "cleaning_in_progress":

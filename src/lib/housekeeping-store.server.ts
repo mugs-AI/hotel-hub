@@ -10,20 +10,25 @@
 // deposits, folios or reservation lifecycle state.
 
 import {
-  allowedTransitions,
+  authorizedTransitions,
   boardGroup,
   canClearDnd,
   canSetDnd,
+  canPerformTransition,
   checkInBlockers,
+  housekeepingAuthority,
   isHousekeepingCondition,
   nextStepHint,
   type BoardGroup,
   type BootstrapCondition,
+  type HousekeepingAuthority,
   type HousekeepingCondition,
+  type HousekeepingMode,
   type HousekeepingTransition,
   type RoomOccupancy,
   type RoomTurnaroundState,
 } from "./housekeeping";
+import type { HotelRole } from "./rbac";
 import { propertyTodayIso } from "./checkout-preview";
 import { resolveActorLabels } from "./tenant-store.server";
 
@@ -43,6 +48,8 @@ export const HOUSEKEEPING_ERROR_CODES = new Set([
   "cleaning_in_progress",
   "housekeeping_failed",
   "validation_failed",
+  "not_permitted_in_mode",
+  "handoff_pending",
 ]);
 
 export class HousekeepingError extends Error {
@@ -74,6 +81,8 @@ export function statusForHousekeepingError(code: string): number {
     case "invalid_condition":
     case "validation_failed":
       return 400;
+    case "not_permitted_in_mode":
+      return 403;
     default:
       return 500;
   }
@@ -108,10 +117,22 @@ export type HousekeepingRoomDTO = {
   checkInBlockers: string[];
 };
 
+/** What THIS actor may do, decided by the server, mirrored to the UI. */
+export type HousekeepingAuthorityDTO = {
+  canViewBoard: boolean;
+  canUseDedicatedWorkspace: boolean;
+  canInitialize: boolean;
+  canToggleDnd: boolean;
+  canUpdate: boolean;
+};
+
 export type HousekeepingBoardDTO = {
   propertyDate: string;
   timezone: string;
-  mode: "simple" | "dedicated";
+  mode: HousekeepingMode;
+  authority: HousekeepingAuthorityDTO;
+  /** Vacated-room handoffs still awaiting bookkeeping (never silently lost). */
+  pendingHandoffs: number;
   rooms: HousekeepingRoomDTO[];
   counts: Record<BoardGroup, number> & { dnd: number; uninitialized: number };
 };
@@ -174,8 +195,10 @@ async function occupancyByRoom(
 export async function getHousekeepingBoard(input: {
   tenantId: string;
   timezone: string;
-  mode: "simple" | "dedicated";
+  mode: HousekeepingMode;
+  role: HotelRole | null;
 }): Promise<HousekeepingBoardDTO> {
+  const authority = housekeepingAuthority(input.mode, input.role);
   const sb = await admin();
   const today = propertyTodayIso(input.timezone) ?? propertyTodayIso("Asia/Kuala_Lumpur")!;
 
@@ -253,14 +276,30 @@ export async function getHousekeepingBoard(input: {
       occupancyReservationId: occ.reservationId,
       group,
       nextStep: nextStepHint(state),
-      availableTransitions: allowedTransitions(state),
-      canSetDnd: canSetDnd(state),
-      canClearDnd: canClearDnd(state),
+      // Server-authorised, not merely legal: the board can never offer a
+      // button this actor is not allowed to press in this workflow.
+      availableTransitions: authorizedTransitions(authority, state),
+      canSetDnd: authority.canToggleDnd && canSetDnd(state),
+      canClearDnd: authority.canToggleDnd && canClearDnd(state),
       checkInBlockers: checkInBlockers(state),
     };
   });
 
-  return { propertyDate: today, timezone: input.timezone, mode: input.mode, rooms, counts };
+  return {
+    propertyDate: today,
+    timezone: input.timezone,
+    mode: input.mode,
+    authority: {
+      canViewBoard: authority.canViewBoard,
+      canUseDedicatedWorkspace: authority.canUseDedicatedWorkspace,
+      canInitialize: authority.canInitialize,
+      canToggleDnd: authority.canToggleDnd,
+      canUpdate: authority.roleTransitions.length > 0,
+    },
+    pendingHandoffs: await countPendingHandoffs(input.tenantId),
+    rooms,
+    counts,
+  };
 }
 
 export type HousekeepingEventDTO = {
@@ -365,17 +404,91 @@ export async function initializeRoom(input: {
   };
 }
 
+/**
+ * Everything the mode-aware authority check needs about one room. Occupancy is
+ * irrelevant to the cleaning lifecycle, so it is reported as vacant here.
+ */
+export async function readRoomAuthState(
+  tenantId: string,
+  roomId: string,
+): Promise<RoomTurnaroundState> {
+  const sb = await admin();
+  const roomRes = await sb
+    .from("hotel_rooms")
+    .select("id, is_active")
+    .eq("tenant_id", tenantId)
+    .eq("id", roomId)
+    .maybeSingle();
+  if (roomRes.error) throw new HousekeepingError("housekeeping_failed");
+  if (!roomRes.data) throw new HousekeepingError("room_not_found");
+
+  const hkRes = await sb
+    .from("hotel_room_housekeeping")
+    .select("condition, dnd_active")
+    .eq("tenant_id", tenantId)
+    .eq("hotel_room_id", roomId)
+    .maybeSingle();
+  if (hkRes.error) throw new HousekeepingError("housekeeping_failed");
+  const hk = hkRes.data as { condition: string | null; dnd_active: boolean } | null;
+  return {
+    initialized: Boolean(hk),
+    condition: hk && isHousekeepingCondition(hk.condition) ? hk.condition : null,
+    dndActive: Boolean(hk?.dnd_active),
+    occupancy: "vacant",
+    isActive: Boolean((roomRes.data as { is_active: boolean }).is_active),
+  };
+}
+
+/**
+ * Mode-aware transition guard. Runs on the SERVER before any write, so a
+ * crafted request cannot borrow authority the property's workflow withholds.
+ */
+export async function assertTransitionAuthorized(input: {
+  tenantId: string;
+  roomId: string;
+  authority: HousekeepingAuthority;
+  transition: HousekeepingTransition;
+}): Promise<void> {
+  const state = await readRoomAuthState(input.tenantId, input.roomId);
+  if (!state.initialized) throw new HousekeepingError("housekeeping_not_initialized");
+  if (state.dndActive) throw new HousekeepingError("dnd_active");
+  if (!input.authority.roleTransitions.includes(input.transition)) {
+    throw new HousekeepingError("not_permitted_in_mode");
+  }
+  if (!canPerformTransition(input.authority, state, input.transition)) {
+    // Legal-for-someone but not for this actor in this mode is a permission
+    // refusal; otherwise the lifecycle itself rejects the shortcut.
+    const legalForOwner = canPerformTransition(
+      housekeepingAuthority(input.authority.mode, "owner"),
+      state,
+      input.transition,
+    );
+    throw new HousekeepingError(legalForOwner ? "not_permitted_in_mode" : "illegal_transition");
+  }
+}
+
+export function assertDndAuthorized(authority: HousekeepingAuthority): void {
+  if (!authority.canToggleDnd) throw new HousekeepingError("not_permitted_in_mode");
+}
+
 export async function transitionRoom(input: {
   tenantId: string;
   roomId: string;
   actorN3UserKey: string;
   transition: HousekeepingTransition;
   note: string | null;
+  authority: HousekeepingAuthority;
 }): Promise<{
   previousCondition: HousekeepingCondition;
   condition: HousekeepingCondition;
   dndActive: boolean;
 }> {
+  await assertTransitionAuthorized({
+    tenantId: input.tenantId,
+    roomId: input.roomId,
+    authority: input.authority,
+    transition: input.transition,
+  });
   const sb = await admin();
   const res = await sb.rpc("hotelhub_hk_transition", {
     p_tenant_id: input.tenantId,
@@ -400,7 +513,9 @@ export async function setRoomDnd(input: {
   roomId: string;
   actorN3UserKey: string;
   active: boolean;
+  authority: HousekeepingAuthority;
 }): Promise<{ condition: HousekeepingCondition; dndActive: boolean }> {
+  assertDndAuthorized(input.authority);
   const sb = await admin();
   const res = await sb.rpc("hotelhub_hk_set_dnd", {
     p_tenant_id: input.tenantId,
@@ -415,31 +530,180 @@ export async function setRoomDnd(input: {
   return { condition: row.out_condition, dndActive: Boolean(row.out_dnd) };
 }
 
-/**
- * Vacated-room handoff: the guest has left this physical room, so it becomes
- * Dirty and any Do Not Disturb is cleared. Never fabricates a condition for a
- * room that was never initialised, and never throws into the caller's flow —
- * a housekeeping bookkeeping failure must not undo an approved room change.
- */
-export async function vacateRoomSafely(input: {
+// ---------------------------------------------------------------------------
+// Vacated-room handoff (durable)
+//
+// When a guest is moved out of a room, that room is certainly not verified
+// clean. The handoff is recorded BEFORE the room change is approved, applied
+// atomically after it, and retried until it lands — it is never swallowed.
+// ---------------------------------------------------------------------------
+
+export async function enqueueRoomHandoff(input: {
   tenantId: string;
   roomId: string;
   actorN3UserKey: string;
+  reservationId: string | null;
+  operationRequestId: string | null;
   source: string;
-}): Promise<{ applied: boolean }> {
+}): Promise<string | null> {
   try {
     const sb = await admin();
-    const res = await sb.rpc("hotelhub_hk_vacate_room", {
+    const res = await sb.rpc("hotelhub_hk_enqueue_handoff", {
       p_tenant_id: input.tenantId,
       p_hotel_room_id: input.roomId,
       p_actor_n3_user_key: input.actorN3UserKey,
+      p_reservation_id: input.reservationId,
+      p_operation_request_id: input.operationRequestId,
       p_source: input.source,
     });
     if (res.error) throw new Error(res.error.message);
     const row = Array.isArray(res.data) ? res.data[0] : res.data;
-    return { applied: Boolean(row?.out_applied) };
+    return (row?.out_handoff_id as string | undefined) ?? null;
   } catch (err) {
-    console.error("[housekeeping] vacate handoff failed", (err as Error).message);
-    return { applied: false };
+    console.error("[housekeeping] enqueue handoff failed", (err as Error).message);
+    return null;
   }
+}
+
+export async function cancelRoomHandoff(tenantId: string, handoffId: string): Promise<void> {
+  try {
+    const sb = await admin();
+    await sb.rpc("hotelhub_hk_cancel_handoff", {
+      p_tenant_id: tenantId,
+      p_handoff_id: handoffId,
+    });
+  } catch (err) {
+    console.error("[housekeeping] cancel handoff failed", (err as Error).message);
+  }
+}
+
+/**
+ * Apply the handoff: room becomes Dirty, Do Not Disturb is cleared, history is
+ * written and the queue row is closed — all in ONE database transaction. A
+ * room that was never set up is set up as Dirty rather than skipped.
+ *
+ * Returns `applied: false` with `pending: true` when the bookkeeping could not
+ * be completed, so the caller can report it instead of losing it. The queue row
+ * stays pending and is retried on the next board read.
+ */
+export async function applyRoomHandoff(input: {
+  tenantId: string;
+  roomId: string;
+  actorN3UserKey: string;
+  source: string;
+  handoffId: string | null;
+}): Promise<{ applied: boolean; pending: boolean; created: boolean }> {
+  try {
+    const sb = await admin();
+    const res = await sb.rpc("hotelhub_hk_vacate_room_v2", {
+      p_tenant_id: input.tenantId,
+      p_hotel_room_id: input.roomId,
+      p_actor_n3_user_key: input.actorN3UserKey,
+      p_source: input.source,
+      p_handoff_id: input.handoffId,
+    });
+    if (res.error) throw new Error(res.error.message);
+    const row = Array.isArray(res.data) ? res.data[0] : res.data;
+    return {
+      applied: Boolean(row?.out_applied),
+      pending: !row?.out_applied && Boolean(input.handoffId),
+      created: Boolean(row?.out_created),
+    };
+  } catch (err) {
+    const message = (err as Error).message;
+    console.error("[housekeeping] vacate handoff failed", message);
+    if (input.handoffId) await failRoomHandoff(input.tenantId, input.handoffId, message);
+    return { applied: false, pending: Boolean(input.handoffId), created: false };
+  }
+}
+
+async function failRoomHandoff(
+  tenantId: string,
+  handoffId: string,
+  message: string,
+): Promise<void> {
+  try {
+    const sb = await admin();
+    await sb.rpc("hotelhub_hk_fail_handoff", {
+      p_tenant_id: tenantId,
+      p_handoff_id: handoffId,
+      p_error: message,
+    });
+  } catch {
+    // Nothing further to do: the row is still pending and will be retried.
+  }
+}
+
+export async function countPendingHandoffs(tenantId: string): Promise<number> {
+  try {
+    const sb = await admin();
+    const res = await sb.rpc("hotelhub_hk_list_pending_handoffs", {
+      p_tenant_id: tenantId,
+      p_limit: 100,
+    });
+    if (res.error) return 0;
+    return Array.isArray(res.data) ? res.data.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Retry every handoff still waiting. Called on each board read and after each
+ * room-change decision, so a transient failure self-heals without staff ever
+ * having to know it happened.
+ */
+export async function reconcilePendingHandoffs(
+  tenantId: string,
+): Promise<{ attempted: number; applied: number }> {
+  let attempted = 0;
+  let applied = 0;
+  try {
+    const sb = await admin();
+    const res = await sb.rpc("hotelhub_hk_list_pending_handoffs", {
+      p_tenant_id: tenantId,
+      p_limit: 20,
+    });
+    if (res.error) return { attempted, applied };
+    for (const row of (Array.isArray(res.data) ? res.data : []) as any[]) {
+      attempted += 1;
+      const result = await applyRoomHandoff({
+        tenantId,
+        roomId: row.out_hotel_room_id,
+        actorN3UserKey: row.out_actor_n3_user_key,
+        source: row.out_source ?? "room_change",
+        handoffId: row.out_id,
+      });
+      if (result.applied) applied += 1;
+    }
+  } catch (err) {
+    console.error("[housekeeping] reconcile failed", (err as Error).message);
+  }
+  return { attempted, applied };
+}
+
+/**
+ * Readiness gate for a destination room (early check-in, room change).
+ * Fails CLOSED: an unknown condition is not a clean room. Returns the blocking
+ * code or null.
+ */
+export async function roomReadinessBlocker(
+  tenantId: string,
+  roomIds: string[],
+): Promise<string | null> {
+  if (roomIds.length === 0) return null;
+  const states = await readRoomStates(tenantId, roomIds);
+  for (const roomId of roomIds) {
+    const hk = states.get(roomId);
+    const blockers = checkInBlockers({
+      initialized: Boolean(hk),
+      condition: hk?.condition ?? null,
+      dndActive: Boolean(hk?.dndActive),
+      occupancy: "vacant",
+      isActive: true,
+    });
+    const blocking = blockers.find((b) => b !== "room_inactive");
+    if (blocking) return blocking;
+  }
+  return null;
 }

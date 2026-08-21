@@ -16,6 +16,8 @@ export const HOUSEKEEPING_ERROR_MESSAGES: Record<string, string> = {
   room_not_found: "That room no longer exists.",
   invalid_condition: "Choose either Ready or Dirty.",
   forbidden: "Your role cannot perform this action.",
+  not_permitted_in_mode:
+    "This property's housekeeping workflow does not allow your role to do that.",
   role_unassigned: "Your role cannot perform this action.",
   unauthenticated: "Your session expired. Reopen HotelHub from N3.",
 };

@@ -4,12 +4,17 @@
 // with floor filters, per-room history and the complete action set. The
 // Simple (Front Desk) experience renders the SAME board component in compact
 // form on Rooms & Rates.
+//
+// P1 correction: this route FAILS CLOSED. A property running simple
+// front-desk housekeeping has no dedicated workspace, so direct navigation
+// shows an explanation instead of a board — and the server refuses the board
+// data too, so nothing here depends on the browser behaving.
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { HousekeepingBoard } from "@/components/HousekeepingBoard";
 import { HousekeepingModeBanner } from "@/components/HousekeepingModeBanner";
 import { useSessionMe } from "@/lib/session-client";
-import { hasPermission } from "@/lib/rbac";
+import { DEDICATED_UNAVAILABLE_SIMPLE, housekeepingAuthority } from "@/lib/housekeeping";
 
 const TITLE = "Housekeeping — HotelHub";
 const DESCRIPTION =
@@ -31,7 +36,9 @@ export const Route = createFileRoute("/housekeeping")({
 
 function HousekeepingPage() {
   const session = useSessionMe();
-  const role = session.data?.authenticated ? session.data.role : null;
+  const authed = session.data?.authenticated ? session.data : null;
+  const role = authed?.role ?? null;
+  const authority = housekeepingAuthority(authed?.housekeepingMode ?? "simple", role);
 
   return (
     <AppShell>
@@ -46,14 +53,23 @@ function HousekeepingPage() {
           </p>
         </div>
 
-        <HousekeepingModeBanner />
-
-        {role && hasPermission(role, "hotel:housekeeping:view") ? (
-          <HousekeepingBoard role={role} variant="dedicated" />
+        {authority.canUseDedicatedWorkspace ? (
+          <>
+            <HousekeepingModeBanner />
+            <HousekeepingBoard variant="dedicated" />
+          </>
         ) : (
-          <p className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">
-            Your role does not have access to housekeeping.
-          </p>
+          <div
+            role="status"
+            className="max-w-3xl rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+          >
+            <p className="font-semibold">The dedicated housekeeping workspace is not available.</p>
+            <p className="mt-1">
+              {authority.mode === "simple"
+                ? DEDICATED_UNAVAILABLE_SIMPLE
+                : "Your role does not have access to housekeeping."}
+            </p>
+          </div>
         )}
       </div>
     </AppShell>
