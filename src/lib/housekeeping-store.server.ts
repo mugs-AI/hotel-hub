@@ -669,11 +669,14 @@ export async function countPendingHandoffs(tenantId: string): Promise<number> {
 }
 
 /**
- * Operation states that PROVE the guest actually moved rooms. The decision
- * routine approves and applies a room change in one transaction, so both
- * spellings of a completed decision count; a request still `pending` never does.
+ * Operation states that MIGHT prove the guest moved. `applied` is the only
+ * candidate: `hotelhub_decide_operation` performs the physical room change and
+ * records `state='applied'` with `applied_at` in the same transaction, so an
+ * `approved` row is NOT proof of anything and is only ever deferred.
  */
-const HANDOFF_PROVEN_OPERATION_STATES = new Set(["applied", "approved"]);
+const HANDOFF_PROVEN_OPERATION_STATE = "applied";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Operation states that prove the move will never happen. */
 const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
 
@@ -682,12 +685,13 @@ const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
  * room-change decision, so a transient failure self-heals without staff ever
  * having to know it happened.
  *
- * A pending row is NEVER applied on trust. When it is correlated with a
- * reservation operation, that operation must have actually reached the state
- * proving the guest moved before the old room is dirtied. An operation that
- * was rejected, cancelled or has vanished retires the queue row as `cancelled`
- * — an approval that never happened must never dirty a sellable room. An
- * operation still awaiting its decision is simply left pending and retried.
+ * A pending row is NEVER applied on trust. The queue row itself proves nothing:
+ * before the old room may be dirtied, the server re-reads the correlated
+ * reservation operation AND the reservation-room association from authoritative
+ * tenant-scoped tables and requires positive proof that this exact room_change
+ * was applied and that the reservation room has actually moved off the old room.
+ * An operation that was rejected, cancelled or has vanished retires the queue
+ * row as `cancelled`. Anything unproven or unreadable stays pending.
  *
  * Every read and every write is scoped to `tenantId`, so one property can
  * never reconcile — or even observe — another property's queue.
@@ -703,7 +707,9 @@ export async function reconcilePendingHandoffs(
     const sb = await admin();
     const res = await sb
       .from("hotel_housekeeping_handoffs")
-      .select("id, hotel_room_id, actor_n3_user_key, source, operation_request_id, attempts")
+      .select(
+        "id, hotel_room_id, reservation_id, actor_n3_user_key, source, operation_request_id, attempts",
+      )
       .eq("tenant_id", tenantId)
       .eq("state", "pending")
       .lt("attempts", 10)
@@ -714,13 +720,18 @@ export async function reconcilePendingHandoffs(
     for (const row of (res.data ?? []) as any[]) {
       const opId = row.operation_request_id as string | null;
       if (opId) {
-        const verdict = await operationHandoffVerdict(sb, tenantId, opId);
+        const verdict = await operationHandoffVerdict(sb, {
+          tenantId,
+          operationRequestId: opId,
+          handoffReservationId: (row.reservation_id as string | null) ?? null,
+          oldHotelRoomId: row.hotel_room_id as string,
+        });
         if (verdict === "abandoned") {
           if (await cancelRoomHandoff(tenantId, row.id)) cancelled += 1;
           continue;
         }
         if (verdict !== "proven") {
-          // Not yet decided, or the check itself failed: stay pending.
+          // Not proven (undecided, unreadable, or inconsistent): stay pending.
           deferred += 1;
           continue;
         }
@@ -741,26 +752,79 @@ export async function reconcilePendingHandoffs(
   return { attempted, applied, cancelled, deferred };
 }
 
+/**
+ * Positive, fail-closed proof that a room_change physically happened.
+ *
+ * Requires, all from tenant-scoped authoritative rows and none of it from the
+ * caller: the operation exists in this tenant, belongs to the same reservation
+ * as the handoff, is exactly a `room_change`, is exactly `applied` with a
+ * non-null `applied_at`, names a well-formed `reservation_room_id`, and that
+ * reservation room still belongs to this tenant + reservation while now
+ * pointing at a DIFFERENT physical room than the one being handed off.
+ * Anything else is never "proven".
+ */
 async function operationHandoffVerdict(
   sb: any,
-  tenantId: string,
-  operationRequestId: string,
+  input: {
+    tenantId: string;
+    operationRequestId: string;
+    handoffReservationId: string | null;
+    oldHotelRoomId: string;
+  },
 ): Promise<"proven" | "abandoned" | "undecided"> {
   try {
     const res = await sb
       .from("hotel_reservation_operation_requests")
-      .select("state")
-      .eq("tenant_id", tenantId)
-      .eq("id", operationRequestId)
+      .select("tenant_id, reservation_id, operation_type, state, applied_at, payload")
+      .eq("tenant_id", input.tenantId)
+      .eq("id", input.operationRequestId)
       .maybeSingle();
     // A read failure must not decide anything: leave the row pending.
     if (res.error) return "undecided";
-    const state = (res.data as { state?: string } | null)?.state;
+    const op = res.data as {
+      tenant_id?: string;
+      reservation_id?: string;
+      operation_type?: string;
+      state?: string;
+      applied_at?: string | null;
+      payload?: Record<string, unknown> | null;
+    } | null;
     // No such operation for this tenant — nothing proves a move happened.
-    if (!state) return "abandoned";
-    if (HANDOFF_PROVEN_OPERATION_STATES.has(state)) return "proven";
-    if (HANDOFF_ABANDONED_OPERATION_STATES.has(state)) return "abandoned";
-    return "undecided";
+    if (!op || !op.state) return "abandoned";
+    if (op.tenant_id && op.tenant_id !== input.tenantId) return "abandoned";
+    if (HANDOFF_ABANDONED_OPERATION_STATES.has(op.state)) return "abandoned";
+    if (op.state !== HANDOFF_PROVEN_OPERATION_STATE) {
+      // `approved`, `pending`, or an unrecognised state: defer, never dirty.
+      return "undecided";
+    }
+
+    // From here on the row claims to be applied; every claim is verified.
+    if (!op.applied_at) return "undecided";
+    if (op.operation_type !== "room_change") return "undecided";
+    if (input.handoffReservationId && op.reservation_id !== input.handoffReservationId) {
+      return "undecided";
+    }
+    const payload = (op.payload ?? {}) as Record<string, unknown>;
+    const rrid = payload["reservation_room_id"] ?? payload["reservationRoomId"];
+    if (typeof rrid !== "string" || !UUID_RE.test(rrid)) return "undecided";
+
+    const rr = await sb
+      .from("hotel_reservation_rooms")
+      .select("tenant_id, reservation_id, hotel_room_id")
+      .eq("tenant_id", input.tenantId)
+      .eq("id", rrid)
+      .maybeSingle();
+    if (rr.error) return "undecided";
+    const link = rr.data as {
+      tenant_id?: string;
+      reservation_id?: string;
+      hotel_room_id?: string;
+    } | null;
+    if (!link || !link.hotel_room_id) return "undecided";
+    if (link.tenant_id && link.tenant_id !== input.tenantId) return "undecided";
+    if (op.reservation_id && link.reservation_id !== op.reservation_id) return "undecided";
+    if (link.hotel_room_id === input.oldHotelRoomId) return "undecided";
+    return "proven";
   } catch {
     return "undecided";
   }
