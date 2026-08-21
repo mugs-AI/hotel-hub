@@ -144,7 +144,8 @@ export const CONDITION_HELP: Record<HousekeepingCondition, string> = {
   dirty: "Needs cleaning before anyone can check in.",
   cleaning: "A housekeeper is working in this room now.",
   inspected: "Cleaning is finished and waiting for a final check.",
-  ready: "Housekeeping is complete — cleaned and checked. Booking and room activity rules still decide if it can be used.",
+  ready:
+    "Housekeeping is complete — cleaned and checked. Booking and room activity rules still decide if it can be used.",
 };
 
 /** Navy / Teal / Gold palette — kept in one place so both surfaces match. */

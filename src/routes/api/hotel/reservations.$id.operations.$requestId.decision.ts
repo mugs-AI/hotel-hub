@@ -230,7 +230,8 @@ export async function handleOperationDecision({
     // apply. An unreadable or missing post-decision read leaves the durable
     // intent pending for reconciliation, which re-proves it from scratch.
     const post = await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
-    const movedAway = post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
+    const movedAway =
+      post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
     const positivelyNotApplied = result.state === "rejected" || result.state === "cancelled";
 
     if (movedAway) {

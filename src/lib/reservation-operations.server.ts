@@ -520,7 +520,10 @@ export async function housekeepingCheckInBlocker(
  * guest-safety gate fail OPEN, so every safety-critical caller uses the
  * three-way outcome below instead.
  */
-export type ReadOutcome<T> = { status: "ok"; value: T } | { status: "missing" } | { status: "error" };
+export type ReadOutcome<T> =
+  | { status: "ok"; value: T }
+  | { status: "missing" }
+  | { status: "error" };
 
 export type HandoffOperationDetail = {
   operationType: string;
@@ -587,7 +590,10 @@ export async function resolveReservationRoomHotelRoomId(
   }
   if (res?.error) return { status: "error" };
   if (!res?.data) return { status: "missing" };
-  return { status: "ok", value: (res.data as { hotel_room_id: string | null }).hotel_room_id ?? null };
+  return {
+    status: "ok",
+    value: (res.data as { hotel_room_id: string | null }).hotel_room_id ?? null,
+  };
 }
 
 /** Legacy convenience wrapper — never use for a guest-safety gate. */

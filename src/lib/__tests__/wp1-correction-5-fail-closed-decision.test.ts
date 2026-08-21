@@ -20,7 +20,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 type Outcome<T> = { status: "ok"; value: T } | { status: "missing" } | { status: "error" };
 
 const state = {
-  detail: { status: "ok", value: { operationType: "room_change", state: "pending", payload: {} } } as Outcome<any>,
+  detail: {
+    status: "ok",
+    value: { operationType: "room_change", state: "pending", payload: {} },
+  } as Outcome<any>,
   preRoom: { status: "ok", value: OLD_ROOM } as Outcome<string | null>,
   postRoom: { status: "ok", value: NEW_ROOM } as Outcome<string | null>,
   boundReservationId: RESERVATION as string | null,
@@ -92,9 +95,8 @@ vi.mock("@/lib/housekeeping-store.server", () => ({
   },
 }));
 
-const { handleOperationDecision } = await import(
-  "@/routes/api/hotel/reservations.$id.operations.$requestId.decision"
-);
+const { handleOperationDecision } =
+  await import("@/routes/api/hotel/reservations.$id.operations.$requestId.decision");
 
 function post(payload: Record<string, unknown> = {}) {
   return new Request("https://app.test/api/hotel/reservations/x/operations/y/decision", {

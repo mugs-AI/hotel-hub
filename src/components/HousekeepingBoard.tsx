@@ -233,7 +233,8 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
 
       {variant === "simple" && (grouped.get("ready") ?? []).length > 0 && (
         <p className="text-sm text-muted-foreground">
-          {(grouped.get("ready") ?? []).length} room(s) are Ready — housekeeping complete. Booking and room activity still decide availability.
+          {(grouped.get("ready") ?? []).length} room(s) are Ready — housekeeping complete. Booking
+          and room activity still decide availability.
         </p>
       )}
 
