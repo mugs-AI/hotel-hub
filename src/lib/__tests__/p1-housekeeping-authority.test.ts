@@ -82,6 +82,18 @@ describe("1. Mode-aware authority", () => {
     expect(canPerformTransition(a, state({ condition: "cleaning" }), "mark_dirty")).toBe(false);
   });
 
+  it("Do Not Disturb follows the workflow, not the role alone", () => {
+    // Simple: there is no housekeeping team, so a housekeeper has nothing.
+    expect(auth("simple", "housekeeper").canToggleDnd).toBe(false);
+    // Dedicated: the person at the door records the guest's request.
+    expect(auth("dedicated", "housekeeper").canToggleDnd).toBe(true);
+    for (const mode of ["simple", "dedicated"] as const) {
+      expect(auth(mode, "owner").canToggleDnd).toBe(true);
+      expect(auth(mode, "front_desk").canToggleDnd).toBe(true);
+      expect(auth(mode, null).canToggleDnd).toBe(false);
+    }
+  });
+
   it("dedicated: the Owner keeps full authority", () => {
     const a = auth("dedicated", "owner");
     expect(a.roleTransitions.sort()).toEqual([...HOUSEKEEPING_TRANSITIONS].sort());
@@ -91,8 +103,7 @@ describe("1. Mode-aware authority", () => {
 
   it("mode can only narrow the static matrix, never widen it", () => {
     for (const mode of ["simple", "dedicated"] as const) {
-      // Housekeeper never gains Do Not Disturb or bootstrap authority.
-      expect(auth(mode, "housekeeper").canToggleDnd).toBe(false);
+      // Housekeeper never gains the Owner-only bootstrap act.
       expect(auth(mode, "housekeeper").canInitialize).toBe(false);
       // Front desk never gains the Owner-only bootstrap act.
       expect(auth(mode, "front_desk").canInitialize).toBe(false);

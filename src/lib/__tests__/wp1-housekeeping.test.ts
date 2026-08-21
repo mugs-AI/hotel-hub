@@ -197,10 +197,12 @@ describe("RBAC — one engine, role-shaped access", () => {
     ["front_desk", "hotel:housekeeping:update", true],
     ["housekeeper", "hotel:housekeeping:update", true],
 
-    // DND is a guest-facing promise recorded by the desk.
+    // DND is a guest-facing promise every operational role may record; the
+    // property's workflow narrows it (a housekeeper has no authority at all in
+    // Simple mode — see the mode-authority tests).
     ["owner", "hotel:housekeeping:dnd", true],
     ["front_desk", "hotel:housekeeping:dnd", true],
-    ["housekeeper", "hotel:housekeeping:dnd", false],
+    ["housekeeper", "hotel:housekeeping:dnd", true],
 
     // Bootstrapping existing rooms is a property-setup act.
     ["owner", "hotel:housekeeping:initialize", true],

@@ -68,12 +68,15 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:checkout:view": new Set(["owner", "front_desk"]),
 
   // WP1 Housekeeping. Everyone operational sees and works the board — that is
-  // the point of ONE engine, TWO experiences. Do Not Disturb is a guest-facing
-  // promise recorded by the desk, and bootstrapping existing rooms is a
-  // property-setup act, so both stay narrower than the cleaning lifecycle.
+  // the point of ONE engine, TWO experiences. Do Not Disturb is a capability
+  // every operational role may hold: a housekeeper standing at the door is the
+  // person who learns the guest does not want the room entered. The property's
+  // workflow narrows it further — `housekeepingAuthority` denies a housekeeper
+  // any authority at all in Simple (front-desk) mode. Bootstrapping existing
+  // rooms stays a property-setup act and remains Owner-only.
   "hotel:housekeeping:view": new Set(["owner", "front_desk", "housekeeper"]),
   "hotel:housekeeping:update": new Set(["owner", "front_desk", "housekeeper"]),
-  "hotel:housekeeping:dnd": new Set(["owner", "front_desk"]),
+  "hotel:housekeeping:dnd": new Set(["owner", "front_desk", "housekeeper"]),
   "hotel:housekeeping:initialize": new Set(["owner"]),
 
   "roles:manage": new Set(["owner"]),
