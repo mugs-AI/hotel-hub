@@ -51,6 +51,7 @@ import {
 import { friendlyError } from "@/lib/reservations-ui";
 import {
   GuestControlsPanel,
+  HousekeepingPanel,
   N3IntegrationPanel,
   PropertyPanel,
   useHotelSettings,
@@ -119,11 +120,12 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "n3" | "sources";
+type SettingsTab = "property" | "guests" | "housekeeping" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
+  { id: "housekeeping", label: "Housekeeping" },
   { id: "n3", label: "N3 Integration" },
   { id: "sources", label: "Booking Sources" },
 ];
@@ -190,6 +192,8 @@ function SettingsWorkspace() {
         <PropertyPanel settings={settings} onChange={setSettings} />
       ) : tab === "guests" ? (
         <GuestControlsPanel settings={settings} onChange={setSettings} />
+      ) : tab === "housekeeping" ? (
+        <HousekeepingPanel settings={settings} onChange={setSettings} />
       ) : (
         <N3IntegrationPanel
           settings={settings}

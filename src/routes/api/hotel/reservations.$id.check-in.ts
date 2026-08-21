@@ -72,10 +72,16 @@ export async function handleCheckIn({
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
         ? err.code
         : "check_in_failed";
+    // A housekeeping refusal is not a failure — it is the system correctly
+    // protecting the guest from an unverified room. Record it as such.
+    const housekeepingBlocked =
+      code === "housekeeping_not_initialized" || code === "room_not_ready" || code === "dnd_active";
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
-      eventType: "hotel.reservation.check_in_failed",
+      eventType: housekeepingBlocked
+        ? "hotel.reservation.check_in_blocked"
+        : "hotel.reservation.check_in_failed",
       detail: { reservationId: id, code },
     });
     return deny(statusForOperationError(code), code);

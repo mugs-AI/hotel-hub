@@ -5,7 +5,14 @@ import { hasPermission, type Permission } from "@/lib/rbac";
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 
 type NavItem = {
-  to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings" | "/departures";
+  to:
+    | "/"
+    | "/verification"
+    | "/rooms-rates"
+    | "/reservations"
+    | "/settings"
+    | "/departures"
+    | "/housekeeping";
   label: string;
   permission?: Permission;
   disabled?: boolean;
@@ -21,13 +28,17 @@ const NAV_ITEMS: NavItem[] = [
     matchPrefix: "/reservations",
   },
   { to: "/departures", label: "Departures", permission: "hotel:checkout:view" },
+  {
+    to: "/housekeeping",
+    label: "Housekeeping",
+    permission: "hotel:housekeeping:view",
+  },
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
 
   { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
   { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
   { to: "/", label: "Guests", disabled: true },
-  { to: "/", label: "Housekeeping", disabled: true },
   { to: "/", label: "Folios & AR", disabled: true },
   { to: "/", label: "Reports", disabled: true },
 ];

@@ -12,6 +12,8 @@ export type HotelSettings = {
   standardCheckOutTime: string;
   postCheckInGuestEditPolicy: "locked" | "contact_only";
   allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
+  /** WP1 — which housekeeping experience this property runs. */
+  housekeepingMode: "simple" | "dedicated";
   walkInCustomer: {
     n3Id: string;
     n3Code: string;
@@ -42,6 +44,7 @@ type SettingsRow = {
   standard_check_out_time: string;
   post_check_in_guest_edit_policy: string;
   allow_owner_primary_guest_change_after_check_in: boolean;
+  housekeeping_mode: string;
   n3_walk_in_customer_id: string | null;
   n3_walk_in_customer_code: string | null;
   n3_walk_in_customer_name: string | null;
@@ -59,6 +62,7 @@ function toSettings(row: SettingsRow): HotelSettings {
     allowOwnerPrimaryGuestChangeAfterCheckIn: Boolean(
       row.allow_owner_primary_guest_change_after_check_in,
     ),
+    housekeepingMode: row.housekeeping_mode === "dedicated" ? "dedicated" : "simple",
     walkInCustomer:
       row.n3_walk_in_customer_id && row.n3_walk_in_customer_code
         ? {
@@ -71,7 +75,7 @@ function toSettings(row: SettingsRow): HotelSettings {
 }
 
 const SETTINGS_COLS =
-  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -96,9 +100,7 @@ export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelS
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
   const existing = await supabaseAdmin
     .from("hotel_settings" as never)
-    .select(
-      "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name",
-    )
+    .select(SETTINGS_COLS)
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (existing.error) throw new Error(`hotel_settings read failed: ${existing.error.message}`);
@@ -106,9 +108,7 @@ export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelS
   const inserted = await supabaseAdmin
     .from("hotel_settings" as never)
     .insert({ tenant_id: tenantId } as never)
-    .select(
-      "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name",
-    )
+    .select(SETTINGS_COLS)
     .single();
   if (inserted.error || !inserted.data) {
     throw new Error(`hotel_settings insert failed: ${inserted.error?.message ?? "unknown"}`);
@@ -125,6 +125,7 @@ export async function updateHotelSettings(
     standardCheckOutTime: string;
     postCheckInGuestEditPolicy: "locked" | "contact_only";
     allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
+    housekeepingMode: "simple" | "dedicated";
   }>,
 ): Promise<HotelSettings> {
   await getOrCreateHotelSettings(tenantId); // ensure row exists
@@ -138,15 +139,14 @@ export async function updateHotelSettings(
   if (patch.allowOwnerPrimaryGuestChangeAfterCheckIn !== undefined)
     update.allow_owner_primary_guest_change_after_check_in =
       patch.allowOwnerPrimaryGuestChangeAfterCheckIn;
+  if (patch.housekeepingMode) update.housekeeping_mode = patch.housekeepingMode;
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
   const res = await supabaseAdmin
     .from("hotel_settings" as never)
     .update(update as never)
     .eq("tenant_id", tenantId)
-    .select(
-      "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name",
-    )
+    .select(SETTINGS_COLS)
     .single();
   if (res.error || !res.data) {
     throw new Error(`hotel_settings update failed: ${res.error?.message ?? "unknown"}`);
@@ -169,9 +169,7 @@ export async function setWalkInCustomer(
       n3_walk_in_customer_name: customer.n3Name,
     } as never)
     .eq("tenant_id", tenantId)
-    .select(
-      "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name",
-    )
+    .select(SETTINGS_COLS)
     .single();
   if (res.error || !res.data) {
     throw new Error(`walk-in customer save failed: ${res.error?.message ?? "unknown"}`);
