@@ -74,7 +74,9 @@ describe("1. Mode-aware authority", () => {
     expect(canPerformTransition(a, state({ condition: "ready" }), "mark_dirty")).toBe(true);
     // Must never advance a clean it did not perform or verify.
     expect(canPerformTransition(a, state({ condition: "dirty" }), "start_cleaning")).toBe(false);
-    expect(canPerformTransition(a, state({ condition: "cleaning" }), "finish_cleaning")).toBe(false);
+    expect(canPerformTransition(a, state({ condition: "cleaning" }), "finish_cleaning")).toBe(
+      false,
+    );
     expect(canPerformTransition(a, state({ condition: "inspected" }), "mark_ready")).toBe(false);
     // Nor abandon a clean that is under way.
     expect(canPerformTransition(a, state({ condition: "cleaning" }), "mark_dirty")).toBe(false);
@@ -144,10 +146,7 @@ describe("2. Dedicated workspace gate fails closed", () => {
 
 describe("3. Readiness gating for approvals", () => {
   const decisionSrc = readFileSync(
-    resolve(
-      __dirname,
-      "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts",
-    ),
+    resolve(__dirname, "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts"),
     "utf8",
   );
 
@@ -181,10 +180,7 @@ describe("3. Readiness gating for approvals", () => {
 
 describe("4. Room-change handoff is durable", () => {
   const decisionSrc = readFileSync(
-    resolve(
-      __dirname,
-      "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts",
-    ),
+    resolve(__dirname, "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts"),
     "utf8",
   );
   const storeSrc = readFileSync(resolve(__dirname, "../housekeeping-store.server.ts"), "utf8");

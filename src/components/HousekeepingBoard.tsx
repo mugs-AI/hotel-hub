@@ -116,15 +116,15 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         <Stat label="In progress" value={counts.in_progress} tone="#8A6100" />
         <Stat label="Ready to sell" value={counts.ready} tone="#0B6B5C" />
         {pendingHandoffs > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <strong>
-            {pendingHandoffs} room(s) a guest has just left are still being updated.
-          </strong>{" "}
-          HotelHub keeps retrying automatically — refresh in a moment to see them as Dirty.
-        </div>
-      )}
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <strong>
+              {pendingHandoffs} room(s) a guest has just left are still being updated.
+            </strong>{" "}
+            HotelHub keeps retrying automatically — refresh in a moment to see them as Dirty.
+          </div>
+        )}
 
-      {counts.uninitialized > 0 && (
+        {counts.uninitialized > 0 && (
           <Stat label="Not set up" value={counts.uninitialized} tone={NAVY} />
         )}
         {counts.dnd > 0 && <Stat label="Do Not Disturb" value={counts.dnd} tone="#1B4F86" />}
