@@ -197,9 +197,10 @@ export async function handleOperationDecision({
       idempotencyKey: clientRequestId as string,
     });
   } catch (err) {
-    // The room change did not happen: withdraw the recorded handoff intent so
-    // no room is later marked dirty for a move that never occurred.
-    if (handoffId) await cancelRoomHandoff(tenantId, handoffId);
+    // Correction 6 — an RPC/transport error does NOT prove the room change
+    // failed to commit. Never blindly cancel the durable handoff here: leave
+    // it pending so reconciliation can re-prove the authoritative operation
+    // state later. No Dirty, no automatic mutation retry.
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
         ? err.code
@@ -208,10 +209,11 @@ export async function handleOperationDecision({
       tenantId,
       n3UserKey: actor,
       eventType: "hotel.reservation.operation_decision_failed",
-      detail: { reservationId: id, requestId, code },
+      detail: { reservationId: id, requestId, code, handoffPending: handoffId !== null },
     });
     return deny(statusForOperationError(code), code);
   }
+
 
   await logAudit({
     tenantId,
