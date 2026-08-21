@@ -84,8 +84,8 @@ export function statusForOperationError(code: string): number {
     case "primary_guest_required":
     case "guest_assignment_required":
     case "idempotency_conflict":
-    // WP1 housekeeping gate — the room is not verified clean yet.
     case "housekeeping_not_initialized":
+
     case "room_not_ready":
     case "dnd_active":
     case "illegal_transition":
