@@ -60,6 +60,7 @@ export type AuditEventType =
   | "hotel.housekeeping.vacated"
   | "hotel.housekeeping.vacate_pending"
   | "hotel.housekeeping.destination_not_ready"
+  | "hotel.housekeeping.handoff_not_recorded"
   | "hotel.reservation.check_in_blocked";
 
 const SENSITIVE_KEYS = new Set([
