@@ -2,7 +2,7 @@
 //
 // This is the single board component. `variant="dedicated"` is the full
 // housekeeping workspace; `variant="simple"` is the compact Front Desk strip
-// that answers only "which rooms can I sell right now, and what is blocking
+// that answers only "which rooms are housekeeping-clear right now, and what is blocking
 // the rest". Both read the same server board and the same allowed actions,
 // so they can never disagree.
 import { useMemo, useState } from "react";
@@ -114,7 +114,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       <div className="flex flex-wrap items-center gap-2">
         <Stat label="Needs attention" value={counts.needs_attention} tone="#9B1C1C" />
         <Stat label="In progress" value={counts.in_progress} tone="#8A6100" />
-        <Stat label="Ready to sell" value={counts.ready} tone="#0B6B5C" />
+        <Stat label="Housekeeping done" value={counts.ready} tone="#0B6B5C" />
         {pendingHandoffs > 0 && (
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <strong>
@@ -233,7 +233,8 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
 
       {variant === "simple" && (grouped.get("ready") ?? []).length > 0 && (
         <p className="text-sm text-muted-foreground">
-          {(grouped.get("ready") ?? []).length} room(s) are Ready to sell.
+          {(grouped.get("ready") ?? []).length} room(s) are Ready — housekeeping complete. Booking
+          and room activity still decide availability.
         </p>
       )}
 

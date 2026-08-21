@@ -690,8 +690,10 @@ const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
  * reservation operation AND the reservation-room association from authoritative
  * tenant-scoped tables and requires positive proof that this exact room_change
  * was applied and that the reservation room has actually moved off the old room.
- * An operation that was rejected, cancelled or has vanished retires the queue
- * row as `cancelled`. Anything unproven or unreadable stays pending.
+ * Only an operation that was positively read as `rejected` or `cancelled`
+ * retires the queue row as `cancelled`. An operation that is missing,
+ * unreadable, still `approved`/`pending`, or otherwise unproven stays pending
+ * and is retried later — it is never retired on absence.
  *
  * Every read and every write is scoped to `tenantId`, so one property can
  * never reconcile — or even observe — another property's queue.
