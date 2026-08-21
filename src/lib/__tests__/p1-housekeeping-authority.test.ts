@@ -10,7 +10,7 @@
  *   4. The room a guest leaves is recorded durably and ends up Dirty.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   authorizedTransitions,
@@ -219,13 +219,37 @@ describe("4. Room-change handoff is durable", () => {
 });
 
 describe("SQL — durable handoff migration", () => {
-  const sql = readFileSync(
-    resolve(__dirname, "../../../supabase/migrations"),
-    "utf8",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ) as any;
-  void sql;
-  it("placeholder — migration content is asserted in the shared SQL suite", () => {
-    expect(true).toBe(true);
+  const dir = resolve(__dirname, "../../../supabase/migrations");
+  const sql = readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => readFileSync(resolve(dir, f), "utf8"))
+    .find((text) => text.includes("hotelhub_hk_vacate_room_v2"));
+
+  it("ships the handoff queue and its routines", () => {
+    expect(sql).toBeTruthy();
+    expect(sql!).toMatch(/CREATE TABLE public\.hotel_housekeeping_handoffs/);
+    expect(sql!).toMatch(/hotelhub_hk_enqueue_handoff/);
+    expect(sql!).toMatch(/hotelhub_hk_cancel_handoff/);
+    expect(sql!).toMatch(/hotelhub_hk_fail_handoff/);
+    expect(sql!).toMatch(/hotelhub_hk_list_pending_handoffs/);
+  });
+
+  it("keeps the queue server-only: RLS on, no policies, service_role grant", () => {
+    expect(sql!).toMatch(
+      /ALTER TABLE public\.hotel_housekeeping_handoffs ENABLE ROW LEVEL SECURITY/,
+    );
+    expect(sql!).toMatch(/GRANT ALL ON public\.hotel_housekeeping_handoffs TO service_role/);
+    expect(sql!).not.toMatch(/CREATE POLICY[^;]*hotel_housekeeping_handoffs/);
+    expect(sql!).toMatch(/REVOKE ALL ON FUNCTION public\.hotelhub_hk_vacate_room_v2/);
+  });
+
+  it("a room a guest just left is set up as Dirty rather than skipped", () => {
+    const fn = sql!.slice(sql!.indexOf("hotelhub_hk_vacate_room_v2"));
+    expect(fn).toMatch(/INSERT INTO hotel_room_housekeeping/);
+    expect(fn).toMatch(/'dirty'/);
+    expect(fn).toMatch(/dnd_active = false/);
+    // Condition change, history entry and queue closure in one transaction.
+    expect(fn).toMatch(/INSERT INTO hotel_housekeeping_events/);
+    expect(fn).toMatch(/SET state = 'applied'/);
   });
 });
