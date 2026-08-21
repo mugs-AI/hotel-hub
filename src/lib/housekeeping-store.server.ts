@@ -668,8 +668,12 @@ export async function countPendingHandoffs(tenantId: string): Promise<number> {
   }
 }
 
-/** Operation states that PROVE the guest actually moved rooms. */
-const HANDOFF_PROVEN_OPERATION_STATES = new Set(["applied"]);
+/**
+ * Operation states that PROVE the guest actually moved rooms. The decision
+ * routine approves and applies a room change in one transaction, so both
+ * spellings of a completed decision count; a request still `pending` never does.
+ */
+const HANDOFF_PROVEN_OPERATION_STATES = new Set(["applied", "approved"]);
 /** Operation states that prove the move will never happen. */
 const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
 
