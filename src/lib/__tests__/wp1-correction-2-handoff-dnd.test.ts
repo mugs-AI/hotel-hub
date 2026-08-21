@@ -62,10 +62,9 @@ vi.mock("@/lib/hotel-store.server", () => ({
 
 const dndCalls: any[] = [];
 vi.mock("@/lib/housekeeping-store.server", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/housekeeping-store.server")>(
-      "@/lib/housekeeping-store.server",
-    );
+  const actual = await vi.importActual<typeof import("@/lib/housekeeping-store.server")>(
+    "@/lib/housekeeping-store.server",
+  );
   return {
     ...actual,
     setRoomDnd: async (input: any) => {
