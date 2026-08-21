@@ -17,11 +17,11 @@ import {
   decideOperation,
   destinationBlockerCode,
   getOperationRequestReservationId,
-  getReservationRoomHotelRoomId,
   housekeepingCheckInBlocker,
   OperationError,
   OPERATION_ERROR_CODES,
-  readOperationRequestForHandoff,
+  readOperationRequestForHandoffOutcome,
+  resolveReservationRoomHotelRoomId,
 } from "@/lib/reservation-operations.server";
 import {
   applyRoomHandoff,
@@ -93,10 +93,25 @@ export async function handleOperationDecision({
   let handoffId: string | null = null;
 
   if (verdict === "approve") {
-    const req = await readOperationRequestForHandoff(tenantId, requestId);
+    // Correction 5 — this read is guest-safety critical: it decides whether
+    // the readiness gate and the durable handoff run at all. If it cannot be
+    // read, or the operation has vanished after binding, we fail CLOSED and
+    // never reach decideOperation. Nothing from the browser is trusted here.
+    const detail = await readOperationRequestForHandoffOutcome(tenantId, requestId);
+    if (detail.status === "error") {
+      await logAudit({
+        tenantId,
+        n3UserKey: actor,
+        eventType: "hotel.reservation.operation_read_failed",
+        detail: { reservationId: id, requestId },
+      });
+      return deny(503, "operation_read_failed");
+    }
+    if (detail.status === "missing") return deny(404, "operation_not_found");
+    const req = detail.value;
 
     // ---- Readiness gate (fails CLOSED) --------------------------------
-    if (req && req.state === "pending") {
+    if (req.state === "pending") {
       let blocker: string | null = null;
       if (req.operationType === "early_check_in") {
         // The guest is coming in NOW: every allocated room must be verified.
@@ -120,36 +135,53 @@ export async function handleOperationDecision({
 
     // ---- Durable handoff intent (FAILS CLOSED) -------------------------
     // The room the guest leaves must have a recoverable "make this dirty"
-    // record BEFORE the move is applied. If that record cannot be written,
-    // the move does not happen at all — a bed that looks sellable and is not
-    // is exactly the failure WP1 exists to prevent.
-    if (req && req.operationType === "room_change" && req.state === "pending") {
+    // record BEFORE the move is applied. If the old room cannot be positively
+    // resolved, or the record cannot be written, the move does not happen at
+    // all — a bed that looks clean and is not is exactly what WP1 prevents.
+    if (req.operationType === "room_change" && req.state === "pending") {
       const rrid = req.payload["reservation_room_id"] ?? req.payload["reservationRoomId"];
       if (typeof rrid !== "string" || !isUuid(rrid)) return deny(400, "validation_failed");
       handoffReservationRoomId = rrid;
-      roomBeingVacated = await getReservationRoomHotelRoomId(tenantId, rrid);
-      if (roomBeingVacated) {
-        try {
-          handoffId = await enqueueRoomHandoff({
-            tenantId,
-            roomId: roomBeingVacated,
-            actorN3UserKey: actor,
-            reservationId: id,
-            operationRequestId: requestId,
-            source: "room_change",
-          });
-        } catch {
-          handoffId = null;
-        }
-        if (!handoffId) {
-          await logAudit({
-            tenantId,
-            n3UserKey: actor,
-            eventType: "hotel.housekeeping.handoff_not_recorded",
-            detail: { reservationId: id, requestId, roomId: roomBeingVacated },
-          });
-          return deny(503, "handoff_not_recorded");
-        }
+      const oldRoom = await resolveReservationRoomHotelRoomId(tenantId, rrid);
+      if (oldRoom.status === "error") {
+        await logAudit({
+          tenantId,
+          n3UserKey: actor,
+          eventType: "hotel.housekeeping.handoff_precheck_failed",
+          detail: { reservationId: id, requestId, code: "reservation_room_unreadable" },
+        });
+        return deny(503, "handoff_precheck_failed");
+      }
+      if (oldRoom.status === "missing" || oldRoom.value === null) {
+        await logAudit({
+          tenantId,
+          n3UserKey: actor,
+          eventType: "hotel.housekeeping.handoff_precheck_failed",
+          detail: { reservationId: id, requestId, code: "reservation_room_unresolved" },
+        });
+        return deny(409, "reservation_room_unresolved");
+      }
+      roomBeingVacated = oldRoom.value;
+      try {
+        handoffId = await enqueueRoomHandoff({
+          tenantId,
+          roomId: roomBeingVacated,
+          actorN3UserKey: actor,
+          reservationId: id,
+          operationRequestId: requestId,
+          source: "room_change",
+        });
+      } catch {
+        handoffId = null;
+      }
+      if (!handoffId) {
+        await logAudit({
+          tenantId,
+          n3UserKey: actor,
+          eventType: "hotel.housekeeping.handoff_not_recorded",
+          detail: { reservationId: id, requestId, roomId: roomBeingVacated },
+        });
+        return deny(503, "handoff_not_recorded");
       }
     }
   }
@@ -193,8 +225,15 @@ export async function handleOperationDecision({
 
   let handoff: { applied: boolean; pending: boolean } | null = null;
   if (roomBeingVacated && handoffReservationRoomId) {
-    const newRoomId = await getReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
-    if (newRoomId && newRoomId !== roomBeingVacated) {
+    // Correction 5 — uncertainty must never destroy the only retry record.
+    // The handoff is cancelled ONLY when the decision positively did not
+    // apply. An unreadable or missing post-decision read leaves the durable
+    // intent pending for reconciliation, which re-proves it from scratch.
+    const post = await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
+    const movedAway = post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
+    const positivelyNotApplied = result.state === "rejected" || result.state === "cancelled";
+
+    if (movedAway) {
       const applied = await applyRoomHandoff({
         tenantId,
         roomId: roomBeingVacated,
@@ -211,9 +250,18 @@ export async function handleOperationDecision({
           : "hotel.housekeeping.vacate_pending",
         detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
       });
-    } else if (handoffId) {
-      // The guest did not actually change room — nothing to hand off.
+    } else if (positivelyNotApplied && handoffId) {
+      // The guest demonstrably did not change room — safe, idempotent withdrawal.
       await cancelRoomHandoff(tenantId, handoffId);
+    } else if (handoffId) {
+      // Applied, or simply not knowable right now: keep the pending intent.
+      handoff = { applied: false, pending: true };
+      await logAudit({
+        tenantId,
+        n3UserKey: actor,
+        eventType: "hotel.housekeeping.vacate_pending",
+        detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
+      });
     }
   }
 
