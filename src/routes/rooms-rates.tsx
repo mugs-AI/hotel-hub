@@ -98,7 +98,7 @@ function RoomsRatesPage() {
                   Room readiness
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  The rooms that still need work before they can be sold. Ready rooms are counted
+                  The rooms that still need housekeeping work. Ready means housekeeping is complete — booking and allocation rules still apply. Ready rooms are counted
                   but not listed — the full board lives under Housekeeping.
                 </p>
                 <div className="mt-4">

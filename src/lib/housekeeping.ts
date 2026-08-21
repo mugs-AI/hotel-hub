@@ -144,7 +144,7 @@ export const CONDITION_HELP: Record<HousekeepingCondition, string> = {
   dirty: "Needs cleaning before anyone can check in.",
   cleaning: "A housekeeper is working in this room now.",
   inspected: "Cleaning is finished and waiting for a final check.",
-  ready: "Clean, checked and safe to sell.",
+  ready: "Housekeeping is complete — cleaned and checked. Booking and room activity rules still decide if it can be used.",
 };
 
 /** Navy / Teal / Gold palette — kept in one place so both surfaces match. */
@@ -175,9 +175,9 @@ export function confirmationFor(
 function confirmSuffix(transition: HousekeepingTransition): string {
   switch (transition) {
     case "mark_ready":
-      return " It can be sold and checked into.";
+      return " Housekeeping is complete. Booking and check-in rules still apply.";
     case "finish_cleaning":
-      return " It still needs a final check before it can be sold.";
+      return " It still needs a final check before housekeeping is complete.";
     case "start_cleaning":
       return " It cannot be checked into until cleaning is finished and checked.";
     default:
@@ -219,7 +219,7 @@ export function nextStepHint(state: RoomTurnaroundState): string {
     case "inspected":
       return "Check the room, then mark it Ready.";
     case "ready":
-      return state.occupancy === "vacant" ? "Nothing to do — ready to sell." : "Nothing to do.";
+      return "Nothing to do — housekeeping is complete.";
     default:
       return "Nothing to do.";
   }
