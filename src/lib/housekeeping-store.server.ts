@@ -830,7 +830,6 @@ async function operationHandoffVerdict(
   }
 }
 
-
 /**
  * Readiness gate for a destination room (early check-in, room change).
  * Fails CLOSED: an unknown condition is not a clean room. Returns the blocking

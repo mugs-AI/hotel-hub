@@ -117,8 +117,7 @@ function tableStub(table: string) {
     order: () => chain,
     limit: () => chain,
     maybeSingle: async () => {
-      const source =
-        table === "hotel_reservation_rooms" ? reservationRoomRows : operationRows;
+      const source = table === "hotel_reservation_rooms" ? reservationRoomRows : operationRows;
       const row = source[String(filters["id"])];
       if (!row || row.tenant_id !== filters["tenant_id"]) return { data: null, error: null };
       return { data: row, error: null };
