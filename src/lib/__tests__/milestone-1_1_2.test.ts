@@ -535,7 +535,8 @@ describe("Milestone 1.1.2 — static safety", () => {
     // matchPrefix drives active state on /reservations, /reservations/new, /reservations/$id
     expect(s).toMatch(/matchPrefix:\s*"\/reservations"/);
     // Other deferred items remain disabled
-    for (const label of ["Guests", "Housekeeping", "Folios & AR", "Reports"]) {
+    // Housekeeping shipped in WP1 and is no longer a deferred placeholder.
+    for (const label of ["Guests", "Folios & AR", "Reports"]) {
       const re = new RegExp(
         `label:\\s*"${label.replace(/[&]/g, "\\$&")}"[^}]*disabled:\\s*true`,
         "s",
@@ -544,6 +545,7 @@ describe("Milestone 1.1.2 — static safety", () => {
     }
     // Reservations must NOT be listed as disabled/soon
     expect(s).not.toMatch(/label:\s*"Reservations"[^}]*disabled:\s*true/s);
+    expect(s).not.toMatch(/label:\s*"Housekeeping"[^}]*disabled:\s*true/s);
   });
 
   it("reservation route files exist for /reservations, /new, /$id", () => {

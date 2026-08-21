@@ -515,11 +515,13 @@ describe("P1-RES-ASSIGN-01 — forward migration", () => {
     .sort()
     .map((f) => readFileSync(join(dir, f), "utf8"))
     .join("\n");
-  const latest = readdirSync(dir)
+  // Pin to the assignment migration itself rather than "whatever is last":
+  // later work packages add their own migrations after it.
+  const assignmentFile = readdirSync(dir)
     .sort()
-    .slice(-1)
-    .map((f) => readFileSync(join(dir, f), "utf8"))
-    .join("\n");
+    .filter((f) => readFileSync(join(dir, f), "utf8").includes("v_assigned_alloc"))
+    .slice(-1)[0]!;
+  const latest = readFileSync(join(dir, assignmentFile), "utf8");
 
   it("creates reservation rooms before guests and stores the resolved room id", async () => {
     const roomsAt = latest.indexOf("INSERT INTO public.hotel_reservation_rooms");
@@ -554,7 +556,9 @@ describe("P1-RES-ASSIGN-01 — forward migration", () => {
 
   it("never edits an already-applied migration to add assignment support", () => {
     const files = readdirSync(dir).sort();
-    const older = files.slice(0, -1).map((f) => readFileSync(join(dir, f), "utf8"));
+    const older = files
+      .slice(0, files.indexOf(assignmentFile))
+      .map((f) => readFileSync(join(dir, f), "utf8"));
     expect(older.some((t) => t.includes("assigned_hotel_room_id"))).toBe(false);
   });
 });

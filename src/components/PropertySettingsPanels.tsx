@@ -264,6 +264,103 @@ export function GuestControlsPanel({
   );
 }
 
+export function HousekeepingPanel({
+  settings,
+  onChange,
+}: {
+  settings: HotelSettingsDTO;
+  onChange: (s: HotelSettingsDTO) => void;
+}) {
+  const [mode, setMode] = useState(settings.housekeepingMode);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ housekeepingMode: mode }),
+      });
+      onChange(r.settings);
+      toast.success("Housekeeping workflow saved");
+    } catch (e) {
+      toast.error(friendlyError((e as Error).message, "Unable to save the housekeeping workflow."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Housekeeping workflow
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Both options use exactly the same room conditions and the same rules — only the screens
+        differ. Switching is safe at any time and never changes a room&apos;s current condition.
+      </p>
+
+      <fieldset className="mt-4 space-y-2">
+        <legend className="text-xs font-medium" style={{ color: NAVY }}>
+          Who turns rooms around
+        </legend>
+        {[
+          {
+            value: "simple" as const,
+            label: "Simple — Front Desk handles it",
+            help: "Best for small properties. The desk marks rooms cleaned and ready from Rooms & Rates.",
+          },
+          {
+            value: "dedicated" as const,
+            label: "Dedicated housekeeping team",
+            help: "Housekeepers work the Housekeeping board directly, with cleaning and checking as separate steps.",
+          },
+        ].map((o) => (
+          <label
+            key={o.value}
+            className="flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm"
+            style={{
+              borderColor: mode === o.value ? TEAL : `${NAVY}1F`,
+              backgroundColor: mode === o.value ? `${TEAL}0D` : "white",
+            }}
+          >
+            <input
+              type="radio"
+              name="housekeeping-mode"
+              className="mt-1"
+              checked={mode === o.value}
+              onChange={() => setMode(o.value)}
+            />
+            <span>
+              <span className="font-medium" style={{ color: NAVY }}>
+                {o.label}
+              </span>
+              <span className="block text-xs text-muted-foreground">{o.help}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      <p className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+        A room can only be checked into when it is <strong>Ready</strong>. Rooms that have never
+        been set up for housekeeping block check-in until someone confirms their condition — set
+        them up on the Housekeeping board.
+      </p>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving || mode === settings.housekeepingMode}
+        className="mt-4 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        style={{ backgroundColor: NAVY }}
+      >
+        {saving ? "Saving…" : "Save housekeeping workflow"}
+      </button>
+    </section>
+  );
+}
+
 export function N3IntegrationPanel({
   settings,
   onChange,

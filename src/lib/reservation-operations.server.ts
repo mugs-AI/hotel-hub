@@ -69,6 +69,11 @@ export const OPERATION_ERROR_CODES = new Set([
   "correction_reason_too_long",
   "duplicate_guest",
   "guest_assignment_failed",
+  // WP1 — housekeeping check-in gate. A room whose condition is unknown or
+  // not Ready must never receive a guest.
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  "dnd_active",
 ]);
 
 export class OperationError extends Error {
@@ -446,6 +451,85 @@ export async function listReservationTimeline(
 // Writes (all atomic via SECURITY DEFINER RPCs)
 // ---------------------------------------------------------------------------
 
+/**
+ * WP1 housekeeping check-in gate.
+ *
+ * Fails CLOSED: a room that was never initialised has an UNKNOWN condition,
+ * and an unknown room is not a clean room. Returns the blocking code, or
+ * null when every allocated room is Ready and not under Do Not Disturb.
+ */
+export async function housekeepingCheckInBlocker(
+  tenantId: string,
+  reservationId: string,
+): Promise<string | null> {
+  const sb = await admin();
+  const res = await sb
+    .from("hotel_reservation_rooms")
+    .select("hotel_room_id")
+    .eq("tenant_id", tenantId)
+    .eq("reservation_id", reservationId)
+    .neq("allocation_status", "released");
+  if (res.error) throw new OperationError("operation_read_failed");
+  const roomIds = ((res.data ?? []) as any[]).map((r) => r.hotel_room_id as string);
+  if (roomIds.length === 0) return null;
+
+  const { readRoomStates } = await import("./housekeeping-store.server");
+  const { checkInBlockers } = await import("./housekeeping");
+  const states = await readRoomStates(tenantId, roomIds);
+  for (const roomId of roomIds) {
+    const hk = states.get(roomId);
+    const blockers = checkInBlockers({
+      initialized: Boolean(hk),
+      condition: hk?.condition ?? null,
+      dndActive: Boolean(hk?.dndActive),
+      // Occupancy is irrelevant to readiness; the reservation being checked
+      // in is precisely the incoming occupancy.
+      occupancy: "vacant",
+      isActive: true,
+    });
+    const blocking = blockers.find((b) => b !== "room_inactive");
+    if (blocking) return blocking;
+  }
+  return null;
+}
+
+/** Minimal read used by the WP1 vacated-room handoff. */
+export async function readOperationRequestForHandoff(
+  tenantId: string,
+  requestId: string,
+): Promise<{ operationType: string; state: string; payload: Record<string, unknown> } | null> {
+  const sb = await admin();
+  const res = await sb
+    .from("hotel_reservation_operation_requests")
+    .select("operation_type, state, payload")
+    .eq("tenant_id", tenantId)
+    .eq("id", requestId)
+    .maybeSingle();
+  if (res.error || !res.data) return null;
+  const row = res.data as any;
+  return {
+    operationType: row.operation_type,
+    state: row.state,
+    payload: (row.payload ?? {}) as Record<string, unknown>,
+  };
+}
+
+/** Which physical room a reservation-room row currently points at. */
+export async function getReservationRoomHotelRoomId(
+  tenantId: string,
+  reservationRoomId: string,
+): Promise<string | null> {
+  const sb = await admin();
+  const res = await sb
+    .from("hotel_reservation_rooms")
+    .select("hotel_room_id")
+    .eq("tenant_id", tenantId)
+    .eq("id", reservationRoomId)
+    .maybeSingle();
+  if (res.error) return null;
+  return (res.data as { hotel_room_id: string } | null)?.hotel_room_id ?? null;
+}
+
 export async function checkInReservation(input: {
   tenantId: string;
   reservationId: string;
@@ -453,6 +537,11 @@ export async function checkInReservation(input: {
   expectedUpdatedAt: string | null;
   clientRequestId?: string | null;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
+  // Housekeeping gate runs BEFORE the check-in RPC so a blocked attempt never
+  // half-applies: nothing is written when a room is not verified clean.
+  const blocker = await housekeepingCheckInBlocker(input.tenantId, input.reservationId);
+  if (blocker) throw new OperationError(blocker);
+
   const sb = await admin();
   const res = await sb.rpc("hotelhub_check_in_reservation", {
     p_tenant_id: input.tenantId,

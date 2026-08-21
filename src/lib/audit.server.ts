@@ -48,7 +48,16 @@ export type AuditEventType =
   | "hotel.reservation.operation_applied"
   | "hotel.reservation.operation_rejected"
   | "hotel.reservation.operation_decision_failed"
-  | "hotel.reservation.operation_denied";
+  | "hotel.reservation.operation_denied"
+  // WP1 — Housekeeping & Room Turnaround
+  | "hotel.housekeeping.initialized"
+  | "hotel.housekeeping.transitioned"
+  | "hotel.housekeeping.dnd_set"
+  | "hotel.housekeeping.dnd_cleared"
+  | "hotel.housekeeping.action_failed"
+  | "hotel.housekeeping.mode_updated"
+  | "hotel.housekeeping.vacated"
+  | "hotel.reservation.check_in_blocked";
 
 const SENSITIVE_KEYS = new Set([
   "token",

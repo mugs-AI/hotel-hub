@@ -8,9 +8,12 @@ import { isUuid } from "@/lib/reservations-store.server";
 import {
   decideOperation,
   getOperationRequestReservationId,
+  getReservationRoomHotelRoomId,
   OperationError,
   OPERATION_ERROR_CODES,
+  readOperationRequestForHandoff,
 } from "@/lib/reservation-operations.server";
+import { vacateRoomSafely } from "@/lib/housekeeping-store.server";
 import {
   deny,
   isSameOriginWrite,
@@ -63,6 +66,22 @@ export async function handleOperationDecision({
   if (boundReservationId === null) return deny(404, "operation_not_found");
   if (boundReservationId !== id) return deny(404, "operation_not_found");
 
+  // WP1 vacated-room handoff. Capture the room the guest is LEAVING before
+  // the approval moves them, otherwise the old room is unrecoverable and
+  // silently stays "Ready" while it is actually dirty.
+  let handoffReservationRoomId: string | null = null;
+  let roomBeingVacated: string | null = null;
+  if (verdict === "approve") {
+    const req = await readOperationRequestForHandoff(ctx.session.tenantId!, requestId);
+    if (req && req.operationType === "room_change" && req.state === "pending") {
+      const rrid = req.payload["reservation_room_id"] ?? req.payload["reservationRoomId"];
+      if (typeof rrid === "string") {
+        handoffReservationRoomId = rrid;
+        roomBeingVacated = await getReservationRoomHotelRoomId(ctx.session.tenantId!, rrid);
+      }
+    }
+  }
+
   try {
     const result = await decideOperation({
       tenantId: ctx.session.tenantId!,
@@ -81,6 +100,31 @@ export async function handleOperationDecision({
           : "hotel.reservation.operation_rejected",
       detail: { reservationId: id, requestId, state: result.state },
     });
+
+    if (roomBeingVacated && handoffReservationRoomId) {
+      const newRoomId = await getReservationRoomHotelRoomId(
+        ctx.session.tenantId!,
+        handoffReservationRoomId,
+      );
+      // Only hand off when the guest genuinely moved to a different room.
+      if (newRoomId && newRoomId !== roomBeingVacated) {
+        const handoff = await vacateRoomSafely({
+          tenantId: ctx.session.tenantId!,
+          roomId: roomBeingVacated,
+          actorN3UserKey: ctx.session.n3UserKey,
+          source: "room_change",
+        });
+        if (handoff.applied) {
+          await logAudit({
+            tenantId: ctx.session.tenantId,
+            n3UserKey: ctx.session.n3UserKey,
+            eventType: "hotel.housekeeping.vacated",
+            detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
+          });
+        }
+      }
+    }
+
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const code =

@@ -24,6 +24,11 @@ export type Permission =
   | "hotel:operations:request" // raise an operation request needing approval
   | "hotel:operations:approve" // approve / reject an operation request
   | "hotel:checkout:view" // read the departures board and the read-only checkout preview
+  // WP1 — Housekeeping & Room Turnaround
+  | "hotel:housekeeping:view" // see the room turnaround board
+  | "hotel:housekeeping:update" // move a room through the cleaning lifecycle
+  | "hotel:housekeeping:dnd" // set or clear the Do Not Disturb overlay
+  | "hotel:housekeeping:initialize" // bootstrap housekeeping for existing rooms
   | "roles:manage"; // assign / revoke HotelHub roles
 
 // Deny-by-default: only listed roles receive the permission.
@@ -61,6 +66,15 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
   // excluded: the preview exposes room rates and deposit money.
   "hotel:checkout:view": new Set(["owner", "front_desk"]),
+
+  // WP1 Housekeeping. Everyone operational sees and works the board — that is
+  // the point of ONE engine, TWO experiences. Do Not Disturb is a guest-facing
+  // promise recorded by the desk, and bootstrapping existing rooms is a
+  // property-setup act, so both stay narrower than the cleaning lifecycle.
+  "hotel:housekeeping:view": new Set(["owner", "front_desk", "housekeeper"]),
+  "hotel:housekeeping:update": new Set(["owner", "front_desk", "housekeeper"]),
+  "hotel:housekeeping:dnd": new Set(["owner", "front_desk"]),
+  "hotel:housekeeping:initialize": new Set(["owner"]),
 
   "roles:manage": new Set(["owner"]),
 };
