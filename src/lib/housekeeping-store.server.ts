@@ -679,8 +679,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Operation states that prove the move will never happen. */
 const HANDOFF_ABANDONED_OPERATION_STATES = new Set(["rejected", "cancelled"]);
-/** Operation states that are simply not decided yet. */
-const HANDOFF_DEFERRED_OPERATION_STATES = new Set(["pending", "approved"]);
 
 /**
  * Retry every handoff still waiting. Called on each board read and after each
@@ -797,7 +795,6 @@ async function operationHandoffVerdict(
     if (HANDOFF_ABANDONED_OPERATION_STATES.has(op.state)) return "abandoned";
     if (op.state !== HANDOFF_PROVEN_OPERATION_STATE) {
       // `approved`, `pending`, or an unrecognised state: defer, never dirty.
-      void HANDOFF_DEFERRED_OPERATION_STATES;
       return "undecided";
     }
 
