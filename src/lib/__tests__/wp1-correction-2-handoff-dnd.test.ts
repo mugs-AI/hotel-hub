@@ -156,13 +156,13 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("1. Do Not Disturb authority follows the property's workflow", () => {
-  it("simple + housekeeper: refused (403), and the refusal is recorded", async () => {
+  it("simple + housekeeper: refused (403) — there is no housekeeping team", async () => {
     currentMode = "simple";
     currentRole = "housekeeper";
     const res = await dnd(true);
     expect(res.status).toBe(403);
     expect(dndCalls).toHaveLength(0);
-    expect(audit.some((e) => e.eventType === "hotel.housekeeping.action_denied")).toBe(true);
+    await expect(res.json()).resolves.toMatchObject({ error: "not_permitted_in_mode" });
   });
 
   it("dedicated + housekeeper: may SET Do Not Disturb", async () => {
