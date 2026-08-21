@@ -227,16 +227,21 @@ export async function handleOperationDecision({
 
   let handoff: { applied: boolean; pending: boolean } | null = null;
   if (roomBeingVacated && handoffReservationRoomId) {
-    // Correction 5 — uncertainty must never destroy the only retry record.
-    // The handoff is cancelled ONLY when the decision positively did not
-    // apply. An unreadable or missing post-decision read leaves the durable
-    // intent pending for reconciliation, which re-proves it from scratch.
-    const post = await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
-    const movedAway =
-      post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
+    // Correction 6 — a room may become Dirty ONLY on positive proof that the
+    // correlated room_change is APPLIED *and* the authoritative post-decision
+    // reservation_room read shows it physically moved off the old room.
+    // Anything less (approved, pending, unknown, unreadable, missing, still
+    // on the old room) keeps the durable intent pending for reconciliation.
+    // Cancellation requires a positively terminal rejected/cancelled result.
+    const positivelyApplied = result.state === "applied";
     const positivelyNotApplied = result.state === "rejected" || result.state === "cancelled";
+    const post = positivelyNotApplied
+      ? null
+      : await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId);
+    const movedAway =
+      post !== null && post.status === "ok" && post.value !== null && post.value !== roomBeingVacated;
 
-    if (movedAway) {
+    if (positivelyApplied && movedAway) {
       const applied = await applyRoomHandoff({
         tenantId,
         roomId: roomBeingVacated,
@@ -257,7 +262,8 @@ export async function handleOperationDecision({
       // The guest demonstrably did not change room — safe, idempotent withdrawal.
       await cancelRoomHandoff(tenantId, handoffId);
     } else if (handoffId) {
-      // Applied, or simply not knowable right now: keep the pending intent.
+      // Applied-but-unproven, approved, pending, or simply not knowable right
+      // now: keep the pending intent. Reconciliation is the final authority.
       handoff = { applied: false, pending: true };
       await logAudit({
         tenantId,
@@ -267,6 +273,7 @@ export async function handleOperationDecision({
       });
     }
   }
+
 
   // Retry anything still outstanding (including this one on failure) so the
   // board self-heals rather than reporting a stale "Ready".
