@@ -797,8 +797,10 @@ async function operationHandoffVerdict(
     if (HANDOFF_ABANDONED_OPERATION_STATES.has(op.state)) return "abandoned";
     if (op.state !== HANDOFF_PROVEN_OPERATION_STATE) {
       // `approved`, `pending`, or an unrecognised state: defer, never dirty.
-      return HANDOFF_DEFERRED_OPERATION_STATES.has(op.state) ? "undecided" : "undecided";
+      void HANDOFF_DEFERRED_OPERATION_STATES;
+      return "undecided";
     }
+
     // From here on the row claims to be applied; every claim is verified.
     if (!op.applied_at) return "undecided";
     if (op.operation_type !== "room_change") return "undecided";
