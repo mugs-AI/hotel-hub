@@ -843,7 +843,6 @@ async function operationHandoffVerdict(
     if (link.reservation_id !== op.reservation_id) return "undecided";
     if (link.hotel_room_id === input.oldHotelRoomId) return "undecided";
     return "proven";
-
   } catch {
     return "undecided";
   }

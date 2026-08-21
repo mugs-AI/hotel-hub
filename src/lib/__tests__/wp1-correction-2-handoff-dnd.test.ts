@@ -330,7 +330,6 @@ describe("2. The vacated-room instruction must be durable before the guest moves
     expect(rpcCalls.some((c) => c.name === "hotelhub_hk_cancel_handoff")).toBe(false);
   });
 
-
   it("C. an undecided operation is deferred, not applied and not thrown away", async () => {
     pendingRows = [
       {
