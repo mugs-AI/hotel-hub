@@ -229,6 +229,12 @@ export async function getHousekeepingBoard(input: {
   for (const row of (hkRes.data ?? []) as any[]) hkByRoom.set(row.hotel_room_id, row);
 
   const occupancy = await occupancyByRoom(sb, input.tenantId, today);
+
+  // Fail CLOSED: if unresolved vacated-room handoffs cannot be read, the board
+  // must not present stale conditions as trustworthy nor report zero pending.
+  const handoffRead = await readPendingHandoffRooms(input.tenantId);
+  if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
+  const pendingHandoffRooms = handoffRead;
   const labels = await resolveActorLabels(
     input.tenantId,
     (hkRes.data ?? []).map((r: any) => r.last_actor_n3_user_key),
