@@ -121,7 +121,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       dnd: 0,
     };
     for (const r of byFloor) {
-      if (r.group !== "ready") t.needs_action += 1;
+      if (needsHousekeepingAttention(r)) t.needs_action += 1;
       if (!r.initialized) t.not_set_up += 1;
       if (r.dndActive) t.dnd += 1;
       if (r.condition) t[r.condition] += 1;
