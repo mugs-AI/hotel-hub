@@ -148,20 +148,92 @@ export const CONDITION_HELP: Record<HousekeepingCondition, string> = {
     "Housekeeping is complete — cleaned and checked. Booking and room activity rules still decide if it can be used.",
 };
 
-/** Navy / Teal / Gold palette — kept in one place so both surfaces match. */
+// ---------------------------------------------------------------------------
+// Semantic action palette — presentation ONLY.
+//
+// Colour carries meaning so staff learn the workflow by sight:
+//   green  = positive / room is good        amber  = needs work / corrective
+//   teal   = active work in progress        blue   = inspection step
+//   indigo = Do Not Disturb overlay         red    = blocked / error only
+// Which actions exist is still decided by the server; colour never is.
+// ---------------------------------------------------------------------------
+
+export const HK_COLORS = {
+  navy: "#102A43",
+  appleGreen: "#5F9F3A",
+  appleGreenSoft: "#EDF6E6",
+  appleGreenInk: "#3D6B24",
+  amber: "#B26B00",
+  amberSoft: "#FFF3DF",
+  amberInk: "#7A4A00",
+  teal: "#0F9D8A",
+  tealSoft: "#E3F6F1",
+  tealInk: "#0B6B5C",
+  blue: "#1B4F86",
+  blueSoft: "#E7F1FB",
+  indigo: "#5A5FBF",
+  indigoSoft: "#ECEDFB",
+  indigoInk: "#3F42A0",
+  red: "#9B1C1C",
+  redSoft: "#FDECEC",
+  gray: "#5A6B7B",
+  graySoft: "#EEF2F6",
+} as const;
+
+/** Status chips share the exact same colour meanings as the buttons. */
 export const CONDITION_STYLE: Record<HousekeepingCondition, { bg: string; fg: string }> = {
-  dirty: { bg: "#FDECEC", fg: "#9B1C1C" },
-  cleaning: { bg: "#FFF6E0", fg: "#8A6100" },
-  inspected: { bg: "#E7F1FB", fg: "#1B4F86" },
-  ready: { bg: "#E3F6F1", fg: "#0B6B5C" },
+  dirty: { bg: HK_COLORS.amberSoft, fg: HK_COLORS.amberInk },
+  cleaning: { bg: HK_COLORS.tealSoft, fg: HK_COLORS.tealInk },
+  inspected: { bg: HK_COLORS.blueSoft, fg: HK_COLORS.blue },
+  ready: { bg: HK_COLORS.appleGreenSoft, fg: HK_COLORS.appleGreenInk },
 };
 
 export const TRANSITION_LABELS: Record<HousekeepingTransition, string> = {
   mark_dirty: "Mark dirty",
   start_cleaning: "Start cleaning",
-  finish_cleaning: "Finish cleaning",
-  mark_ready: "Mark ready",
-  revert_to_cleaning: "Send back to cleaning",
+  // Say the RESULT, not the internal transition name: staff must understand
+  // that finishing a clean produces an Inspected room awaiting a final check.
+  finish_cleaning: "Finish & mark inspected",
+  mark_ready: "Mark Ready",
+  revert_to_cleaning: "Send back to Cleaning",
+};
+
+export type ActionTone = "positive" | "work" | "inspect" | "corrective" | "dnd" | "neutral";
+
+/** Semantic tone per lifecycle action. Presentation only. */
+export const TRANSITION_TONE: Record<HousekeepingTransition, ActionTone> = {
+  mark_dirty: "corrective",
+  start_cleaning: "work",
+  finish_cleaning: "inspect",
+  mark_ready: "positive",
+  revert_to_cleaning: "corrective",
+};
+
+export const TONE_STYLE: Record<
+  ActionTone,
+  { bg: string; fg: string; border: string; filled: boolean }
+> = {
+  positive: {
+    bg: HK_COLORS.appleGreen,
+    fg: "#FFFFFF",
+    border: HK_COLORS.appleGreen,
+    filled: true,
+  },
+  work: { bg: HK_COLORS.teal, fg: "#FFFFFF", border: HK_COLORS.teal, filled: true },
+  inspect: { bg: HK_COLORS.blue, fg: "#FFFFFF", border: HK_COLORS.blue, filled: true },
+  corrective: {
+    bg: HK_COLORS.amberSoft,
+    fg: HK_COLORS.amberInk,
+    border: HK_COLORS.amber,
+    filled: false,
+  },
+  dnd: {
+    bg: HK_COLORS.indigoSoft,
+    fg: HK_COLORS.indigoInk,
+    border: HK_COLORS.indigo,
+    filled: false,
+  },
+  neutral: { bg: "#FFFFFF", fg: HK_COLORS.navy, border: "#D6E0EA", filled: false },
 };
 
 /** Plain-language confirmation shown after an action succeeds. */
@@ -178,7 +250,7 @@ function confirmSuffix(transition: HousekeepingTransition): string {
     case "mark_ready":
       return " Housekeeping is complete. Booking and check-in rules still apply.";
     case "finish_cleaning":
-      return " It still needs a final check before housekeeping is complete.";
+      return " Cleaning finished. Final room check required.";
     case "start_cleaning":
       return " It cannot be checked into until cleaning is finished and checked.";
     default:
