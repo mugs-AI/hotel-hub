@@ -38,11 +38,36 @@ const GRAY = "#5A6B7B";
 
 type Filter = "needs_action" | "dirty" | "cleaning" | "inspected" | "ready" | "not_set_up" | "dnd";
 
+/**
+ * Needs attention — the ONE presentation rule shared by both the visible list
+ * filter and the summary tally, so the count and the visible list can never
+ * disagree.
+ *
+ * A room needs housekeeping attention when ANY of:
+ *  - it is not initialised (condition unknown);
+ *  - its housekeeping condition is not `ready`;
+ *  - Do Not Disturb is active;
+ *  - the server returned a meaningful operational check-in blocker such as
+ *    `handoff_pending` (any blocker other than `room_inactive`).
+ *
+ * `room_inactive` alone is NOT treated as operational for this default
+ * housekeeping queue, so an inactive-but-ready room does not become prominent
+ * merely for being inactive — unless another blocker/condition also requires
+ * action.
+ *
+ * A Ready + DND or Ready + handoff_pending room may therefore appear in both
+ * its specific filter (dnd / ready) and Needs attention. That is intentional.
+ */
+export function needsHousekeepingAttention(room: HousekeepingRoomDTO): boolean {
+  const operationalBlocker = room.checkInBlockers.some((b) => b !== "room_inactive");
+  return !room.initialized || room.condition !== "ready" || room.dndActive || operationalBlocker;
+}
+
 /** Presentation-only grouping. Authority and lifecycle stay on the server. */
 function matchesFilter(room: HousekeepingRoomDTO, filter: Filter): boolean {
   switch (filter) {
     case "needs_action":
-      return room.group !== "ready";
+      return needsHousekeepingAttention(room);
     case "not_set_up":
       return !room.initialized;
     case "dnd":
