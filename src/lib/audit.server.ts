@@ -62,6 +62,7 @@ export type AuditEventType =
   | "hotel.housekeeping.destination_not_ready"
   | "hotel.housekeeping.handoff_not_recorded"
   | "hotel.housekeeping.handoff_precheck_failed"
+  | "hotel.housekeeping.readiness_read_failed"
   | "hotel.reservation.operation_read_failed"
   | "hotel.reservation.check_in_blocked";
 

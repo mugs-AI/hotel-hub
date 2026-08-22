@@ -51,6 +51,7 @@ export const HOUSEKEEPING_ERROR_CODES = new Set([
   "not_permitted_in_mode",
   "handoff_pending",
   "handoff_not_recorded",
+  "readiness_read_failed",
 ]);
 
 export class HousekeepingError extends Error {
@@ -78,12 +79,16 @@ export function statusForHousekeepingError(code: string): number {
     case "illegal_transition":
     case "room_not_occupied":
     case "cleaning_in_progress":
+    case "handoff_pending":
       return 409;
     case "invalid_condition":
     case "validation_failed":
       return 400;
     case "not_permitted_in_mode":
       return 403;
+    // Readiness could not be determined: refuse rather than guess.
+    case "readiness_read_failed":
+      return 503;
     default:
       return 500;
   }
@@ -224,6 +229,12 @@ export async function getHousekeepingBoard(input: {
   for (const row of (hkRes.data ?? []) as any[]) hkByRoom.set(row.hotel_room_id, row);
 
   const occupancy = await occupancyByRoom(sb, input.tenantId, today);
+
+  // Fail CLOSED: if unresolved vacated-room handoffs cannot be read, the board
+  // must not present stale conditions as trustworthy nor report zero pending.
+  const handoffRead = await readPendingHandoffRooms(input.tenantId);
+  if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
+  const pendingHandoffRooms = handoffRead;
   const labels = await resolveActorLabels(
     input.tenantId,
     (hkRes.data ?? []).map((r: any) => r.last_actor_n3_user_key),
@@ -282,7 +293,11 @@ export async function getHousekeepingBoard(input: {
       availableTransitions: authorizedTransitions(authority, state),
       canSetDnd: authority.canToggleDnd && canSetDnd(state),
       canClearDnd: authority.canToggleDnd && canClearDnd(state),
-      checkInBlockers: checkInBlockers(state),
+      // An unresolved vacated-room handoff is a readiness blocker, never a
+      // fifth condition: the room may read Ready and still be unsafe.
+      checkInBlockers: pendingHandoffRooms.roomIds.has(r.id)
+        ? ["handoff_pending", ...checkInBlockers(state)]
+        : checkInBlockers(state),
     };
   });
 
@@ -297,7 +312,9 @@ export async function getHousekeepingBoard(input: {
       canToggleDnd: authority.canToggleDnd,
       canUpdate: authority.roleTransitions.length > 0,
     },
-    pendingHandoffs: await countPendingHandoffs(input.tenantId),
+    // ALL pending rows, including ones past the automatic retry limit: the
+    // retry budget must never hide unresolved operational uncertainty.
+    pendingHandoffs: pendingHandoffRooms.total,
     rooms,
     counts,
   };
@@ -654,17 +671,46 @@ async function failRoomHandoff(
   }
 }
 
-export async function countPendingHandoffs(tenantId: string): Promise<number> {
+/**
+ * Correction 7 — the ONE authoritative pending-handoff read.
+ *
+ * Strict and tenant-scoped: every query positively filters `tenant_id`, so a
+ * pending handoff in another property can never block this one. It counts and
+ * reports EVERY row still `state='pending'`, including rows whose automatic
+ * retry budget (`attempts >= 10`) is exhausted — an exhausted retry budget
+ * means the uncertainty is worse, not resolved.
+ *
+ * A read failure is reported as `status: "error"`, never as "no pending
+ * handoffs". Callers must fail closed on it.
+ */
+export type PendingHandoffRead =
+  | { status: "ok"; roomIds: Set<string>; total: number }
+  | { status: "error" };
+
+export async function readPendingHandoffRooms(
+  tenantId: string,
+  roomIds?: string[],
+): Promise<PendingHandoffRead> {
+  if (!tenantId) return { status: "error" };
+  if (roomIds && roomIds.length === 0) return { status: "ok", roomIds: new Set(), total: 0 };
   try {
     const sb = await admin();
-    const res = await sb.rpc("hotelhub_hk_list_pending_handoffs", {
-      p_tenant_id: tenantId,
-      p_limit: 100,
-    });
-    if (res.error) return 0;
-    return Array.isArray(res.data) ? res.data.length : 0;
+    let query = sb
+      .from("hotel_housekeeping_handoffs")
+      .select("hotel_room_id")
+      .eq("tenant_id", tenantId)
+      .eq("state", "pending");
+    if (roomIds) query = query.in("hotel_room_id", roomIds);
+    const res = await query;
+    if (res?.error) return { status: "error" };
+    if (!Array.isArray(res?.data)) return { status: "error" };
+    const set = new Set<string>();
+    for (const row of res.data as any[]) {
+      if (typeof row?.hotel_room_id === "string") set.add(row.hotel_room_id);
+    }
+    return { status: "ok", roomIds: set, total: res.data.length };
   } catch {
-    return 0;
+    return { status: "error" };
   }
 }
 
@@ -851,15 +897,25 @@ async function operationHandoffVerdict(
 }
 
 /**
- * Readiness gate for a destination room (early check-in, room change).
- * Fails CLOSED: an unknown condition is not a clean room. Returns the blocking
- * code or null.
+ * THE physical readiness gate — standard check-in, early check-in approval and
+ * room-change destinations all come through here, so they can never disagree.
+ *
+ * Fails CLOSED twice over: an unknown housekeeping condition is not a clean
+ * room, and an unresolved pending vacate handoff means a guest has just left
+ * the room while the Dirty bookkeeping has not landed, so the room is unsafe
+ * whatever its stored condition says. If pending-handoff state cannot be read
+ * at all we refuse rather than assume there is none.
  */
 export async function roomReadinessBlocker(
   tenantId: string,
   roomIds: string[],
 ): Promise<string | null> {
   if (roomIds.length === 0) return null;
+  const handoffs = await readPendingHandoffRooms(tenantId, roomIds);
+  if (handoffs.status !== "ok") throw new HousekeepingError("readiness_read_failed");
+  for (const roomId of roomIds) {
+    if (handoffs.roomIds.has(roomId)) return "handoff_pending";
+  }
   const states = await readRoomStates(tenantId, roomIds);
   for (const roomId of roomIds) {
     const hk = states.get(roomId);

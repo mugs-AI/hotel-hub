@@ -93,7 +93,11 @@ export function statusForOperationError(code: string): number {
     case "illegal_transition":
     case "room_not_occupied":
     case "cleaning_in_progress":
+    case "handoff_pending":
       return 409;
+    // Readiness could not be determined — refuse, never assume it is clear.
+    case "readiness_read_failed":
+      return 503;
 
     case "validation_failed":
     case "invalid_id":

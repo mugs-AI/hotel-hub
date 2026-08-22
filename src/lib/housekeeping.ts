@@ -198,6 +198,11 @@ export const BLOCKER_LABELS: Record<string, string> = {
   room_not_ready: "This room is not marked Ready.",
   dnd_active: "Do Not Disturb is on for this room.",
   room_inactive: "This room is not active.",
+  // Not a fifth condition: an operational blocker meaning a guest has left
+  // this room and the Dirty bookkeeping has not landed yet.
+  handoff_pending:
+    "A guest has just left this room and housekeeping bookkeeping is still being updated.",
+  readiness_read_failed: "Room readiness could not be checked right now.",
 };
 
 export function blockerLabel(code: string): string {
