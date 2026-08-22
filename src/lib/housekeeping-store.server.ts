@@ -31,6 +31,12 @@ import {
 import type { HotelRole } from "./rbac";
 import { propertyTodayIso } from "./checkout-preview";
 import { resolveActorLabels } from "./tenant-store.server";
+import {
+  resolveOccupancyByRoom,
+  VACANT,
+  type OccupancyResolution,
+  type OccupancyRow,
+} from "./housekeeping-occupancy";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
