@@ -293,7 +293,7 @@ export function nextStepHint(state: RoomTurnaroundState): string {
     case "dirty":
       return "Start cleaning this room.";
     case "cleaning":
-      return "Finish cleaning, then it goes for a check.";
+      return "Finish cleaning and mark it Inspected for the final check.";
     case "inspected":
       return "Check the room, then mark it Ready.";
     case "ready":
