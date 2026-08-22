@@ -79,12 +79,16 @@ export function statusForHousekeepingError(code: string): number {
     case "illegal_transition":
     case "room_not_occupied":
     case "cleaning_in_progress":
+    case "handoff_pending":
       return 409;
     case "invalid_condition":
     case "validation_failed":
       return 400;
     case "not_permitted_in_mode":
       return 403;
+    // Readiness could not be determined: refuse rather than guess.
+    case "readiness_read_failed":
+      return 503;
     default:
       return 500;
   }
