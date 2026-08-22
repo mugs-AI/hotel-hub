@@ -80,6 +80,10 @@ export const OPERATION_ERROR_CODES = new Set([
   "destination_room_not_ready",
   "destination_dnd_active",
   "operation_read_failed",
+  // Correction 7 — an unresolved vacated-room handoff blocks physical
+  // check-in, and an unreadable readiness state refuses rather than guesses.
+  "handoff_pending",
+  "readiness_read_failed",
 ]);
 
 /** Restate a room-readiness blocker from the destination room's point of view. */
