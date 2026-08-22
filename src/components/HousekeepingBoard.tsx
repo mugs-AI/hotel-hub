@@ -1,21 +1,23 @@
 // ONE engine, TWO experiences.
 //
-// This is the single board component. `variant="dedicated"` is the full
-// housekeeping workspace; `variant="simple"` is the compact Front Desk strip
-// that answers only "which rooms are housekeeping-clear right now, and what is blocking
-// the rest". Both read the same server board and the same allowed actions,
-// so they can never disagree.
+// This is the single board component. `variant="dedicated"` adds floor filters
+// and per-room history; `variant="simple"` is the light front-desk workspace.
+// Both read the same server board and the same server-authorised actions, so
+// they can never disagree. Every action rendered here comes from the server's
+// `availableTransitions` / `canSetDnd` / `canClearDnd` / authority — there is
+// no client-side transition matrix.
+//
+// UX: RECOGNIZE (summary tiles) -> ACT (one prominent next action per room)
+// -> CONFIRM (plain-language confirmation). Rooms that need action come first;
+// Ready rooms are collapsed behind a filter/counter so they never dominate.
 import { useMemo, useState } from "react";
 import {
-  BOARD_GROUP_LABELS,
-  CONDITION_HELP,
   CONDITION_LABELS,
   CONDITION_STYLE,
   OCCUPANCY_LABELS,
   TRANSITION_LABELS,
   blockerLabel,
   confirmationFor,
-  type BoardGroup,
   type BootstrapCondition,
   type HousekeepingTransition,
 } from "@/lib/housekeeping";
@@ -29,14 +31,40 @@ import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
+const AMBER = "#8A6100";
+const BLUE = "#1B4F86";
+const RED = "#9B1C1C";
+const GRAY = "#5A6B7B";
 
-const GROUP_ORDER: BoardGroup[] = ["needs_attention", "in_progress", "not_set_up", "ready"];
+type Filter = "needs_action" | "dirty" | "cleaning" | "inspected" | "ready" | "not_set_up" | "dnd";
+
+/** Presentation-only grouping. Authority and lifecycle stay on the server. */
+function matchesFilter(room: HousekeepingRoomDTO, filter: Filter): boolean {
+  switch (filter) {
+    case "needs_action":
+      return room.group !== "ready";
+    case "not_set_up":
+      return !room.initialized;
+    case "dnd":
+      return room.dndActive;
+    default:
+      return room.condition === filter;
+  }
+}
+
+/** The primary (filled) action for a condition — the obvious next step. */
+const PRIMARY_TRANSITIONS: HousekeepingTransition[] = [
+  "start_cleaning",
+  "finish_cleaning",
+  "mark_ready",
+];
 
 export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated" }) {
   const board = useHousekeepingBoard();
   const act = useHousekeepingAction();
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("needs_action");
   const [floorFilter, setFloorFilter] = useState<string>("all");
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
 
@@ -47,7 +75,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
     return Array.from(set).sort();
   }, [rooms]);
 
-  const visible = useMemo(
+  const byFloor = useMemo(
     () =>
       floorFilter === "all"
         ? rooms
@@ -55,14 +83,23 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
     [rooms, floorFilter],
   );
 
-  const grouped = useMemo(() => {
-    const map = new Map<BoardGroup, HousekeepingRoomDTO[]>();
-    for (const g of GROUP_ORDER) map.set(g, []);
-    for (const r of visible) map.get(r.group)!.push(r);
-    return map;
-  }, [visible]);
+  const visible = useMemo(
+    () => byFloor.filter((r) => matchesFilter(r, filter)),
+    [byFloor, filter],
+  );
 
-  function run(roomId: string, roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
+  const tally = useMemo(() => {
+    const t = { needs_action: 0, dirty: 0, cleaning: 0, inspected: 0, ready: 0, not_set_up: 0, dnd: 0 };
+    for (const r of byFloor) {
+      if (r.group !== "ready") t.needs_action += 1;
+      if (!r.initialized) t.not_set_up += 1;
+      if (r.dndActive) t.dnd += 1;
+      if (r.condition) t[r.condition] += 1;
+    }
+    return t;
+  }, [byFloor]);
+
+  function run(roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
     setError(null);
     setConfirmation(null);
     act.mutate(payload, {
@@ -86,7 +123,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       },
       onError: (err) => setError(housekeepingMessage((err as Error).message)),
     });
-    void roomId;
   }
 
   if (board.isLoading) {
@@ -100,7 +136,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
     );
   }
 
-  const counts = board.data!.counts;
   // Authority comes from the SERVER, decided by role AND the property's
   // housekeeping mode, so a button can never appear that the server refuses.
   const authority = board.data!.authority;
@@ -111,35 +146,88 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Stat label="Needs attention" value={counts.needs_attention} tone="#9B1C1C" />
-        <Stat label="In progress" value={counts.in_progress} tone="#8A6100" />
-        <Stat label="Housekeeping done" value={counts.ready} tone="#0B6B5C" />
-        {pendingHandoffs > 0 && (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <strong>
-              {pendingHandoffs} room(s) a guest has just left are still being updated.
-            </strong>{" "}
-            HotelHub keeps retrying automatically — refresh in a moment to see them as Dirty.
-          </div>
-        )}
-
-        {counts.uninitialized > 0 && (
-          <Stat label="Not set up" value={counts.uninitialized} tone={NAVY} />
-        )}
-        {counts.dnd > 0 && <Stat label="Do Not Disturb" value={counts.dnd} tone="#1B4F86" />}
-        <span className="ml-auto text-xs text-muted-foreground">
-          Property date {board.data!.propertyDate} · {board.data!.timezone}
-        </span>
+      {/* RECOGNIZE — clickable summary tiles */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+        <Tile
+          label="Needs attention"
+          value={tally.needs_action}
+          tone={RED}
+          active={filter === "needs_action"}
+          onClick={() => setFilter("needs_action")}
+        />
+        <Tile
+          label="Dirty"
+          value={tally.dirty}
+          tone={AMBER}
+          active={filter === "dirty"}
+          onClick={() => setFilter("dirty")}
+        />
+        <Tile
+          label="Cleaning"
+          value={tally.cleaning}
+          tone={BLUE}
+          active={filter === "cleaning"}
+          onClick={() => setFilter("cleaning")}
+        />
+        <Tile
+          label="Inspected"
+          value={tally.inspected}
+          tone={NAVY}
+          active={filter === "inspected"}
+          onClick={() => setFilter("inspected")}
+        />
+        <Tile
+          label="Ready"
+          value={tally.ready}
+          tone="#0B6B5C"
+          active={filter === "ready"}
+          onClick={() => setFilter("ready")}
+        />
+        <Tile
+          label="Not set up"
+          value={tally.not_set_up}
+          tone={GRAY}
+          active={filter === "not_set_up"}
+          onClick={() => setFilter("not_set_up")}
+        />
+        <Tile
+          label="Do Not Disturb"
+          value={tally.dnd}
+          tone={BLUE}
+          active={filter === "dnd"}
+          onClick={() => setFilter("dnd")}
+        />
       </div>
 
-      {counts.uninitialized > 0 && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <strong>{counts.uninitialized} room(s) are not set up for housekeeping.</strong> Their
-          condition is unknown, so check-in is blocked for them until someone confirms whether they
-          are Ready or Dirty.
-          {!canInitialize && " Ask the Owner to set them up in Rooms &amp; Rates."}
-        </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>
+          Property date {board.data!.propertyDate} · {board.data!.timezone}
+        </span>
+        {filter !== "needs_action" && (
+          <button
+            type="button"
+            onClick={() => setFilter("needs_action")}
+            className="underline"
+            style={{ color: NAVY }}
+          >
+            Back to needs attention
+          </button>
+        )}
+      </div>
+
+      {pendingHandoffs > 0 && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>{pendingHandoffs} room(s) a guest has just left are still being updated.</strong>{" "}
+          HotelHub keeps retrying automatically.
+        </p>
+      )}
+
+      {tally.not_set_up > 0 && (
+        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>{tally.not_set_up} room(s) are not set up for housekeeping.</strong> Check-in is
+          blocked for them until someone confirms Ready or Dirty.
+          {!canInitialize && " Ask the Owner to set them up."}
+        </p>
       )}
 
       {confirmation && (
@@ -180,61 +268,47 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         </p>
       )}
 
-      {GROUP_ORDER.map((group) => {
-        const list = grouped.get(group) ?? [];
-        if (list.length === 0) return null;
-        if (variant === "simple" && group === "ready") return null;
-        return (
-          <section key={group} className="space-y-2">
-            <h3 className="text-sm font-semibold" style={{ color: NAVY }}>
-              {BOARD_GROUP_LABELS[group]}{" "}
-              <span className="font-normal text-muted-foreground">({list.length})</span>
-            </h3>
-            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {list.map((room) => (
-                <RoomCard
-                  key={room.roomId}
-                  room={room}
-                  variant={variant}
-                  canUpdate={canUpdate}
-                  canDnd={canDnd}
-                  canInitialize={canInitialize}
-                  busy={act.isPending}
-                  onTransition={(t) =>
-                    run(room.roomId, room.roomLabel, {
-                      roomId: room.roomId,
-                      action: "transition",
-                      transition: t,
-                    })
-                  }
-                  onDnd={(active) =>
-                    run(room.roomId, room.roomLabel, {
-                      roomId: room.roomId,
-                      action: "dnd",
-                      active,
-                    })
-                  }
-                  onInitialize={(condition) =>
-                    run(room.roomId, room.roomLabel, {
-                      roomId: room.roomId,
-                      action: "initialize",
-                      condition,
-                    })
-                  }
-                  onHistory={
-                    variant === "dedicated" ? () => setHistoryRoomId(room.roomId) : undefined
-                  }
-                />
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      {rooms.length > 0 && visible.length === 0 && (
+        <p className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">
+          {filter === "needs_action"
+            ? "Nothing needs housekeeping attention right now."
+            : "No rooms in this view."}
+        </p>
+      )}
 
-      {variant === "simple" && (grouped.get("ready") ?? []).length > 0 && (
+      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {visible.map((room) => (
+          <RoomCard
+            key={room.roomId}
+            room={room}
+            canUpdate={canUpdate}
+            canDnd={canDnd}
+            canInitialize={canInitialize}
+            busy={act.isPending}
+            onTransition={(t) =>
+              run(room.roomLabel, { roomId: room.roomId, action: "transition", transition: t })
+            }
+            onDnd={(active) => run(room.roomLabel, { roomId: room.roomId, action: "dnd", active })}
+            onInitialize={(condition) =>
+              run(room.roomLabel, { roomId: room.roomId, action: "initialize", condition })
+            }
+            onHistory={variant === "dedicated" ? () => setHistoryRoomId(room.roomId) : undefined}
+          />
+        ))}
+      </ul>
+
+      {/* Ready is de-emphasised: a compact counter, never the default list. */}
+      {filter !== "ready" && tally.ready > 0 && (
         <p className="text-sm text-muted-foreground">
-          {(grouped.get("ready") ?? []).length} room(s) are Ready — housekeeping complete. Booking
-          and room activity still decide availability.
+          {tally.ready} room(s) are Ready — housekeeping complete.{" "}
+          <button
+            type="button"
+            onClick={() => setFilter("ready")}
+            className="underline"
+            style={{ color: NAVY }}
+          >
+            Show Ready rooms
+          </button>
         </p>
       )}
 
@@ -249,14 +323,38 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Tile({
+  label,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <span
-      className="rounded-md border border-border bg-white px-3 py-1.5 text-xs font-medium"
-      style={{ color: tone }}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className="rounded-lg border p-3 text-left transition-colors"
+      style={{
+        borderColor: active ? tone : "#D6E0EA",
+        backgroundColor: active ? `${tone}12` : "white",
+        boxShadow: active ? `inset 0 -3px 0 ${tone}` : undefined,
+      }}
     >
-      {label}: <strong className="text-sm">{value}</strong>
-    </span>
+      <span className="block text-2xl font-semibold leading-none" style={{ color: tone }}>
+        {value}
+      </span>
+      <span className="mt-1 block text-xs font-medium" style={{ color: NAVY }}>
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -288,7 +386,6 @@ function FloorChip({
 
 function RoomCard({
   room,
-  variant,
   canUpdate,
   canDnd,
   canInitialize,
@@ -299,7 +396,6 @@ function RoomCard({
   onHistory,
 }: {
   room: HousekeepingRoomDTO;
-  variant: "simple" | "dedicated";
   canUpdate: boolean;
   canDnd: boolean;
   canInitialize: boolean;
@@ -309,12 +405,12 @@ function RoomCard({
   onInitialize: (c: BootstrapCondition) => void;
   onHistory?: () => void;
 }) {
-  const style = room.condition ? CONDITION_STYLE[room.condition] : { bg: "#EEF2F6", fg: NAVY };
+  const style = room.condition ? CONDITION_STYLE[room.condition] : { bg: "#EEF2F6", fg: GRAY };
   return (
     <li className="rounded-lg border border-border bg-white p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold" style={{ color: NAVY }}>
+          <div className="truncate text-base font-semibold" style={{ color: NAVY }}>
             {room.roomLabel}
           </div>
           <div className="text-xs text-muted-foreground">
@@ -331,25 +427,25 @@ function RoomCard({
 
       {room.dndActive && (
         <p className="mt-2 rounded-md bg-[#E7F1FB] px-2 py-1 text-[11px] font-medium text-[#1B4F86]">
-          Do Not Disturb — cleaning is paused at the guest&apos;s request.
+          Do Not Disturb — cleaning paused.
         </p>
       )}
 
-      <p className="mt-2 text-xs text-muted-foreground">
-        {room.condition ? CONDITION_HELP[room.condition] : room.nextStep}
+      {room.checkInBlockers.length > 0 && room.occupancy === "arriving" && (
+        <p className="mt-2 rounded-md bg-[#FDECEC] px-2 py-1 text-[11px] font-medium text-[#9B1C1C]">
+          Arrival today is blocked: {blockerLabel(room.checkInBlockers[0]!)}
+        </p>
+      )}
+
+      <p className="mt-2 text-xs" style={{ color: NAVY }}>
+        Next: {room.nextStep}
       </p>
-
-      {variant === "dedicated" && room.condition && (
-        <p className="mt-1 text-xs font-medium" style={{ color: NAVY }}>
-          Next: {room.nextStep}
-        </p>
-      )}
 
       {!room.initialized && (
         <div className="mt-3">
           {canInitialize ? (
             <div className="flex flex-wrap gap-2">
-              <ActionButton busy={busy} primary onClick={() => onInitialize("ready")}>
+              <ActionButton busy={busy} onClick={() => onInitialize("ready")}>
                 Set up as Ready
               </ActionButton>
               <ActionButton busy={busy} onClick={() => onInitialize("dirty")}>
@@ -365,13 +461,14 @@ function RoomCard({
       )}
 
       {room.initialized && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* Actions come straight from the server's availableTransitions. */}
           {canUpdate &&
             room.availableTransitions.map((t) => (
               <ActionButton
                 key={t}
                 busy={busy}
-                primary={t === "mark_ready" || t === "start_cleaning"}
+                primary={PRIMARY_TRANSITIONS.includes(t)}
                 onClick={() => onTransition(t)}
               >
                 {TRANSITION_LABELS[t]}
@@ -399,12 +496,6 @@ function RoomCard({
           )}
         </div>
       )}
-
-      {room.checkInBlockers.length > 0 && room.occupancy === "arriving" && (
-        <p className="mt-2 rounded-md bg-[#FDECEC] px-2 py-1 text-[11px] font-medium text-[#9B1C1C]">
-          Arrival today is blocked: {blockerLabel(room.checkInBlockers[0]!)}
-        </p>
-      )}
     </li>
   );
 }
@@ -425,7 +516,11 @@ function ActionButton({
       type="button"
       disabled={busy}
       onClick={onClick}
-      className="rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+      className={
+        primary
+          ? "rounded-md border px-3.5 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+          : "rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50"
+      }
       style={{
         borderColor: primary ? TEAL : "#D6E0EA",
         backgroundColor: primary ? TEAL : "white",
