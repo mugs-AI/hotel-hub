@@ -98,9 +98,8 @@ vi.mock("@/lib/housekeeping-store.server", () => ({
   reconcilePendingHandoffs: async () => {},
 }));
 
-const { handleOperationDecision } = await import(
-  "@/routes/api/hotel/reservations.$id.operations.$requestId.decision"
-);
+const { handleOperationDecision } =
+  await import("@/routes/api/hotel/reservations.$id.operations.$requestId.decision");
 
 async function run() {
   const res = await handleOperationDecision({
