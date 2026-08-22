@@ -111,16 +111,29 @@ export async function handleOperationDecision({
     const req = detail.value;
 
     // ---- Readiness gate (fails CLOSED) --------------------------------
+    // Correction 7 — readiness now also covers unresolved vacated-room
+    // handoffs. If readiness cannot be DETERMINED (a read failure), we refuse
+    // here and never reach decideOperation; no mutation is retried.
     if (req.state === "pending") {
       let blocker: string | null = null;
-      if (req.operationType === "early_check_in") {
-        // The guest is coming in NOW: every allocated room must be verified.
-        blocker = await housekeepingCheckInBlocker(tenantId, id);
-      } else if (req.operationType === "room_change") {
-        const dest = req.payload["to_hotel_room_id"] ?? req.payload["toHotelRoomId"];
-        if (typeof dest !== "string" || !isUuid(dest)) return deny(400, "validation_failed");
-        blocker = await roomReadinessBlocker(tenantId, [dest]);
-        if (blocker) blocker = destinationBlockerCode(blocker);
+      try {
+        if (req.operationType === "early_check_in") {
+          // The guest is coming in NOW: every allocated room must be verified.
+          blocker = await housekeepingCheckInBlocker(tenantId, id);
+        } else if (req.operationType === "room_change") {
+          const dest = req.payload["to_hotel_room_id"] ?? req.payload["toHotelRoomId"];
+          if (typeof dest !== "string" || !isUuid(dest)) return deny(400, "validation_failed");
+          blocker = await roomReadinessBlocker(tenantId, [dest]);
+          if (blocker) blocker = destinationBlockerCode(blocker);
+        }
+      } catch {
+        await logAudit({
+          tenantId,
+          n3UserKey: actor,
+          eventType: "hotel.housekeeping.readiness_read_failed",
+          detail: { reservationId: id, requestId, operationType: req.operationType },
+        });
+        return deny(503, "readiness_read_failed");
       }
       if (blocker) {
         await logAudit({
