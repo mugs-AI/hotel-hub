@@ -120,12 +120,12 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "housekeeping" | "n3" | "sources";
+type SettingsTab = "property" | "guests" | "system" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
-  { id: "housekeeping", label: "Housekeeping" },
+  { id: "system", label: "System" },
   { id: "n3", label: "N3 Integration" },
   { id: "sources", label: "Booking Sources" },
 ];
@@ -192,8 +192,8 @@ function SettingsWorkspace() {
         <PropertyPanel settings={settings} onChange={setSettings} />
       ) : tab === "guests" ? (
         <GuestControlsPanel settings={settings} onChange={setSettings} />
-      ) : tab === "housekeeping" ? (
-        <HousekeepingPanel settings={settings} onChange={setSettings} />
+      ) : tab === "system" ? (
+        <SystemScreen settings={settings} onChange={setSettings} />
       ) : (
         <N3IntegrationPanel
           settings={settings}
@@ -201,6 +201,30 @@ function SettingsWorkspace() {
           onN3Unauthorized={() => void session.refetch()}
         />
       )}
+    </div>
+  );
+}
+
+function SystemScreen({
+  settings,
+  onChange,
+}: {
+  settings: Parameters<typeof HousekeepingPanel>[0]["settings"];
+  onChange: Parameters<typeof HousekeepingPanel>[0]["onChange"];
+}) {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+          System
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          How HotelHub runs day to day for your property.
+        </p>
+      </header>
+      <section aria-label="Housekeeping workflow">
+        <HousekeepingPanel settings={settings} onChange={onChange} />
+      </section>
     </div>
   );
 }
