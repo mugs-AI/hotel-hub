@@ -302,7 +302,9 @@ export async function getHousekeepingBoard(input: {
       canToggleDnd: authority.canToggleDnd,
       canUpdate: authority.roleTransitions.length > 0,
     },
-    pendingHandoffs: await countPendingHandoffs(input.tenantId),
+    // ALL pending rows, including ones past the automatic retry limit: the
+    // retry budget must never hide unresolved operational uncertainty.
+    pendingHandoffs: pendingHandoffRooms.total,
     rooms,
     counts,
   };
