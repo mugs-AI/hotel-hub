@@ -67,7 +67,9 @@ describe("J. Server authorization remains authoritative", () => {
   });
 
   it("the room action API still resolves authority server-side", () => {
-    expect(ROOM_API).toMatch(/housekeepingAuthority\(settings\?\.housekeepingMode \?\? "simple", ctx\.role\)/);
+    expect(ROOM_API).toMatch(
+      /housekeepingAuthority\(settings\?\.housekeepingMode \?\? "simple", ctx\.role\)/,
+    );
   });
 });
 

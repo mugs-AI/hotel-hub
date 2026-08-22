@@ -83,13 +83,18 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
     [rooms, floorFilter],
   );
 
-  const visible = useMemo(
-    () => byFloor.filter((r) => matchesFilter(r, filter)),
-    [byFloor, filter],
-  );
+  const visible = useMemo(() => byFloor.filter((r) => matchesFilter(r, filter)), [byFloor, filter]);
 
   const tally = useMemo(() => {
-    const t = { needs_action: 0, dirty: 0, cleaning: 0, inspected: 0, ready: 0, not_set_up: 0, dnd: 0 };
+    const t = {
+      needs_action: 0,
+      dirty: 0,
+      cleaning: 0,
+      inspected: 0,
+      ready: 0,
+      not_set_up: 0,
+      dnd: 0,
+    };
     for (const r of byFloor) {
       if (r.group !== "ready") t.needs_action += 1;
       if (!r.initialized) t.not_set_up += 1;

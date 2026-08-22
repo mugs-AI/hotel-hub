@@ -50,7 +50,9 @@ function HousekeepingPage() {
         {authority.canOpenWorkspace ? (
           <>
             <HousekeepingModeBanner />
-            <HousekeepingBoard variant={authority.canUseDedicatedWorkspace ? "dedicated" : "simple"} />
+            <HousekeepingBoard
+              variant={authority.canUseDedicatedWorkspace ? "dedicated" : "simple"}
+            />
           </>
         ) : (
           <div
