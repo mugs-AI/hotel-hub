@@ -415,6 +415,39 @@ export function canPerformTransition(
   return authorizedTransitions(authority, state).includes(transition);
 }
 
-/** Why the dedicated workspace is unavailable, in the property's own terms. */
+/** Why the dedicated team experience is unavailable, in the property's terms. */
 export const DEDICATED_UNAVAILABLE_SIMPLE =
-  "This property runs simple front-desk housekeeping, so there is no separate housekeeping workspace. Room readiness lives on Rooms & Rates. The Owner can switch to a dedicated housekeeping team in Settings.";
+  "This property runs simple front-desk housekeeping, so there is no dedicated housekeeping-team experience. Room turnaround lives in the Housekeeping workspace and the front desk runs it. The Owner can switch to a dedicated housekeeping team in Settings → System.";
+
+/**
+ * Mode presentation. SAME engine, SAME lifecycle — only the workspace framing
+ * differs, so staff can tell at a glance which experience they are in.
+ */
+export const MODE_PRESENTATION: Record<
+  HousekeepingMode,
+  { title: string; summary: string; accent: string }
+> = {
+  simple: {
+    title: "Simple — Front Desk Housekeeping",
+    summary: "Front desk turns rooms around.",
+    accent: HK_COLORS.teal,
+  },
+  dedicated: {
+    title: "Dedicated Housekeeping Team",
+    summary: "Housekeeping staff manage room turnaround here.",
+    accent: HK_COLORS.indigo,
+  },
+};
+
+/** Compact workflow legend shown in the dedicated workspace. */
+export const WORKFLOW_LEGEND: HousekeepingCondition[] = ["dirty", "cleaning", "inspected", "ready"];
+
+/** Non-PII role hint for the dedicated workspace. */
+export const ROLE_HINTS: Record<string, string> = {
+  owner: "Owner — full workflow",
+  housekeeper: "Housekeeper — team workflow",
+  front_desk: "Front Desk — restricted workflow",
+};
+
+/** Presentation-only indicator for a stay past its planned departure date. */
+export const OVERDUE_STAY_LABEL = "Departure overdue";
