@@ -474,9 +474,14 @@ export async function listReservationTimeline(
 /**
  * WP1 housekeeping check-in gate.
  *
- * Fails CLOSED: a room that was never initialised has an UNKNOWN condition,
- * and an unknown room is not a clean room. Returns the blocking code, or
- * null when every allocated room is Ready and not under Do Not Disturb.
+ * Correction 7 — this is no longer a second, weaker copy of the readiness
+ * rules. It resolves the reservation's allocated rooms and then defers to the
+ * ONE server-authoritative gate (`roomReadinessBlocker`), so standard
+ * check-in, early check-in approval and room-change destinations enforce
+ * exactly the same conditions, Do Not Disturb and pending-handoff rules.
+ *
+ * Fails CLOSED: unknown condition, or unreadable pending-handoff state, both
+ * refuse the check-in rather than assume a clean room.
  */
 export async function housekeepingCheckInBlocker(
   tenantId: string,
@@ -493,24 +498,17 @@ export async function housekeepingCheckInBlocker(
   const roomIds = ((res.data ?? []) as any[]).map((r) => r.hotel_room_id as string);
   if (roomIds.length === 0) return null;
 
-  const { readRoomStates } = await import("./housekeeping-store.server");
-  const { checkInBlockers } = await import("./housekeeping");
-  const states = await readRoomStates(tenantId, roomIds);
-  for (const roomId of roomIds) {
-    const hk = states.get(roomId);
-    const blockers = checkInBlockers({
-      initialized: Boolean(hk),
-      condition: hk?.condition ?? null,
-      dndActive: Boolean(hk?.dndActive),
-      // Occupancy is irrelevant to readiness; the reservation being checked
-      // in is precisely the incoming occupancy.
-      occupancy: "vacant",
-      isActive: true,
-    });
-    const blocking = blockers.find((b) => b !== "room_inactive");
-    if (blocking) return blocking;
+  const { roomReadinessBlocker, HousekeepingError } = await import("./housekeeping-store.server");
+  try {
+    return await roomReadinessBlocker(tenantId, roomIds);
+  } catch (err) {
+    if (err instanceof HousekeepingError) {
+      throw new OperationError(
+        err.code === "readiness_read_failed" ? "readiness_read_failed" : "operation_read_failed",
+      );
+    }
+    throw new OperationError("readiness_read_failed");
   }
-  return null;
 }
 
 /** Minimal read used by the WP1 vacated-room handoff. */
