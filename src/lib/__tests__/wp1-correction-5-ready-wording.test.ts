@@ -12,11 +12,7 @@ import { CONDITION_HELP, confirmationFor, nextStepHint } from "@/lib/housekeepin
 
 const FORBIDDEN = [/safe to sell/i, /ready to sell/i, /can be sold and checked into/i];
 
-const WP1_FILES = [
-  "../housekeeping.ts",
-  "../../components/HousekeepingBoard.tsx",
-  "../../routes/rooms-rates.tsx",
-];
+const WP1_FILES = ["../housekeeping.ts", "../../components/HousekeepingBoard.tsx"];
 
 describe("L. Ready never claims the room is saleable", () => {
   it("the Ready condition help is housekeeping-only and preserves booking truth", () => {

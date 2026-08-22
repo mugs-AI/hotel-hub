@@ -78,8 +78,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const role = session.role;
-  // Mode authority: a simple front-desk property has no separate housekeeping
-  // workspace, so the link must not exist for anyone.
+  // Mode authority: Housekeeping is a normal workspace for anyone the server
+  // lets view the board. A housekeeper in simple mode still has no access.
   const hkAuthority = housekeepingAuthority(session.housekeepingMode ?? "simple", role);
   const containerClass = widthContainerClass(displayWidth);
 
@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     : false));
               const visible =
                 item.to === "/housekeeping"
-                  ? hkAuthority.canUseDedicatedWorkspace
+                  ? hkAuthority.canOpenWorkspace
                   : !item.permission || hasPermission(role, item.permission);
               if (item.disabled || !visible) {
                 const title = item.disabled

@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { HousekeepingBoard } from "@/components/HousekeepingBoard";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { buildMappedStockSet } from "@/lib/room-picker";
@@ -92,21 +91,6 @@ function RoomsRatesPage() {
           <NoAccess />
         ) : (
           <>
-            {authed.role && hasPermission(authed.role, "hotel:housekeeping:view") && (
-              <section className={CARD} style={{ borderColor: `${NAVY}1F` }}>
-                <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-                  Room readiness
-                </h2>
-                <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                  The rooms that still need housekeeping work. Ready means housekeeping is complete
-                  — booking and allocation rules still apply. Ready rooms are counted but not listed
-                  — the full board lives under Housekeeping.
-                </p>
-                <div className="mt-4">
-                  <HousekeepingBoard variant="simple" />
-                </div>
-              </section>
-            )}
             <RoomsRatesInner canSetup={canSetup} onN3Unauthorized={() => session.refetch()} />
           </>
         )}

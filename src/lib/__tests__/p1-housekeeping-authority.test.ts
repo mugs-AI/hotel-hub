@@ -140,13 +140,13 @@ describe("2. Dedicated workspace gate fails closed", () => {
     }
   });
 
-  it("the route renders the board only behind the mode gate", () => {
-    expect(src).toMatch(/canUseDedicatedWorkspace/);
-    expect(src).toMatch(/DEDICATED_UNAVAILABLE_SIMPLE/);
+  it("the route gates the workspace on server-derived authority", () => {
+    expect(src).toMatch(/authority\.canOpenWorkspace/);
+    expect(src).toMatch(/canUseDedicatedWorkspace \? "dedicated" : "simple"/);
   });
 
-  it("navigation hides the workspace unless the mode allows it", () => {
-    expect(shell).toMatch(/hkAuthority\.canUseDedicatedWorkspace/);
+  it("navigation shows the workspace only when authority allows it", () => {
+    expect(shell).toMatch(/hkAuthority\.canOpenWorkspace/);
   });
 
   it("the server refuses board data when the mode denies it", () => {
