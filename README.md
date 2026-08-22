@@ -2,7 +2,7 @@
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
 
-## Project status (through Run 5D3.2)
+## Project status (through Run 5D3.2, plus the WP1 Housekeeping candidate)
 
 Delivered:
 
@@ -22,14 +22,29 @@ Delivered:
   and a full blocker list. No N3 write, no reservation, room-allocation or
   housekeeping transition.
 
+Candidate (WP1 Housekeeping — implemented in this candidate; **not formally
+accepted, not deployed, not production-verified**):
+
+- **Housekeeping & room turnaround** is implemented: Simple / Front Desk mode
+  as the default and an optional Dedicated Housekeeping mode, selected under
+  Settings → System → Housekeeping workflow.
+- Dirty → Cleaning → Inspected → Ready lifecycle with a Do Not Disturb overlay
+  and explicit initialization of existing rooms.
+- Mode-aware roles, a Ready / no-DND physical check-in gate, and a durable
+  room-change-away Dirty handoff with fail-closed reconciliation.
+- **`Ready` means housekeeping-cleared only.** It is not reservation
+  availability or saleability truth; booking, allocation and other gates
+  remain separate.
+
 Future work (not built):
 
 - CashMemo / Cash Sale posting;
 - deposit matching (knock-off);
 - final balance collection and checkout completion;
-- housekeeping & maintenance workflow;
+- maintenance workflow (WP2);
 - refunds and later accounting;
 - dashboard & reports.
+
 
 Test counts are environment-dependent: some suites skip when live N3 or
 database credentials are unavailable. Run `bun run test` locally for the
