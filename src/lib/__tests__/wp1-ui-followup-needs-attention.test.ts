@@ -60,9 +60,7 @@ describe("B. Ready + DND -> IS Needs attention", () => {
 
 describe("C. Ready + handoff_pending -> IS Needs attention", () => {
   it("an operational blocker promotes a ready room", () => {
-    expect(
-      needsHousekeepingAttention(room({ checkInBlockers: ["handoff_pending"] })),
-    ).toBe(true);
+    expect(needsHousekeepingAttention(room({ checkInBlockers: ["handoff_pending"] }))).toBe(true);
   });
 
   it("operational blockers stack with ready", () => {
@@ -74,37 +72,37 @@ describe("C. Ready + handoff_pending -> IS Needs attention", () => {
 
 describe("D. Ready + only room_inactive -> does NOT become Needs attention", () => {
   it("room_inactive alone is non-operational for the housekeeping queue", () => {
-    expect(
-      needsHousekeepingAttention(room({ checkInBlockers: ["room_inactive"] })),
-    ).toBe(false);
+    expect(needsHousekeepingAttention(room({ checkInBlockers: ["room_inactive"] }))).toBe(false);
   });
 
   it("an inactive-but-ready room with no other blocker is not promoted", () => {
     expect(
-      needsHousekeepingAttention(
-        room({ isActive: false, checkInBlockers: ["room_inactive"] }),
-      ),
+      needsHousekeepingAttention(room({ isActive: false, checkInBlockers: ["room_inactive"] })),
     ).toBe(false);
   });
 
   it("room_inactive plus a real blocker still needs attention", () => {
     expect(
-      needsHousekeepingAttention(
-        room({ checkInBlockers: ["room_inactive", "handoff_pending"] }),
-      ),
+      needsHousekeepingAttention(room({ checkInBlockers: ["room_inactive", "handoff_pending"] })),
     ).toBe(true);
   });
 });
 
 describe("E. Dirty / Cleaning / Inspected / Not set up remain Needs attention", () => {
   it("dirty needs attention", () => {
-    expect(needsHousekeepingAttention(room({ condition: "dirty", group: "needs_attention" }))).toBe(true);
+    expect(needsHousekeepingAttention(room({ condition: "dirty", group: "needs_attention" }))).toBe(
+      true,
+    );
   });
   it("cleaning needs attention", () => {
-    expect(needsHousekeepingAttention(room({ condition: "cleaning", group: "in_progress" }))).toBe(true);
+    expect(needsHousekeepingAttention(room({ condition: "cleaning", group: "in_progress" }))).toBe(
+      true,
+    );
   });
   it("inspected needs attention", () => {
-    expect(needsHousekeepingAttention(room({ condition: "inspected", group: "in_progress" }))).toBe(true);
+    expect(needsHousekeepingAttention(room({ condition: "inspected", group: "in_progress" }))).toBe(
+      true,
+    );
   });
   it("not set up needs attention", () => {
     expect(
