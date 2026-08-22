@@ -897,15 +897,25 @@ async function operationHandoffVerdict(
 }
 
 /**
- * Readiness gate for a destination room (early check-in, room change).
- * Fails CLOSED: an unknown condition is not a clean room. Returns the blocking
- * code or null.
+ * THE physical readiness gate — standard check-in, early check-in approval and
+ * room-change destinations all come through here, so they can never disagree.
+ *
+ * Fails CLOSED twice over: an unknown housekeeping condition is not a clean
+ * room, and an unresolved pending vacate handoff means a guest has just left
+ * the room while the Dirty bookkeeping has not landed, so the room is unsafe
+ * whatever its stored condition says. If pending-handoff state cannot be read
+ * at all we refuse rather than assume there is none.
  */
 export async function roomReadinessBlocker(
   tenantId: string,
   roomIds: string[],
 ): Promise<string | null> {
   if (roomIds.length === 0) return null;
+  const handoffs = await readPendingHandoffRooms(tenantId, roomIds);
+  if (handoffs.status !== "ok") throw new HousekeepingError("readiness_read_failed");
+  for (const roomId of roomIds) {
+    if (handoffs.roomIds.has(roomId)) return "handoff_pending";
+  }
   const states = await readRoomStates(tenantId, roomIds);
   for (const roomId of roomIds) {
     const hk = states.get(roomId);
