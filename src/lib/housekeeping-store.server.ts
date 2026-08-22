@@ -287,7 +287,11 @@ export async function getHousekeepingBoard(input: {
       availableTransitions: authorizedTransitions(authority, state),
       canSetDnd: authority.canToggleDnd && canSetDnd(state),
       canClearDnd: authority.canToggleDnd && canClearDnd(state),
-      checkInBlockers: checkInBlockers(state),
+      // An unresolved vacated-room handoff is a readiness blocker, never a
+      // fifth condition: the room may read Ready and still be unsafe.
+      checkInBlockers: pendingHandoffRooms.roomIds.has(r.id)
+        ? ["handoff_pending", ...checkInBlockers(state)]
+        : checkInBlockers(state),
     };
   });
 
