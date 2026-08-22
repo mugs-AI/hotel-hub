@@ -51,6 +51,7 @@ export const HOUSEKEEPING_ERROR_CODES = new Set([
   "not_permitted_in_mode",
   "handoff_pending",
   "handoff_not_recorded",
+  "readiness_read_failed",
 ]);
 
 export class HousekeepingError extends Error {
