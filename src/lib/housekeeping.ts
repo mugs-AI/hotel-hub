@@ -267,6 +267,12 @@ export type HousekeepingAuthority = {
   role: HotelRole | null;
   canViewBoard: boolean;
   canUseDedicatedWorkspace: boolean;
+  /**
+   * PO-approved UI correction: Housekeeping is a normal workspace. Anyone who
+   * may view the board may open it; only the dedicated FEATURE SET (history,
+   * floor filters) is gated by `canUseDedicatedWorkspace`.
+   */
+  canOpenWorkspace: boolean;
   canInitialize: boolean;
   canToggleDnd: boolean;
   /** Lifecycle transitions this role may ever perform in this mode. */
@@ -304,6 +310,7 @@ export function housekeepingAuthority(
     role,
     canViewBoard,
     canUseDedicatedWorkspace: canViewBoard && mode === "dedicated",
+    canOpenWorkspace: canViewBoard,
     canInitialize: staticInit,
     canToggleDnd: staticDnd && !housekeeperInSimple,
     roleTransitions,
