@@ -31,6 +31,12 @@ import {
 import type { HotelRole } from "./rbac";
 import { propertyTodayIso } from "./checkout-preview";
 import { resolveActorLabels } from "./tenant-store.server";
+import {
+  resolveOccupancyByRoom,
+  VACANT,
+  type OccupancyResolution,
+  type OccupancyRow,
+} from "./housekeeping-occupancy";
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -152,50 +158,61 @@ function roomLabelOf(row: {
   return row.display_name?.trim() || row.n3_stock_name?.trim() || row.room_number;
 }
 
-type OccupancyInfo = { occupancy: RoomOccupancy; reservationId: string | null };
+const OCCUPANCY_SELECT =
+  "tenant_id, hotel_room_id, arrival_date, departure_date, allocation_status, reservation_id, hotel_reservations!inner(id, status)";
+
+function toOccupancyRows(rows: any[]): OccupancyRow[] {
+  return rows.map((row) => ({
+    tenantId: row.tenant_id,
+    hotelRoomId: row.hotel_room_id,
+    reservationId: row.reservation_id,
+    reservationStatus: (row.hotel_reservations?.status as string | undefined) ?? "",
+    allocationStatus: row.allocation_status,
+    arrivalDate: row.arrival_date,
+    departureDate: row.departure_date,
+  }));
+}
 
 /**
- * Derive today's occupancy per room from reservations. Checked-in stays win
- * over arrivals: a room someone is physically in must never be presented as
- * merely "arriving".
+ * Occupancy truth for the board.
+ *
+ * TWO authoritative tenant-scoped reads, never one date-filtered read:
+ *  1. every allocation still physically `occupied` on a `checked_in`
+ *     reservation, WITHOUT any date filter — a guest who has not actually left
+ *     is occupancy even if the planned departure date has passed; and
+ *  2. the ordinary planned-stay window for today, which supplies arrivals and
+ *     departures.
+ * The pure resolver then decides, with physical presence outranking bookings.
  */
 async function occupancyByRoom(
   sb: any,
   tenantId: string,
   today: string,
-): Promise<Map<string, OccupancyInfo>> {
-  const res = await sb
+): Promise<Map<string, OccupancyResolution>> {
+  const physical = await sb
     .from("hotel_reservation_rooms")
-    .select(
-      "hotel_room_id, arrival_date, departure_date, allocation_status, reservation_id, hotel_reservations!inner(id, status)",
-    )
+    .select(OCCUPANCY_SELECT)
+    .eq("tenant_id", tenantId)
+    .eq("allocation_status", "occupied")
+    .eq("hotel_reservations.status", "checked_in");
+  if (physical.error) throw new HousekeepingError("housekeeping_failed");
+
+  const planned = await sb
+    .from("hotel_reservation_rooms")
+    .select(OCCUPANCY_SELECT)
     .eq("tenant_id", tenantId)
     .neq("allocation_status", "released")
     .lte("arrival_date", today)
     .gte("departure_date", today);
-  if (res.error) throw new HousekeepingError("housekeeping_failed");
+  if (planned.error) throw new HousekeepingError("housekeeping_failed");
 
-  const map = new Map<string, OccupancyInfo>();
-  for (const row of (res.data ?? []) as any[]) {
-    const status = row.hotel_reservations?.status as string | undefined;
-    if (status !== "checked_in" && status !== "confirmed" && status !== "tentative") continue;
-    const isCheckedIn = status === "checked_in";
-    const occupancy: RoomOccupancy = isCheckedIn
-      ? row.departure_date === today
-        ? "departing"
-        : "occupied"
-      : row.arrival_date === today
-        ? "arriving"
-        : "vacant";
-    if (occupancy === "vacant") continue;
-    const existing = map.get(row.hotel_room_id);
-    // Checked-in truth beats a not-yet-arrived booking on the same room.
-    if (existing && (existing.occupancy === "occupied" || existing.occupancy === "departing")) {
-      continue;
-    }
-    map.set(row.hotel_room_id, { occupancy, reservationId: row.reservation_id });
-  }
-  return map;
+  return resolveOccupancyByRoom(
+    [...toOccupancyRows((physical.data ?? []) as any[]), ...toOccupancyRows(
+      (planned.data ?? []) as any[],
+    )],
+    tenantId,
+    today,
+  );
 }
 
 export async function getHousekeepingBoard(input: {

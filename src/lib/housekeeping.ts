@@ -148,20 +148,92 @@ export const CONDITION_HELP: Record<HousekeepingCondition, string> = {
     "Housekeeping is complete — cleaned and checked. Booking and room activity rules still decide if it can be used.",
 };
 
-/** Navy / Teal / Gold palette — kept in one place so both surfaces match. */
+// ---------------------------------------------------------------------------
+// Semantic action palette — presentation ONLY.
+//
+// Colour carries meaning so staff learn the workflow by sight:
+//   green  = positive / room is good        amber  = needs work / corrective
+//   teal   = active work in progress        blue   = inspection step
+//   indigo = Do Not Disturb overlay         red    = blocked / error only
+// Which actions exist is still decided by the server; colour never is.
+// ---------------------------------------------------------------------------
+
+export const HK_COLORS = {
+  navy: "#102A43",
+  appleGreen: "#5F9F3A",
+  appleGreenSoft: "#EDF6E6",
+  appleGreenInk: "#3D6B24",
+  amber: "#B26B00",
+  amberSoft: "#FFF3DF",
+  amberInk: "#7A4A00",
+  teal: "#0F9D8A",
+  tealSoft: "#E3F6F1",
+  tealInk: "#0B6B5C",
+  blue: "#1B4F86",
+  blueSoft: "#E7F1FB",
+  indigo: "#5A5FBF",
+  indigoSoft: "#ECEDFB",
+  indigoInk: "#3F42A0",
+  red: "#9B1C1C",
+  redSoft: "#FDECEC",
+  gray: "#5A6B7B",
+  graySoft: "#EEF2F6",
+} as const;
+
+/** Status chips share the exact same colour meanings as the buttons. */
 export const CONDITION_STYLE: Record<HousekeepingCondition, { bg: string; fg: string }> = {
-  dirty: { bg: "#FDECEC", fg: "#9B1C1C" },
-  cleaning: { bg: "#FFF6E0", fg: "#8A6100" },
-  inspected: { bg: "#E7F1FB", fg: "#1B4F86" },
-  ready: { bg: "#E3F6F1", fg: "#0B6B5C" },
+  dirty: { bg: HK_COLORS.amberSoft, fg: HK_COLORS.amberInk },
+  cleaning: { bg: HK_COLORS.tealSoft, fg: HK_COLORS.tealInk },
+  inspected: { bg: HK_COLORS.blueSoft, fg: HK_COLORS.blue },
+  ready: { bg: HK_COLORS.appleGreenSoft, fg: HK_COLORS.appleGreenInk },
 };
 
 export const TRANSITION_LABELS: Record<HousekeepingTransition, string> = {
   mark_dirty: "Mark dirty",
   start_cleaning: "Start cleaning",
-  finish_cleaning: "Finish cleaning",
-  mark_ready: "Mark ready",
-  revert_to_cleaning: "Send back to cleaning",
+  // Say the RESULT, not the internal transition name: staff must understand
+  // that finishing a clean produces an Inspected room awaiting a final check.
+  finish_cleaning: "Finish & mark inspected",
+  mark_ready: "Mark Ready",
+  revert_to_cleaning: "Send back to Cleaning",
+};
+
+export type ActionTone = "positive" | "work" | "inspect" | "corrective" | "dnd" | "neutral";
+
+/** Semantic tone per lifecycle action. Presentation only. */
+export const TRANSITION_TONE: Record<HousekeepingTransition, ActionTone> = {
+  mark_dirty: "corrective",
+  start_cleaning: "work",
+  finish_cleaning: "inspect",
+  mark_ready: "positive",
+  revert_to_cleaning: "corrective",
+};
+
+export const TONE_STYLE: Record<
+  ActionTone,
+  { bg: string; fg: string; border: string; filled: boolean }
+> = {
+  positive: {
+    bg: HK_COLORS.appleGreen,
+    fg: "#FFFFFF",
+    border: HK_COLORS.appleGreen,
+    filled: true,
+  },
+  work: { bg: HK_COLORS.teal, fg: "#FFFFFF", border: HK_COLORS.teal, filled: true },
+  inspect: { bg: HK_COLORS.blue, fg: "#FFFFFF", border: HK_COLORS.blue, filled: true },
+  corrective: {
+    bg: HK_COLORS.amberSoft,
+    fg: HK_COLORS.amberInk,
+    border: HK_COLORS.amber,
+    filled: false,
+  },
+  dnd: {
+    bg: HK_COLORS.indigoSoft,
+    fg: HK_COLORS.indigoInk,
+    border: HK_COLORS.indigo,
+    filled: false,
+  },
+  neutral: { bg: "#FFFFFF", fg: HK_COLORS.navy, border: "#D6E0EA", filled: false },
 };
 
 /** Plain-language confirmation shown after an action succeeds. */
@@ -178,7 +250,7 @@ function confirmSuffix(transition: HousekeepingTransition): string {
     case "mark_ready":
       return " Housekeeping is complete. Booking and check-in rules still apply.";
     case "finish_cleaning":
-      return " It still needs a final check before housekeeping is complete.";
+      return " Cleaning finished. Final room check required.";
     case "start_cleaning":
       return " It cannot be checked into until cleaning is finished and checked.";
     default:
@@ -221,7 +293,7 @@ export function nextStepHint(state: RoomTurnaroundState): string {
     case "dirty":
       return "Start cleaning this room.";
     case "cleaning":
-      return "Finish cleaning, then it goes for a check.";
+      return "Finish cleaning and mark it Inspected for the final check.";
     case "inspected":
       return "Check the room, then mark it Ready.";
     case "ready":
@@ -343,6 +415,39 @@ export function canPerformTransition(
   return authorizedTransitions(authority, state).includes(transition);
 }
 
-/** Why the dedicated workspace is unavailable, in the property's own terms. */
+/** Why the dedicated team experience is unavailable, in the property's terms. */
 export const DEDICATED_UNAVAILABLE_SIMPLE =
-  "This property runs simple front-desk housekeeping, so there is no separate housekeeping workspace. Room readiness lives on Rooms & Rates. The Owner can switch to a dedicated housekeeping team in Settings.";
+  "This property runs simple front-desk housekeeping, so there is no dedicated housekeeping-team experience. Room turnaround lives in the Housekeeping workspace and the front desk runs it. The Owner can switch to a dedicated housekeeping team in Settings → System.";
+
+/**
+ * Mode presentation. SAME engine, SAME lifecycle — only the workspace framing
+ * differs, so staff can tell at a glance which experience they are in.
+ */
+export const MODE_PRESENTATION: Record<
+  HousekeepingMode,
+  { title: string; summary: string; accent: string }
+> = {
+  simple: {
+    title: "Simple — Front Desk Housekeeping",
+    summary: "Front desk turns rooms around.",
+    accent: HK_COLORS.teal,
+  },
+  dedicated: {
+    title: "Dedicated Housekeeping Team",
+    summary: "Housekeeping staff manage room turnaround here.",
+    accent: HK_COLORS.indigo,
+  },
+};
+
+/** Compact workflow legend shown in the dedicated workspace. */
+export const WORKFLOW_LEGEND: HousekeepingCondition[] = ["dirty", "cleaning", "inspected", "ready"];
+
+/** Non-PII role hint for the dedicated workspace. */
+export const ROLE_HINTS: Record<string, string> = {
+  owner: "Owner — full workflow",
+  housekeeper: "Housekeeper — team workflow",
+  front_desk: "Front Desk — restricted workflow",
+};
+
+/** Presentation-only indicator for a stay past its planned departure date. */
+export const OVERDUE_STAY_LABEL = "Departure overdue";
