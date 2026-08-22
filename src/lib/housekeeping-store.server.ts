@@ -671,17 +671,46 @@ async function failRoomHandoff(
   }
 }
 
-export async function countPendingHandoffs(tenantId: string): Promise<number> {
+/**
+ * Correction 7 — the ONE authoritative pending-handoff read.
+ *
+ * Strict and tenant-scoped: every query positively filters `tenant_id`, so a
+ * pending handoff in another property can never block this one. It counts and
+ * reports EVERY row still `state='pending'`, including rows whose automatic
+ * retry budget (`attempts >= 10`) is exhausted — an exhausted retry budget
+ * means the uncertainty is worse, not resolved.
+ *
+ * A read failure is reported as `status: "error"`, never as "no pending
+ * handoffs". Callers must fail closed on it.
+ */
+export type PendingHandoffRead =
+  | { status: "ok"; roomIds: Set<string>; total: number }
+  | { status: "error" };
+
+export async function readPendingHandoffRooms(
+  tenantId: string,
+  roomIds?: string[],
+): Promise<PendingHandoffRead> {
+  if (!tenantId) return { status: "error" };
+  if (roomIds && roomIds.length === 0) return { status: "ok", roomIds: new Set(), total: 0 };
   try {
     const sb = await admin();
-    const res = await sb.rpc("hotelhub_hk_list_pending_handoffs", {
-      p_tenant_id: tenantId,
-      p_limit: 100,
-    });
-    if (res.error) return 0;
-    return Array.isArray(res.data) ? res.data.length : 0;
+    let query = sb
+      .from("hotel_housekeeping_handoffs")
+      .select("hotel_room_id")
+      .eq("tenant_id", tenantId)
+      .eq("state", "pending");
+    if (roomIds) query = query.in("hotel_room_id", roomIds);
+    const res = await query;
+    if (res?.error) return { status: "error" };
+    if (!Array.isArray(res?.data)) return { status: "error" };
+    const set = new Set<string>();
+    for (const row of res.data as any[]) {
+      if (typeof row?.hotel_room_id === "string") set.add(row.hotel_room_id);
+    }
+    return { status: "ok", roomIds: set, total: res.data.length };
   } catch {
-    return 0;
+    return { status: "error" };
   }
 }
 
