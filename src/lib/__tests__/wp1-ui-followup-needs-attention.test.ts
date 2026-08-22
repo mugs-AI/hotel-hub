@@ -124,7 +124,7 @@ describe("F. the same helper drives both visible filtering and tally", () => {
     expect(BOARD).toMatch(/if \(needsHousekeepingAttention\(r\)\) t\.needs_action \+= 1;/);
   });
 
-  it("the old condition-only `group !== "ready"` shortcut is gone from both paths", () => {
+  it("the old condition-only group !== ready shortcut is gone from both paths", () => {
     expect(BOARD).not.toMatch(/r\.group !== "ready"/);
   });
 });
