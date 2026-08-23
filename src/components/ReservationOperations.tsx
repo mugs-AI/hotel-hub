@@ -557,12 +557,17 @@ export function PendingApprovalsCard({
 }) {
   const q = useReservationOperations(reservationId, canView);
   const decide = useDecideOperation(reservationId);
+  const propertyRooms = usePropertyRooms(canView);
   const [confirm, setConfirm] = useState<{
     request: OperationRequestDTO;
     decision: "approve" | "reject";
     id: string;
   } | null>(null);
   const [note, setNote] = useState("");
+  const decideCode =
+    decide.error && typeof decide.error === "object" && "code" in decide.error
+      ? String((decide.error as { code: string }).code)
+      : "";
 
   if (!canView) return null;
   const requests = q.data?.requests ?? [];
