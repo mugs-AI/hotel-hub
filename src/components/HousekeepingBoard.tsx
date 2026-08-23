@@ -85,6 +85,23 @@ function matchesFilter(room: HousekeepingRoomDTO, filter: Filter): boolean {
   }
 }
 
+/**
+ * Immutable per-room pending helpers. Overlapping requests must be tracked
+ * independently: starting B while A is in flight keeps BOTH pending, and each
+ * one is removed only when ITS OWN request settles.
+ */
+export function addPendingRoom(prev: ReadonlySet<string>, roomId: string): ReadonlySet<string> {
+  const next = new Set(prev);
+  next.add(roomId);
+  return next;
+}
+
+export function removePendingRoom(prev: ReadonlySet<string>, roomId: string): ReadonlySet<string> {
+  const next = new Set(prev);
+  next.delete(roomId);
+  return next;
+}
+
 /** The primary (filled) action for a condition — the obvious next step. */
 const PRIMARY_TRANSITIONS: HousekeepingTransition[] = [
   "start_cleaning",
@@ -101,8 +118,8 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   const [floorFilter, setFloorFilter] = useState<string>("all");
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
   // Per-room pending, keyed by roomId: acting on one room must never block the
-  // rest of the board.
-  const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
+  // rest of the board, and two overlapping requests must settle independently.
+  const [pendingRoomIds, setPendingRoomIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const rooms = board.data?.rooms ?? [];
   const floors = useMemo(() => {
@@ -143,9 +160,9 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   function run(roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
     setError(null);
     setConfirmation(null);
-    setPendingRoomId(payload.roomId);
+    setPendingRoomIds((prev) => addPendingRoom(prev, payload.roomId));
     act.mutate(payload, {
-      onSettled: () => setPendingRoomId(null),
+      onSettled: () => setPendingRoomIds((prev) => removePendingRoom(prev, payload.roomId)),
       onSuccess: (result) => {
         if (payload.action === "transition") {
           const to = (result as { condition?: string }).condition;
@@ -353,7 +370,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
             canUpdate={canUpdate}
             canDnd={canDnd}
             canInitialize={canInitialize}
-            busy={pendingRoomId === room.roomId}
+            busy={pendingRoomIds.has(room.roomId)}
             onTransition={(t) =>
               run(room.roomLabel, { roomId: room.roomId, action: "transition", transition: t })
             }

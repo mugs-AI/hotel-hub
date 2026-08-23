@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { addPendingRoom, removePendingRoom } from "@/components/HousekeepingBoard";
 
 const read = (rel: string) => readFileSync(resolve(__dirname, rel), "utf8");
 const BOARD = read("../../components/HousekeepingBoard.tsx");
@@ -17,29 +18,85 @@ const ROUTE = read("../../routes/api/hotel/housekeeping.rooms.$roomId.ts");
 const STORE = read("../housekeeping-store.server.ts");
 
 describe("WP1 per-room responsiveness", () => {
-  it("tracks pending state per room, not for the whole board", () => {
-    expect(BOARD).toContain("const [pendingRoomId, setPendingRoomId] = useState<string | null>");
-    expect(BOARD).toContain("setPendingRoomId(payload.roomId)");
-    expect(BOARD).toContain("busy={pendingRoomId === room.roomId}");
+  it("tracks a SET of pending rooms, not a single scalar room id", () => {
+    expect(BOARD).toContain(
+      "const [pendingRoomIds, setPendingRoomIds] = useState<ReadonlySet<string>>",
+    );
+    expect(BOARD).not.toContain("pendingRoomId === room.roomId");
+    expect(BOARD).not.toMatch(/useState<string \| null>\(null\);\s*\n\s*const rooms/);
+    expect(BOARD).toContain("busy={pendingRoomIds.has(room.roomId)}");
+    expect(BOARD).toContain("setPendingRoomIds((prev) => addPendingRoom(prev, payload.roomId))");
     // No global board-wide disabling from the mutation object.
     expect(BOARD).not.toContain("act.isPending");
     expect(BOARD).not.toContain("disabled={act.isPending}");
   });
 
-  it("only the clicked room shows Updating… / aria-busy", () => {
+  it("only the clicked rooms show Updating… / aria-busy", () => {
     expect(BOARD).toContain("aria-busy={busy}");
     expect(BOARD).toContain("disabled={busy}");
     expect(BOARD).toContain('{busy ? "Updating…" : children}');
     expect(BOARD).toContain('busy ? "Updating…"');
-    // `busy` is derived only from the single pending room id.
     const busyProps = BOARD.match(/busy=\{[^}]+\}/g) ?? [];
     for (const p of busyProps) {
-      expect(p === "busy={busy}" || p === "busy={pendingRoomId === room.roomId}").toBe(true);
+      expect(p === "busy={busy}" || p === "busy={pendingRoomIds.has(room.roomId)}").toBe(true);
     }
   });
 
-  it("clears pending in onSettled so a failed action never freezes a card", () => {
-    expect(BOARD).toContain("onSettled: () => setPendingRoomId(null)");
+  it("removes only the settled room in onSettled so a failed action never freezes a card", () => {
+    expect(BOARD).toContain(
+      "onSettled: () => setPendingRoomIds((prev) => removePendingRoom(prev, payload.roomId))",
+    );
+    expect(BOARD).not.toContain("setPendingRoomId(null)");
+  });
+});
+
+describe("WP1 overlapping per-room pending lifecycle", () => {
+  const A = "room-a";
+  const B = "room-b";
+  const C = "room-c";
+
+  it("starting A marks only A pending", () => {
+    const s = addPendingRoom(new Set<string>(), A);
+    expect(s.has(A)).toBe(true);
+    expect(s.has(B)).toBe(false);
+    expect(s.has(C)).toBe(false);
+  });
+
+  it("starting B while A is pending keeps BOTH pending and leaves C enabled", () => {
+    const s = addPendingRoom(addPendingRoom(new Set<string>(), A), B);
+    expect(s.has(A)).toBe(true);
+    expect(s.has(B)).toBe(true);
+    expect(s.has(C)).toBe(false);
+    expect(s.size).toBe(2);
+  });
+
+  it("A settling removes ONLY A; B stays pending until it settles itself", () => {
+    const both = addPendingRoom(addPendingRoom(new Set<string>(), A), B);
+    const afterA = removePendingRoom(both, A);
+    expect(afterA.has(A)).toBe(false);
+    expect(afterA.has(B)).toBe(true);
+    const afterB = removePendingRoom(afterA, B);
+    expect(afterB.has(B)).toBe(false);
+    expect(afterB.size).toBe(0);
+  });
+
+  it("a failed action removes only that room from pending", () => {
+    const both = addPendingRoom(addPendingRoom(new Set<string>(), A), B);
+    // B failed -> its onSettled still removes B only.
+    const afterFailB = removePendingRoom(both, B);
+    expect(afterFailB.has(A)).toBe(true);
+    expect(afterFailB.has(B)).toBe(false);
+  });
+
+  it("helpers are immutable and idempotent", () => {
+    const base = addPendingRoom(new Set<string>(), A);
+    const again = addPendingRoom(base, A);
+    expect(again).not.toBe(base);
+    expect(again.size).toBe(1);
+    expect(base.has(A)).toBe(true);
+    const removedTwice = removePendingRoom(removePendingRoom(base, A), A);
+    expect(removedTwice.size).toBe(0);
+    expect(base.has(A)).toBe(true);
   });
 });
 
