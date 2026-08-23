@@ -420,9 +420,7 @@ export async function listReservations(input: {
     }
     const rrRes = await sb
       .from("hotel_reservation_rooms")
-      .select(
-        "reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)",
-      )
+      .select("reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)")
       .eq("tenant_id", input.tenantId)
       .in("reservation_id", ids);
     if (rrRes.error)
@@ -430,8 +428,16 @@ export async function listReservations(input: {
     for (const r of (rrRes.data ?? []) as Array<{
       reservation_id: string;
       hotel_rooms?:
-        | { room_number?: string | null; display_name?: string | null; n3_stock_name?: string | null }
-        | Array<{ room_number?: string | null; display_name?: string | null; n3_stock_name?: string | null }>;
+        | {
+            room_number?: string | null;
+            display_name?: string | null;
+            n3_stock_name?: string | null;
+          }
+        | Array<{
+            room_number?: string | null;
+            display_name?: string | null;
+            n3_stock_name?: string | null;
+          }>;
     }>) {
       roomCounts.set(r.reservation_id, (roomCounts.get(r.reservation_id) ?? 0) + 1);
       const nested = Array.isArray(r.hotel_rooms) ? r.hotel_rooms[0] : r.hotel_rooms;

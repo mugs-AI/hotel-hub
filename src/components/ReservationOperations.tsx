@@ -166,7 +166,16 @@ function usePropertyRooms(enabled: boolean) {
  * Housekeeping board only — never a guess when data is unavailable. */
 function housekeepingBadge(
   hotelRoomId: string,
-  board: { rooms: Array<{ roomId: string; initialized: boolean; condition: HousekeepingCondition | null; dndActive: boolean }> } | undefined,
+  board:
+    | {
+        rooms: Array<{
+          roomId: string;
+          initialized: boolean;
+          condition: HousekeepingCondition | null;
+          dndActive: boolean;
+        }>;
+      }
+    | undefined,
 ): string {
   const room = board?.rooms.find((r) => r.roomId === hotelRoomId);
   if (!room) return "Housekeeping unknown";
@@ -351,7 +360,10 @@ export function ReservationActionsCard({
                       request.reset();
                     }}
                     className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
-                    style={{ color: REQUEST_COLOR[r.type], borderColor: `${REQUEST_COLOR[r.type]}55` }}
+                    style={{
+                      color: REQUEST_COLOR[r.type],
+                      borderColor: `${REQUEST_COLOR[r.type]}55`,
+                    }}
                   >
                     Request {r.label.toLowerCase()}
                   </button>
@@ -707,7 +719,10 @@ export function PendingApprovalsCard({
                         setConfirm({ request: r, decision: "reject", id: crypto.randomUUID() })
                       }
                       className="rounded-md border border-input px-3 py-1"
-                      style={{ color: ACTION_COLORS.reject, borderColor: `${ACTION_COLORS.reject}55` }}
+                      style={{
+                        color: ACTION_COLORS.reject,
+                        borderColor: `${ACTION_COLORS.reject}55`,
+                      }}
                     >
                       Reject
                     </button>

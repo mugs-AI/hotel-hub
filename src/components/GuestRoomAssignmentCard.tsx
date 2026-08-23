@@ -50,10 +50,7 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
   const reasonRequired = capabilities.correctionReasonRequired;
   const allAssigned = data.guests.every((g) => Boolean(draft[g.id]));
   const canSave =
-    dirty &&
-    allAssigned &&
-    !mutation.isPending &&
-    (!reasonRequired || reason.trim().length > 0);
+    dirty && allAssigned && !mutation.isPending && (!reasonRequired || reason.trim().length > 0);
   const checkedIn = Boolean(data.checkedInAt);
 
   async function save() {

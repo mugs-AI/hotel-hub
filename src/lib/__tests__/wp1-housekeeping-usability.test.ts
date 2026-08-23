@@ -66,7 +66,9 @@ describe("overdue-occupied visibility", () => {
   it("does not flag a vacant or non-overdue occupied room", () => {
     expect(isOverdueOccupied(room({ occupancy: "vacant", occupancyOverdue: false }))).toBe(false);
     expect(isOverdueOccupied(room({ occupancy: "occupied", occupancyOverdue: false }))).toBe(false);
-    expect(isOverdueOccupied(room({ occupancy: "departing", occupancyOverdue: false }))).toBe(false);
+    expect(isOverdueOccupied(room({ occupancy: "departing", occupancyOverdue: false }))).toBe(
+      false,
+    );
   });
 
   it("the overdue-occupied count/filter derive from the same authoritative rooms as the board", () => {
@@ -210,7 +212,9 @@ describe("parallel post-write read structure in getHousekeepingRoomView", () => 
     const fnStart = src.indexOf("export async function getHousekeepingRoomView");
     const fnEnd = src.indexOf("\nexport async function getHousekeepingBoard");
     const fn = src.slice(fnStart, fnEnd === -1 ? undefined : fnEnd);
-    expect(fn).toContain('if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");');
+    expect(fn).toContain(
+      'if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");',
+    );
   });
 
   it("does not rerun full-board reconciliation (no occupancyByRoom/board-wide call) inside the single-room view", () => {

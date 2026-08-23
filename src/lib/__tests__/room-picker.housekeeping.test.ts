@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  HOUSEKEEPING_UNKNOWN_BADGE,
-  resolveHousekeepingBadge,
-} from "@/lib/room-picker";
+import { HOUSEKEEPING_UNKNOWN_BADGE, resolveHousekeepingBadge } from "@/lib/room-picker";
 import { isStockMapped, buildMappedStockSet } from "@/lib/room-picker";
 
 describe("resolveHousekeepingBadge", () => {
@@ -13,7 +10,9 @@ describe("resolveHousekeepingBadge", () => {
 
   it("falls back to Housekeeping unknown when the board is unavailable", () => {
     expect(resolveHousekeepingBadge("room-1", null, false)).toEqual(HOUSEKEEPING_UNKNOWN_BADGE);
-    expect(resolveHousekeepingBadge("room-1", undefined, false)).toEqual(HOUSEKEEPING_UNKNOWN_BADGE);
+    expect(resolveHousekeepingBadge("room-1", undefined, false)).toEqual(
+      HOUSEKEEPING_UNKNOWN_BADGE,
+    );
   });
 
   it("falls back to Housekeeping unknown when the room is not on the board", () => {

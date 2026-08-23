@@ -461,5 +461,4 @@ export const OVERDUE_STAY_LABEL = "Departure overdue";
 export const OVERDUE_OCCUPIED_BADGE_LABEL = "Occupied · Departure overdue";
 
 /** Shown when DND cannot be offered yet because the room has no housekeeping condition set. */
-export const DND_SETUP_HINT =
-  "Set the room housekeeping condition first to enable Do Not Disturb.";
+export const DND_SETUP_HINT = "Set the room housekeeping condition first to enable Do Not Disturb.";

@@ -1201,8 +1201,8 @@ function SelectedRoomsSummary({
           </span>
           {rooms.length > 0 ? (
             <span className="text-sm text-muted-foreground">
-              {totals.adults} adult{totals.adults === 1 ? "" : "s"} ·{" "}
-              {totals.children} child{totals.children === 1 ? "" : "ren"} ·{" "}
+              {totals.adults} adult{totals.adults === 1 ? "" : "s"} · {totals.children} child
+              {totals.children === 1 ? "" : "ren"} ·{" "}
               <span className="font-semibold tabular-nums" style={{ color: NAVY }}>
                 {rooms[0]?.currency ?? "MYR"} {totals.nightly.toFixed(2)}
               </span>{" "}
@@ -1231,7 +1231,6 @@ function SelectedRoomsSummary({
     </section>
   );
 }
-
 
 function SummaryRoomCard({
   room,
