@@ -1,7 +1,12 @@
 // Browser client for the WP1 housekeeping vertical. Same-origin only; no
 // direct database or N3 access, and no tokens ever touch this module.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { HousekeepingBoardDTO, HousekeepingEventDTO } from "@/lib/housekeeping-store.server";
+import type {
+  HousekeepingBoardDTO,
+  HousekeepingEventDTO,
+  HousekeepingRoomDTO,
+} from "@/lib/housekeeping-store.server";
+
 import type { BootstrapCondition, HousekeepingTransition } from "@/lib/housekeeping";
 
 export const HOUSEKEEPING_QUERY_KEY = ["housekeeping", "board"] as const;
@@ -81,10 +86,25 @@ export function useHousekeepingAction() {
         body: JSON.stringify(body),
       });
       if (!res.ok) return readError(res);
-      return (await res.json()) as Record<string, unknown>;
+      return (await res.json()) as { room?: HousekeepingRoomDTO } & Record<string, unknown>;
     },
-    // Always resync from the server: the board carries the authoritative
-    // allowed actions, so a stale optimistic guess is worse than a refetch.
+    // Patch ONLY the room the server just told us about, from the server's own
+    // authoritative DTO — no optimistic guess, no client-side transition
+    // matrix. The card repaints immediately; the full board resync follows in
+    // the background so the user never waits for it.
+    onSuccess: (result) => {
+      const room = result?.room;
+      if (!room) return;
+      qc.setQueryData<HousekeepingBoardDTO>(HOUSEKEEPING_QUERY_KEY, (prev) =>
+        prev
+          ? { ...prev, rooms: prev.rooms.map((r) => (r.roomId === room.roomId ? room : r)) }
+          : prev,
+      );
+    },
+    // Background resync in every case: the board carries counts and pending
+    // handoffs that a single room cannot fully describe. On error nothing is
+    // patched, so no state change is ever faked.
     onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY }),
   });
 }
+

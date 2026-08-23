@@ -121,6 +121,14 @@ export type HousekeepingRoomDTO = {
   lastTransitionAt: string | null;
   occupancy: RoomOccupancy;
   occupancyReservationId: string | null;
+  /**
+   * Presentation-only: the guest is still physically in the room but the
+   * planned departure date has already passed. NOT a database state and never
+   * a fifth condition — it exists so the board can say
+   * "Occupied · Departure overdue" instead of the untruthful "Vacant".
+   */
+  occupancyOverdue: boolean;
+
   group: BoardGroup;
   nextStep: string;
   availableTransitions: HousekeepingTransition[];
@@ -215,6 +223,149 @@ async function occupancyByRoom(
   );
 }
 
+/**
+ * The ONE room-DTO builder. The full board and the single-room read after a
+ * write both use it, so a freshly patched card can never describe a room
+ * differently from the board that follows it.
+ */
+function buildRoomDTO(input: {
+  roomRow: any;
+  hkRow: any | null;
+  occupancy: OccupancyResolution;
+  handoffPending: boolean;
+  authority: HousekeepingAuthority;
+  actorLabels: Map<string, string>;
+}): HousekeepingRoomDTO {
+  const r = input.roomRow;
+  const hk = input.hkRow;
+  const condition = hk && isHousekeepingCondition(hk.condition) ? hk.condition : null;
+  const state: RoomTurnaroundState = {
+    initialized: Boolean(hk),
+    condition,
+    dndActive: Boolean(hk?.dnd_active),
+    occupancy: input.occupancy.occupancy,
+    isActive: Boolean(r.is_active),
+  };
+  return {
+    roomId: r.id,
+    roomLabel: roomLabelOf(r),
+    roomNumber: r.room_number,
+    floor: r.floor ?? null,
+    roomType: r.room_type,
+    maxOccupancy: r.max_occupancy,
+    isActive: Boolean(r.is_active),
+    initialized: state.initialized,
+    condition,
+    dndActive: state.dndActive,
+    dndSetAt: hk?.dnd_set_at ?? null,
+    lastAction: hk?.last_action ?? null,
+    lastActorLabel: hk?.last_actor_n3_user_key
+      ? (input.actorLabels.get(hk.last_actor_n3_user_key) ?? null)
+      : null,
+    lastTransitionAt: hk?.last_transition_at ?? null,
+    occupancy: state.occupancy,
+    occupancyReservationId: input.occupancy.reservationId,
+    occupancyOverdue: input.occupancy.overdue,
+    group: boardGroup(state),
+    nextStep: nextStepHint(state),
+    // Server-authorised, not merely legal: the board can never offer a
+    // button this actor is not allowed to press in this workflow.
+    availableTransitions: authorizedTransitions(input.authority, state),
+    canSetDnd: input.authority.canToggleDnd && canSetDnd(state),
+    canClearDnd: input.authority.canToggleDnd && canClearDnd(state),
+    // An unresolved vacated-room handoff is a readiness blocker, never a
+    // fifth condition: the room may read Ready and still be unsafe.
+    checkInBlockers: input.handoffPending
+      ? ["handoff_pending", ...checkInBlockers(state)]
+      : checkInBlockers(state),
+  };
+}
+
+/**
+ * Narrow authoritative read of ONE room, used to paint the card immediately
+ * after a successful write. It deliberately does NOT rerun reconciliation or
+ * the whole board: it reads this tenant's room, its housekeeping row, its
+ * occupancy and its pending-handoff state, and applies the same authority.
+ */
+export async function getHousekeepingRoomView(input: {
+  tenantId: string;
+  timezone: string;
+  mode: HousekeepingMode;
+  role: HotelRole | null;
+  roomId: string;
+}): Promise<HousekeepingRoomDTO> {
+  const authority = housekeepingAuthority(input.mode, input.role);
+  const sb = await admin();
+  const today = propertyTodayIso(input.timezone) ?? propertyTodayIso("Asia/Kuala_Lumpur")!;
+
+  const roomRes = await sb
+    .from("hotel_rooms")
+    .select(
+      "id, room_number, display_name, n3_stock_name, room_type, floor, max_occupancy, is_active",
+    )
+    .eq("tenant_id", input.tenantId)
+    .eq("id", input.roomId)
+    .maybeSingle();
+  if (roomRes.error) throw new HousekeepingError("housekeeping_failed");
+  if (!roomRes.data) throw new HousekeepingError("room_not_found");
+
+  const hkRes = await sb
+    .from("hotel_room_housekeeping")
+    .select(
+      "hotel_room_id, condition, dnd_active, dnd_set_at, last_action, last_actor_n3_user_key, last_transition_at",
+    )
+    .eq("tenant_id", input.tenantId)
+    .eq("hotel_room_id", input.roomId)
+    .maybeSingle();
+  if (hkRes.error) throw new HousekeepingError("housekeeping_failed");
+
+  const physical = await sb
+    .from("hotel_reservation_rooms")
+    .select(OCCUPANCY_SELECT)
+    .eq("tenant_id", input.tenantId)
+    .eq("hotel_room_id", input.roomId)
+    .eq("allocation_status", "occupied")
+    .eq("hotel_reservations.status", "checked_in");
+  if (physical.error) throw new HousekeepingError("housekeeping_failed");
+
+  const planned = await sb
+    .from("hotel_reservation_rooms")
+    .select(OCCUPANCY_SELECT)
+    .eq("tenant_id", input.tenantId)
+    .eq("hotel_room_id", input.roomId)
+    .neq("allocation_status", "released")
+    .lte("arrival_date", today)
+    .gte("departure_date", today);
+  if (planned.error) throw new HousekeepingError("housekeeping_failed");
+
+  const occupancy = resolveOccupancyByRoom(
+    [
+      ...toOccupancyRows((physical.data ?? []) as any[]),
+      ...toOccupancyRows((planned.data ?? []) as any[]),
+    ],
+    input.tenantId,
+    today,
+  );
+
+  // Fail CLOSED: unknown handoff state must never be painted as clean.
+  const handoffRead = await readPendingHandoffRooms(input.tenantId);
+  if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
+
+  const labels = await resolveActorLabels(input.tenantId, [
+    (hkRes.data as any)?.last_actor_n3_user_key,
+  ]);
+
+  return buildRoomDTO({
+    roomRow: roomRes.data,
+    hkRow: hkRes.data ?? null,
+    occupancy: occupancy.get(input.roomId) ?? VACANT,
+    handoffPending: handoffRead.roomIds.has(input.roomId),
+    authority,
+    actorLabels: labels,
+  });
+}
+
+
 export async function getHousekeepingBoard(input: {
   tenantId: string;
   timezone: string;
@@ -267,56 +418,20 @@ export async function getHousekeepingBoard(input: {
   };
 
   const rooms: HousekeepingRoomDTO[] = ((roomsRes.data ?? []) as any[]).map((r) => {
-    const hk = hkByRoom.get(r.id);
-    const condition = hk && isHousekeepingCondition(hk.condition) ? hk.condition : null;
-    const occ = occupancy.get(r.id) ?? {
-      occupancy: "vacant" as RoomOccupancy,
-      reservationId: null,
-    };
-    const state: RoomTurnaroundState = {
-      initialized: Boolean(hk),
-      condition,
-      dndActive: Boolean(hk?.dnd_active),
-      occupancy: occ.occupancy,
-      isActive: Boolean(r.is_active),
-    };
-    const group = boardGroup(state);
-    counts[group] += 1;
-    if (state.dndActive) counts.dnd += 1;
-    if (!state.initialized) counts.uninitialized += 1;
-    return {
-      roomId: r.id,
-      roomLabel: roomLabelOf(r),
-      roomNumber: r.room_number,
-      floor: r.floor ?? null,
-      roomType: r.room_type,
-      maxOccupancy: r.max_occupancy,
-      isActive: Boolean(r.is_active),
-      initialized: state.initialized,
-      condition,
-      dndActive: state.dndActive,
-      dndSetAt: hk?.dnd_set_at ?? null,
-      lastAction: hk?.last_action ?? null,
-      lastActorLabel: hk?.last_actor_n3_user_key
-        ? (labels.get(hk.last_actor_n3_user_key) ?? null)
-        : null,
-      lastTransitionAt: hk?.last_transition_at ?? null,
-      occupancy: occ.occupancy,
-      occupancyReservationId: occ.reservationId,
-      group,
-      nextStep: nextStepHint(state),
-      // Server-authorised, not merely legal: the board can never offer a
-      // button this actor is not allowed to press in this workflow.
-      availableTransitions: authorizedTransitions(authority, state),
-      canSetDnd: authority.canToggleDnd && canSetDnd(state),
-      canClearDnd: authority.canToggleDnd && canClearDnd(state),
-      // An unresolved vacated-room handoff is a readiness blocker, never a
-      // fifth condition: the room may read Ready and still be unsafe.
-      checkInBlockers: pendingHandoffRooms.roomIds.has(r.id)
-        ? ["handoff_pending", ...checkInBlockers(state)]
-        : checkInBlockers(state),
-    };
+    const dto = buildRoomDTO({
+      roomRow: r,
+      hkRow: hkByRoom.get(r.id) ?? null,
+      occupancy: occupancy.get(r.id) ?? VACANT,
+      handoffPending: pendingHandoffRooms.roomIds.has(r.id),
+      authority,
+      actorLabels: labels,
+    });
+    counts[dto.group] += 1;
+    if (dto.dndActive) counts.dnd += 1;
+    if (!dto.initialized) counts.uninitialized += 1;
+    return dto;
   });
+
 
   return {
     propertyDate: today,

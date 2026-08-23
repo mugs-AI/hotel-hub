@@ -14,10 +14,16 @@ import { useMemo, useState } from "react";
 import {
   CONDITION_LABELS,
   CONDITION_STYLE,
+  HK_COLORS,
   OCCUPANCY_LABELS,
+  OVERDUE_STAY_LABEL,
+  TONE_STYLE,
   TRANSITION_LABELS,
+  TRANSITION_TONE,
+  WORKFLOW_LEGEND,
   blockerLabel,
   confirmationFor,
+  type ActionTone,
   type BootstrapCondition,
   type HousekeepingTransition,
 } from "@/lib/housekeeping";
@@ -29,12 +35,14 @@ import {
 } from "@/lib/housekeeping-client";
 import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
 
-const NAVY = "#102A43";
-const TEAL = "#0F9D8A";
-const AMBER = "#8A6100";
-const BLUE = "#1B4F86";
-const RED = "#9B1C1C";
-const GRAY = "#5A6B7B";
+const NAVY = HK_COLORS.navy;
+const TEAL = HK_COLORS.teal;
+const AMBER = HK_COLORS.amber;
+const BLUE = HK_COLORS.blue;
+const RED = HK_COLORS.red;
+const GRAY = HK_COLORS.gray;
+const APPLE_GREEN = HK_COLORS.appleGreen;
+const INDIGO = HK_COLORS.indigo;
 
 type Filter = "needs_action" | "dirty" | "cleaning" | "inspected" | "ready" | "not_set_up" | "dnd";
 
@@ -92,6 +100,9 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   const [filter, setFilter] = useState<Filter>("needs_action");
   const [floorFilter, setFloorFilter] = useState<string>("all");
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
+  // Per-room pending, keyed by roomId: acting on one room must never block the
+  // rest of the board.
+  const [pendingRoomId, setPendingRoomId] = useState<string | null>(null);
 
   const rooms = board.data?.rooms ?? [];
   const floors = useMemo(() => {
@@ -132,7 +143,9 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   function run(roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
     setError(null);
     setConfirmation(null);
+    setPendingRoomId(payload.roomId);
     act.mutate(payload, {
+      onSettled: () => setPendingRoomId(null),
       onSuccess: (result) => {
         if (payload.action === "transition") {
           const to = (result as { condition?: string }).condition;
@@ -195,21 +208,21 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         <Tile
           label="Cleaning"
           value={tally.cleaning}
-          tone={BLUE}
+          tone={TEAL}
           active={filter === "cleaning"}
           onClick={() => setFilter("cleaning")}
         />
         <Tile
           label="Inspected"
           value={tally.inspected}
-          tone={NAVY}
+          tone={BLUE}
           active={filter === "inspected"}
           onClick={() => setFilter("inspected")}
         />
         <Tile
           label="Ready"
           value={tally.ready}
-          tone="#0B6B5C"
+          tone={APPLE_GREEN}
           active={filter === "ready"}
           onClick={() => setFilter("ready")}
         />
@@ -223,7 +236,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         <Tile
           label="Do Not Disturb"
           value={tally.dnd}
-          tone={BLUE}
+          tone={INDIGO}
           active={filter === "dnd"}
           onClick={() => setFilter("dnd")}
         />
@@ -292,6 +305,32 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         </div>
       )}
 
+      {/* Dedicated-only: a compact, non-interactive workflow legend so a
+          housekeeping team learns the order by sight. Same lifecycle as
+          Simple — this is presentation only. */}
+      {variant === "dedicated" && (
+        <div
+          className="flex flex-wrap items-center gap-1.5 rounded-md border bg-white px-3 py-2 text-[11px]"
+          style={{ borderColor: `${NAVY}1F` }}
+          aria-hidden="true"
+        >
+          <span className="font-medium" style={{ color: GRAY }}>
+            Workflow
+          </span>
+          {WORKFLOW_LEGEND.map((c, i) => (
+            <span key={c} className="flex items-center gap-1.5">
+              <span
+                className="rounded-full px-2 py-0.5 font-semibold"
+                style={{ backgroundColor: CONDITION_STYLE[c].bg, color: CONDITION_STYLE[c].fg }}
+              >
+                {CONDITION_LABELS[c]}
+              </span>
+              {i < WORKFLOW_LEGEND.length - 1 && <span style={{ color: GRAY }}>→</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
       {rooms.length === 0 && (
         <p className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">
           No rooms are mapped yet. Map N3 stock codes to rooms in Rooms &amp; Rates first.
@@ -314,7 +353,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
             canUpdate={canUpdate}
             canDnd={canDnd}
             canInitialize={canInitialize}
-            busy={act.isPending}
+            busy={pendingRoomId === room.roomId}
             onTransition={(t) =>
               run(room.roomLabel, { roomId: room.roomId, action: "transition", transition: t })
             }
@@ -445,18 +484,22 @@ function RoomCard({
           </div>
           <div className="text-xs text-muted-foreground">
             {room.floor?.trim() || "Unassigned floor"} · {OCCUPANCY_LABELS[room.occupancy]}
+            {room.occupancyOverdue ? ` · ${OVERDUE_STAY_LABEL}` : ""}
           </div>
         </div>
         <span
           className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
           style={{ backgroundColor: style.bg, color: style.fg }}
         >
-          {room.condition ? CONDITION_LABELS[room.condition] : "Not set up"}
+          {busy ? "Updating…" : room.condition ? CONDITION_LABELS[room.condition] : "Not set up"}
         </span>
       </div>
 
       {room.dndActive && (
-        <p className="mt-2 rounded-md bg-[#E7F1FB] px-2 py-1 text-[11px] font-medium text-[#1B4F86]">
+        <p
+          className="mt-2 rounded-md px-2 py-1 text-[11px] font-medium"
+          style={{ backgroundColor: HK_COLORS.indigoSoft, color: HK_COLORS.indigoInk }}
+        >
           Do Not Disturb — cleaning paused.
         </p>
       )}
@@ -475,10 +518,10 @@ function RoomCard({
         <div className="mt-3">
           {canInitialize ? (
             <div className="flex flex-wrap gap-2">
-              <ActionButton busy={busy} onClick={() => onInitialize("ready")}>
+              <ActionButton tone="positive" busy={busy} onClick={() => onInitialize("ready")}>
                 Set up as Ready
               </ActionButton>
-              <ActionButton busy={busy} onClick={() => onInitialize("dirty")}>
+              <ActionButton tone="corrective" busy={busy} onClick={() => onInitialize("dirty")}>
                 Set up as Dirty
               </ActionButton>
             </div>
@@ -498,6 +541,7 @@ function RoomCard({
               <ActionButton
                 key={t}
                 busy={busy}
+                tone={TRANSITION_TONE[t]}
                 primary={PRIMARY_TRANSITIONS.includes(t)}
                 onClick={() => onTransition(t)}
               >
@@ -505,12 +549,12 @@ function RoomCard({
               </ActionButton>
             ))}
           {canDnd && room.canSetDnd && (
-            <ActionButton busy={busy} onClick={() => onDnd(true)}>
+            <ActionButton tone="dnd" busy={busy} onClick={() => onDnd(true)}>
               Set Do Not Disturb
             </ActionButton>
           )}
           {canDnd && room.canClearDnd && (
-            <ActionButton busy={busy} primary onClick={() => onDnd(false)}>
+            <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
               Clear Do Not Disturb
             </ActionButton>
           )}
@@ -530,34 +574,40 @@ function RoomCard({
   );
 }
 
+/**
+ * Semantic action button. Colour carries meaning (green positive, amber
+ * corrective, teal work, blue inspection, indigo DND) but the LABEL always
+ * states the action too, so colour is never the only signal. Which actions
+ * exist is decided by the server; only their styling lives here.
+ */
 function ActionButton({
   children,
   onClick,
   busy,
   primary,
+  tone = "neutral",
 }: {
   children: React.ReactNode;
   onClick: () => void;
   busy: boolean;
   primary?: boolean;
+  tone?: ActionTone;
 }) {
+  const t = TONE_STYLE[tone];
   return (
     <button
       type="button"
       disabled={busy}
+      aria-busy={busy}
       onClick={onClick}
       className={
         primary
           ? "rounded-md border px-3.5 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
           : "rounded-md border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-50"
       }
-      style={{
-        borderColor: primary ? TEAL : "#D6E0EA",
-        backgroundColor: primary ? TEAL : "white",
-        color: primary ? "white" : NAVY,
-      }}
+      style={{ borderColor: t.border, backgroundColor: t.bg, color: t.fg }}
     >
-      {children}
+      {busy ? "Updating…" : children}
     </button>
   );
 }

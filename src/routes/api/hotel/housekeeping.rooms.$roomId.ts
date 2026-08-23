@@ -17,6 +17,7 @@ import {
 } from "@/lib/housekeeping";
 import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 import {
+  getHousekeepingRoomView,
   HousekeepingError,
   initializeRoom,
   listRoomHistory,
@@ -24,6 +25,26 @@ import {
   statusForHousekeepingError,
   transitionRoom,
 } from "@/lib/housekeeping-store.server";
+
+/**
+ * The authoritative post-write view of the ONE room that changed. The client
+ * patches its board cache from this instead of waiting for a whole-board
+ * refetch — the state still comes only from the server, never from a guess.
+ * A read failure here never fails the write: the client simply resyncs.
+ */
+async function roomViewOrNull(input: {
+  tenantId: string;
+  timezone: string;
+  mode: "simple" | "dedicated";
+  role: Parameters<typeof housekeepingAuthority>[1];
+  roomId: string;
+}) {
+  try {
+    return await getHousekeepingRoomView(input);
+  } catch {
+    return null;
+  }
+}
 
 const ALLOWED = new Set(["action", "condition", "transition", "note", "active"]);
 
@@ -92,8 +113,10 @@ export async function handleRoomAction({
 
   // Mode-aware authority. Enforced HERE, on the server, before any write.
   let authority;
+  let timezone = "Asia/Kuala_Lumpur";
   try {
     const settings = await getHotelSettingsReadOnly(tenantId);
+    timezone = settings?.timezone ?? timezone;
     authority = housekeepingAuthority(settings?.housekeepingMode ?? "simple", ctx.role);
   } catch {
     return deny(500, "housekeeping_failed");
@@ -136,7 +159,19 @@ export async function handleRoomAction({
           detail: { roomId, condition: result.condition },
         });
       }
-      return Response.json(result, { headers: { "cache-control": "no-store" } });
+      return Response.json(
+        {
+          ...result,
+          room: await roomViewOrNull({
+            tenantId,
+            timezone,
+            mode: authority.mode,
+            role: ctx.role,
+            roomId,
+          }),
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
     }
 
     if (action === "transition") {
@@ -162,7 +197,19 @@ export async function handleRoomAction({
           mode: authority.mode,
         },
       });
-      return Response.json(result, { headers: { "cache-control": "no-store" } });
+      return Response.json(
+        {
+          ...result,
+          room: await roomViewOrNull({
+            tenantId,
+            timezone,
+            mode: authority.mode,
+            role: ctx.role,
+            roomId,
+          }),
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
     }
 
     // action === "dnd"
@@ -181,7 +228,19 @@ export async function handleRoomAction({
       eventType: active ? "hotel.housekeeping.dnd_set" : "hotel.housekeeping.dnd_cleared",
       detail: { roomId, condition: result.condition },
     });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+    return Response.json(
+      {
+        ...result,
+        room: await roomViewOrNull({
+          tenantId,
+          timezone,
+          mode: authority.mode,
+          role: ctx.role,
+          roomId,
+        }),
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (err) {
     const code = err instanceof HousekeepingError ? err.code : "housekeeping_failed";
     await logAudit({

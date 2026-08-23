@@ -36,6 +36,8 @@ function room(overrides: Partial<HousekeepingRoomDTO>): HousekeepingRoomDTO {
     lastTransitionAt: null,
     occupancy: "vacant",
     occupancyReservationId: null,
+    occupancyOverdue: false,
+
     group: "ready",
     nextStep: "Nothing to do — housekeeping is complete.",
     availableTransitions: [],
