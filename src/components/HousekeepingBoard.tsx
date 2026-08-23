@@ -305,6 +305,32 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         </div>
       )}
 
+      {/* Dedicated-only: a compact, non-interactive workflow legend so a
+          housekeeping team learns the order by sight. Same lifecycle as
+          Simple — this is presentation only. */}
+      {variant === "dedicated" && (
+        <div
+          className="flex flex-wrap items-center gap-1.5 rounded-md border bg-white px-3 py-2 text-[11px]"
+          style={{ borderColor: `${NAVY}1F` }}
+          aria-hidden="true"
+        >
+          <span className="font-medium" style={{ color: GRAY }}>
+            Workflow
+          </span>
+          {WORKFLOW_LEGEND.map((c, i) => (
+            <span key={c} className="flex items-center gap-1.5">
+              <span
+                className="rounded-full px-2 py-0.5 font-semibold"
+                style={{ backgroundColor: CONDITION_STYLE[c].bg, color: CONDITION_STYLE[c].fg }}
+              >
+                {CONDITION_LABELS[c]}
+              </span>
+              {i < WORKFLOW_LEGEND.length - 1 && <span style={{ color: GRAY }}>→</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
       {rooms.length === 0 && (
         <p className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">
           No rooms are mapped yet. Map N3 stock codes to rooms in Rooms &amp; Rates first.
