@@ -34,6 +34,15 @@ const ACTION_COLORS = {
   reject: "#B42318", // red, used only as an outline/soft treatment
 } as const;
 
+/** Per-operation request-button colour (semantic, label always present). */
+const REQUEST_COLOR: Record<OperationType, string> = {
+  early_check_in: ACTION_COLORS.earlyCheckIn,
+  late_checkout: ACTION_COLORS.lateCheckout,
+  stay_extension: ACTION_COLORS.stayExtension,
+  room_change: ACTION_COLORS.roomChange,
+  rate_change: ACTION_COLORS.rateChange,
+};
+
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
