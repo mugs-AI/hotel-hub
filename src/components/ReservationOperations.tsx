@@ -210,6 +210,11 @@ export function ReservationActionsCard({
   const [targetRoomId, setTargetRoomId] = useState("");
   const [newRate, setNewRate] = useState("");
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
+  const hkBoard = useHousekeepingBoard(flow?.kind === "room_change");
+  const currentAgreedRate = rooms.find((r) => r.id === reservationRoomId)?.agreedRate ?? null;
+  const targetRoom = (propertyRooms.data?.rooms ?? []).find((r) => r.id === targetRoomId);
+  const rateDiff =
+    currentAgreedRate !== null && targetRoom ? targetRoom.baseRate - currentAgreedRate : null;
 
   if (!canCheckIn && !canRequest) return null;
   // Terminal stays only are globally read-only; a checked-in stay keeps its
@@ -294,7 +299,7 @@ export function ReservationActionsCard({
                       )
                     }
                     className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                    style={{ backgroundColor: TEAL }}
+                    style={{ backgroundColor: ACTION_COLORS.checkIn }}
                   >
                     {checkIn.isPending ? "Checking in…" : "Confirm check-in"}
                   </button>
@@ -312,7 +317,7 @@ export function ReservationActionsCard({
                 type="button"
                 onClick={() => setFlow({ kind: "check_in", id: crypto.randomUUID() })}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                style={{ backgroundColor: NAVY }}
+                style={{ backgroundColor: ACTION_COLORS.checkIn }}
               >
                 Check in
               </button>
@@ -336,8 +341,8 @@ export function ReservationActionsCard({
                       setReason("");
                       request.reset();
                     }}
-                    className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
-                    style={{ color: NAVY }}
+                    className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
+                    style={{ color: REQUEST_COLOR[r.type], borderColor: `${REQUEST_COLOR[r.type]}55` }}
                   >
                     Request {r.label.toLowerCase()}
                   </button>
@@ -450,7 +455,7 @@ export function ReservationActionsCard({
                       disabled={request.isPending}
                       onClick={() => submitRequest(flow.kind as OperationType)}
                       className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                      style={{ backgroundColor: NAVY }}
+                      style={{ backgroundColor: REQUEST_COLOR[flow.kind as OperationType] }}
                     >
                       {request.isPending ? "Sending…" : "Send for approval"}
                     </button>
