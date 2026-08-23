@@ -297,8 +297,10 @@ export function HousekeepingPanel({
         Housekeeping workflow
       </h2>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Both options use exactly the same room conditions and the same rules — only the screens
-        differ. Switching is safe at any time and never changes a room&apos;s current condition.
+        Both options use exactly the same room conditions and the same rules, and room turnaround
+        always happens in the Housekeeping workspace — only the screens differ. This setting only
+        selects the workflow mode. Switching is safe at any time and never changes a room&apos;s
+        current condition.
       </p>
 
       <fieldset className="mt-4 space-y-2">
@@ -309,13 +311,14 @@ export function HousekeepingPanel({
           {
             value: "simple" as const,
             label: "Simple — Front Desk handles it",
-            help: "Best for small properties. The desk marks rooms cleaned and ready from Rooms & Rates.",
+            help: "Best for small properties. Front Desk or the Owner runs room turnaround in the Housekeeping workspace.",
           },
           {
             value: "dedicated" as const,
             label: "Dedicated housekeeping team",
-            help: "Housekeepers work the Housekeeping board directly, with cleaning and checking as separate steps.",
+            help: "The housekeeping team uses the Housekeeping workspace with the dedicated tools, with cleaning and checking as separate steps.",
           },
+
         ].map((o) => (
           <label
             key={o.value}
