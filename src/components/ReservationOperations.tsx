@@ -515,7 +515,7 @@ export function ReservationActionsCard({
                   </label>
                   {request.error ? (
                     <p className="mt-1 text-xs" style={{ color: ERR }}>
-                      {errText(request.error)}
+                      {errText(request.error, flow.kind)}
                     </p>
                   ) : null}
                   <div className="mt-2 flex gap-2">
