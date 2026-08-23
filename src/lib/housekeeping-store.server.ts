@@ -121,6 +121,14 @@ export type HousekeepingRoomDTO = {
   lastTransitionAt: string | null;
   occupancy: RoomOccupancy;
   occupancyReservationId: string | null;
+  /**
+   * Presentation-only: the guest is still physically in the room but the
+   * planned departure date has already passed. NOT a database state and never
+   * a fifth condition — it exists so the board can say
+   * "Occupied · Departure overdue" instead of the untruthful "Vacant".
+   */
+  occupancyOverdue: boolean;
+
   group: BoardGroup;
   nextStep: string;
   availableTransitions: HousekeepingTransition[];
