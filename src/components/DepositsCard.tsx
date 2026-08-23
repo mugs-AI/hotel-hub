@@ -3,6 +3,7 @@
 // The client request id is minted ONCE when the Owner opens the confirmation
 // flow so a safe HTTP retry cannot create a second N3 document.
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   depositErrorMessage,
   depositStatusLabel,
@@ -17,6 +18,18 @@ const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 const ERR = "#C2413B";
+
+/**
+ * Pure, testable compact-summary text for the "no deposits" state.
+ * Uncertainty/error warnings on individual deposits are rendered separately
+ * and are NEVER summarised away by this helper — it only applies when
+ * there are zero deposits to summarise.
+ */
+export function depositsCompactSummary(opts: { gateOpen: boolean }): string {
+  return opts.gateOpen
+    ? "Deposits: None"
+    : "Deposits: None · N3 posting disabled for this property";
+}
 
 export function DepositsCard({
   reservationId,
@@ -37,6 +50,7 @@ export function DepositsCard({
   // Stable per-confirmation-attempt identity. Minted on "Add deposit",
   // cleared only on cancel or a completed server result.
   const [attempt, setAttempt] = useState<{ clientRequestId: string; amount: number } | null>(null);
+  const [showNoDepositDetails, setShowNoDepositDetails] = useState(false);
 
   if (!canView) return null;
   const deposits = q.data?.deposits ?? [];
@@ -90,12 +104,35 @@ export function DepositsCard({
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
       ) : deposits.length === 0 ? (
-        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-          <p>No HotelHub-linked deposits are recorded for this reservation.</p>
-          {!gateOpen ? <p>Deposit posting is currently disabled for this property.</p> : null}
-          <p className="text-xs">
-            A Receive Payment created directly in N3 is not linked here automatically.
-          </p>
+        <div className="mt-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium" style={{ color: NAVY }}>
+              {depositsCompactSummary({ gateOpen })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowNoDepositDetails((v) => !v)}
+              className="inline-flex items-center gap-1 text-xs font-medium underline"
+              style={{ color: TEAL }}
+              aria-expanded={showNoDepositDetails}
+            >
+              {showNoDepositDetails ? (
+                <ChevronUp className="h-3 w-3" aria-hidden />
+              ) : (
+                <ChevronDown className="h-3 w-3" aria-hidden />
+              )}
+              {showNoDepositDetails ? "Hide details" : "Show details"}
+            </button>
+          </div>
+          {showNoDepositDetails ? (
+            <div className="mt-2 space-y-1">
+              <p>No HotelHub-linked deposits are recorded for this reservation.</p>
+              {!gateOpen ? <p>Deposit posting is currently disabled for this property.</p> : null}
+              <p className="text-xs">
+                A Receive Payment created directly in N3 is not linked here automatically.
+              </p>
+            </div>
+          ) : null}
         </div>
       ) : (
         <ul className="mt-3 space-y-2">

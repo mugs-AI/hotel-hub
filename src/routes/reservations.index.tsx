@@ -7,6 +7,7 @@ import {
   EMPTY_FILTERS,
   formatCreatedAt,
   formatIsoDate,
+  formatRoomLabelsList,
   friendlyError,
   type ListFilters,
 } from "@/lib/reservations-ui";
@@ -419,6 +420,7 @@ function ResultsCard(props: {
     arrivalDate: string;
     departureDate: string;
     roomCount: number;
+    roomLabels: string[];
     guestCount: number;
     createdAt: string;
   }>;
@@ -512,7 +514,7 @@ function ResultsCard(props: {
               <th className="py-2 pr-4">Primary guest</th>
               <th className="py-2 pr-4">Arrival</th>
               <th className="py-2 pr-4">Departure</th>
-              <th className="py-2 pr-4">Rooms</th>
+              <th className="py-2 pr-4">Room no.</th>
               <th className="py-2 pr-4">Guests</th>
               <th className="py-2 pr-4">Source</th>
               <th className="py-2 pr-4">Status</th>
@@ -559,7 +561,12 @@ function ResultsCard(props: {
                   <td className="py-2 pr-4">{r.primaryGuestName ?? "—"}</td>
                   <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.arrivalDate)}</td>
                   <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.departureDate)}</td>
-                  <td className="py-2 pr-4 text-center">{r.roomCount}</td>
+                  <td className="py-2 pr-4 text-xs" title={r.roomLabels.join(", ")}>
+                    {formatRoomLabelsList(r.roomLabels)}
+                    {r.roomCount > 0 ? (
+                      <span className="ml-1 text-muted-foreground">({r.roomCount})</span>
+                    ) : null}
+                  </td>
                   <td className="py-2 pr-4 text-center">{r.guestCount}</td>
                   <td className="py-2 pr-4">{sourceLabel(r.bookingSource)}</td>
                   <td className="py-2 pr-4">

@@ -48,7 +48,13 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
   const overCapacity = data.rooms.filter((r) => (perRoomCount[r.id] ?? 0) > (r.maxOccupancy || 0));
 
   const reasonRequired = capabilities.correctionReasonRequired;
-  const canSave = dirty && !mutation.isPending && (!reasonRequired || reason.trim().length > 0);
+  const allAssigned = data.guests.every((g) => Boolean(draft[g.id]));
+  const canSave =
+    dirty &&
+    allAssigned &&
+    !mutation.isPending &&
+    (!reasonRequired || reason.trim().length > 0);
+  const checkedIn = Boolean(data.checkedInAt);
 
   async function save() {
     try {
@@ -84,6 +90,12 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
           Assign each guest to one of this reservation&rsquo;s rooms.
         </p>
       </div>
+      {checkedIn ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          To physically move a guest to another room, use Room Change. Guest Room Assignment only
+          corrects which reservation room this guest is attached to.
+        </p>
+      ) : null}
 
       <div className="mt-4 space-y-3">
         {data.guests.map((g) => (
@@ -116,7 +128,13 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
                 value={draft[g.id] ?? ""}
                 onChange={(e) => setDraft((d) => ({ ...d, [g.id]: e.target.value }))}
               >
-                <option value="">Unassigned</option>
+                {/* No savable "Unassigned" option: every active-reservation
+                    guest must be attached to one of this reservation's
+                    rooms. A legacy null value only ever shows as this
+                    non-savable placeholder until a real room is chosen. */}
+                <option value="" disabled>
+                  Select a room…
+                </option>
                 {data.rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {roomLabel(r.displayName, r.n3StockName, r.roomNumber)} · max {r.maxOccupancy}
@@ -127,6 +145,12 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
           </div>
         ))}
       </div>
+
+      {!allAssigned ? (
+        <p className="mt-3 text-xs font-medium text-destructive">
+          Select a room for every guest before saving.
+        </p>
+      ) : null}
 
       {overCapacity.length > 0 ? (
         <p className="mt-3 text-xs font-medium text-destructive">
@@ -181,19 +205,28 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
 /** Safe, user-facing text for allow-listed assignment error codes. */
 export function assignmentMessage(code: string): string {
   switch (code) {
+    case "guest_assignment_required":
+      return "Select a room for every guest — a guest cannot be left unassigned.";
+    case "room_not_found":
+      return "That room is no longer part of this reservation. Choose a current room.";
     case "stale_reservation":
       return "This reservation changed elsewhere. Refresh and try again.";
     case "guest_edit_locked":
       return "Guest changes are locked after check-in by your Guest Controls policy.";
     case "correction_reason_required":
       return "A correction reason is required after check-in.";
+    case "correction_reason_too_long":
+      return "The correction reason is too long. Please shorten it.";
     case "room_capacity_exceeded":
       return "A room would exceed its maximum guests.";
     case "reservation_not_editable":
       return "This reservation can no longer be edited.";
+    case "duplicate_guest":
+      return "The same guest was submitted more than once. Refresh and try again.";
     case "unauthenticated":
       return "Your session expired. Relaunch HotelHub from N3.";
     case "forbidden":
+    case "unauthorized":
       return "You do not have permission to assign guests.";
     default:
       return "Could not save the guest assignment. Please try again.";

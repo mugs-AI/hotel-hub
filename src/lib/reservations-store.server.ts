@@ -3,6 +3,7 @@
 // client and require an explicit tenantId supplied by the trusted server
 // context (NEVER accepted from the browser).
 import { resolveActorLabels } from "./tenant-store.server";
+import { roomLabel } from "./reservations-ui";
 
 export const BOOKING_SOURCES = [
   "walk_in",
@@ -309,6 +310,8 @@ export type ReservationSummary = {
   arrivalDate: string;
   departureDate: string;
   roomCount: number;
+  /** Human-readable room labels (displayName || n3StockName || roomNumber). Never raw UUIDs. */
+  roomLabels: string[];
   guestCount: number;
   createdAt: string;
   createdByN3UserKey: string;
@@ -393,6 +396,7 @@ export async function listReservations(input: {
   const ids = rows.map((r) => r.id);
   const primaries = new Map<string, string>();
   const roomCounts = new Map<string, number>();
+  const roomLabelsMap = new Map<string, string[]>();
   const guestCounts = new Map<string, number>();
 
   if (ids.length > 0) {
@@ -416,13 +420,27 @@ export async function listReservations(input: {
     }
     const rrRes = await sb
       .from("hotel_reservation_rooms")
-      .select("reservation_id")
+      .select(
+        "reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)",
+      )
       .eq("tenant_id", input.tenantId)
       .in("reservation_id", ids);
     if (rrRes.error)
       throw new ReservationReadError(`reservation rooms failed: ${rrRes.error.message}`);
-    for (const r of (rrRes.data ?? []) as Array<{ reservation_id: string }>) {
+    for (const r of (rrRes.data ?? []) as Array<{
+      reservation_id: string;
+      hotel_rooms?:
+        | { room_number?: string | null; display_name?: string | null; n3_stock_name?: string | null }
+        | Array<{ room_number?: string | null; display_name?: string | null; n3_stock_name?: string | null }>;
+    }>) {
       roomCounts.set(r.reservation_id, (roomCounts.get(r.reservation_id) ?? 0) + 1);
+      const nested = Array.isArray(r.hotel_rooms) ? r.hotel_rooms[0] : r.hotel_rooms;
+      const label = roomLabel(nested?.display_name, nested?.n3_stock_name, nested?.room_number);
+      if (label) {
+        const arr = roomLabelsMap.get(r.reservation_id) ?? [];
+        arr.push(label);
+        roomLabelsMap.set(r.reservation_id, arr);
+      }
     }
   }
 
@@ -435,6 +453,7 @@ export async function listReservations(input: {
     arrivalDate: r.arrival_date,
     departureDate: r.departure_date,
     roomCount: roomCounts.get(r.id) ?? 0,
+    roomLabels: roomLabelsMap.get(r.id) ?? [],
     guestCount: guestCounts.get(r.id) ?? 0,
     createdAt: r.created_at,
     createdByN3UserKey: r.created_by_n3_user_key,

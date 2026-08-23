@@ -109,12 +109,14 @@ export function operationStateLabel(s: string): string {
   }
 }
 
-export function operationErrorMessage(code: string): string {
+export function operationErrorMessage(code: string, operationType?: string): string {
   switch (code) {
     case "operation_stale":
       return "This request is out of date and was not applied. Reload and try again.";
     case "operation_pending":
-      return "A similar request is already waiting for Owner approval.";
+      return operationType === "room_change"
+        ? "A room-change request is already pending. Approve or Reject it below before creating another."
+        : "A similar request is already waiting for Owner approval.";
     case "invalid_transition":
       return "This change is not allowed for the reservation's current status.";
     case "reservation_changed":
@@ -125,6 +127,30 @@ export function operationErrorMessage(code: string): string {
       return "The room is not available for that period.";
     case "room_capacity_exceeded":
       return "That room cannot hold this many guests.";
+    // Check-in readiness — the room a guest is being checked into now.
+    case "housekeeping_not_initialized":
+      return "This room is not set up for housekeeping yet. Mark it Ready in Housekeeping before check-in.";
+    case "room_not_ready":
+      return "This room is not Ready yet. Finish housekeeping and mark it Ready before check-in.";
+    case "dnd_active":
+      return "Do Not Disturb is active for this room. Clear DND before check-in.";
+    case "handoff_pending":
+      return "This room is still being released from a previous stay. Please wait for Housekeeping to finish the room handoff.";
+    case "readiness_read_failed":
+      return "We could not confirm this room's housekeeping status. Please try again, or contact support if this continues.";
+    // Same blockers, restated from the destination room's point of view
+    // (early check-in / room change into a room that is not yet Ready).
+    case "destination_housekeeping_not_initialized":
+      return "The destination room is not set up for housekeeping yet. Mark it Ready in Housekeeping first.";
+    case "destination_room_not_ready":
+    case "destination_not_ready":
+      return "The destination room is not Ready yet. Finish housekeeping and mark it Ready first.";
+    case "destination_dnd_active":
+      return "Do Not Disturb is active for the destination room. Clear DND first.";
+    case "destination_handoff_pending":
+      return "The destination room is still being released from a previous stay. Please wait for Housekeeping to finish the room handoff.";
+    case "destination_readiness_read_failed":
+      return "We could not confirm the destination room's housekeeping status. Please try again, or contact support if this continues.";
     case "forbidden":
     case "role_unassigned":
       return "Your role does not allow this action.";

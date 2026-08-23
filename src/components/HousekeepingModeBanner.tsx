@@ -39,7 +39,7 @@ export function HousekeepingModeBanner() {
         {presentation.summary}{" "}
         {mode === "dedicated"
           ? "Use the floor filters and per-room History to manage the team's work."
-          : "The Owner can switch to a dedicated housekeeping team in Settings \u2192 System."}
+          : "Floor filters and per-room History are available here too. The Owner can switch to a dedicated housekeeping team in Settings \u2192 System."}
       </p>
     </section>
   );

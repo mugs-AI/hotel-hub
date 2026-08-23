@@ -47,6 +47,12 @@ import {
   vaultSetIdentity,
 } from "@/lib/reservation-draft";
 
+import { useHousekeepingBoard } from "@/lib/housekeeping-client";
+import {
+  resolveHousekeepingBadge,
+  type HousekeepingBadge,
+} from "@/lib/room-picker";
+import { HK_COLORS } from "@/lib/housekeeping";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { CountryCombobox } from "@/components/country-combobox";
 import { countryName } from "@/lib/iso-countries";

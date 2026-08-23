@@ -89,6 +89,8 @@ export type ReservationListItem = {
   arrivalDate: string;
   departureDate: string;
   roomCount: number;
+  /** Human-readable room labels (never raw UUIDs), tenant-scoped, server-derived. */
+  roomLabels: string[];
   guestCount: number;
   createdAt: string;
 };
