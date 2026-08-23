@@ -8,6 +8,7 @@ import { isUuid } from "@/lib/reservations-store.server";
 import {
   checkInReservation,
   OperationError,
+  HOUSEKEEPING_BLOCKER_CODES,
   OPERATION_ERROR_CODES,
 } from "@/lib/reservation-operations.server";
 import {
@@ -74,8 +75,7 @@ export async function handleCheckIn({
         : "check_in_failed";
     // A housekeeping refusal is not a failure — it is the system correctly
     // protecting the guest from an unverified room. Record it as such.
-    const housekeepingBlocked =
-      code === "housekeeping_not_initialized" || code === "room_not_ready" || code === "dnd_active";
+    const housekeepingBlocked = HOUSEKEEPING_BLOCKER_CODES.has(code);
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,

@@ -18,6 +18,8 @@ export type OperationRequestDTO = {
   state: OperationState;
   summary: string;
   requestedByLabel: string | null;
+  /** room_change only: server-derived destination room id (never guessed). */
+  destinationHotelRoomId: string | null;
   requestedAt: string;
   decidedByLabel: string | null;
   decidedAt: string | null;
@@ -132,6 +134,12 @@ export function operationErrorMessage(code: string, operationType?: string): str
       return "This room is not set up for housekeeping yet. Mark it Ready in Housekeeping before check-in.";
     case "room_not_ready":
       return "This room is not Ready yet. Finish housekeeping and mark it Ready before check-in.";
+    case "room_dirty":
+      return "This room is Dirty and not ready for check-in. Please complete housekeeping first.";
+    case "room_cleaning":
+      return "This room is still being cleaned. Wait until it is Inspected and Ready before check-in.";
+    case "room_inspected":
+      return "Cleaning is complete, but this room is still waiting to be marked Ready.";
     case "dnd_active":
       return "Do Not Disturb is active for this room. Clear DND before check-in.";
     case "handoff_pending":
@@ -145,6 +153,12 @@ export function operationErrorMessage(code: string, operationType?: string): str
     case "destination_room_not_ready":
     case "destination_not_ready":
       return "The destination room is not Ready yet. Finish housekeeping and mark it Ready first.";
+    case "destination_room_dirty":
+      return "The destination room is Dirty and not ready for the guest. Please complete housekeeping first.";
+    case "destination_room_cleaning":
+      return "The destination room is still being cleaned. Wait until it is Inspected and Ready.";
+    case "destination_room_inspected":
+      return "Cleaning is complete, but the destination room is still waiting to be marked Ready.";
     case "destination_dnd_active":
       return "Do Not Disturb is active for the destination room. Clear DND first.";
     case "destination_handoff_pending":
