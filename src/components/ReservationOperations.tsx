@@ -617,6 +617,12 @@ export function PendingApprovalsCard({
                 </span>
               </div>
               <p className="mt-1 text-muted-foreground">{r.summary}</p>
+              {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms) ? (
+                <p className="mt-1 text-[11px]" style={{ color: NAVY }}>
+                  Destination room:{" "}
+                  {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms)}
+                </p>
+              ) : null}
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Requested {formatCreatedAt(r.requestedAt)}
                 {r.requestedByLabel ? ` · ${r.requestedByLabel}` : ""}
