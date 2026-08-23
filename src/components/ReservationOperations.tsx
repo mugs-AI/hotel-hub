@@ -1,7 +1,7 @@
 // Reservation operations UI: contextual check-in / request actions, the
 // Pending Approvals ledger and the reservation Timeline.
 // Server enforces every permission; this is only a usability layer.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   operationErrorMessage,
   operationStateLabel,
@@ -15,19 +15,71 @@ import {
   type OperationRequestDTO,
   type OperationType,
 } from "@/lib/operations-client";
-import { formatCreatedAt } from "@/lib/reservations-ui";
+import { formatCreatedAt, roomLabel as formatRoomLabel } from "@/lib/reservations-ui";
 import { useQuery } from "@tanstack/react-query";
 import { hotelJson } from "@/lib/hotel-settings-client";
+import { useHousekeepingBoard } from "@/lib/housekeeping-client";
+import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
+import type { AvailabilityRoom } from "@/lib/reservations-store.server";
+
+// Semantic action-button colours. Colour is never the only signal — every
+// button also keeps an explicit text label and meets contrast requirements.
+const ACTION_COLORS = {
+  checkIn: "#0E7C57", // teal/green — primary, most common action
+  earlyCheckIn: "#0E7CA8", // teal/blue
+  lateCheckout: "#B4790A", // amber
+  stayExtension: "#1D4ED8", // blue
+  roomChange: "#3730A3", // indigo/teal
+  rateChange: "#B8860B", // gold/amber
+  approve: "#0E7C57", // green/teal
+  reject: "#B42318", // red, used only as an outline/soft treatment
+} as const;
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 const ERR = "#C2413B";
 
-function errText(err: unknown): string {
+function errText(err: unknown, operationType?: string): string {
   const code =
     err && typeof err === "object" && "code" in err ? String((err as { code: string }).code) : "";
-  return operationErrorMessage(code);
+  return operationErrorMessage(code, operationType);
+}
+
+/** Best-effort destination room label for a pending room-change card. */
+function pendingRoomChangeDestinationLabel(
+  request: OperationRequestDTO,
+  propertyRooms: PropertyRoom[] | undefined,
+): string | null {
+  if (request.operationType !== "room_change") return null;
+  // The summary line is server-authored plain text; we never parse or trust
+  // structured data out of it, so the label only ever comes from a room the
+  // property still knows about (matched by name occurring in the summary),
+  // and this is purely informational — never authoritative.
+  const match = (propertyRooms ?? []).find((r) => {
+    const label = r.displayName || r.n3StockName || r.roomNumber;
+    return label && request.summary.includes(label);
+  });
+  return match ? match.displayName || match.n3StockName || match.roomNumber : null;
+}
+
+/** Safe-only readiness blocker codes that can surface on a pending decision. */
+const READINESS_BLOCKER_CODES = new Set([
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  "dnd_active",
+  "handoff_pending",
+  "readiness_read_failed",
+  "destination_housekeeping_not_initialized",
+  "destination_room_not_ready",
+  "destination_not_ready",
+  "destination_dnd_active",
+  "destination_handoff_pending",
+  "destination_readiness_read_failed",
+]);
+
+function isReadinessBlockerCode(code: string): boolean {
+  return READINESS_BLOCKER_CODES.has(code);
 }
 
 /**
@@ -96,6 +148,58 @@ function usePropertyRooms(enabled: boolean) {
     enabled,
     queryFn: () => hotelJson<{ rooms: PropertyRoom[] }>("/api/hotel/rooms"),
   });
+}
+
+/** Availability-backed candidates for a room-change target, scoped to the
+ * reservation's own stay dates so its own rooms never block themselves. */
+function useRoomChangeCandidates(input: {
+  enabled: boolean;
+  arrival: string | null;
+  departure: string | null;
+  excludeReservationId: string;
+}) {
+  const { enabled, arrival, departure, excludeReservationId } = input;
+  return useQuery({
+    queryKey: ["room-change-candidates", excludeReservationId, arrival, departure],
+    enabled: enabled && Boolean(arrival) && Boolean(departure),
+    queryFn: () => {
+      const qs = new URLSearchParams({
+        arrival: arrival as string,
+        departure: departure as string,
+        excludeReservationId,
+      });
+      return hotelJson<{ rooms: AvailabilityRoom[] }>(`/api/hotel/availability?${qs.toString()}`);
+    },
+  });
+}
+
+/** Housekeeping status badge text for a target room, derived from the
+ * Housekeeping board only — never a guess when data is unavailable. */
+function housekeepingBadge(
+  hotelRoomId: string,
+  board: { rooms: Array<{ roomId: string; initialized: boolean; condition: HousekeepingCondition | null; dndActive: boolean }> } | undefined,
+): string {
+  const room = board?.rooms.find((r) => r.roomId === hotelRoomId);
+  if (!room) return "Housekeeping unknown";
+  if (room.dndActive) return "DND";
+  if (!room.initialized || !room.condition) return "Not set up";
+  return CONDITION_LABELS[room.condition];
+}
+
+function housekeepingBadgeTone(label: string): string {
+  switch (label) {
+    case "Ready":
+      return "#0E7C57";
+    case "Dirty":
+      return "#B42318";
+    case "Cleaning":
+    case "Inspected":
+      return "#B4790A";
+    case "DND":
+      return "#7C2D12";
+    default:
+      return "#6B7280";
+  }
 }
 
 export function ReservationActionsCard({
