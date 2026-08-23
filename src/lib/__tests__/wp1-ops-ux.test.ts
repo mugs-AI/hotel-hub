@@ -66,6 +66,7 @@ describe("WP1 ops UX — friendly readiness messages", () => {
 
 describe("WP1 ops UX — guest assignments", () => {
   it("never offers an unassigned guest option", () => {
-    expect(ASSIGN).not.toContain("Unassigned");
+    expect(ASSIGN).not.toMatch(/<option value="">/);
+    expect(ASSIGN).toContain("guest");
   });
 });
