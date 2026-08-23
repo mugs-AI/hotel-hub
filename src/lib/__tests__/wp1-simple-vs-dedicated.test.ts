@@ -43,18 +43,19 @@ describe("WP1 mode presentation", () => {
     expect(BANNER).toContain('mode === "dedicated" && roleHint');
   });
 
-  it("dedicated-only surfaces: floor filters, History and the workflow legend", () => {
-    expect(BOARD).toContain('variant === "dedicated" && floors.length > 1');
-    expect(BOARD).toContain('onHistory={variant === "dedicated"');
+  it("dedicated adds the workflow legend; floors and History serve both modes", () => {
+    // Floor filters and per-room History are available in both experiences
+    // (approved usability correction); the workflow legend stays dedicated-only.
+    expect(BOARD).toContain("floors.length > 1");
+    expect(BOARD).toContain("onHistory={() => setHistoryRoomId(room.roomId)}");
     expect(BOARD).toMatch(/variant === "dedicated" &&[\s\S]{0,400}WORKFLOW_LEGEND\.map/);
     expect(WORKFLOW_LEGEND).toEqual(["dirty", "cleaning", "inspected", "ready"]);
   });
 
   it("the simple surface does not emphasise dedicated-only tooling", () => {
-    // History is only wired when the variant is dedicated, so simple never
-    // renders the per-room History control or the floor chips.
+    // Simple has no variant-specific tooling branches of its own.
     expect(BOARD).not.toContain('variant === "simple" && floors');
-    expect(BOARD.match(/onHistory=\{/g)!.length).toBe(1);
+    expect(BOARD).toContain('variant === "dedicated" && (');
     expect(ROUTE).toContain('authority.canUseDedicatedWorkspace ? "dedicated" : "simple"');
   });
 });
