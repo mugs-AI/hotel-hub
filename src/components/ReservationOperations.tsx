@@ -1,7 +1,7 @@
 // Reservation operations UI: contextual check-in / request actions, the
 // Pending Approvals ledger and the reservation Timeline.
 // Server enforces every permission; this is only a usability layer.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   operationErrorMessage,
   operationStateLabel,
@@ -15,19 +15,79 @@ import {
   type OperationRequestDTO,
   type OperationType,
 } from "@/lib/operations-client";
-import { formatCreatedAt } from "@/lib/reservations-ui";
+import { formatCreatedAt, roomLabel as formatRoomLabel } from "@/lib/reservations-ui";
 import { useQuery } from "@tanstack/react-query";
 import { hotelJson } from "@/lib/hotel-settings-client";
+import { useHousekeepingBoard } from "@/lib/housekeeping-client";
+import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
+
+// Semantic action-button colours. Colour is never the only signal — every
+// button also keeps an explicit text label and meets contrast requirements.
+const ACTION_COLORS = {
+  checkIn: "#0E7C57", // teal/green — primary, most common action
+  earlyCheckIn: "#0E7CA8", // teal/blue
+  lateCheckout: "#B4790A", // amber
+  stayExtension: "#1D4ED8", // blue
+  roomChange: "#3730A3", // indigo/teal
+  rateChange: "#B8860B", // gold/amber
+  approve: "#0E7C57", // green/teal
+  reject: "#B42318", // red, used only as an outline/soft treatment
+} as const;
+
+/** Per-operation request-button colour (semantic, label always present). */
+const REQUEST_COLOR: Record<OperationType, string> = {
+  early_check_in: ACTION_COLORS.earlyCheckIn,
+  late_checkout: ACTION_COLORS.lateCheckout,
+  stay_extension: ACTION_COLORS.stayExtension,
+  room_change: ACTION_COLORS.roomChange,
+  rate_change: ACTION_COLORS.rateChange,
+};
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 const ERR = "#C2413B";
 
-function errText(err: unknown): string {
+function errText(err: unknown, operationType?: string): string {
   const code =
     err && typeof err === "object" && "code" in err ? String((err as { code: string }).code) : "";
-  return operationErrorMessage(code);
+  return operationErrorMessage(code, operationType);
+}
+
+/** Best-effort destination room label for a pending room-change card. */
+function pendingRoomChangeDestinationLabel(
+  request: OperationRequestDTO,
+  propertyRooms: PropertyRoom[] | undefined,
+): string | null {
+  if (request.operationType !== "room_change") return null;
+  // The summary line is server-authored plain text; we never parse or trust
+  // structured data out of it, so the label only ever comes from a room the
+  // property still knows about (matched by name occurring in the summary),
+  // and this is purely informational — never authoritative.
+  const match = (propertyRooms ?? []).find((r) => {
+    const label = r.displayName || r.n3StockName || r.roomNumber;
+    return label && request.summary.includes(label);
+  });
+  return match ? match.displayName || match.n3StockName || match.roomNumber : null;
+}
+
+/** Safe-only readiness blocker codes that can surface on a pending decision. */
+const READINESS_BLOCKER_CODES = new Set([
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  "dnd_active",
+  "handoff_pending",
+  "readiness_read_failed",
+  "destination_housekeeping_not_initialized",
+  "destination_room_not_ready",
+  "destination_not_ready",
+  "destination_dnd_active",
+  "destination_handoff_pending",
+  "destination_readiness_read_failed",
+]);
+
+function isReadinessBlockerCode(code: string): boolean {
+  return READINESS_BLOCKER_CODES.has(code);
 }
 
 /**
@@ -87,6 +147,10 @@ type PropertyRoom = {
   roomNumber: string;
   displayName: string | null;
   n3StockName: string | null;
+  roomType: string;
+  floor: string | null;
+  maxOccupancy: number;
+  baseRate: number;
   isActive: boolean;
 };
 
@@ -96,6 +160,44 @@ function usePropertyRooms(enabled: boolean) {
     enabled,
     queryFn: () => hotelJson<{ rooms: PropertyRoom[] }>("/api/hotel/rooms"),
   });
+}
+
+/** Housekeeping status badge text for a target room, derived from the
+ * Housekeeping board only — never a guess when data is unavailable. */
+function housekeepingBadge(
+  hotelRoomId: string,
+  board:
+    | {
+        rooms: Array<{
+          roomId: string;
+          initialized: boolean;
+          condition: HousekeepingCondition | null;
+          dndActive: boolean;
+        }>;
+      }
+    | undefined,
+): string {
+  const room = board?.rooms.find((r) => r.roomId === hotelRoomId);
+  if (!room) return "Housekeeping unknown";
+  if (room.dndActive) return "DND";
+  if (!room.initialized || !room.condition) return "Not set up";
+  return CONDITION_LABELS[room.condition];
+}
+
+function housekeepingBadgeTone(label: string): string {
+  switch (label) {
+    case "Ready":
+      return "#0E7C57";
+    case "Dirty":
+      return "#B42318";
+    case "Cleaning":
+    case "Inspected":
+      return "#B4790A";
+    case "DND":
+      return "#7C2D12";
+    default:
+      return "#6B7280";
+  }
 }
 
 export function ReservationActionsCard({
@@ -126,6 +228,11 @@ export function ReservationActionsCard({
   const [targetRoomId, setTargetRoomId] = useState("");
   const [newRate, setNewRate] = useState("");
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
+  const hkBoard = useHousekeepingBoard(flow?.kind === "room_change");
+  const currentAgreedRate = rooms.find((r) => r.id === reservationRoomId)?.agreedRate ?? null;
+  const targetRoom = (propertyRooms.data?.rooms ?? []).find((r) => r.id === targetRoomId);
+  const rateDiff =
+    currentAgreedRate !== null && targetRoom ? targetRoom.baseRate - currentAgreedRate : null;
 
   if (!canCheckIn && !canRequest) return null;
   // Terminal stays only are globally read-only; a checked-in stay keeps its
@@ -210,7 +317,7 @@ export function ReservationActionsCard({
                       )
                     }
                     className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                    style={{ backgroundColor: TEAL }}
+                    style={{ backgroundColor: ACTION_COLORS.checkIn }}
                   >
                     {checkIn.isPending ? "Checking in…" : "Confirm check-in"}
                   </button>
@@ -228,7 +335,7 @@ export function ReservationActionsCard({
                 type="button"
                 onClick={() => setFlow({ kind: "check_in", id: crypto.randomUUID() })}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                style={{ backgroundColor: NAVY }}
+                style={{ backgroundColor: ACTION_COLORS.checkIn }}
               >
                 Check in
               </button>
@@ -252,8 +359,11 @@ export function ReservationActionsCard({
                       setReason("");
                       request.reset();
                     }}
-                    className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
-                    style={{ color: NAVY }}
+                    className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
+                    style={{
+                      color: REQUEST_COLOR[r.type],
+                      borderColor: `${REQUEST_COLOR[r.type]}55`,
+                    }}
                   >
                     Request {r.label.toLowerCase()}
                   </button>
@@ -296,29 +406,89 @@ export function ReservationActionsCard({
                     </label>
                   ) : null}
                   {flow.kind === "room_change" ? (
-                    <label className="mt-2 block text-xs">
-                      <span className="text-muted-foreground">Move to room</span>
-                      <select
-                        value={targetRoomId}
-                        onChange={(e) => setTargetRoomId(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">Move to room</p>
+                      {propertyRooms.isPending ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Loading rooms…</p>
+                      ) : (
+                        <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+                          {(propertyRooms.data?.rooms ?? [])
+                            .filter((r) => r.isActive)
+                            .map((r) => {
+                              const label = formatRoomLabel(
+                                r.displayName,
+                                r.n3StockName,
+                                r.roomNumber,
+                              );
+                              const badge = housekeepingBadge(r.id, hkBoard.data);
+                              const selected = r.id === targetRoomId;
+                              return (
+                                <li key={r.id}>
+                                  <button
+                                    type="button"
+                                    aria-pressed={selected}
+                                    onClick={() => setTargetRoomId(r.id)}
+                                    className="w-full rounded-md border bg-white p-2 text-left"
+                                    style={{
+                                      borderColor: selected
+                                        ? ACTION_COLORS.roomChange
+                                        : `${NAVY}22`,
+                                      boxShadow: selected
+                                        ? `inset 0 0 0 1px ${ACTION_COLORS.roomChange}`
+                                        : undefined,
+                                    }}
+                                  >
+                                    <span
+                                      className="block text-sm font-semibold"
+                                      style={{ color: NAVY }}
+                                    >
+                                      {label}
+                                      {selected ? " · Selected" : ""}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                      Room {r.roomNumber}
+                                      {r.floor ? ` · Floor ${r.floor}` : ""} · {r.roomType} · max{" "}
+                                      {r.maxOccupancy}
+                                    </span>
+                                    <span className="mt-1 flex flex-wrap items-center gap-2">
+                                      <span className="text-xs" style={{ color: NAVY }}>
+                                        Base rate {r.baseRate.toFixed(2)}
+                                      </span>
+                                      <span
+                                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        style={{
+                                          color: housekeepingBadgeTone(badge),
+                                          backgroundColor: `${housekeepingBadgeTone(badge)}18`,
+                                        }}
+                                      >
+                                        {badge}
+                                      </span>
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                        </ul>
+                      )}
+                      <div
+                        className="mt-2 rounded-md border p-2 text-[11px]"
+                        style={{ borderColor: `${NAVY}18` }}
                       >
-                        <option value="">
-                          {propertyRooms.isPending ? "Loading rooms…" : "Select a room…"}
-                        </option>
-                        {(propertyRooms.data?.rooms ?? [])
-                          .filter((r) => r.isActive)
-                          .map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.displayName || r.n3StockName || r.roomNumber}
-                            </option>
-                          ))}
-                      </select>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">
-                        The agreed rate is preserved. Availability is re-checked when the Owner
-                        approves.
-                      </span>
-                    </label>
+                        <p style={{ color: NAVY }}>
+                          Current agreed rate:{" "}
+                          {currentAgreedRate === null ? "—" : currentAgreedRate.toFixed(2)} · Target
+                          base rate: {targetRoom ? targetRoom.baseRate.toFixed(2) : "—"}
+                          {rateDiff === null
+                            ? ""
+                            : ` · Difference per night: ${rateDiff >= 0 ? "+" : ""}${rateDiff.toFixed(2)}`}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          Current agreed rate will be preserved. Target base rate difference is
+                          informational. Availability and housekeeping readiness are re-checked by
+                          the server when the Owner approves.
+                        </p>
+                      </div>
+                    </div>
                   ) : null}
                   {flow.kind === "rate_change" ? (
                     <label className="mt-2 block text-xs">
@@ -357,7 +527,7 @@ export function ReservationActionsCard({
                   </label>
                   {request.error ? (
                     <p className="mt-1 text-xs" style={{ color: ERR }}>
-                      {errText(request.error)}
+                      {errText(request.error, flow.kind)}
                     </p>
                   ) : null}
                   <div className="mt-2 flex gap-2">
@@ -366,7 +536,7 @@ export function ReservationActionsCard({
                       disabled={request.isPending}
                       onClick={() => submitRequest(flow.kind as OperationType)}
                       className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
-                      style={{ backgroundColor: NAVY }}
+                      style={{ backgroundColor: REQUEST_COLOR[flow.kind as OperationType] }}
                     >
                       {request.isPending ? "Sending…" : "Send for approval"}
                     </button>
@@ -399,12 +569,17 @@ export function PendingApprovalsCard({
 }) {
   const q = useReservationOperations(reservationId, canView);
   const decide = useDecideOperation(reservationId);
+  const propertyRooms = usePropertyRooms(canView);
   const [confirm, setConfirm] = useState<{
     request: OperationRequestDTO;
     decision: "approve" | "reject";
     id: string;
   } | null>(null);
   const [note, setNote] = useState("");
+  const decideCode =
+    decide.error && typeof decide.error === "object" && "code" in decide.error
+      ? String((decide.error as { code: string }).code)
+      : "";
 
   if (!canView) return null;
   const requests = q.data?.requests ?? [];
@@ -454,6 +629,12 @@ export function PendingApprovalsCard({
                 </span>
               </div>
               <p className="mt-1 text-muted-foreground">{r.summary}</p>
+              {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms) ? (
+                <p className="mt-1 text-[11px]" style={{ color: NAVY }}>
+                  Destination room:{" "}
+                  {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms)}
+                </p>
+              ) : null}
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Requested {formatCreatedAt(r.requestedAt)}
                 {r.requestedByLabel ? ` · ${r.requestedByLabel}` : ""}
@@ -476,8 +657,14 @@ export function PendingApprovalsCard({
                       className="mt-2 w-full rounded-md border border-input px-2 py-1"
                     />
                     {decide.error ? (
-                      <p className="mt-1" style={{ color: ERR }}>
-                        {errText(decide.error)}
+                      <p
+                        className="mt-1"
+                        style={{ color: isReadinessBlockerCode(decideCode) ? GOLD : ERR }}
+                      >
+                        {errText(decide.error, r.operationType)}
+                        {isReadinessBlockerCode(decideCode)
+                          ? " This request stays pending until the room is ready."
+                          : ""}
                       </p>
                     ) : null}
                     <div className="mt-2 flex gap-2">
@@ -497,7 +684,10 @@ export function PendingApprovalsCard({
                         }
                         className="rounded-md px-3 py-1 font-medium text-white"
                         style={{
-                          backgroundColor: confirm.decision === "approve" ? TEAL : ERR,
+                          backgroundColor:
+                            confirm.decision === "approve"
+                              ? ACTION_COLORS.approve
+                              : ACTION_COLORS.reject,
                         }}
                       >
                         {decide.isPending ? "Saving…" : "Confirm"}
@@ -519,7 +709,7 @@ export function PendingApprovalsCard({
                         setConfirm({ request: r, decision: "approve", id: crypto.randomUUID() })
                       }
                       className="rounded-md px-3 py-1 font-medium text-white"
-                      style={{ backgroundColor: TEAL }}
+                      style={{ backgroundColor: ACTION_COLORS.approve }}
                     >
                       Approve
                     </button>
@@ -529,7 +719,10 @@ export function PendingApprovalsCard({
                         setConfirm({ request: r, decision: "reject", id: crypto.randomUUID() })
                       }
                       className="rounded-md border border-input px-3 py-1"
-                      style={{ color: ERR }}
+                      style={{
+                        color: ACTION_COLORS.reject,
+                        borderColor: `${ACTION_COLORS.reject}55`,
+                      }}
                     >
                       Reject
                     </button>

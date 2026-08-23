@@ -25,7 +25,7 @@ export const Route = createFileRoute("/departures")({
 
 const BUCKETS = [
   { key: "today", label: "Departing today" },
-  { key: "overdue", label: "Overdue" },
+  { key: "overdue", label: "Overdue occupied" },
   { key: "upcoming", label: "Upcoming" },
   { key: "all", label: "All checked in" },
 ] as const;
@@ -56,8 +56,9 @@ function DeparturesPage() {
                 onClick={() => setBucket(b.key)}
                 className="rounded-md border border-border px-3 py-1.5 text-sm font-medium transition-colors"
                 style={{
-                  backgroundColor: active ? "#0F9D8A" : "white",
-                  color: active ? "white" : "#102A43",
+                  backgroundColor: active ? (b.key === "overdue" ? "#9B1C1C" : "#0F9D8A") : "white",
+                  borderColor: b.key === "overdue" ? "#9B1C1C" : undefined,
+                  color: active ? "white" : b.key === "overdue" ? "#9B1C1C" : "#102A43",
                 }}
               >
                 {b.label}
@@ -100,7 +101,15 @@ function DeparturesPage() {
                 </thead>
                 <tbody>
                   {q.data.items.map((it) => (
-                    <tr key={it.reservationId} className="border-t border-border">
+                    <tr
+                      key={it.reservationId}
+                      className="border-t border-border"
+                      style={
+                        it.bucket === "overdue"
+                          ? { backgroundColor: "#FDECEC", borderLeft: "4px solid #9B1C1C" }
+                          : undefined
+                      }
+                    >
                       <td className="px-4 py-2 font-mono text-xs">{it.bookingReference}</td>
                       <td className="px-4 py-2">{it.primaryGuestName ?? "—"}</td>
                       <td className="px-4 py-2">{it.roomLabels.join(", ") || "—"}</td>
@@ -108,18 +117,18 @@ function DeparturesPage() {
                       <td className="px-4 py-2">{it.departureDate}</td>
                       <td className="px-4 py-2">
                         <span
-                          className="rounded px-2 py-0.5 text-xs font-medium"
+                          className="rounded px-2 py-0.5 text-xs font-semibold"
                           style={{
                             backgroundColor:
                               it.bucket === "overdue"
-                                ? "#FDECEC"
+                                ? "#9B1C1C"
                                 : it.bucket === "today"
                                   ? "#E7F6F3"
                                   : "#F1F5F9",
-                            color: it.bucket === "overdue" ? "#B42318" : "#102A43",
+                            color: it.bucket === "overdue" ? "#FFFFFF" : "#102A43",
                           }}
                         >
-                          {it.bucket}
+                          {it.bucket === "overdue" ? "Occupied · Departure overdue" : it.bucket}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-right">

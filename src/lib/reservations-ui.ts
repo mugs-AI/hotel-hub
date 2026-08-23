@@ -254,6 +254,26 @@ export function roomLabel(
   return (roomNumber ?? "").trim();
 }
 
+// ---------- Reservation list room labels ----------
+/** Max number of individual room labels shown before truncating with "+N more". */
+export const ROOM_LABELS_LIST_MAX = 3;
+
+/**
+ * Concise, privacy-safe room label list for the reservations list view.
+ * Input must already be resolved human labels (never raw UUIDs). Truncates
+ * gracefully for multi-room reservations.
+ */
+export function formatRoomLabelsList(
+  labels: readonly string[],
+  max: number = ROOM_LABELS_LIST_MAX,
+): string {
+  const clean = labels.map((l) => (l ?? "").trim()).filter(Boolean);
+  if (clean.length === 0) return "—";
+  if (clean.length <= max) return clean.join(", ");
+  const shown = clean.slice(0, max).join(", ");
+  return `${shown} +${clean.length - max} more`;
+}
+
 /** Natural comparator for mixed alpha-numeric strings ("2" < "10", "A2" < "A10"). */
 export function naturalCompare(a: string, b: string): number {
   return String(a).localeCompare(String(b), undefined, {

@@ -17,6 +17,8 @@ import {
   HK_COLORS,
   OCCUPANCY_LABELS,
   OVERDUE_STAY_LABEL,
+  OVERDUE_OCCUPIED_BADGE_LABEL,
+  DND_SETUP_HINT,
   TONE_STYLE,
   TRANSITION_LABELS,
   TRANSITION_TONE,
@@ -44,7 +46,15 @@ const GRAY = HK_COLORS.gray;
 const APPLE_GREEN = HK_COLORS.appleGreen;
 const INDIGO = HK_COLORS.indigo;
 
-type Filter = "needs_action" | "dirty" | "cleaning" | "inspected" | "ready" | "not_set_up" | "dnd";
+type Filter =
+  | "needs_action"
+  | "dirty"
+  | "cleaning"
+  | "inspected"
+  | "ready"
+  | "not_set_up"
+  | "dnd"
+  | "overdue_occupied";
 
 /**
  * Needs attention — the ONE presentation rule shared by both the visible list
@@ -71,6 +81,17 @@ export function needsHousekeepingAttention(room: HousekeepingRoomDTO): boolean {
   return !room.initialized || room.condition !== "ready" || room.dndActive || operationalBlocker;
 }
 
+/**
+ * A guest is still physically in the room AND its planned departure date has
+ * already passed. Derived only from the authoritative board DTO fields
+ * (`occupancy`, `occupancyOverdue`) — never a guess, never a fifth condition,
+ * and it never changes what the room IS. Shared by the summary tile, the
+ * filter and the card treatment so they can never disagree.
+ */
+export function isOverdueOccupied(room: HousekeepingRoomDTO): boolean {
+  return room.occupancy === "occupied" && room.occupancyOverdue === true;
+}
+
 /** Presentation-only grouping. Authority and lifecycle stay on the server. */
 function matchesFilter(room: HousekeepingRoomDTO, filter: Filter): boolean {
   switch (filter) {
@@ -80,6 +101,8 @@ function matchesFilter(room: HousekeepingRoomDTO, filter: Filter): boolean {
       return !room.initialized;
     case "dnd":
       return room.dndActive;
+    case "overdue_occupied":
+      return isOverdueOccupied(room);
     default:
       return room.condition === filter;
   }
@@ -147,11 +170,13 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       ready: 0,
       not_set_up: 0,
       dnd: 0,
+      overdue_occupied: 0,
     };
     for (const r of byFloor) {
       if (needsHousekeepingAttention(r)) t.needs_action += 1;
       if (!r.initialized) t.not_set_up += 1;
       if (r.dndActive) t.dnd += 1;
+      if (isOverdueOccupied(r)) t.overdue_occupied += 1;
       if (r.condition) t[r.condition] += 1;
     }
     return t;
@@ -207,7 +232,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   return (
     <div className="space-y-4">
       {/* RECOGNIZE — clickable summary tiles */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
         <Tile
           label="Needs attention"
           value={tally.needs_action}
@@ -256,6 +281,13 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
           tone={INDIGO}
           active={filter === "dnd"}
           onClick={() => setFilter("dnd")}
+        />
+        <Tile
+          label="Overdue occupied"
+          value={tally.overdue_occupied}
+          tone={RED}
+          active={filter === "overdue_occupied"}
+          onClick={() => setFilter("overdue_occupied")}
         />
       </div>
 
@@ -308,7 +340,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         </p>
       )}
 
-      {variant === "dedicated" && floors.length > 1 && (
+      {floors.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Floor</span>
           <FloorChip active={floorFilter === "all"} onClick={() => setFloorFilter("all")}>
@@ -367,6 +399,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
           <RoomCard
             key={room.roomId}
             room={room}
+            variant={variant}
             canUpdate={canUpdate}
             canDnd={canDnd}
             canInitialize={canInitialize}
@@ -378,7 +411,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
             onInitialize={(condition) =>
               run(room.roomLabel, { roomId: room.roomId, action: "initialize", condition })
             }
-            onHistory={variant === "dedicated" ? () => setHistoryRoomId(room.roomId) : undefined}
+            onHistory={() => setHistoryRoomId(room.roomId)}
           />
         ))}
       </ul>
@@ -472,6 +505,7 @@ function FloorChip({
 
 function RoomCard({
   room,
+  variant,
   canUpdate,
   canDnd,
   canInitialize,
@@ -482,6 +516,7 @@ function RoomCard({
   onHistory,
 }: {
   room: HousekeepingRoomDTO;
+  variant: "simple" | "dedicated";
   canUpdate: boolean;
   canDnd: boolean;
   canInitialize: boolean;
@@ -492,8 +527,32 @@ function RoomCard({
   onHistory?: () => void;
 }) {
   const style = room.condition ? CONDITION_STYLE[room.condition] : { bg: "#EEF2F6", fg: GRAY };
+  const overdueOccupied = isOverdueOccupied(room);
+
+  // Corrective alternatives (mark dirty / send back to cleaning) are always
+  // the QUIET choice; the one obvious next step stays dominant. This applies
+  // in both experiences, but matters most in Simple where a front-desk staff
+  // member should never have to pick between two equally loud buttons.
+  const primaryTransitions = room.availableTransitions.filter((t) =>
+    PRIMARY_TRANSITIONS.includes(t),
+  );
+  const secondaryTransitions = room.availableTransitions.filter(
+    (t) => !PRIMARY_TRANSITIONS.includes(t),
+  );
+
   return (
-    <li className="rounded-lg border border-border bg-white p-3 shadow-sm">
+    <li
+      className="rounded-lg border p-3 shadow-sm"
+      style={
+        overdueOccupied
+          ? {
+              borderColor: `${RED}55`,
+              borderLeft: `4px solid ${RED}`,
+              backgroundColor: HK_COLORS.redSoft,
+            }
+          : { borderColor: "#E2E8F0", backgroundColor: "white" }
+      }
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="truncate text-base font-semibold" style={{ color: NAVY }}>
@@ -501,7 +560,7 @@ function RoomCard({
           </div>
           <div className="text-xs text-muted-foreground">
             {room.floor?.trim() || "Unassigned floor"} · {OCCUPANCY_LABELS[room.occupancy]}
-            {room.occupancyOverdue ? ` · ${OVERDUE_STAY_LABEL}` : ""}
+            {room.occupancyOverdue && !overdueOccupied ? ` · ${OVERDUE_STAY_LABEL}` : ""}
           </div>
         </div>
         <span
@@ -511,6 +570,15 @@ function RoomCard({
           {busy ? "Updating…" : room.condition ? CONDITION_LABELS[room.condition] : "Not set up"}
         </span>
       </div>
+
+      {overdueOccupied && (
+        <p
+          className="mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold"
+          style={{ backgroundColor: RED, color: "#FFFFFF" }}
+        >
+          {OVERDUE_OCCUPIED_BADGE_LABEL}
+        </p>
+      )}
 
       {room.dndActive && (
         <p
@@ -547,34 +615,63 @@ function RoomCard({
               Only the Owner can set this room up for housekeeping.
             </p>
           )}
+          {room.occupancy === "occupied" && canDnd && (
+            <p className="mt-2 text-[11px] text-muted-foreground">{DND_SETUP_HINT}</p>
+          )}
         </div>
       )}
 
       {room.initialized && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {/* Actions come straight from the server's availableTransitions. */}
-          {canUpdate &&
-            room.availableTransitions.map((t) => (
-              <ActionButton
-                key={t}
-                busy={busy}
-                tone={TRANSITION_TONE[t]}
-                primary={PRIMARY_TRANSITIONS.includes(t)}
-                onClick={() => onTransition(t)}
-              >
-                {TRANSITION_LABELS[t]}
+        <div className="mt-3 space-y-2">
+          {/* The ONE dominant next action, straight from the server's
+              availableTransitions — never a client-invented shortcut. */}
+          {canUpdate && primaryTransitions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {primaryTransitions.map((t) => (
+                <ActionButton
+                  key={t}
+                  busy={busy}
+                  tone={TRANSITION_TONE[t]}
+                  primary
+                  onClick={() => onTransition(t)}
+                >
+                  {TRANSITION_LABELS[t]}
+                </ActionButton>
+              ))}
+              {canDnd && room.canClearDnd && (
+                <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
+                  Clear Do Not Disturb
+                </ActionButton>
+              )}
+            </div>
+          )}
+
+          {/* Corrective alternatives — always quieter, grouped on their own
+              row so they never compete with the dominant next action. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {canUpdate &&
+              secondaryTransitions.map((t) => (
+                <ActionButton
+                  key={t}
+                  busy={busy}
+                  tone={TRANSITION_TONE[t]}
+                  onClick={() => onTransition(t)}
+                >
+                  {TRANSITION_LABELS[t]}
+                </ActionButton>
+              ))}
+            {canDnd && room.canSetDnd && (
+              <ActionButton tone="dnd" busy={busy} onClick={() => onDnd(true)}>
+                Set Do Not Disturb
               </ActionButton>
-            ))}
-          {canDnd && room.canSetDnd && (
-            <ActionButton tone="dnd" busy={busy} onClick={() => onDnd(true)}>
-              Set Do Not Disturb
-            </ActionButton>
-          )}
-          {canDnd && room.canClearDnd && (
-            <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
-              Clear Do Not Disturb
-            </ActionButton>
-          )}
+            )}
+            {canUpdate && primaryTransitions.length === 0 && canDnd && room.canClearDnd && (
+              <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
+                Clear Do Not Disturb
+              </ActionButton>
+            )}
+          </div>
+
           {onHistory && (
             <button
               type="button"

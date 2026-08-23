@@ -101,10 +101,15 @@ export async function handleGuestAssignmentsPatch({
     if (seenGuests.has(guestId)) return deny(400, "duplicate_guest");
     seenGuests.add(guestId);
     const roomId = raw.reservationRoomId ?? null;
-    if (roomId !== null && !isUuid(roomId)) return deny(400, "room_not_found");
+    // Every active-reservation guest must be attached to one of this
+    // reservation's rooms. A null assignment is rejected explicitly here
+    // with a stable, distinct code rather than falling through to
+    // room_not_found (which implies a room id was supplied but unknown).
+    if (roomId === null) return deny(400, "guest_assignment_required");
+    if (!isUuid(roomId)) return deny(400, "room_not_found");
     assignments.push({
       reservationGuestId: guestId,
-      reservationRoomId: (roomId as string | null) ?? null,
+      reservationRoomId: roomId as string,
     });
   }
   if (assignments.length === 0) return deny(400, "guest_required");

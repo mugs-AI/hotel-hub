@@ -299,45 +299,54 @@ export async function getHousekeepingRoomView(input: {
   const sb = await admin();
   const today = propertyTodayIso(input.timezone) ?? propertyTodayIso("Asia/Kuala_Lumpur")!;
 
-  const roomRes = await sb
-    .from("hotel_rooms")
-    .select(
-      "id, room_number, display_name, n3_stock_name, room_type, floor, max_occupancy, is_active",
-    )
-    .eq("tenant_id", input.tenantId)
-    .eq("id", input.roomId)
-    .maybeSingle();
+  // Responsiveness: these five reads are independent and tenant-scoped, so a
+  // single successful action returns as soon as the SLOWEST of them settles
+  // instead of the SUM of all of them. Fail-closed semantics are preserved
+  // exactly — every error/status check below runs after all reads have
+  // landed, in the same order and with the same outcomes as the sequential
+  // version, and NONE of this reruns full-board reconciliation.
+  const [roomRes, hkRes, physical, planned, handoffRead] = await Promise.all([
+    sb
+      .from("hotel_rooms")
+      .select(
+        "id, room_number, display_name, n3_stock_name, room_type, floor, max_occupancy, is_active",
+      )
+      .eq("tenant_id", input.tenantId)
+      .eq("id", input.roomId)
+      .maybeSingle(),
+    sb
+      .from("hotel_room_housekeeping")
+      .select(
+        "hotel_room_id, condition, dnd_active, dnd_set_at, last_action, last_actor_n3_user_key, last_transition_at",
+      )
+      .eq("tenant_id", input.tenantId)
+      .eq("hotel_room_id", input.roomId)
+      .maybeSingle(),
+    sb
+      .from("hotel_reservation_rooms")
+      .select(OCCUPANCY_SELECT)
+      .eq("tenant_id", input.tenantId)
+      .eq("hotel_room_id", input.roomId)
+      .eq("allocation_status", "occupied")
+      .eq("hotel_reservations.status", "checked_in"),
+    sb
+      .from("hotel_reservation_rooms")
+      .select(OCCUPANCY_SELECT)
+      .eq("tenant_id", input.tenantId)
+      .eq("hotel_room_id", input.roomId)
+      .neq("allocation_status", "released")
+      .lte("arrival_date", today)
+      .gte("departure_date", today),
+    // Fail CLOSED: unknown handoff state must never be painted as clean.
+    readPendingHandoffRooms(input.tenantId),
+  ]);
+
   if (roomRes.error) throw new HousekeepingError("housekeeping_failed");
   if (!roomRes.data) throw new HousekeepingError("room_not_found");
-
-  const hkRes = await sb
-    .from("hotel_room_housekeeping")
-    .select(
-      "hotel_room_id, condition, dnd_active, dnd_set_at, last_action, last_actor_n3_user_key, last_transition_at",
-    )
-    .eq("tenant_id", input.tenantId)
-    .eq("hotel_room_id", input.roomId)
-    .maybeSingle();
   if (hkRes.error) throw new HousekeepingError("housekeeping_failed");
-
-  const physical = await sb
-    .from("hotel_reservation_rooms")
-    .select(OCCUPANCY_SELECT)
-    .eq("tenant_id", input.tenantId)
-    .eq("hotel_room_id", input.roomId)
-    .eq("allocation_status", "occupied")
-    .eq("hotel_reservations.status", "checked_in");
   if (physical.error) throw new HousekeepingError("housekeeping_failed");
-
-  const planned = await sb
-    .from("hotel_reservation_rooms")
-    .select(OCCUPANCY_SELECT)
-    .eq("tenant_id", input.tenantId)
-    .eq("hotel_room_id", input.roomId)
-    .neq("allocation_status", "released")
-    .lte("arrival_date", today)
-    .gte("departure_date", today);
   if (planned.error) throw new HousekeepingError("housekeeping_failed");
+  if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
 
   const occupancy = resolveOccupancyByRoom(
     [
@@ -347,10 +356,6 @@ export async function getHousekeepingRoomView(input: {
     input.tenantId,
     today,
   );
-
-  // Fail CLOSED: unknown handoff state must never be painted as clean.
-  const handoffRead = await readPendingHandoffRooms(input.tenantId);
-  if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
 
   const labels = await resolveActorLabels(input.tenantId, [
     (hkRes.data as any)?.last_actor_n3_user_key,

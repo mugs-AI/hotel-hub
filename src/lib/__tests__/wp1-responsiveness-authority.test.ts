@@ -138,7 +138,7 @@ describe("WP1 server authority on the write path", () => {
   });
 
   it("the server still decides transitions, DND authority and mode role authority", () => {
-    expect(BOARD).toContain("room.availableTransitions.map");
+    expect(BOARD).toContain("room.availableTransitions.filter");
     expect(BOARD).toContain("canDnd && room.canSetDnd");
     expect(BOARD).toContain("canDnd && room.canClearDnd");
     expect(BOARD).toContain("board.data!.authority");

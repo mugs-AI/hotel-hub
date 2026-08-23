@@ -86,7 +86,7 @@ describe("K/L. Ready is de-emphasised, needs-action is the default", () => {
 
 describe("M/N. Actions and blockers come from the server", () => {
   it("renders only server-provided transitions and DND capabilities", () => {
-    expect(BOARD).toMatch(/room\.availableTransitions\.map/);
+    expect(BOARD).toMatch(/room\.availableTransitions\.filter/);
     expect(BOARD).toMatch(/canDnd && room\.canSetDnd/);
     expect(BOARD).toMatch(/canDnd && room\.canClearDnd/);
     expect(BOARD).toMatch(/authority\.canInitialize/);
