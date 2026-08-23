@@ -451,3 +451,15 @@ export const ROLE_HINTS: Record<string, string> = {
 
 /** Presentation-only indicator for a stay past its planned departure date. */
 export const OVERDUE_STAY_LABEL = "Departure overdue";
+
+/**
+ * Presentation-only badge for a room that is physically occupied on a
+ * checked-in stay whose planned departure date has already passed. This is
+ * NEVER a fifth condition and never changes occupancy/condition state — it
+ * only tells staff the truth instead of a stale "Vacant".
+ */
+export const OVERDUE_OCCUPIED_BADGE_LABEL = "Occupied · Departure overdue";
+
+/** Shown when DND cannot be offered yet because the room has no housekeeping condition set. */
+export const DND_SETUP_HINT =
+  "Set the room housekeeping condition first to enable Do Not Disturb.";
