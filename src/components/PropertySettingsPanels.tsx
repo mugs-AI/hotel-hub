@@ -318,7 +318,6 @@ export function HousekeepingPanel({
             label: "Dedicated housekeeping team",
             help: "The housekeeping team uses the Housekeeping workspace with the dedicated tools, with cleaning and checking as separate steps.",
           },
-
         ].map((o) => (
           <label
             key={o.value}
