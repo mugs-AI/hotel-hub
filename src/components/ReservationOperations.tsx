@@ -672,7 +672,10 @@ export function PendingApprovalsCard({
                         }
                         className="rounded-md px-3 py-1 font-medium text-white"
                         style={{
-                          backgroundColor: confirm.decision === "approve" ? TEAL : ERR,
+                          backgroundColor:
+                            confirm.decision === "approve"
+                              ? ACTION_COLORS.approve
+                              : ACTION_COLORS.reject,
                         }}
                       >
                         {decide.isPending ? "Saving…" : "Confirm"}
@@ -694,7 +697,7 @@ export function PendingApprovalsCard({
                         setConfirm({ request: r, decision: "approve", id: crypto.randomUUID() })
                       }
                       className="rounded-md px-3 py-1 font-medium text-white"
-                      style={{ backgroundColor: TEAL }}
+                      style={{ backgroundColor: ACTION_COLORS.approve }}
                     >
                       Approve
                     </button>
@@ -704,7 +707,7 @@ export function PendingApprovalsCard({
                         setConfirm({ request: r, decision: "reject", id: crypto.randomUUID() })
                       }
                       className="rounded-md border border-input px-3 py-1"
-                      style={{ color: ERR }}
+                      style={{ color: ACTION_COLORS.reject, borderColor: `${ACTION_COLORS.reject}55` }}
                     >
                       Reject
                     </button>
