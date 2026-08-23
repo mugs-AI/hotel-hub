@@ -215,9 +215,10 @@ async function occupancyByRoom(
   if (planned.error) throw new HousekeepingError("housekeeping_failed");
 
   return resolveOccupancyByRoom(
-    [...toOccupancyRows((physical.data ?? []) as any[]), ...toOccupancyRows(
-      (planned.data ?? []) as any[],
-    )],
+    [
+      ...toOccupancyRows((physical.data ?? []) as any[]),
+      ...toOccupancyRows((planned.data ?? []) as any[]),
+    ],
     tenantId,
     today,
   );
@@ -365,7 +366,6 @@ export async function getHousekeepingRoomView(input: {
   });
 }
 
-
 export async function getHousekeepingBoard(input: {
   tenantId: string;
   timezone: string;
@@ -431,7 +431,6 @@ export async function getHousekeepingBoard(input: {
     if (!dto.initialized) counts.uninitialized += 1;
     return dto;
   });
-
 
   return {
     propertyDate: today,

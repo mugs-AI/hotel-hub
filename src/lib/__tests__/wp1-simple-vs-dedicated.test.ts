@@ -62,7 +62,13 @@ describe("WP1 mode presentation", () => {
 describe("WP1 lifecycle is identical in both modes", () => {
   it("no mode-specific transition is invented", () => {
     expect([...HOUSEKEEPING_TRANSITIONS].sort()).toEqual(
-      ["finish_cleaning", "mark_dirty", "mark_ready", "revert_to_cleaning", "start_cleaning"].sort(),
+      [
+        "finish_cleaning",
+        "mark_dirty",
+        "mark_ready",
+        "revert_to_cleaning",
+        "start_cleaning",
+      ].sort(),
     );
     expect(housekeepingAuthority("dedicated", "owner").roleTransitions.sort()).toEqual(
       housekeepingAuthority("simple", "owner").roleTransitions.sort(),

@@ -27,8 +27,8 @@ describe("WP1 per-room responsiveness", () => {
   });
 
   it("only the clicked room shows Updating… / aria-busy", () => {
-    expect(BOARD).toContain('aria-busy={busy}');
-    expect(BOARD).toContain('disabled={busy}');
+    expect(BOARD).toContain("aria-busy={busy}");
+    expect(BOARD).toContain("disabled={busy}");
     expect(BOARD).toContain('{busy ? "Updating…" : children}');
     expect(BOARD).toContain('busy ? "Updating…"');
     // `busy` is derived only from the single pending room id.
@@ -52,7 +52,9 @@ describe("WP1 server authority on the write path", () => {
   });
 
   it("a post-write read failure returns null instead of failing the write", () => {
-    expect(ROUTE).toMatch(/try \{\s*return await getHousekeepingRoomView\(input\);\s*\} catch \{\s*return null;\s*\}/);
+    expect(ROUTE).toMatch(
+      /try \{\s*return await getHousekeepingRoomView\(input\);\s*\} catch \{\s*return null;\s*\}/,
+    );
   });
 
   it("the cache patch uses the server DTO only, and skips when absent", () => {
@@ -66,7 +68,9 @@ describe("WP1 server authority on the write path", () => {
   });
 
   it("errors never patch a fake state; the board always background-resyncs", () => {
-    expect(CLIENT).toContain("onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY })");
+    expect(CLIENT).toContain(
+      "onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY })",
+    );
     // setQueryData happens only inside onSuccess.
     const successIdx = CLIENT.indexOf("onSuccess:");
     const patchIdx = CLIENT.indexOf("qc.setQueryData");
