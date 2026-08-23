@@ -29,7 +29,8 @@ describe("WP1 ops UX — room-change picker", () => {
 
 describe("WP1 ops UX — pending approvals", () => {
   it("shows the destination room for pending room changes", () => {
-    expect(OPS).toContain("pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms)");
+    // Destination now comes from the server-derived structured id.
+    expect(OPS).toContain("destinationHotelRoomId={r.destinationHotelRoomId}");
     expect(OPS).toContain("Destination room:");
   });
 
