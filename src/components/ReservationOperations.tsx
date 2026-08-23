@@ -645,8 +645,14 @@ export function PendingApprovalsCard({
                       className="mt-2 w-full rounded-md border border-input px-2 py-1"
                     />
                     {decide.error ? (
-                      <p className="mt-1" style={{ color: ERR }}>
-                        {errText(decide.error)}
+                      <p
+                        className="mt-1"
+                        style={{ color: isReadinessBlockerCode(decideCode) ? GOLD : ERR }}
+                      >
+                        {errText(decide.error, r.operationType)}
+                        {isReadinessBlockerCode(decideCode)
+                          ? " This request stays pending until the room is ready."
+                          : ""}
                       </p>
                     ) : null}
                     <div className="mt-2 flex gap-2">
