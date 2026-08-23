@@ -54,32 +54,21 @@ function errText(err: unknown, operationType?: string): string {
   return operationErrorMessage(code, operationType);
 }
 
-/** Best-effort destination room label for a pending room-change card. */
-function pendingRoomChangeDestinationLabel(
-  request: OperationRequestDTO,
-  propertyRooms: PropertyRoom[] | undefined,
-): string | null {
-  if (request.operationType !== "room_change") return null;
-  // The summary line is server-authored plain text; we never parse or trust
-  // structured data out of it, so the label only ever comes from a room the
-  // property still knows about (matched by name occurring in the summary),
-  // and this is purely informational — never authoritative.
-  const match = (propertyRooms ?? []).find((r) => {
-    const label = r.displayName || r.n3StockName || r.roomNumber;
-    return label && request.summary.includes(label);
-  });
-  return match ? match.displayName || match.n3StockName || match.roomNumber : null;
-}
-
 /** Safe-only readiness blocker codes that can surface on a pending decision. */
 const READINESS_BLOCKER_CODES = new Set([
   "housekeeping_not_initialized",
   "room_not_ready",
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
   "dnd_active",
   "handoff_pending",
   "readiness_read_failed",
   "destination_housekeeping_not_initialized",
   "destination_room_not_ready",
+  "destination_room_dirty",
+  "destination_room_cleaning",
+  "destination_room_inspected",
   "destination_not_ready",
   "destination_dnd_active",
   "destination_handoff_pending",
@@ -138,6 +127,8 @@ const TERMINAL_STATUSES = new Set(["cancelled", "checked_out", "no_show", "compl
 export type ActionRoom = {
   /** hotel_reservation_rooms.id */
   id: string;
+  /** hotel_rooms.id — the room the guest is physically in right now. */
+  hotelRoomId: string;
   label: string;
   agreedRate: number;
 };
@@ -229,7 +220,9 @@ export function ReservationActionsCard({
   const [newRate, setNewRate] = useState("");
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
   const hkBoard = useHousekeepingBoard(flow?.kind === "room_change");
-  const currentAgreedRate = rooms.find((r) => r.id === reservationRoomId)?.agreedRate ?? null;
+  const currentReservationRoom = rooms.find((r) => r.id === reservationRoomId) ?? null;
+  const currentAgreedRate = currentReservationRoom?.agreedRate ?? null;
+  const currentHotelRoomId = currentReservationRoom?.hotelRoomId ?? null;
   const targetRoom = (propertyRooms.data?.rooms ?? []).find((r) => r.id === targetRoomId);
   const rateDiff =
     currentAgreedRate !== null && targetRoom ? targetRoom.baseRate - currentAgreedRate : null;
@@ -357,6 +350,10 @@ export function ReservationActionsCard({
                       setFlow({ kind: r.type, id: crypto.randomUUID() });
                       setDetail("");
                       setReason("");
+                      // One-room reservation: there is nothing to choose, so
+                      // preselect it instead of forcing a pointless first step.
+                      setReservationRoomId(rooms.length === 1 ? rooms[0]!.id : "");
+                      setTargetRoomId("");
                       request.reset();
                     }}
                     className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
@@ -414,6 +411,9 @@ export function ReservationActionsCard({
                         <ul className="mt-1 grid gap-2 sm:grid-cols-2">
                           {(propertyRooms.data?.rooms ?? [])
                             .filter((r) => r.isActive)
+                            // Never offer the room the guest is already in as
+                            // its own destination.
+                            .filter((r) => r.id !== currentHotelRoomId)
                             .map((r) => {
                               const label = formatRoomLabel(
                                 r.displayName,
