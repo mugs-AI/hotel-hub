@@ -141,7 +141,13 @@ describe("readiness refusals name the actual condition", () => {
   });
 
   it("classifies concrete conditions as housekeeping-blocked check-ins", () => {
-    for (const code of ["housekeeping_not_initialized", "room_dirty", "room_cleaning", "room_inspected", "dnd_active"]) {
+    for (const code of [
+      "housekeeping_not_initialized",
+      "room_dirty",
+      "room_cleaning",
+      "room_inspected",
+      "dnd_active",
+    ]) {
       expect(HOUSEKEEPING_BLOCKER_CODES.has(code)).toBe(true);
     }
     expect(HOUSEKEEPING_BLOCKER_CODES.has("reservation_not_found")).toBe(false);
@@ -185,7 +191,7 @@ describe("room-change picker never offers the current room", () => {
   });
 
   it("preselects the only reservation room when there is just one", () => {
-    expect(OPS).toContain("setReservationRoomId(rooms.length === 1 ? rooms[0]!.id : \"\")");
+    expect(OPS).toContain('setReservationRoomId(rooms.length === 1 ? rooms[0]!.id : "")');
   });
 
   it("keeps not-ready rooms visible with their housekeeping badge", () => {
