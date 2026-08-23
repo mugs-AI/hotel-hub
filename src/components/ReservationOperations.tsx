@@ -394,29 +394,89 @@ export function ReservationActionsCard({
                     </label>
                   ) : null}
                   {flow.kind === "room_change" ? (
-                    <label className="mt-2 block text-xs">
-                      <span className="text-muted-foreground">Move to room</span>
-                      <select
-                        value={targetRoomId}
-                        onChange={(e) => setTargetRoomId(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground">Move to room</p>
+                      {propertyRooms.isPending ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Loading rooms…</p>
+                      ) : (
+                        <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+                          {(propertyRooms.data?.rooms ?? [])
+                            .filter((r) => r.isActive)
+                            .map((r) => {
+                              const label = formatRoomLabel(
+                                r.displayName,
+                                r.n3StockName,
+                                r.roomNumber,
+                              );
+                              const badge = housekeepingBadge(r.id, hkBoard.data);
+                              const selected = r.id === targetRoomId;
+                              return (
+                                <li key={r.id}>
+                                  <button
+                                    type="button"
+                                    aria-pressed={selected}
+                                    onClick={() => setTargetRoomId(r.id)}
+                                    className="w-full rounded-md border bg-white p-2 text-left"
+                                    style={{
+                                      borderColor: selected
+                                        ? ACTION_COLORS.roomChange
+                                        : `${NAVY}22`,
+                                      boxShadow: selected
+                                        ? `inset 0 0 0 1px ${ACTION_COLORS.roomChange}`
+                                        : undefined,
+                                    }}
+                                  >
+                                    <span
+                                      className="block text-sm font-semibold"
+                                      style={{ color: NAVY }}
+                                    >
+                                      {label}
+                                      {selected ? " · Selected" : ""}
+                                    </span>
+                                    <span className="block text-xs text-muted-foreground">
+                                      Room {r.roomNumber}
+                                      {r.floor ? ` · Floor ${r.floor}` : ""} · {r.roomType} · max{" "}
+                                      {r.maxOccupancy}
+                                    </span>
+                                    <span className="mt-1 flex flex-wrap items-center gap-2">
+                                      <span className="text-xs" style={{ color: NAVY }}>
+                                        Base rate {r.baseRate.toFixed(2)}
+                                      </span>
+                                      <span
+                                        className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                        style={{
+                                          color: housekeepingBadgeTone(badge),
+                                          backgroundColor: `${housekeepingBadgeTone(badge)}18`,
+                                        }}
+                                      >
+                                        {badge}
+                                      </span>
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                        </ul>
+                      )}
+                      <div
+                        className="mt-2 rounded-md border p-2 text-[11px]"
+                        style={{ borderColor: `${NAVY}18` }}
                       >
-                        <option value="">
-                          {propertyRooms.isPending ? "Loading rooms…" : "Select a room…"}
-                        </option>
-                        {(propertyRooms.data?.rooms ?? [])
-                          .filter((r) => r.isActive)
-                          .map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.displayName || r.n3StockName || r.roomNumber}
-                            </option>
-                          ))}
-                      </select>
-                      <span className="mt-1 block text-[11px] text-muted-foreground">
-                        The agreed rate is preserved. Availability is re-checked when the Owner
-                        approves.
-                      </span>
-                    </label>
+                        <p style={{ color: NAVY }}>
+                          Current agreed rate:{" "}
+                          {currentAgreedRate === null ? "—" : currentAgreedRate.toFixed(2)} · Target
+                          base rate: {targetRoom ? targetRoom.baseRate.toFixed(2) : "—"}
+                          {rateDiff === null
+                            ? ""
+                            : ` · Difference per night: ${rateDiff >= 0 ? "+" : ""}${rateDiff.toFixed(2)}`}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          Current agreed rate will be preserved. Target base rate difference is
+                          informational. Availability and housekeeping readiness are re-checked by
+                          the server when the Owner approves.
+                        </p>
+                      </div>
+                    </div>
                   ) : null}
                   {flow.kind === "rate_change" ? (
                     <label className="mt-2 block text-xs">
