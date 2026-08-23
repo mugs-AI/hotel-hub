@@ -73,17 +73,35 @@ export const OPERATION_ERROR_CODES = new Set([
   // not Ready must never receive a guest.
   "housekeeping_not_initialized",
   "room_not_ready",
+  // Concrete housekeeping conditions. Same rule, more specific refusal so
+  // staff are told what actually has to happen next.
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
   "dnd_active",
   // P1 correction — readiness of the room a guest is being moved INTO, or
   // brought into early. Same rule, stated from the destination's side.
   "destination_housekeeping_not_initialized",
   "destination_room_not_ready",
+  "destination_room_dirty",
+  "destination_room_cleaning",
+  "destination_room_inspected",
   "destination_dnd_active",
   "operation_read_failed",
   // Correction 7 — an unresolved vacated-room handoff blocks physical
   // check-in, and an unreadable readiness state refuses rather than guesses.
   "handoff_pending",
   "readiness_read_failed",
+]);
+
+/** Housekeeping refusals — 409 conditions, never server faults. */
+export const HOUSEKEEPING_BLOCKER_CODES: ReadonlySet<string> = new Set([
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
+  "dnd_active",
 ]);
 
 /** Restate a room-readiness blocker from the destination room's point of view. */
@@ -93,6 +111,12 @@ export function destinationBlockerCode(blocker: string): string {
       return "destination_housekeeping_not_initialized";
     case "room_not_ready":
       return "destination_room_not_ready";
+    case "room_dirty":
+      return "destination_room_dirty";
+    case "room_cleaning":
+      return "destination_room_cleaning";
+    case "room_inspected":
+      return "destination_room_inspected";
     case "dnd_active":
       return "destination_dnd_active";
     default:
@@ -353,6 +377,12 @@ export type OperationRequestDTO = {
   state: OperationState;
   /** Sanitised, display-safe summary of the requested change. */
   summary: string;
+  /**
+   * room_change ONLY: the validated destination hotel room id taken from the
+   * stored operation payload. Never the raw payload, never guessed — a
+   * malformed or absent value is null.
+   */
+  destinationHotelRoomId: string | null;
   requestedByLabel: string | null;
   requestedAt: string;
   decidedByLabel: string | null;
@@ -378,6 +408,20 @@ const TYPE_LABELS: Record<OperationType, string> = {
 
 export function operationTypeLabel(t: string): string {
   return (TYPE_LABELS as Record<string, string>)[t] ?? t.replace(/_/g, " ");
+}
+
+/**
+ * Extract the one structured, display-safe field the browser needs from a
+ * stored operation payload: the room_change destination. Everything else in
+ * the payload stays server-side.
+ */
+export function destinationHotelRoomIdOf(
+  type: string,
+  payload: Record<string, unknown> | null | undefined,
+): string | null {
+  if (type !== "room_change") return null;
+  const raw = (payload ?? {})["to_hotel_room_id"];
+  return isUuid(raw) ? (raw as string) : null;
 }
 
 /** Build a short, non-sensitive description of a pending request. */
@@ -434,6 +478,7 @@ export async function listOperationRequests(
     operationType: r.operation_type,
     state: r.state,
     summary: summarizeOperation(r.operation_type, r.payload ?? {}),
+    destinationHotelRoomId: destinationHotelRoomIdOf(r.operation_type, r.payload ?? {}),
     requestedByLabel: labels.get(r.requested_by_n3_user_key) ?? null,
     requestedAt: r.requested_at,
     decidedByLabel: r.decided_by_n3_user_key

@@ -135,7 +135,8 @@ describe("check-in gate fails closed", () => {
 
   it("blocks every non-Ready condition", () => {
     for (const c of ["dirty", "cleaning", "inspected"] as const) {
-      expect(checkInBlockers(state({ condition: c }))).toContain("room_not_ready");
+      // Same rule, now stated with the concrete condition (WP1 final gaps).
+      expect(checkInBlockers(state({ condition: c }))).toContain(`room_${c}`);
     }
   });
 

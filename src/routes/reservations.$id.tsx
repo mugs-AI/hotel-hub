@@ -410,6 +410,7 @@ function Detail({
         canRequest={hasPermission(role, "hotel:operations:request")}
         rooms={data.rooms.map((r) => ({
           id: r.id,
+          hotelRoomId: r.hotelRoomId,
           label: roomLabel(r.displayName, r.n3StockName, r.roomNumber),
           agreedRate: r.agreedRate,
         }))}

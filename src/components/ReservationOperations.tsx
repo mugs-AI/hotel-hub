@@ -54,32 +54,21 @@ function errText(err: unknown, operationType?: string): string {
   return operationErrorMessage(code, operationType);
 }
 
-/** Best-effort destination room label for a pending room-change card. */
-function pendingRoomChangeDestinationLabel(
-  request: OperationRequestDTO,
-  propertyRooms: PropertyRoom[] | undefined,
-): string | null {
-  if (request.operationType !== "room_change") return null;
-  // The summary line is server-authored plain text; we never parse or trust
-  // structured data out of it, so the label only ever comes from a room the
-  // property still knows about (matched by name occurring in the summary),
-  // and this is purely informational — never authoritative.
-  const match = (propertyRooms ?? []).find((r) => {
-    const label = r.displayName || r.n3StockName || r.roomNumber;
-    return label && request.summary.includes(label);
-  });
-  return match ? match.displayName || match.n3StockName || match.roomNumber : null;
-}
-
 /** Safe-only readiness blocker codes that can surface on a pending decision. */
 const READINESS_BLOCKER_CODES = new Set([
   "housekeeping_not_initialized",
   "room_not_ready",
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
   "dnd_active",
   "handoff_pending",
   "readiness_read_failed",
   "destination_housekeeping_not_initialized",
   "destination_room_not_ready",
+  "destination_room_dirty",
+  "destination_room_cleaning",
+  "destination_room_inspected",
   "destination_not_ready",
   "destination_dnd_active",
   "destination_handoff_pending",
@@ -138,6 +127,8 @@ const TERMINAL_STATUSES = new Set(["cancelled", "checked_out", "no_show", "compl
 export type ActionRoom = {
   /** hotel_reservation_rooms.id */
   id: string;
+  /** hotel_rooms.id — the room the guest is physically in right now. */
+  hotelRoomId: string;
   label: string;
   agreedRate: number;
 };
@@ -229,7 +220,9 @@ export function ReservationActionsCard({
   const [newRate, setNewRate] = useState("");
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
   const hkBoard = useHousekeepingBoard(flow?.kind === "room_change");
-  const currentAgreedRate = rooms.find((r) => r.id === reservationRoomId)?.agreedRate ?? null;
+  const currentReservationRoom = rooms.find((r) => r.id === reservationRoomId) ?? null;
+  const currentAgreedRate = currentReservationRoom?.agreedRate ?? null;
+  const currentHotelRoomId = currentReservationRoom?.hotelRoomId ?? null;
   const targetRoom = (propertyRooms.data?.rooms ?? []).find((r) => r.id === targetRoomId);
   const rateDiff =
     currentAgreedRate !== null && targetRoom ? targetRoom.baseRate - currentAgreedRate : null;
@@ -357,6 +350,10 @@ export function ReservationActionsCard({
                       setFlow({ kind: r.type, id: crypto.randomUUID() });
                       setDetail("");
                       setReason("");
+                      // One-room reservation: there is nothing to choose, so
+                      // preselect it instead of forcing a pointless first step.
+                      setReservationRoomId(rooms.length === 1 ? rooms[0]!.id : "");
+                      setTargetRoomId("");
                       request.reset();
                     }}
                     className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
@@ -414,6 +411,9 @@ export function ReservationActionsCard({
                         <ul className="mt-1 grid gap-2 sm:grid-cols-2">
                           {(propertyRooms.data?.rooms ?? [])
                             .filter((r) => r.isActive)
+                            // Never offer the room the guest is already in as
+                            // its own destination.
+                            .filter((r) => r.id !== currentHotelRoomId)
                             .map((r) => {
                               const label = formatRoomLabel(
                                 r.displayName,
@@ -558,6 +558,55 @@ export function ReservationActionsCard({
   );
 }
 
+/**
+ * Destination detail for a pending room change. The room is located by EXACT
+ * server-supplied id against the tenant-scoped property room list — never by
+ * reading the summary text — and housekeeping readiness is informational
+ * only: the server re-checks it fail-closed when the Owner approves.
+ */
+function PendingDestinationBlock({
+  destinationHotelRoomId,
+  propertyRooms,
+  board,
+}: {
+  destinationHotelRoomId: string | null;
+  propertyRooms: PropertyRoom[] | undefined;
+  board: Parameters<typeof housekeepingBadge>[1];
+}) {
+  const room = destinationHotelRoomId
+    ? (propertyRooms ?? []).find((r) => r.id === destinationHotelRoomId)
+    : undefined;
+  if (!room) {
+    return (
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        Destination room: unknown — this request does not carry a recognised destination room.
+      </p>
+    );
+  }
+  const badge = housekeepingBadge(room.id, board);
+  return (
+    <div className="mt-1 rounded-md border p-2 text-[11px]" style={{ borderColor: `${NAVY}18` }}>
+      <p style={{ color: NAVY }}>
+        Destination room: {formatRoomLabel(room.displayName, room.n3StockName, room.roomNumber)}
+      </p>
+      <p className="text-muted-foreground">
+        Room {room.roomNumber}
+        {room.floor ? ` · Floor ${room.floor}` : ""} · {room.roomType} · max {room.maxOccupancy} ·
+        Base rate {room.baseRate.toFixed(2)}
+      </p>
+      <span
+        className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold"
+        style={{
+          color: housekeepingBadgeTone(badge),
+          backgroundColor: `${housekeepingBadgeTone(badge)}18`,
+        }}
+      >
+        Housekeeping now: {badge}
+      </span>
+    </div>
+  );
+}
+
 export function PendingApprovalsCard({
   reservationId,
   canView,
@@ -570,6 +619,7 @@ export function PendingApprovalsCard({
   const q = useReservationOperations(reservationId, canView);
   const decide = useDecideOperation(reservationId);
   const propertyRooms = usePropertyRooms(canView);
+  const hkBoard = useHousekeepingBoard(canView);
   const [confirm, setConfirm] = useState<{
     request: OperationRequestDTO;
     decision: "approve" | "reject";
@@ -629,11 +679,12 @@ export function PendingApprovalsCard({
                 </span>
               </div>
               <p className="mt-1 text-muted-foreground">{r.summary}</p>
-              {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms) ? (
-                <p className="mt-1 text-[11px]" style={{ color: NAVY }}>
-                  Destination room:{" "}
-                  {pendingRoomChangeDestinationLabel(r, propertyRooms.data?.rooms)}
-                </p>
+              {r.operationType === "room_change" ? (
+                <PendingDestinationBlock
+                  destinationHotelRoomId={r.destinationHotelRoomId}
+                  propertyRooms={propertyRooms.data?.rooms}
+                  board={hkBoard.data}
+                />
               ) : null}
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Requested {formatCreatedAt(r.requestedAt)}

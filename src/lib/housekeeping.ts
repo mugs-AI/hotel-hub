@@ -120,7 +120,10 @@ export function checkInBlockers(state: RoomTurnaroundState): string[] {
     blockers.push("housekeeping_not_initialized");
     return blockers;
   }
-  if (state.condition !== "ready") blockers.push("room_not_ready");
+  // Specific refusal codes: staff are told the actual condition, not just
+  // "not Ready". The readiness RULE is unchanged — anything other than Ready
+  // still blocks check-in.
+  if (state.condition !== "ready") blockers.push(`room_${state.condition}`);
   if (state.dndActive) blockers.push("dnd_active");
   return blockers;
 }
@@ -268,6 +271,9 @@ export const OCCUPANCY_LABELS: Record<RoomOccupancy, string> = {
 export const BLOCKER_LABELS: Record<string, string> = {
   housekeeping_not_initialized: "Housekeeping has not been set up for this room yet.",
   room_not_ready: "This room is not marked Ready.",
+  room_dirty: "This room is Dirty and has not been cleaned yet.",
+  room_cleaning: "This room is still being cleaned.",
+  room_inspected: "Cleaning is done, but this room has not been marked Ready yet.",
   dnd_active: "Do Not Disturb is on for this room.",
   room_inactive: "This room is not active.",
   // Not a fifth condition: an operational blocker meaning a guest has left
