@@ -1,7 +1,12 @@
 // Browser client for the WP1 housekeeping vertical. Same-origin only; no
 // direct database or N3 access, and no tokens ever touch this module.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { HousekeepingBoardDTO, HousekeepingEventDTO } from "@/lib/housekeeping-store.server";
+import type {
+  HousekeepingBoardDTO,
+  HousekeepingEventDTO,
+  HousekeepingRoomDTO,
+} from "@/lib/housekeeping-store.server";
+
 import type { BootstrapCondition, HousekeepingTransition } from "@/lib/housekeeping";
 
 export const HOUSEKEEPING_QUERY_KEY = ["housekeeping", "board"] as const;
