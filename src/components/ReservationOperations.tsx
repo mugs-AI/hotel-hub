@@ -20,7 +20,6 @@ import { useQuery } from "@tanstack/react-query";
 import { hotelJson } from "@/lib/hotel-settings-client";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
-import type { AvailabilityRoom } from "@/lib/reservations-store.server";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.
@@ -139,6 +138,10 @@ type PropertyRoom = {
   roomNumber: string;
   displayName: string | null;
   n3StockName: string | null;
+  roomType: string;
+  floor: string | null;
+  maxOccupancy: number;
+  baseRate: number;
   isActive: boolean;
 };
 
@@ -147,29 +150,6 @@ function usePropertyRooms(enabled: boolean) {
     queryKey: ["property-rooms"],
     enabled,
     queryFn: () => hotelJson<{ rooms: PropertyRoom[] }>("/api/hotel/rooms"),
-  });
-}
-
-/** Availability-backed candidates for a room-change target, scoped to the
- * reservation's own stay dates so its own rooms never block themselves. */
-function useRoomChangeCandidates(input: {
-  enabled: boolean;
-  arrival: string | null;
-  departure: string | null;
-  excludeReservationId: string;
-}) {
-  const { enabled, arrival, departure, excludeReservationId } = input;
-  return useQuery({
-    queryKey: ["room-change-candidates", excludeReservationId, arrival, departure],
-    enabled: enabled && Boolean(arrival) && Boolean(departure),
-    queryFn: () => {
-      const qs = new URLSearchParams({
-        arrival: arrival as string,
-        departure: departure as string,
-        excludeReservationId,
-      });
-      return hotelJson<{ rooms: AvailabilityRoom[] }>(`/api/hotel/availability?${qs.toString()}`);
-    },
   });
 }
 
