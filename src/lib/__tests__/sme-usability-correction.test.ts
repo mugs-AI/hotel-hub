@@ -12,9 +12,7 @@ import { depositsAttentionLine, depositsHeadline } from "@/components/DepositsCa
 describe("A — exception actions tell the truth about approval policy", () => {
   it("labels direct actions as actions, not requests", () => {
     expect(exceptionActionLabel("Early check-in", "direct")).toBe("Early check-in");
-    expect(exceptionActionLabel("Early check-in", "owner_approval")).toBe(
-      "Request early check-in",
-    );
+    expect(exceptionActionLabel("Early check-in", "owner_approval")).toBe("Request early check-in");
   });
 
   it("uses the matching submit label and hint", () => {
@@ -26,7 +24,10 @@ describe("A — exception actions tell the truth about approval policy", () => {
   });
 
   it("renders every exception action as a filled semantic button", () => {
-    const src = readFileSync(resolve(__dirname, "../../components/ReservationOperations.tsx"), "utf8");
+    const src = readFileSync(
+      resolve(__dirname, "../../components/ReservationOperations.tsx"),
+      "utf8",
+    );
     expect(src).toMatch(/backgroundColor: REQUEST_COLOR\[r\.type\]/);
     expect(src).not.toMatch(/Request \{r\.label\.toLowerCase\(\)\}/);
   });
