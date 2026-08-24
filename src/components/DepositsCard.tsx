@@ -50,6 +50,20 @@ export function depositsHeadline(opts: {
   return status ? `${noun} · ${money} · ${status}` : `${noun} · ${money}`;
 }
 
+/** Compact, honest status word for the collapsed header. */
+export function compactDepositStatus(status: string): string {
+  switch (status) {
+    case "posted":
+      return "Posted";
+    case "failed":
+      return "Failed";
+    case "unknown":
+      return "Unconfirmed";
+    default:
+      return "Submitting";
+  }
+}
+
 /**
  * Real status, never a euphemism: one deposit shows its own status, several
  * show a compact count per status. The critical failed/unconfirmed warning is
@@ -57,10 +71,10 @@ export function depositsHeadline(opts: {
  */
 export function depositsStatusSummary(statuses: ReadonlyArray<string>): string {
   if (statuses.length === 0) return "";
-  if (statuses.length === 1) return depositStatusLabel(statuses[0] as never);
+  if (statuses.length === 1) return compactDepositStatus(statuses[0]!);
   const counts = new Map<string, number>();
   for (const s of statuses) {
-    const label = depositStatusLabel(s as never);
+    const label = compactDepositStatus(s);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
   return [...counts.entries()].map(([label, n]) => `${label} ${n}`).join(" · ");
