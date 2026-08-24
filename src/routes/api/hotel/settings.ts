@@ -43,6 +43,7 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
     postCheckInGuestEditPolicy?: "locked" | "contact_only";
     allowOwnerPrimaryGuestChangeAfterCheckIn?: boolean;
     housekeepingMode?: "simple" | "dedicated";
+    exceptionApprovalMode?: "owner_approval" | "direct";
   } = {};
 
   if (typeof body.currency === "string" && /^[A-Z]{3}$/.test(body.currency)) {
@@ -69,6 +70,9 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
   if (body.housekeepingMode === "simple" || body.housekeepingMode === "dedicated") {
     patch.housekeepingMode = body.housekeepingMode;
   }
+  if (body.exceptionApprovalMode === "owner_approval" || body.exceptionApprovalMode === "direct") {
+    patch.exceptionApprovalMode = body.exceptionApprovalMode;
+  }
   if (Object.keys(patch).length === 0) return deny(400, "no_valid_fields");
   const settings = await updateHotelSettings(ctx.session.tenantId!, patch);
   if (patch.housekeepingMode) {
@@ -77,6 +81,15 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.housekeeping.mode_updated",
       detail: { mode: patch.housekeepingMode },
+    });
+  }
+
+  if (patch.exceptionApprovalMode) {
+    await logAudit({
+      tenantId: ctx.session.tenantId,
+      n3UserKey: ctx.session.n3UserKey,
+      eventType: "hotel.settings.exception_approval_mode_updated",
+      detail: { mode: patch.exceptionApprovalMode },
     });
   }
 

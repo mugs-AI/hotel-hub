@@ -156,10 +156,17 @@ describe("2. Dedicated workspace gate fails closed", () => {
 });
 
 describe("3. Readiness gating for approvals", () => {
-  const decisionSrc = readFileSync(
-    resolve(__dirname, "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts"),
-    "utf8",
-  );
+  const decisionSrc =
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts",
+      ),
+      "utf8",
+    ) +
+    // The decision route now delegates to the shared decision engine; the same
+    // guarantees must hold wherever they live.
+    readFileSync(resolve(__dirname, "../operation-decision.server.ts"), "utf8");
 
   it("restates a readiness blocker from the destination's side", () => {
     expect(destinationBlockerCode("housekeeping_not_initialized")).toBe(
@@ -190,10 +197,17 @@ describe("3. Readiness gating for approvals", () => {
 });
 
 describe("4. Room-change handoff is durable", () => {
-  const decisionSrc = readFileSync(
-    resolve(__dirname, "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts"),
-    "utf8",
-  );
+  const decisionSrc =
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts",
+      ),
+      "utf8",
+    ) +
+    // The decision route now delegates to the shared decision engine; the same
+    // guarantees must hold wherever they live.
+    readFileSync(resolve(__dirname, "../operation-decision.server.ts"), "utf8");
   const storeSrc = readFileSync(resolve(__dirname, "../housekeeping-store.server.ts"), "utf8");
 
   it("records the intent before approval and keeps it pending when approval errors", () => {

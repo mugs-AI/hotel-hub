@@ -3,6 +3,9 @@
 // Server enforces every permission; this is only a usability layer.
 import { useMemo, useState } from "react";
 import {
+  exceptionActionLabel,
+  exceptionModeHint,
+  exceptionSubmitLabel,
   operationErrorMessage,
   operationStateLabel,
   operationTypeLabel,
@@ -20,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { hotelJson } from "@/lib/hotel-settings-client";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
+import { useSessionMe } from "@/lib/session-client";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.
@@ -210,6 +214,13 @@ export function ReservationActionsCard({
 }) {
   const checkIn = useCheckIn(reservationId);
   const request = useRequestOperation(reservationId);
+  // SME approval policy. The server is authoritative; this only makes the
+  // buttons tell the truth about what pressing them will do.
+  const session = useSessionMe();
+  const approvalMode =
+    session.data?.authenticated && session.data.exceptionApprovalMode === "direct"
+      ? ("direct" as const)
+      : ("owner_approval" as const);
   // Stable per-flow identity: minted when a flow opens, cleared on cancel or
   // a completed server result, so a safe HTTP retry cannot duplicate work.
   const [flow, setFlow] = useState<{ kind: "check_in" | OperationType; id: string } | null>(null);
@@ -337,9 +348,7 @@ export function ReservationActionsCard({
 
           {canRequest && available.length > 0 ? (
             <div>
-              <p className="text-xs text-muted-foreground">
-                Exceptions need Owner approval before they take effect.
-              </p>
+              <p className="text-xs text-muted-foreground">{exceptionModeHint(approvalMode)}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {available.map((r) => (
                   <button
@@ -356,13 +365,10 @@ export function ReservationActionsCard({
                       setTargetRoomId("");
                       request.reset();
                     }}
-                    className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
-                    style={{
-                      color: REQUEST_COLOR[r.type],
-                      borderColor: `${REQUEST_COLOR[r.type]}55`,
-                    }}
+                    className="rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+                    style={{ backgroundColor: REQUEST_COLOR[r.type] }}
                   >
-                    Request {r.label.toLowerCase()}
+                    {exceptionActionLabel(r.label, approvalMode)}
                   </button>
                 ))}
               </div>
@@ -538,7 +544,7 @@ export function ReservationActionsCard({
                       className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
                       style={{ backgroundColor: REQUEST_COLOR[flow.kind as OperationType] }}
                     >
-                      {request.isPending ? "Sending…" : "Send for approval"}
+                      {exceptionSubmitLabel(approvalMode, request.isPending)}
                     </button>
                     <button
                       type="button"

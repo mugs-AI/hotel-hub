@@ -12,6 +12,7 @@
 // Ready rooms are collapsed behind a filter/counter so they never dominate.
 import { useMemo, useRef, useState } from "react";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import {
   CONDITION_LABELS,
@@ -23,6 +24,10 @@ import {
   DND_SETUP_HINT,
   DND_CLEANING_HINT,
   DND_SET_LABEL,
+  DND_ACTIVE_LABEL,
+  DND_CLEAR_LABEL,
+  actorDisplayName,
+  historyEntryLine,
   TONE_STYLE,
   TRANSITION_LABELS,
   TRANSITION_TONE,
@@ -589,12 +594,22 @@ export function RoomCard({
             {room.occupancyOverdue && !overdueOccupied ? ` · ${OVERDUE_STAY_LABEL}` : ""}
           </div>
         </div>
-        <span
-          className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-          style={{ backgroundColor: style.bg, color: style.fg }}
-        >
-          {busy ? "Updating…" : room.condition ? CONDITION_LABELS[room.condition] : "Not set up"}
-        </span>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          <span
+            className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            style={{ backgroundColor: style.bg, color: style.fg }}
+          >
+            {busy ? "Updating…" : room.condition ? CONDITION_LABELS[room.condition] : "Not set up"}
+          </span>
+          {room.dndActive && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+              style={{ backgroundColor: HK_COLORS.indigo, color: "#FFFFFF" }}
+            >
+              {DND_ACTIVE_LABEL}
+            </span>
+          )}
+        </div>
       </div>
 
       {overdueOccupied && (
@@ -706,8 +721,8 @@ export function RoomCard({
               </ActionButton>
             )}
             {canUpdate && primaryTransitions.length === 0 && canDnd && room.canClearDnd && (
-              <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
-                Clear Do Not Disturb
+              <ActionButton tone="dndClear" busy={busy} primary onClick={() => onDnd(false)}>
+                {DND_CLEAR_LABEL}
               </ActionButton>
             )}
           </div>
@@ -784,37 +799,35 @@ function RoomHistory({
 }) {
   const history = useRoomHistory(roomId);
   return (
-    <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold" style={{ color: NAVY }}>
-          Housekeeping history — {roomLabel}
-        </h3>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs underline"
-          style={{ color: NAVY }}
-        >
-          Close
-        </button>
-      </div>
-      {history.isLoading && <p className="mt-2 text-xs text-muted-foreground">Loading…</p>}
-      {history.data && history.data.length === 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">No housekeeping activity recorded yet.</p>
-      )}
-      <ul className="mt-2 space-y-1">
-        {(history.data ?? []).map((e, i) => (
-          <li key={i} className="text-xs text-muted-foreground">
-            <span className="font-medium" style={{ color: NAVY }}>
-              {e.action.replace(/_/g, " ")}
-            </span>
-            {e.previousCondition && e.resultingCondition
-              ? ` · ${e.previousCondition} → ${e.resultingCondition}`
-              : ""}
-            {e.actorLabel ? ` · ${e.actorLabel}` : ""} · {new Date(e.createdAt).toLocaleString()}
-          </li>
-        ))}
-      </ul>
-    </section>
+    <Sheet open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle style={{ color: NAVY }}>Housekeeping history — {roomLabel}</SheetTitle>
+        </SheetHeader>
+        {history.isLoading && <p className="mt-3 text-xs text-muted-foreground">Loading…</p>}
+        {history.data && history.data.length === 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            No housekeeping activity recorded yet.
+          </p>
+        )}
+        <ol className="mt-4 space-y-3 border-l pl-4" style={{ borderColor: "#E2E8F0" }}>
+          {(history.data ?? []).map((e, i) => (
+            <li key={i} className="relative text-xs">
+              <span
+                className="absolute -left-[21px] top-1 h-2 w-2 rounded-full"
+                style={{ backgroundColor: HK_COLORS.teal }}
+                aria-hidden
+              />
+              <p className="font-medium" style={{ color: NAVY }}>
+                {historyEntryLine(e)}
+              </p>
+              <p className="text-muted-foreground">
+                {actorDisplayName(e.actorLabel)} · {new Date(e.createdAt).toLocaleString()}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </SheetContent>
+    </Sheet>
   );
 }

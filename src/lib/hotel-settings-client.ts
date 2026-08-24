@@ -10,6 +10,7 @@ export type HotelSettingsDTO = {
   postCheckInGuestEditPolicy: "locked" | "contact_only";
   allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
   housekeepingMode: "simple" | "dedicated";
+  exceptionApprovalMode: "owner_approval" | "direct";
   walkInCustomer: { n3Id: string; n3Code: string; n3Name: string | null } | null;
 };
 

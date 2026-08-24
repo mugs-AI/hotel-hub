@@ -372,6 +372,202 @@ export function HousekeepingPanel({
   );
 }
 
+export function ExceptionApprovalPanel({
+  settings,
+  onChange,
+}: {
+  settings: HotelSettingsDTO;
+  onChange: (s: HotelSettingsDTO) => void;
+}) {
+  const [mode, setMode] = useState(settings.exceptionApprovalMode);
+  const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ exceptionApprovalMode: mode }),
+      });
+      onChange(r.settings);
+      void qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+      toast.success("Reservation exception policy saved");
+    } catch (e) {
+      toast.error(friendlyError((e as Error).message, "Unable to save the approval policy."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Reservation exception approvals
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Early check-in, late checkout, stay extension, room change and rate change are exceptions.
+        Choose whether the front desk can carry them out directly, or whether the Owner must approve
+        first. Guest-safety checks (room readiness, availability, capacity) always apply either way,
+        and every action is recorded in the reservation timeline.
+      </p>
+
+      <fieldset className="mt-4 space-y-2">
+        <legend className="text-xs font-medium" style={{ color: NAVY }}>
+          Who decides exceptions
+        </legend>
+        {[
+          {
+            value: "owner_approval" as const,
+            label: "Owner approval required",
+            help: "Front Desk raises a request and the Owner approves or rejects it before anything changes.",
+          },
+          {
+            value: "direct" as const,
+            label: "Direct actions (recommended for small teams)",
+            help: "Front Desk carries the exception out immediately. Nothing waits for the Owner.",
+          },
+        ].map((o) => (
+          <label
+            key={o.value}
+            className="flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm"
+            style={{
+              borderColor: mode === o.value ? TEAL : `${NAVY}1F`,
+              backgroundColor: mode === o.value ? `${TEAL}0D` : "white",
+            }}
+          >
+            <input
+              type="radio"
+              name="exception-approval-mode"
+              className="mt-1"
+              checked={mode === o.value}
+              onChange={() => setMode(o.value)}
+            />
+            <span>
+              <span className="font-medium" style={{ color: NAVY }}>
+                {o.label}
+              </span>
+              <span className="block text-xs text-muted-foreground">{o.help}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving || mode === settings.exceptionApprovalMode}
+        className="mt-4 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        style={{ backgroundColor: NAVY }}
+      >
+        {saving ? "Saving…" : "Save approval policy"}
+      </button>
+    </section>
+  );
+}
+
+const RETENTION_OPTIONS = [30, 60, 90, 180, 365] as const;
+
+export function HousekeepingRetentionPanel() {
+  const [days, setDays] = useState<number>(30);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const qc = useQueryClient();
+
+  async function purge() {
+    setBusy(true);
+    try {
+      const r = await hotelJson<{ deleted: number; cutoff: string }>(
+        "/api/hotel/housekeeping/purge",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ days }),
+        },
+      );
+      resetHousekeepingBoardCache(qc);
+      setConfirming(false);
+      toast.success(
+        r.deleted === 0
+          ? "Nothing to remove — no housekeeping history is older than that."
+          : `Removed ${r.deleted} housekeeping history ${r.deleted === 1 ? "entry" : "entries"}.`,
+      );
+    } catch (e) {
+      toast.error(friendlyError((e as Error).message, "Unable to clean up housekeeping history."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Housekeeping history retention
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Housekeeping history is kept until you remove it. Clearing older entries keeps the per-room
+        history readable. Current room conditions are never affected, and the clean-up itself is
+        recorded in the audit log.
+      </p>
+
+      <label className="mt-4 block text-xs font-medium" style={{ color: NAVY }}>
+        Remove entries older than
+        <select
+          value={days}
+          onChange={(e) => {
+            setDays(Number(e.target.value));
+            setConfirming(false);
+          }}
+          className="mt-1 block rounded-md border border-input bg-white px-2 py-1.5 text-sm"
+        >
+          {RETENTION_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d} days
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {!confirming ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="mt-4 rounded-md border px-3 py-2 text-sm font-semibold"
+          style={{ borderColor: GOLD, color: NAVY }}
+        >
+          Clean up history…
+        </button>
+      ) : (
+        <div className="mt-4 rounded-md border p-3 text-sm" style={{ borderColor: `${GOLD}88` }}>
+          <p style={{ color: NAVY }}>
+            This permanently removes housekeeping history older than {days} days. It cannot be
+            undone.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={purge}
+              disabled={busy}
+              className="rounded-md px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: NAVY }}
+            >
+              {busy ? "Cleaning up…" : "Yes, remove them"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-md border border-input px-3 py-1.5 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function N3IntegrationPanel({
   settings,
   onChange,

@@ -455,13 +455,21 @@ describe("2. The vacated-room instruction must be durable before the guest moves
 describe("3. The room change refuses to proceed without a durable instruction", async () => {
   const { readFileSync } = await import("node:fs");
   const { resolve } = await import("node:path");
-  const src = readFileSync(
-    resolve(__dirname, "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts"),
-    "utf8",
-  );
+  const src =
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../routes/api/hotel/reservations.$id.operations.$requestId.decision.ts",
+      ),
+      "utf8",
+    ) +
+    // The decision route now delegates to the shared decision engine; the same
+    // guarantees must hold wherever they live.
+    readFileSync(resolve(__dirname, "../operation-decision.server.ts"), "utf8");
 
   it("fails closed BEFORE the decision is taken", () => {
-    const denyAt = src.indexOf('deny(503, "handoff_not_recorded")');
+    // The engine returns the fail-closed outcome; the route turns it into a 503.
+    const denyAt = src.indexOf('status: 503, code: "handoff_not_recorded"');
     const decideAt = src.indexOf("await decideOperation(");
     expect(denyAt).toBeGreaterThan(-1);
     expect(decideAt).toBeGreaterThan(denyAt);

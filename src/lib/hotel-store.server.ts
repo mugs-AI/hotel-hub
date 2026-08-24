@@ -14,6 +14,13 @@ export type HotelSettings = {
   allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
   /** WP1 — which housekeeping experience this property runs. */
   housekeepingMode: "simple" | "dedicated";
+  /**
+   * SME approval policy for reservation exceptions. `owner_approval` keeps the
+   * two-step request/approve ledger; `direct` lets an authorised front desk
+   * carry the exception out immediately (still fully audited).
+   */
+  exceptionApprovalMode: "owner_approval" | "direct";
+
   walkInCustomer: {
     n3Id: string;
     n3Code: string;
@@ -45,6 +52,7 @@ type SettingsRow = {
   post_check_in_guest_edit_policy: string;
   allow_owner_primary_guest_change_after_check_in: boolean;
   housekeeping_mode: string;
+  exception_approval_mode?: string | null;
   n3_walk_in_customer_id: string | null;
   n3_walk_in_customer_code: string | null;
   n3_walk_in_customer_name: string | null;
@@ -57,6 +65,9 @@ function toSettings(row: SettingsRow): HotelSettings {
     timezone: row.timezone,
     standardCheckInTime: row.standard_check_in_time,
     standardCheckOutTime: row.standard_check_out_time,
+    exceptionApprovalMode: row.exception_approval_mode === "direct" ? "direct" : "owner_approval",
+
+
     postCheckInGuestEditPolicy:
       row.post_check_in_guest_edit_policy === "locked" ? "locked" : "contact_only",
     allowOwnerPrimaryGuestChangeAfterCheckIn: Boolean(
@@ -75,7 +86,8 @@ function toSettings(row: SettingsRow): HotelSettings {
 }
 
 const SETTINGS_COLS =
-  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -126,8 +138,10 @@ export async function updateHotelSettings(
     postCheckInGuestEditPolicy: "locked" | "contact_only";
     allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
     housekeepingMode: "simple" | "dedicated";
+    exceptionApprovalMode: "owner_approval" | "direct";
   }>,
 ): Promise<HotelSettings> {
+
   await getOrCreateHotelSettings(tenantId); // ensure row exists
   const update: Record<string, unknown> = {};
   if (patch.currency) update.currency = patch.currency;
@@ -140,6 +154,8 @@ export async function updateHotelSettings(
     update.allow_owner_primary_guest_change_after_check_in =
       patch.allowOwnerPrimaryGuestChangeAfterCheckIn;
   if (patch.housekeepingMode) update.housekeeping_mode = patch.housekeepingMode;
+  if (patch.exceptionApprovalMode) update.exception_approval_mode = patch.exceptionApprovalMode;
+
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
   const res = await supabaseAdmin

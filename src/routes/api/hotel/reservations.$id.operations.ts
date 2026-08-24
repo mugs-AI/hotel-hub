@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { getReservationById, isUuid } from "@/lib/reservations-store.server";
 import { getOrCreateHotelSettings } from "@/lib/hotel-store.server";
+import { executeOperationDecision } from "@/lib/operation-decision.server";
 import {
   isOperationType,
   listOperationRequests,
@@ -111,6 +112,42 @@ export async function handleOperationCreate({
       eventType: "hotel.reservation.operation_requested",
       detail: { reservationId: id, operationType: type, state: result.state },
     });
+
+    // SME direct-action mode. The property has chosen that authorised staff
+    // carry exceptions out immediately instead of queuing them for Owner
+    // approval. The SAME decision engine runs — identical fail-closed
+    // readiness gates, identical durable vacated-room handoff, fully audited.
+    let approvalMode: "owner_approval" | "direct" = "owner_approval";
+    try {
+      approvalMode = (await getOrCreateHotelSettings(ctx.session.tenantId!))
+        .exceptionApprovalMode;
+    } catch {
+      approvalMode = "owner_approval";
+    }
+    if (approvalMode === "direct" && result.state === "pending") {
+      const outcome = await executeOperationDecision({
+        tenantId: ctx.session.tenantId!,
+        actorN3UserKey: ctx.session.n3UserKey,
+        reservationId: id,
+        requestId: result.requestId,
+        decision: "approve",
+        note: null,
+        clientRequestId: crypto.randomUUID(),
+        statusForOperationError,
+      });
+      if (!outcome.ok) return deny(outcome.status, outcome.code);
+      await logAudit({
+        tenantId: ctx.session.tenantId,
+        n3UserKey: ctx.session.n3UserKey,
+        eventType: "hotel.reservation.operation_direct",
+        detail: { reservationId: id, operationType: type, state: outcome.result.state },
+      });
+      return Response.json(
+        { ...outcome.result, direct: true },
+        { headers: { "cache-control": "no-store" } },
+      );
+    }
+
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const code =
@@ -126,6 +163,7 @@ export async function handleOperationCreate({
     return deny(statusForOperationError(code), code);
   }
 }
+
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/operations")({
   server: { handlers: { GET: handleOperationsList, POST: handleOperationCreate } },

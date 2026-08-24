@@ -65,7 +65,12 @@ export type AuditEventType =
   | "hotel.housekeeping.handoff_precheck_failed"
   | "hotel.housekeeping.readiness_read_failed"
   | "hotel.reservation.operation_read_failed"
-  | "hotel.reservation.check_in_blocked";
+  | "hotel.reservation.check_in_blocked"
+  // SME operations usability + retention
+  | "hotel.settings.exception_approval_mode_updated"
+  | "hotel.reservation.operation_direct"
+  | "hotel.housekeeping.history_purged"
+  | "hotel.housekeeping.history_purge_failed";
 
 const SENSITIVE_KEYS = new Set([
   "token",

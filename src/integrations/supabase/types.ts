@@ -932,6 +932,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in: boolean
           created_at: string
           currency: string
+          exception_approval_mode: string
           housekeeping_mode: string
           id: string
           n3_walk_in_customer_code: string | null
@@ -948,6 +949,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          exception_approval_mode?: string
           housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
@@ -964,6 +966,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          exception_approval_mode?: string
           housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
@@ -1288,6 +1291,17 @@ export type Database = {
           out_n3_user_key: string
           out_role: Database["public"]["Enums"]["hotel_role"]
           out_tenant_id: string
+        }[]
+      }
+      hotelhub_purge_housekeeping_history: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_days?: number
+          p_tenant_id: string
+        }
+        Returns: {
+          out_cutoff: string
+          out_deleted: number
         }[]
       }
       hotelhub_request_operation: {

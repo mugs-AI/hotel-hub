@@ -46,6 +46,7 @@ import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$prob
 import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
 import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
+import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
 import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel/booking-sources.$id'
 import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
 import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
@@ -246,6 +247,12 @@ const ApiHotelReservationsIdRoute = ApiHotelReservationsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiHotelReservationsRoute,
 } as any)
+const ApiHotelHousekeepingPurgeRoute =
+  ApiHotelHousekeepingPurgeRouteImport.update({
+    id: '/purge',
+    path: '/purge',
+    getParentRoute: () => ApiHotelHousekeepingRoute,
+  } as any)
 const ApiHotelBookingSourcesIdRoute =
   ApiHotelBookingSourcesIdRouteImport.update({
     id: '/$id',
@@ -346,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -396,6 +404,7 @@ export interface FileRoutesByTo {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -447,6 +456,7 @@ export interface FileRoutesById {
   '/reservations/$id_/edit': typeof ReservationsIdEditRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -499,6 +509,7 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -549,6 +560,7 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -599,6 +611,7 @@ export interface FileRouteTypes {
     | '/reservations/$id_/edit'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -914,6 +927,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdRouteImport
       parentRoute: typeof ApiHotelReservationsRoute
     }
+    '/api/hotel/housekeeping/purge': {
+      id: '/api/hotel/housekeeping/purge'
+      path: '/purge'
+      fullPath: '/api/hotel/housekeeping/purge'
+      preLoaderRoute: typeof ApiHotelHousekeepingPurgeRouteImport
+      parentRoute: typeof ApiHotelHousekeepingRoute
+    }
     '/api/hotel/booking-sources/$id': {
       id: '/api/hotel/booking-sources/$id'
       path: '/$id'
@@ -1009,10 +1029,12 @@ const ApiHotelBookingSourcesRouteWithChildren =
   )
 
 interface ApiHotelHousekeepingRouteChildren {
+  ApiHotelHousekeepingPurgeRoute: typeof ApiHotelHousekeepingPurgeRoute
   ApiHotelHousekeepingRoomsRoomIdRoute: typeof ApiHotelHousekeepingRoomsRoomIdRoute
 }
 
 const ApiHotelHousekeepingRouteChildren: ApiHotelHousekeepingRouteChildren = {
+  ApiHotelHousekeepingPurgeRoute: ApiHotelHousekeepingPurgeRoute,
   ApiHotelHousekeepingRoomsRoomIdRoute: ApiHotelHousekeepingRoomsRoomIdRoute,
 }
 

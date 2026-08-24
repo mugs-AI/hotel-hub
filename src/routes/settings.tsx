@@ -50,8 +50,10 @@ import {
 } from "@/lib/reservations-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import {
+  ExceptionApprovalPanel,
   GuestControlsPanel,
   HousekeepingPanel,
+  HousekeepingRetentionPanel,
   N3IntegrationPanel,
   PropertyPanel,
   useHotelSettings,
@@ -224,6 +226,12 @@ function SystemScreen({
       </header>
       <section aria-label="Housekeeping workflow">
         <HousekeepingPanel settings={settings} onChange={onChange} />
+      </section>
+      <section aria-label="Reservation exception approvals">
+        <ExceptionApprovalPanel settings={settings} onChange={onChange} />
+      </section>
+      <section aria-label="Housekeeping history retention">
+        <HousekeepingRetentionPanel />
       </section>
     </div>
   );
