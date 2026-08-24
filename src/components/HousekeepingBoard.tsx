@@ -147,6 +147,10 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   // Per-room pending, keyed by roomId: acting on one room must never block the
   // rest of the board, and two overlapping requests must settle independently.
   const [pendingRoomIds, setPendingRoomIds] = useState<ReadonlySet<string>>(() => new Set());
+  // Synchronous claim set — the authority for "is this room already
+  // submitting?", independent of React render timing.
+  const guard = useRef(createRoomActionGuard());
+
 
   const rooms = board.data?.rooms ?? [];
   const floors = useMemo(() => {
