@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import {
+  directActionLabel,
   effectiveExceptionMode,
   exceptionActionLabel,
   exceptionSubmitLabel,
@@ -32,7 +33,8 @@ import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
 
 const deposits = vi.hoisted(() => ({ list: [] as any[], capability: { canCreate: true } }));
 
-vi.mock("@/lib/deposits-client", () => ({
+vi.mock("@/lib/deposits-client", async (importOriginal) => ({
+  ...((await importOriginal()) as object),
   useReservationDeposits: () => ({
     isPending: false,
     data: { deposits: deposits.list, capability: deposits.capability },
@@ -173,21 +175,22 @@ describe("Exception labels follow SERVER-effective authority", () => {
     expect(exceptionSubmitLabel("direct", false)).toBe("Apply change");
   });
 
-  it("renders all five actions as filled, high-contrast semantic buttons with text labels", () => {
+  it("names the five direct actions plainly", () => {
+    expect(directActionLabel("early_check_in", "Early check-in")).toBe("Early check-in");
+    expect(directActionLabel("late_checkout", "Late checkout")).toBe("Late checkout");
+    expect(directActionLabel("stay_extension", "Stay extension")).toBe("Extend stay");
+    expect(directActionLabel("room_change", "Room change")).toBe("Change room");
+    expect(directActionLabel("rate_change", "Rate change")).toBe("Change rate");
+  });
+
+  it("renders every action as a filled semantic button with a text label", () => {
     const src = readFileSync(
       resolve(__dirname, "../../components/ReservationOperations.tsx"),
       "utf8",
     );
     expect(src).toMatch(/backgroundColor: REQUEST_COLOR\[r\.type\]/);
-    for (const label of [
-      "Early check-in",
-      "Late checkout",
-      "Extend stay",
-      "Change room",
-      "Change rate",
-    ]) {
-      expect(src).toContain(label);
-    }
+    expect(src).toMatch(/text-white/);
+    expect(src).toMatch(/directActionLabel\(r\.type, r\.label\)/);
   });
 });
 
@@ -219,8 +222,12 @@ describe("Settings placement", () => {
   });
 
   it("keeps housekeeping retention in System", () => {
-    expect(src).toMatch(/function SystemScreen[\s\S]*?HousekeepingRetentionPanel/);
-    expect(src).not.toMatch(/function SystemScreen[\s\S]*?ExceptionApprovalPanel/);
+    const systemBody = src.slice(
+      src.indexOf("function SystemScreen"),
+      src.indexOf("function OperationsScreen"),
+    );
+    expect(systemBody).toContain("HousekeepingRetentionPanel");
+    expect(systemBody).not.toContain("ExceptionApprovalPanel");
   });
 
   it("renders the approval choice with no browser-authored authority", () => {
