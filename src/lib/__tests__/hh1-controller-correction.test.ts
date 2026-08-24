@@ -401,7 +401,9 @@ function dndButtons(html: string): Array<{ disabled: boolean }> {
   const out: Array<{ disabled: boolean }> = [];
   const re = /<button\b[^>]*>(?:(?!<\/button>).)*?<\/button>/gs;
   for (const m of html.match(re) ?? []) {
-    if (m.includes(DND_SET_LABEL)) out.push({ disabled: m.includes("disabled") });
+    // React renders the boolean attribute as `disabled=""`; the Tailwind
+    // `disabled:opacity-50` class must not be mistaken for it.
+    if (m.includes(DND_SET_LABEL)) out.push({ disabled: /\sdisabled=""/.test(m) });
   }
   return out;
 }
