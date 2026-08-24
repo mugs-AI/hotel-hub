@@ -19,6 +19,8 @@ import {
   OVERDUE_STAY_LABEL,
   OVERDUE_OCCUPIED_BADGE_LABEL,
   DND_SETUP_HINT,
+  DND_CLEANING_HINT,
+  DND_SET_LABEL,
   TONE_STYLE,
   TRANSITION_LABELS,
   TRANSITION_TONE,
@@ -183,6 +185,9 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   }, [byFloor]);
 
   function run(roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
+    // Deterministic double-submit guard: a second click on a room whose
+    // request is still in flight is ignored outright, not merely styled away.
+    if (pendingRoomIds.has(payload.roomId)) return;
     setError(null);
     setConfirmation(null);
     setPendingRoomIds((prev) => addPendingRoom(prev, payload.roomId));
@@ -503,7 +508,11 @@ function FloorChip({
   );
 }
 
-function RoomCard({
+/**
+ * One room card. Exported so its RENDERED output (visible text and buttons)
+ * can be asserted directly in tests, rather than trusting a source constant.
+ */
+export function RoomCard({
   room,
   variant,
   canUpdate,
@@ -528,6 +537,11 @@ function RoomCard({
 }) {
   const style = room.condition ? CONDITION_STYLE[room.condition] : { bg: "#EEF2F6", fg: GRAY };
   const overdueOccupied = isOverdueOccupied(room);
+  // DND is an occupied-room overlay, never a condition. It is deliberately
+  // unavailable while the room is being cleaned — the card says so instead of
+  // silently hiding the control.
+  const dndBlockedByCleaning =
+    room.initialized && room.condition === "cleaning" && room.occupancy === "occupied";
 
   // Corrective alternatives (mark dirty / send back to cleaning) are always
   // the QUIET choice; the one obvious next step stays dominant. This applies
@@ -615,8 +629,16 @@ function RoomCard({
               Only the Owner can set this room up for housekeeping.
             </p>
           )}
+          {/* An occupied room that has never been set up still shows the Do
+              Not Disturb control — disabled, but unmistakably present, with
+              the exact first step written out. */}
           {room.occupancy === "occupied" && canDnd && (
-            <p className="mt-2 text-[11px] text-muted-foreground">{DND_SETUP_HINT}</p>
+            <div className="mt-3 border-t border-dashed pt-2" style={{ borderColor: "#E2E8F0" }}>
+              <ActionButton tone="dnd" busy={false} disabled onClick={() => {}}>
+                {DND_SET_LABEL}
+              </ActionButton>
+              <p className="mt-1 text-[11px] text-muted-foreground">{DND_SETUP_HINT}</p>
+            </div>
           )}
         </div>
       )}
@@ -662,7 +684,13 @@ function RoomCard({
               ))}
             {canDnd && room.canSetDnd && (
               <ActionButton tone="dnd" busy={busy} onClick={() => onDnd(true)}>
-                Set Do Not Disturb
+                {DND_SET_LABEL}
+              </ActionButton>
+            )}
+            {/* Mid-clean: DND stays visible but unavailable, and says why. */}
+            {canDnd && !room.canSetDnd && !room.dndActive && dndBlockedByCleaning && (
+              <ActionButton tone="dnd" busy={false} disabled onClick={() => {}}>
+                {DND_SET_LABEL}
               </ActionButton>
             )}
             {canUpdate && primaryTransitions.length === 0 && canDnd && room.canClearDnd && (
@@ -671,6 +699,10 @@ function RoomCard({
               </ActionButton>
             )}
           </div>
+
+          {canDnd && dndBlockedByCleaning && !room.dndActive && (
+            <p className="text-[11px] text-muted-foreground">{DND_CLEANING_HINT}</p>
+          )}
 
           {onHistory && (
             <button
@@ -699,19 +731,22 @@ function ActionButton({
   onClick,
   busy,
   primary,
+  disabled,
   tone = "neutral",
 }: {
   children: React.ReactNode;
   onClick: () => void;
   busy: boolean;
   primary?: boolean;
+  /** Visible but not actionable yet (e.g. DND before initialization). */
+  disabled?: boolean;
   tone?: ActionTone;
 }) {
   const t = TONE_STYLE[tone];
   return (
     <button
       type="button"
-      disabled={busy}
+      disabled={busy || disabled === true}
       aria-busy={busy}
       onClick={onClick}
       className={
