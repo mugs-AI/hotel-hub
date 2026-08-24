@@ -10,7 +10,9 @@
 // UX: RECOGNIZE (summary tiles) -> ACT (one prominent next action per room)
 // -> CONFIRM (plain-language confirmation). Rooms that need action come first;
 // Ready rooms are collapsed behind a filter/counter so they never dominate.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
+
 import {
   CONDITION_LABELS,
   CONDITION_STYLE,
@@ -184,15 +186,21 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
     return t;
   }, [byFloor]);
 
-  function run(roomLabel: string, payload: Parameters<typeof act.mutate>[0]) {
-    // Deterministic double-submit guard: a second click on a room whose
-    // request is still in flight is ignored outright, not merely styled away.
-    if (pendingRoomIds.has(payload.roomId)) return;
-    setError(null);
-    setConfirmation(null);
-    setPendingRoomIds((prev) => addPendingRoom(prev, payload.roomId));
-    act.mutate(payload, {
-      onSettled: () => setPendingRoomIds((prev) => removePendingRoom(prev, payload.roomId)),
+  function run(roomLabel: string, payload: Parameters<typeof act.mutateAsync>[0]) {
+    // Deterministic double-submit guard. The claim is SYNCHRONOUS (a ref-held
+    // set), so two clicks in the same frame — which would both observe the
+    // same rendered `pendingRoomIds` — can never both submit. Overlapping
+    // requests on DIFFERENT rooms still run concurrently, and each invocation
+    // clears only its own pending id in its own `finally`.
+    void runGuardedRoomAction({
+      guard: guard.current,
+      roomId: payload.roomId,
+      invoke: () => act.mutateAsync(payload),
+      onStart: (roomId) => {
+        setError(null);
+        setConfirmation(null);
+        setPendingRoomIds((prev) => addPendingRoom(prev, roomId));
+      },
       onSuccess: (result) => {
         if (payload.action === "transition") {
           const to = (result as { condition?: string }).condition;
@@ -212,8 +220,10 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         }
       },
       onError: (err) => setError(housekeepingMessage((err as Error).message)),
+      onSettled: (roomId) => setPendingRoomIds((prev) => removePendingRoom(prev, roomId)),
     });
   }
+
 
   if (board.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading room conditions…</p>;
