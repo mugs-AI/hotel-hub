@@ -29,6 +29,12 @@ export type SessionMeResponse =
       };
       role: import("@/lib/rbac").HotelRole | null;
       roleStatus: "assigned" | "role_unassigned";
+      /**
+       * Safe diagnostic code for HOW the effective role was decided (never
+       * raw N3 data, never another user's details). The role-unassigned UI
+       * needs it so a revoked ex-Owner is not told to provision Owner again.
+       */
+      roleReason: import("@/lib/n3-owner").EffectiveRoleReason | null;
       /** Which housekeeping workflow this property runs (P1 mode authority). */
       housekeepingMode: "simple" | "dedicated";
     };
@@ -64,6 +70,7 @@ export async function handleSessionMe(): Promise<Response> {
     },
     role: ctx.role,
     roleStatus: ctx.roleStatus,
+    roleReason: ctx.roleReason,
     housekeepingMode,
   };
   return Response.json(body, { headers: { "cache-control": "no-store" } });

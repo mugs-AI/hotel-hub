@@ -49,7 +49,9 @@ export async function readRequestContext(): Promise<RequestContext> {
 
   // N3 is the SOLE identity authority. The local row is an assignment, never
   // proof of ownership: the current `isOwner` flag on the authenticated N3
-  // user decides Owner authority on every request (60s server-only cache).
+  // user decides Owner authority; a revocation is enforced no later than the
+  // bounded 60s server-only decision cache expires for that token.
+
   const effective = await resolveEffectiveRole({
     token: data.n3Token,
     tenantId: data.tenantId,

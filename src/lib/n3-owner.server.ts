@@ -24,13 +24,34 @@ import type { HotelRole } from "./rbac";
 /** The single official read-only endpoint HotelHub consults for ownership. */
 export const N3_USERS_PATH = "/api/Users";
 
-/** Short server-only cache. Bounded to 60s by the approved correction. */
+/**
+ * Short server-only cache. Bounded to 60s by the approved correction.
+ *
+ * Truthful statement of the guarantee: a revocation performed in N3 is
+ * enforced by HotelHub NO LATER THAN this cache window expires for the same
+ * token/tenant/user key — not "immediately".
+ */
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX_ENTRIES = 500;
+
+/**
+ * Ownership is on the critical path of the first authenticated API calls, so
+ * its upstream wait is bounded far tighter than the general N3 gateway
+ * timeout. On timeout the read is `unavailable` and Owner fails closed.
+ */
+export const OWNERSHIP_UPSTREAM_TIMEOUT_MS = 3_000;
 
 type CacheEntry = { expiresAt: number; decision: EffectiveRoleDecision };
 
 const decisionCache = new Map<string, CacheEntry>();
+
+/**
+ * In-flight single flight. Concurrent cache misses for the SAME safe key
+ * share one upstream read + decision instead of stampeding `/api/Users`.
+ * Entries are always removed in `finally`, so a failure can never wedge the
+ * key.
+ */
+const inFlight = new Map<string, Promise<EffectiveRoleDecision>>();
 
 /**
  * Cache key. The token is HASHED, never stored: a rotated/replaced token
@@ -49,6 +70,12 @@ export function ownershipCacheKey(input: {
 /** Testing seam only — never exported to route code. */
 export function __resetOwnershipCache(): void {
   decisionCache.clear();
+  inFlight.clear();
+}
+
+/** Testing seam only: how many upstream reads are currently de-duplicated. */
+export function __inFlightOwnershipCount(): number {
+  return inFlight.size;
 }
 
 function readCache(key: string, now: number): EffectiveRoleDecision | null {
@@ -77,7 +104,9 @@ function writeCache(key: string, decision: EffectiveRoleDecision, now: number): 
  */
 export async function readN3Users(token: string): Promise<N3UsersRead> {
   try {
-    const res = await callN3Path(token, N3_USERS_PATH);
+    const res = await callN3Path(token, N3_USERS_PATH, {
+      timeoutMs: OWNERSHIP_UPSTREAM_TIMEOUT_MS,
+    });
     if (res.status < 200 || res.status >= 300) return { status: "unavailable" };
     return extractN3Users(res.body);
   } catch {
@@ -119,12 +148,26 @@ export async function resolveEffectiveRole(input: {
     return { ...cached, fromCache: true };
   }
 
-  const read = await (input.readUsers ?? readN3Users)(input.token);
-  const decision = decideEffectiveRole({
-    read,
-    identity: input.identity,
-    localRole: input.localRole,
-  });
-  writeCache(key, decision, now);
-  return { ...decision, fromCache: false };
+  // Single flight: the first miss owns the upstream read; every concurrent
+  // miss for the same safe key awaits that same promise.
+  const existing = inFlight.get(key);
+  if (existing) return { ...(await existing), fromCache: true };
+
+  const work = (async () => {
+    const read = await (input.readUsers ?? readN3Users)(input.token);
+    const decision = decideEffectiveRole({
+      read,
+      identity: input.identity,
+      localRole: input.localRole,
+    });
+    writeCache(key, decision, now);
+    return decision;
+  })();
+  inFlight.set(key, work);
+  try {
+    const decision = await work;
+    return { ...decision, fromCache: false };
+  } finally {
+    inFlight.delete(key);
+  }
 }

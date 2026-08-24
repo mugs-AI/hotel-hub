@@ -44,10 +44,15 @@ export function isProbeName(v: unknown): v is ProbeName {
  * Perform a raw, authenticated GET against a specific N3 open-api path.
  * Only for internal server-side callers (session bootstrap). Does NOT accept
  * arbitrary browser input; callers must pass a hard-coded path constant.
+ *
+ * `opts.timeoutMs` is an internal, server-only bound used by latency-critical
+ * callers (ownership resolution). It never widens the default and is not
+ * reachable from the browser or from probe handling.
  */
 export async function callN3Path(
   token: string,
   path: string,
+  opts?: { timeoutMs?: number },
 ): Promise<{ status: number; body: unknown; durationMs: number }> {
   if (!path.startsWith("/api/")) {
     throw new Error("callN3Path: path must be under /api/");
@@ -55,8 +60,14 @@ export async function callN3Path(
   if (path.includes("..") || path.includes("://")) {
     throw new Error("callN3Path: unsafe path");
   }
+  const requested = opts?.timeoutMs;
+  const timeoutMs =
+    typeof requested === "number" && Number.isFinite(requested) && requested > 0
+      ? Math.min(requested, N3_TIMEOUT_MS)
+      : N3_TIMEOUT_MS;
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), N3_TIMEOUT_MS);
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
   const started = Date.now();
   try {
     const res = await fetch(MAIN_BASE + path, {
