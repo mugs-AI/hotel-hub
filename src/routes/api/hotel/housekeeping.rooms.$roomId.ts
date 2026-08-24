@@ -8,6 +8,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
+import { ServerTimings } from "@/lib/server-timing";
 import { isUuid } from "@/lib/reservations-store.server";
 import { deny, isSameOriginWrite, readJsonBody, rejectUnknown } from "@/lib/operations-api.server";
 import {
@@ -78,6 +79,8 @@ export async function handleRoomAction({
   request: Request;
   params: { roomId?: string };
 }): Promise<Response> {
+  // Coarse, non-identifying stage timings for latency attribution.
+  const timings = new ServerTimings();
   if (!isSameOriginWrite(request)) return deny(403, "forbidden");
   const roomId = params.roomId ?? "";
   if (!isUuid(roomId)) return deny(400, "invalid_id");
@@ -104,7 +107,7 @@ export async function handleRoomAction({
           : null;
   if (permission === null) return deny(400, "validation_failed");
 
-  const { ctx, decision } = await requirePermission(permission);
+  const { ctx, decision } = await timings.measure("authz", () => requirePermission(permission));
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
@@ -115,7 +118,9 @@ export async function handleRoomAction({
   let authority;
   let timezone = "Asia/Kuala_Lumpur";
   try {
-    const settings = await getHotelSettingsReadOnly(tenantId);
+    const settings = await timings.measure("settings", () =>
+      getHotelSettingsReadOnly(tenantId),
+    );
     timezone = settings?.timezone ?? timezone;
     authority = housekeepingAuthority(settings?.housekeepingMode ?? "simple", ctx.role);
   } catch {
@@ -151,6 +156,12 @@ export async function handleRoomAction({
         actorN3UserKey: actor,
         condition,
       });
+      // The authoritative single-room read and the audit write are
+      // independent of each other: start the read first so the response is
+      // not serialised behind logging.
+      const viewPromise = timings.measure("room_view", () =>
+        roomViewOrNull({ tenantId, timezone, mode: authority.mode, role: ctx.role, roomId }),
+      );
       if (result.created) {
         await logAudit({
           tenantId,
@@ -160,17 +171,8 @@ export async function handleRoomAction({
         });
       }
       return Response.json(
-        {
-          ...result,
-          room: await roomViewOrNull({
-            tenantId,
-            timezone,
-            mode: authority.mode,
-            role: ctx.role,
-            roomId,
-          }),
-        },
-        { headers: { "cache-control": "no-store" } },
+        { ...result, room: await viewPromise },
+        { headers: timings.headers({ "cache-control": "no-store" }) },
       );
     }
 
@@ -185,6 +187,9 @@ export async function handleRoomAction({
         note,
         authority,
       });
+      const viewPromise = timings.measure("room_view", () =>
+        roomViewOrNull({ tenantId, timezone, mode: authority.mode, role: ctx.role, roomId }),
+      );
       await logAudit({
         tenantId,
         n3UserKey: actor,
@@ -198,17 +203,8 @@ export async function handleRoomAction({
         },
       });
       return Response.json(
-        {
-          ...result,
-          room: await roomViewOrNull({
-            tenantId,
-            timezone,
-            mode: authority.mode,
-            role: ctx.role,
-            roomId,
-          }),
-        },
-        { headers: { "cache-control": "no-store" } },
+        { ...result, room: await viewPromise },
+        { headers: timings.headers({ "cache-control": "no-store" }) },
       );
     }
 
@@ -222,6 +218,9 @@ export async function handleRoomAction({
       active,
       authority,
     });
+    const viewPromise = timings.measure("room_view", () =>
+      roomViewOrNull({ tenantId, timezone, mode: authority.mode, role: ctx.role, roomId }),
+    );
     await logAudit({
       tenantId,
       n3UserKey: actor,
@@ -229,17 +228,8 @@ export async function handleRoomAction({
       detail: { roomId, condition: result.condition },
     });
     return Response.json(
-      {
-        ...result,
-        room: await roomViewOrNull({
-          tenantId,
-          timezone,
-          mode: authority.mode,
-          role: ctx.role,
-          roomId,
-        }),
-      },
-      { headers: { "cache-control": "no-store" } },
+      { ...result, room: await viewPromise },
+      { headers: timings.headers({ "cache-control": "no-store" }) },
     );
   } catch (err) {
     const code = err instanceof HousekeepingError ? err.code : "housekeeping_failed";
