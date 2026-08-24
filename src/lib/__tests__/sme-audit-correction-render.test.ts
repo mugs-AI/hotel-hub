@@ -95,32 +95,44 @@ describe("Deposits card — quiet, but never hides money trouble", () => {
 
 // ------------------------------------------------------------------- DND
 
-const ROOM: HousekeepingRoomDTO = {
+const ROOM = {
   hotelRoomId: "room-1",
   roomNumber: "101",
   displayName: "Deluxe 101",
   floor: "1",
   roomType: "Deluxe",
+  maxOccupancy: 2,
+  isActive: true,
+  initialized: true,
   condition: "ready",
   dndActive: true,
-  initialized: true,
-  lastAction: "mark_ready",
+  dndSetAt: "2026-08-24T02:00:00.000Z",
+  lastAction: "set_dnd",
   lastActorLabel: "front.desk@hotel.test",
   lastTransitionAt: "2026-08-24T02:00:00.000Z",
-  note: null,
-  occupancy: "vacant",
+  occupancy: "occupied",
+  occupancyReservationId: null,
+  occupancyOverdue: false,
+  group: "attention",
+  nextStep: DND_NEXT_ACTION,
+  availableTransitions: [],
+  canSetDnd: false,
+  canClearDnd: true,
   checkInBlockers: [],
 } as unknown as HousekeepingRoomDTO;
 
 describe("DND presentation", () => {
   const html = renderToStaticMarkup(
-    createElement(RoomCard as any, {
+    createElement(RoomCard, {
       room: ROOM,
-      busy: false,
-      onAction: () => {},
+      variant: "dedicated",
       canUpdate: true,
       canDnd: true,
       canInitialize: true,
+      busy: false,
+      onTransition: () => {},
+      onDnd: () => {},
+      onInitialize: () => {},
     }),
   );
 
