@@ -26,6 +26,7 @@ export type EffectiveRoleReason =
   | "n3_owner"
   | "n3_non_owner_local_role"
   | "n3_owner_revoked"
+  | "n3_no_local_role"
   | "n3_user_inactive"
   | "n3_user_not_matched"
   | "n3_users_unavailable"
@@ -230,7 +231,11 @@ export function decideEffectiveRole(input: {
   }
   return {
     role: fallback,
-    reason: fallback ? "n3_non_owner_local_role" : "n3_owner_revoked",
+    reason: fallback
+      ? "n3_non_owner_local_role"
+      : input.localRole?.role === "owner"
+        ? "n3_owner_revoked"
+        : "n3_no_local_role",
     matchedBy: match.matchedBy,
     ownerAuthorityFailedClosed: false,
   };
