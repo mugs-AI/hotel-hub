@@ -5,6 +5,25 @@
  */
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
+
 // -------- session mock (same shape as milestone-1_0_2.test.ts) ------------
 type SessionState = { data: Record<string, unknown>; cleared: number };
 const sessionState: SessionState = { data: {}, cleared: 0 };
