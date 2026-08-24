@@ -119,7 +119,9 @@ export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelS
   if (existing.data) return toSettings(existing.data as SettingsRow);
   const inserted = await supabaseAdmin
     .from("hotel_settings" as never)
-    .insert({ tenant_id: tenantId } as never)
+    // A brand-new property starts on direct actions; existing properties are
+    // never migrated off owner approval.
+    .insert({ tenant_id: tenantId, exception_approval_mode: "direct" } as never)
     .select(SETTINGS_COLS)
     .single();
   if (inserted.error || !inserted.data) {

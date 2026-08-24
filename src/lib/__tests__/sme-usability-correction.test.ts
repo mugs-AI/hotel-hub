@@ -16,7 +16,7 @@ describe("A — exception actions tell the truth about approval policy", () => {
   });
 
   it("uses the matching submit label and hint", () => {
-    expect(exceptionSubmitLabel("direct", false)).toBe("Apply now");
+    expect(exceptionSubmitLabel("direct", false)).toBe("Apply change");
     expect(exceptionSubmitLabel("owner_approval", false)).toBe("Send for approval");
     expect(exceptionSubmitLabel("direct", true)).toBe("Applying…");
     expect(exceptionModeHint("owner_approval")).toMatch(/Owner approval/);

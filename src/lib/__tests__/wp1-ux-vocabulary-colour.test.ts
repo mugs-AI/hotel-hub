@@ -39,7 +39,7 @@ describe("WP1 action vocabulary", () => {
     // enabled and the visible-but-disabled states.
     expect(DND_SET_LABEL).toBe("Set Do Not Disturb");
     expect(BOARD).toContain("{DND_SET_LABEL}");
-    expect(BOARD).toContain("Clear Do Not Disturb");
+    expect(BOARD).toContain("{DND_CLEAR_LABEL}");
   });
 
   it("never shows an internal transition code as a label", () => {

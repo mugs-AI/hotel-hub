@@ -1181,6 +1181,20 @@ export type Database = {
           out_state: string
         }[]
       }
+      hotelhub_direct_operation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_idempotency_key: string
+          p_operation_type: string
+          p_payload: Json
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_request_id: string
+          out_state: string
+        }[]
+      }
       hotelhub_hk_cancel_handoff: {
         Args: { p_handoff_id: string; p_tenant_id: string }
         Returns: undefined
@@ -1283,6 +1297,13 @@ export type Database = {
           out_previous: string
         }[]
       }
+      hotelhub_housekeeping_history_preview_30d: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          out_count: number
+          out_cutoff: string
+        }[]
+      }
       hotelhub_property_now: { Args: { p_tenant_id: string }; Returns: string }
       hotelhub_provision_owner: {
         Args: { p_n3_tenant_key: string; p_n3_user_key: string }
@@ -1293,12 +1314,8 @@ export type Database = {
           out_tenant_id: string
         }[]
       }
-      hotelhub_purge_housekeeping_history: {
-        Args: {
-          p_actor_n3_user_key: string
-          p_days?: number
-          p_tenant_id: string
-        }
+      hotelhub_purge_housekeeping_history_30d: {
+        Args: { p_actor_n3_user_key: string; p_tenant_id: string }
         Returns: {
           out_cutoff: string
           out_deleted: number

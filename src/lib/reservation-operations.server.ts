@@ -708,6 +708,41 @@ export async function requestOperation(input: {
   return { requestId: row.out_request_id, state: row.out_state };
 }
 
+/**
+ * Atomic DIRECT execution.
+ *
+ * Wraps request + approve/apply in ONE PostgreSQL transaction that reuses the
+ * SAME authoritative engines, so every validation, concurrency, availability,
+ * capacity and tenant gate applies unchanged. If application fails, the whole
+ * transaction rolls back: no stranded pending request, no partial mutation,
+ * no partial timeline or audit row. Replaying the same idempotency key returns
+ * the same applied result without duplicating anything.
+ */
+export async function applyDirectOperation(input: {
+  tenantId: string;
+  reservationId: string;
+  actorN3UserKey: string;
+  operationType: OperationType;
+  payload: OperationPayload;
+  idempotencyKey: string;
+}): Promise<{ requestId: string; state: OperationState }> {
+  const sb = await admin();
+  const res = await sb.rpc("hotelhub_direct_operation", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_actor_n3_user_key: input.actorN3UserKey,
+    p_operation_type: input.operationType,
+    p_payload: input.payload,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (res.error) throw mapRpcError(res.error.message, "operation_request_failed");
+  const row = Array.isArray(res.data) ? res.data[0] : res.data;
+  if (!row) throw new OperationError("operation_request_failed");
+  return { requestId: row.out_request_id, state: row.out_state };
+}
+
+
+
 export async function decideOperation(input: {
   tenantId: string;
   requestId: string;

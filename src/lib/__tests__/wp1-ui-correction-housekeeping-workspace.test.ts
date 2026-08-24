@@ -97,7 +97,7 @@ describe("M/N. Actions and blockers come from the server", () => {
   });
 
   it("keeps DND and check-in blockers visible", () => {
-    expect(BOARD).toMatch(/Do Not Disturb — cleaning paused\./);
+    expect(BOARD).toMatch(/\{DND_SUPPORTING_TEXT\} · \{DND_NEXT_ACTION\}/);
     expect(BOARD).toMatch(/Arrival today is blocked: \{blockerLabel/);
   });
 

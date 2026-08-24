@@ -3,6 +3,8 @@
 // Server enforces every permission; this is only a usability layer.
 import { useMemo, useState } from "react";
 import {
+  directActionLabel,
+  effectiveExceptionMode,
   exceptionActionLabel,
   exceptionModeHint,
   exceptionSubmitLabel,
@@ -217,10 +219,13 @@ export function ReservationActionsCard({
   // SME approval policy. The server is authoritative; this only makes the
   // buttons tell the truth about what pressing them will do.
   const session = useSessionMe();
-  const approvalMode =
-    session.data?.authenticated && session.data.exceptionApprovalMode === "direct"
-      ? ("direct" as const)
-      : ("owner_approval" as const);
+  // Effective authority = server session role + server setting. An Owner is
+  // always direct, so Owner labels never promise an approval that waits for
+  // themself.
+  const approvalMode = effectiveExceptionMode(
+    session.data?.authenticated ? session.data.role : null,
+    session.data?.authenticated ? session.data.exceptionApprovalMode : null,
+  );
   // Stable per-flow identity: minted when a flow opens, cleared on cancel or
   // a completed server result, so a safe HTTP retry cannot duplicate work.
   const [flow, setFlow] = useState<{ kind: "check_in" | OperationType; id: string } | null>(null);
@@ -368,7 +373,10 @@ export function ReservationActionsCard({
                     className="rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
                     style={{ backgroundColor: REQUEST_COLOR[r.type] }}
                   >
-                    {exceptionActionLabel(r.label, approvalMode)}
+                    {exceptionActionLabel(
+                      approvalMode === "direct" ? directActionLabel(r.type, r.label) : r.label,
+                      approvalMode,
+                    )}
                   </button>
                 ))}
               </div>
