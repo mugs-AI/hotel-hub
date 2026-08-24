@@ -492,6 +492,20 @@ export function retentionCutoffLabel(iso: string): string {
   }).format(d);
 }
 
+/**
+ * The destructive purge is only reachable from an authoritative preview.
+ * Pure so it can be proven directly: no preview, a failed preview or a preview
+ * still loading all mean "not allowed".
+ */
+export function canOpenRetentionConfirmation(input: {
+  preview: { cutoff: string; count: number } | null;
+  loading: boolean;
+  error: string | null;
+}): boolean {
+  if (input.loading || input.error !== null || input.preview === null) return false;
+  return typeof input.preview.cutoff === "string" && Number.isFinite(input.preview.count);
+}
+
 export function HousekeepingRetentionPanel() {
   // The destructive step is impossible without an authoritative preview: the
   // confirmation FREEZES the exact property, cut-off and count it displays,
@@ -551,7 +565,11 @@ export function HousekeepingRetentionPanel() {
     }
   }
 
-  const previewValid = preview !== null && !previewLoading && previewError === null;
+  const previewValid = canOpenRetentionConfirmation({
+    preview,
+    loading: previewLoading,
+    error: previewError,
+  });
   const cutoff = preview ? retentionCutoffLabel(preview.cutoff) : null;
   const frozenCutoff = confirming ? retentionCutoffLabel(confirming.cutoff) : null;
 
