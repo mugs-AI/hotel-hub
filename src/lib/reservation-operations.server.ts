@@ -741,8 +741,6 @@ export async function applyDirectOperation(input: {
   return { requestId: row.out_request_id, state: row.out_state };
 }
 
-
-
 export async function decideOperation(input: {
   tenantId: string;
   requestId: string;

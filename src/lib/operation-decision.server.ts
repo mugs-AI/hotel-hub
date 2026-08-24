@@ -462,4 +462,3 @@ export async function executeDirectOperation(input: {
 
   return { ok: true, result, housekeepingHandoff: handoff };
 }
-

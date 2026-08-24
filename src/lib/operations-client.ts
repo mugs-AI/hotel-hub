@@ -314,4 +314,3 @@ export function exceptionModeHint(mode: ExceptionApprovalMode): string {
     ? "You can carry these out directly. Every action is still recorded in the timeline."
     : "Exceptions need Owner approval before they take effect.";
 }
-

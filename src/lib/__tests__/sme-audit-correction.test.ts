@@ -377,9 +377,8 @@ describe("direct execution is atomic and fails closed", () => {
   });
 
   it("refuses a cross-origin write", async () => {
-    const { handleOperationCreate } = await import(
-      "@/routes/api/hotel/reservations.$id.operations"
-    );
+    const { handleOperationCreate } =
+      await import("@/routes/api/hotel/reservations.$id.operations");
     const res = await handleOperationCreate({
       request: new Request(`https://hotel.test/api/hotel/reservations/${RESERVATION}/operations`, {
         method: "POST",
@@ -403,9 +402,8 @@ describe("housekeeping retention — one fixed 30-day policy", () => {
   });
 
   it("previews the server-computed cutoff and count for THIS tenant only", async () => {
-    const { handleHousekeepingPurgePreview } = await import(
-      "@/routes/api/hotel/housekeeping.purge"
-    );
+    const { handleHousekeepingPurgePreview } =
+      await import("@/routes/api/hotel/housekeeping.purge");
     const res = await handleHousekeepingPurgePreview();
     const body = (await res.json()) as any;
     expect(res.status).toBe(200);
@@ -449,9 +447,8 @@ describe("housekeeping retention — one fixed 30-day policy", () => {
       session.role = role;
       session.allowed = false;
       session.reason = "forbidden";
-      const { handleHousekeepingPurge, handleHousekeepingPurgePreview } = await import(
-        "@/routes/api/hotel/housekeeping.purge"
-      );
+      const { handleHousekeepingPurge, handleHousekeepingPurgePreview } =
+        await import("@/routes/api/hotel/housekeeping.purge");
       const write = await handleHousekeepingPurge({
         request: post("https://hotel.test/api/hotel/housekeeping/purge", {}),
       });
@@ -530,8 +527,12 @@ describe("corrective migration", () => {
   });
 
   it("scopes every retention routine to one tenant and records the purge atomically", () => {
-    expect(sql).toMatch(/DELETE FROM public\.hotel_housekeeping_events[\s\S]*?tenant_id = p_tenant_id/);
-    expect(sql).toMatch(/INSERT INTO public\.hotel_audit_events[\s\S]*?'hotel\.housekeeping\.history_purged'/);
+    expect(sql).toMatch(
+      /DELETE FROM public\.hotel_housekeeping_events[\s\S]*?tenant_id = p_tenant_id/,
+    );
+    expect(sql).toMatch(
+      /INSERT INTO public\.hotel_audit_events[\s\S]*?'hotel\.housekeeping\.history_purged'/,
+    );
   });
 
   it("retires the selectable-day routine and grants the new ones to service_role only", () => {
@@ -543,8 +544,12 @@ describe("corrective migration", () => {
       "hotelhub_purge_housekeeping_history_30d",
       "hotelhub_direct_operation",
     ]) {
-      expect(sql).toMatch(new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}[\\s\\S]*?service_role`));
-      expect(sql).toMatch(new RegExp(`REVOKE ALL ON FUNCTION public\\.${fn}[\\s\\S]*?authenticated`));
+      expect(sql).toMatch(
+        new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}[\\s\\S]*?service_role`),
+      );
+      expect(sql).toMatch(
+        new RegExp(`REVOKE ALL ON FUNCTION public\\.${fn}[\\s\\S]*?authenticated`),
+      );
     }
   });
 

@@ -6,10 +6,7 @@ import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { getReservationById, isUuid } from "@/lib/reservations-store.server";
 import { getOrCreateHotelSettings } from "@/lib/hotel-store.server";
-import {
-  effectiveDirectExecution,
-  executeDirectOperation,
-} from "@/lib/operation-decision.server";
+import { effectiveDirectExecution, executeDirectOperation } from "@/lib/operation-decision.server";
 import {
   isOperationType,
   listOperationRequests,
@@ -164,8 +161,6 @@ export async function handleOperationCreate({
     return deny(statusForOperationError(code), code);
   }
 }
-
-
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/operations")({
   server: { handlers: { GET: handleOperationsList, POST: handleOperationCreate } },
