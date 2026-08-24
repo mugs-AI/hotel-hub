@@ -374,3 +374,69 @@ describe("Direct execution source — no JS handover around the RPC", () => {
     expect(directFn).not.toContain("cancelRoomHandoff(");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Runtime repair: FOR UPDATE may never be combined with an aggregate.
+// ---------------------------------------------------------------------------
+
+describe("readiness routine is runtime-valid", () => {
+  const files = readdirSync(MIGRATIONS)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  const repairName = files
+    .filter((f) => !f.startsWith("20260824101612") && f > "20260824101612")
+    .find((f) =>
+      readFileSync(resolve(MIGRATIONS, f), "utf8").includes("hotelhub_hk_readiness_blocker_locked"),
+    );
+  const repair = readFileSync(resolve(MIGRATIONS, repairName!), "utf8");
+
+  it("is an additive migration after 20260824101612", () => {
+    expect(repairName).toBeTruthy();
+    expect(repairName!.startsWith("20260824101612")).toBe(false);
+    expect(repairName! > "20260824101612").toBe(true);
+  });
+
+  it("never locks rows through an aggregate (PostgreSQL 0A000)", () => {
+    const code = repair
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("--"))
+      .join("\n");
+    expect(code).not.toMatch(/count\([\s\S]{0,400}?FOR UPDATE/i);
+    const probe = repair.slice(repair.indexOf("hotel_housekeeping_handoffs h"));
+    expect(probe.slice(0, 400)).toContain("LIMIT 1");
+    expect(probe.slice(0, 400)).toContain("FOR UPDATE");
+    expect(probe).toContain("IF FOUND AND v_handoff_id IS NOT NULL THEN");
+    expect(probe).toContain("'handoff_pending'");
+  });
+
+  it("closes the race by locking the same tenant+room row before enqueueing", () => {
+    const enqueue = repair.slice(repair.indexOf("FUNCTION public.hotelhub_hk_enqueue_handoff"));
+    const lockAt = enqueue.indexOf("FROM public.hotel_rooms r");
+    const insertAt = enqueue.indexOf("INSERT INTO hotel_housekeeping_handoffs");
+    const dedupeAt = enqueue.indexOf("AND operation_request_id = p_operation_request_id");
+    expect(lockAt).toBeGreaterThan(-1);
+    expect(dedupeAt).toBeGreaterThan(lockAt);
+    expect(insertAt).toBeGreaterThan(lockAt);
+    // Idempotency semantics and signature are preserved verbatim.
+    expect(enqueue).toContain("SET state = 'pending', resolved_at = NULL");
+    expect(enqueue).toContain("RETURNS TABLE(out_handoff_id uuid)");
+    expect(enqueue).toContain("p_source text DEFAULT 'room_change'::text");
+  });
+
+  it("keeps both routines service-role only", () => {
+    for (const fn of ["hotelhub_hk_readiness_blocker_locked", "hotelhub_hk_enqueue_handoff"]) {
+      expect(repair).toMatch(
+        new RegExp(`REVOKE ALL ON FUNCTION public\\.${fn}[\\s\\S]*?authenticated`),
+      );
+      expect(repair).toMatch(
+        new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${fn}[\\s\\S]*?service_role`),
+      );
+    }
+  });
+
+  it("does not rewrite any applied migration", () => {
+    for (const stamp of ["20260824093329", "20260824095539", "20260824101612"]) {
+      expect(files.filter((f) => f.startsWith(stamp))).toHaveLength(1);
+    }
+  });
+});
