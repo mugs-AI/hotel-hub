@@ -260,3 +260,30 @@ export function useDecideOperation(reservationId: string) {
     onSuccess: invalidate,
   });
 }
+
+// ---------------------------------------------------------------------------
+// SME approval policy — pure label helpers (unit tested)
+// ---------------------------------------------------------------------------
+
+export type ExceptionApprovalMode = "owner_approval" | "direct";
+
+/**
+ * Action-button label. In direct mode the button does what it says, so it must
+ * NOT promise a request that will never be queued.
+ */
+export function exceptionActionLabel(label: string, mode: ExceptionApprovalMode): string {
+  return mode === "direct" ? label : `Request ${label.toLowerCase()}`;
+}
+
+/** Submit-button label for the open exception flow. */
+export function exceptionSubmitLabel(mode: ExceptionApprovalMode, pending: boolean): string {
+  if (mode === "direct") return pending ? "Applying…" : "Apply now";
+  return pending ? "Sending…" : "Send for approval";
+}
+
+/** One-line explanation above the exception actions. */
+export function exceptionModeHint(mode: ExceptionApprovalMode): string {
+  return mode === "direct"
+    ? "You can carry these out directly. Every action is still recorded in the timeline."
+    : "Exceptions need Owner approval before they take effect.";
+}

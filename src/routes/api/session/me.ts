@@ -37,6 +37,8 @@ export type SessionMeResponse =
       roleReason: import("@/lib/n3-owner").EffectiveRoleReason | null;
       /** Which housekeeping workflow this property runs (P1 mode authority). */
       housekeepingMode: "simple" | "dedicated";
+      /** SME approval policy for reservation exceptions. */
+      exceptionApprovalMode: "owner_approval" | "direct";
     };
 
 export async function handleSessionMe(): Promise<Response> {
@@ -49,11 +51,14 @@ export async function handleSessionMe(): Promise<Response> {
   const s = ctx.session;
   // Read-only: never creates a settings row as a side effect of loading.
   let housekeepingMode: "simple" | "dedicated" = "simple";
+  let exceptionApprovalMode: "owner_approval" | "direct" = "owner_approval";
   try {
     const settings = s.tenantId ? await getHotelSettingsReadOnly(s.tenantId) : null;
     housekeepingMode = settings?.housekeepingMode ?? "simple";
+    exceptionApprovalMode = settings?.exceptionApprovalMode ?? "owner_approval";
   } catch {
     housekeepingMode = "simple";
+    exceptionApprovalMode = "owner_approval";
   }
   const body: SessionMeResponse = {
     authenticated: true,
@@ -72,6 +77,7 @@ export async function handleSessionMe(): Promise<Response> {
     roleStatus: ctx.roleStatus,
     roleReason: ctx.roleReason,
     housekeepingMode,
+    exceptionApprovalMode,
   };
   return Response.json(body, { headers: { "cache-control": "no-store" } });
 }

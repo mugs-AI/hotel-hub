@@ -201,7 +201,14 @@ export const TRANSITION_LABELS: Record<HousekeepingTransition, string> = {
   revert_to_cleaning: "Send back to Cleaning",
 };
 
-export type ActionTone = "positive" | "work" | "inspect" | "corrective" | "dnd" | "neutral";
+export type ActionTone =
+  | "positive"
+  | "work"
+  | "inspect"
+  | "corrective"
+  | "dnd"
+  | "dndClear"
+  | "neutral";
 
 /** Semantic tone per lifecycle action. Presentation only. */
 export const TRANSITION_TONE: Record<HousekeepingTransition, ActionTone> = {
@@ -236,6 +243,9 @@ export const TONE_STYLE: Record<
     border: HK_COLORS.indigo,
     filled: false,
   },
+  // Clearing DND is the indigo counterpart of setting it — same meaning,
+  // filled because it is the primary next step on a DND room.
+  dndClear: { bg: HK_COLORS.indigo, fg: "#FFFFFF", border: HK_COLORS.indigo, filled: true },
   neutral: { bg: "#FFFFFF", fg: HK_COLORS.navy, border: "#D6E0EA", filled: false },
 };
 
@@ -481,3 +491,34 @@ export const DND_CLEANING_HINT =
 
 /** The single DND control label, shared by the enabled and disabled states. */
 export const DND_SET_LABEL = "Set Do Not Disturb";
+
+export const DND_ACTIVE_LABEL = "DND Active";
+export const DND_CLEAR_LABEL = "Clear Do Not Disturb";
+
+/**
+ * Human name for an actor in housekeeping history. N3 user keys and emails are
+ * not names; fall back to the email local-part rather than showing plumbing.
+ */
+export function actorDisplayName(label: string | null | undefined): string {
+  const raw = (label ?? "").trim();
+  if (!raw) return "System";
+  if (raw.includes("@")) {
+    const local = raw.split("@")[0] ?? "";
+    const pretty = local.replace(/[._-]+/g, " ").trim();
+    return pretty ? pretty.replace(/\b\w/g, (c) => c.toUpperCase()) : raw;
+  }
+  return raw;
+}
+
+/** Compact one-line housekeeping history entry (drawer timeline). */
+export function historyEntryLine(e: {
+  action: string;
+  previousCondition?: string | null;
+  resultingCondition?: string | null;
+}): string {
+  const action = e.action.replace(/_/g, " ");
+  const head = action.charAt(0).toUpperCase() + action.slice(1);
+  return e.previousCondition && e.resultingCondition
+    ? `${head} · ${e.previousCondition} → ${e.resultingCondition}`
+    : head;
+}
