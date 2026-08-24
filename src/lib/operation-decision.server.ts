@@ -278,9 +278,20 @@ export type DirectOutcome =
 /**
  * Carry out one exception immediately, atomically.
  *
- * Runs the IDENTICAL fail-closed readiness gates and durable vacated-room
- * handoff used by the Owner approval path, then applies request + approval in
- * ONE database transaction so a failure can never strand a pending request.
+ * EVERYTHING guest-safety relevant happens inside ONE PostgreSQL transaction
+ * (`hotelhub_direct_operation_v2`): idempotent request lookup/create, locked
+ * housekeeping readiness / Do Not Disturb / pending-handover checks,
+ * resolution of the room actually being vacated, the durable handover
+ * correlated to the NEW request id, and the existing approve/apply engine.
+ *
+ * No handover row is ever created from here BEFORE that transaction: a replay
+ * would otherwise resolve the already-moved destination as the "old" room and
+ * queue a second, uncorrelated handover that blocks housekeeping forever.
+ * After a committed transaction this function only APPLIES the handover the
+ * database itself returned, and a transport-uncertain response is safe because
+ * a committed handover is correlated to the operation request and the
+ * reconciler can prove or abandon it, while a rolled-back transaction left
+ * nothing behind at all.
  */
 export async function executeDirectOperation(input: {
   tenantId: string;
@@ -294,94 +305,21 @@ export async function executeDirectOperation(input: {
   const { tenantId, reservationId: id, operationType, payload, statusForOperationError } = input;
   const actor = input.actorN3UserKey;
 
-  // ---- Readiness gate (fails CLOSED) ------------------------------------
-  let blocker: string | null = null;
-  try {
-    if (operationType === "early_check_in") {
-      blocker = await housekeepingCheckInBlocker(tenantId, id);
-    } else if (operationType === "room_change") {
-      const dest = payload["to_hotel_room_id"] ?? payload["toHotelRoomId"];
-      if (typeof dest !== "string" || !isUuid(dest)) {
-        return { ok: false, status: 400, code: "validation_failed" };
-      }
-      blocker = await roomReadinessBlocker(tenantId, [dest]);
-      if (blocker) blocker = destinationBlockerCode(blocker);
-    }
-  } catch {
-    await logAudit({
-      tenantId,
-      n3UserKey: actor,
-      eventType: "hotel.housekeeping.readiness_read_failed",
-      detail: { reservationId: id, operationType, direct: true },
-    });
-    return { ok: false, status: 503, code: "readiness_read_failed" };
-  }
-  if (blocker) {
-    await logAudit({
-      tenantId,
-      n3UserKey: actor,
-      eventType: "hotel.housekeeping.destination_not_ready",
-      detail: { reservationId: id, operationType, code: blocker, direct: true },
-    });
-    return { ok: false, status: statusForOperationError(blocker), code: blocker };
-  }
-
-  // ---- Durable handoff intent (FAILS CLOSED) ----------------------------
-  let handoffReservationRoomId: string | null = null;
-  let roomBeingVacated: string | null = null;
-  let handoffId: string | null = null;
-
+  // Shape-only validation. Every readiness/authority decision belongs to the
+  // database routine below, never to this process.
   if (operationType === "room_change") {
+    const dest = payload["to_hotel_room_id"] ?? payload["toHotelRoomId"];
     const rrid = payload["reservation_room_id"] ?? payload["reservationRoomId"];
+    if (typeof dest !== "string" || !isUuid(dest)) {
+      return { ok: false, status: 400, code: "validation_failed" };
+    }
     if (typeof rrid !== "string" || !isUuid(rrid)) {
       return { ok: false, status: 400, code: "validation_failed" };
     }
-    handoffReservationRoomId = rrid;
-    const oldRoom = await resolveReservationRoomHotelRoomId(tenantId, rrid);
-    if (oldRoom.status === "error") {
-      await logAudit({
-        tenantId,
-        n3UserKey: actor,
-        eventType: "hotel.housekeeping.handoff_precheck_failed",
-        detail: { reservationId: id, code: "reservation_room_unreadable", direct: true },
-      });
-      return { ok: false, status: 503, code: "handoff_precheck_failed" };
-    }
-    if (oldRoom.status === "missing" || oldRoom.value === null) {
-      await logAudit({
-        tenantId,
-        n3UserKey: actor,
-        eventType: "hotel.housekeeping.handoff_precheck_failed",
-        detail: { reservationId: id, code: "reservation_room_unresolved", direct: true },
-      });
-      return { ok: false, status: 409, code: "reservation_room_unresolved" };
-    }
-    roomBeingVacated = oldRoom.value;
-    try {
-      handoffId = await enqueueRoomHandoff({
-        tenantId,
-        roomId: roomBeingVacated,
-        actorN3UserKey: actor,
-        reservationId: id,
-        operationRequestId: null,
-        source: "room_change",
-      });
-    } catch {
-      handoffId = null;
-    }
-    if (!handoffId) {
-      await logAudit({
-        tenantId,
-        n3UserKey: actor,
-        eventType: "hotel.housekeeping.handoff_not_recorded",
-        detail: { reservationId: id, roomId: roomBeingVacated, direct: true },
-      });
-      return { ok: false, status: 503, code: "handoff_not_recorded" };
-    }
   }
 
-  // ---- ONE transaction: request + apply ---------------------------------
-  let result: { requestId: string; state: string };
+  // ---- ONE transaction: request + readiness + handoff + apply -----------
+  let result: { requestId: string; state: string; handoffId: string | null; oldRoomId: string | null };
   try {
     result = await applyDirectOperation({
       tenantId,
@@ -392,20 +330,13 @@ export async function executeDirectOperation(input: {
       idempotencyKey: input.idempotencyKey,
     });
   } catch (err) {
-    // A recognised engine error is a DEFINITE, fully rolled-back rejection:
-    // nothing was applied, so the reserved handoff intent is released. An
-    // unrecognised/transport failure is UNCERTAIN and leaves the durable
-    // intent standing for reconciliation.
-    const definite = err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code);
-    const code = definite ? (err as OperationError).code : "operation_request_failed";
-    if (definite && handoffId) {
-      await cancelRoomHandoff(tenantId, handoffId);
-    }
+    const known = err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code);
+    const code = known ? (err as OperationError).code : "operation_request_failed";
     await logAudit({
       tenantId,
       n3UserKey: actor,
       eventType: "hotel.reservation.operation_request_failed",
-      detail: { reservationId: id, operationType, code },
+      detail: { reservationId: id, operationType, code, direct: true },
     });
     return { ok: false, status: statusForOperationError(code), code };
   }
@@ -417,48 +348,33 @@ export async function executeDirectOperation(input: {
     detail: { reservationId: id, operationType, state: result.state },
   });
 
-  // ---- Vacated-room handoff, on POSITIVE proof only ---------------------
+  // ---- Reconcile the handover the DATABASE recorded ---------------------
   let handoff: { applied: boolean; pending: boolean } | null = null;
-  if (roomBeingVacated && handoffReservationRoomId) {
-    const positivelyApplied = result.state === "applied";
-    const post = positivelyApplied
-      ? await resolveReservationRoomHotelRoomId(tenantId, handoffReservationRoomId)
-      : null;
-    const movedAway =
-      post !== null &&
-      post.status === "ok" &&
-      post.value !== null &&
-      post.value !== roomBeingVacated;
-
-    if (positivelyApplied && movedAway) {
-      const applied = await applyRoomHandoff({
-        tenantId,
-        roomId: roomBeingVacated,
-        actorN3UserKey: actor,
-        source: "room_change",
-        handoffId,
-      });
-      handoff = { applied: applied.applied, pending: applied.pending };
-      await logAudit({
-        tenantId,
-        n3UserKey: actor,
-        eventType: applied.applied
-          ? "hotel.housekeeping.vacated"
-          : "hotel.housekeeping.vacate_pending",
-        detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
-      });
-    } else if (handoffId) {
-      handoff = { applied: false, pending: true };
-      await logAudit({
-        tenantId,
-        n3UserKey: actor,
-        eventType: "hotel.housekeeping.vacate_pending",
-        detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
-      });
-    }
+  const roomBeingVacated = result.oldRoomId;
+  if (roomBeingVacated && result.state === "applied") {
+    const applied = await applyRoomHandoff({
+      tenantId,
+      roomId: roomBeingVacated,
+      actorN3UserKey: actor,
+      source: "room_change",
+      handoffId: result.handoffId,
+    });
+    handoff = { applied: applied.applied, pending: applied.pending };
+    await logAudit({
+      tenantId,
+      n3UserKey: actor,
+      eventType: applied.applied
+        ? "hotel.housekeeping.vacated"
+        : "hotel.housekeeping.vacate_pending",
+      detail: { roomId: roomBeingVacated, reservationId: id, source: "room_change" },
+    });
   }
 
   if (handoff?.pending) await reconcilePendingHandoffs(tenantId);
 
-  return { ok: true, result, housekeepingHandoff: handoff };
+  return {
+    ok: true,
+    result: { requestId: result.requestId, state: result.state },
+    housekeepingHandoff: handoff,
+  };
 }
