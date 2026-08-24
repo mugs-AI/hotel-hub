@@ -468,7 +468,8 @@ describe("3. The room change refuses to proceed without a durable instruction", 
     readFileSync(resolve(__dirname, "../operation-decision.server.ts"), "utf8");
 
   it("fails closed BEFORE the decision is taken", () => {
-    const denyAt = src.indexOf('deny(503, "handoff_not_recorded")');
+    // The engine returns the fail-closed outcome; the route turns it into a 503.
+    const denyAt = src.indexOf('status: 503, code: "handoff_not_recorded"');
     const decideAt = src.indexOf("await decideOperation(");
     expect(denyAt).toBeGreaterThan(-1);
     expect(decideAt).toBeGreaterThan(denyAt);
