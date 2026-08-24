@@ -32,12 +32,6 @@ vi.mock("@/lib/deposits-client", async (importOriginal) => ({
   useDepositPreview: () => ({ mutate: () => {}, reset: () => {}, data: undefined }),
 }));
 
-vi.mock("@/lib/hotel-client", async (importOriginal) => ({
-  ...((await importOriginal()) as object),
-  hotelJson: async () => {
-    throw new Error("network");
-  },
-}));
 
 function render(node: ReactElement): string {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
