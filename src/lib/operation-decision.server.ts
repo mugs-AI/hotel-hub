@@ -319,7 +319,12 @@ export async function executeDirectOperation(input: {
   }
 
   // ---- ONE transaction: request + readiness + handoff + apply -----------
-  let result: { requestId: string; state: string; handoffId: string | null; oldRoomId: string | null };
+  let result: {
+    requestId: string;
+    state: string;
+    handoffId: string | null;
+    oldRoomId: string | null;
+  };
   try {
     result = await applyDirectOperation({
       tenantId,

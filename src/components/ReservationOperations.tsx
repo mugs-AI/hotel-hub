@@ -504,7 +504,6 @@ export function ReservationActionsCard({
                             ? "when you apply the change."
                             : "when the Owner approves."}
                         </p>
-
                       </div>
                     </div>
                   ) : null}

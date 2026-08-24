@@ -101,9 +101,7 @@ async function directOperationRpc(input: {
       // (d) old room resolved from tenant+reservation+reservation_room, then
       // the handoff is correlated to the NEW request id.
       oldRoomId = db.physicalRoom;
-      const already = db.handoffs.find(
-        (x) => x.requestId === requestId && x.roomId === oldRoomId,
-      );
+      const already = db.handoffs.find((x) => x.requestId === requestId && x.roomId === oldRoomId);
       handoffId = already?.id ?? `handoff-${++db.handoffSeq}`;
       if (!already) {
         db.handoffs.push({ id: handoffId, requestId, roomId: oldRoomId, state: "pending" });
@@ -320,7 +318,9 @@ describe("hotelhub_direct_operation_v2 — gates live in the database routine", 
   const sql = correctiveMigration();
 
   it("checks readiness and enqueues the handover BEFORE deciding", () => {
-    const readiness = sql.indexOf("hotelhub_hk_readiness_blocker_locked(p_tenant_id, ARRAY[v_dest])");
+    const readiness = sql.indexOf(
+      "hotelhub_hk_readiness_blocker_locked(p_tenant_id, ARRAY[v_dest])",
+    );
     const enqueue = sql.indexOf("hotelhub_hk_enqueue_handoff(");
     const decide = sql.indexOf("hotelhub_decide_operation(");
     expect(readiness).toBeGreaterThan(-1);
@@ -366,10 +366,7 @@ describe("hotelhub_direct_operation_v2 — gates live in the database routine", 
 });
 
 describe("Direct execution source — no JS handover around the RPC", () => {
-  const src = readFileSync(
-    resolve(process.cwd(), "src/lib/operation-decision.server.ts"),
-    "utf8",
-  );
+  const src = readFileSync(resolve(process.cwd(), "src/lib/operation-decision.server.ts"), "utf8");
   const directFn = src.slice(src.indexOf("export async function executeDirectOperation"));
 
   it("does not call enqueueRoomHandoff or cancelRoomHandoff", () => {

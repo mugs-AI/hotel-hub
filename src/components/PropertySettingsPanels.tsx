@@ -591,7 +591,9 @@ export function HousekeepingRetentionPanel() {
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Cut-off (Malaysia time)</dt>
-          <dd style={{ color: NAVY }}>{previewValid ? cutoff : previewLoading ? "Checking…" : "—"}</dd>
+          <dd style={{ color: NAVY }}>
+            {previewValid ? cutoff : previewLoading ? "Checking…" : "—"}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Entries older than the cut-off</dt>

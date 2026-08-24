@@ -32,7 +32,6 @@ vi.mock("@/lib/deposits-client", async (importOriginal) => ({
   useDepositPreview: () => ({ mutate: () => {}, reset: () => {}, data: undefined }),
 }));
 
-
 function render(node: ReactElement): string {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, node));
@@ -100,7 +99,9 @@ describe("30-day purge — impossible without a valid preview", () => {
     expect(canOpenRetentionConfirmation({ preview: good, loading: false, error: null })).toBe(true);
     expect(canOpenRetentionConfirmation({ preview: good, loading: true, error: null })).toBe(false);
     expect(canOpenRetentionConfirmation({ preview: good, loading: false, error: "x" })).toBe(false);
-    expect(canOpenRetentionConfirmation({ preview: null, loading: false, error: null })).toBe(false);
+    expect(canOpenRetentionConfirmation({ preview: null, loading: false, error: null })).toBe(
+      false,
+    );
   });
 
   it("renders the purge button disabled before a preview exists", () => {
