@@ -18,7 +18,7 @@ import {
   exceptionSubmitLabel,
 } from "@/lib/operations-client";
 import {
-  DND_CHIP_LABEL,
+  DND_ACTIVE_LABEL,
   DND_SUPPORTING_TEXT,
   DND_NEXT_ACTION,
   DND_CLEAR_LABEL,
@@ -125,10 +125,10 @@ describe("DND presentation", () => {
   );
 
   it("shows the chip, the reason and the next action — not the old sentence", () => {
-    expect(DND_CHIP_LABEL).toBe("DND Active");
+    expect(DND_ACTIVE_LABEL).toBe("DND Active");
     expect(DND_SUPPORTING_TEXT).toBe("Guest privacy requested");
     expect(DND_NEXT_ACTION).toBe("Clear DND to resume housekeeping");
-    expect(html).toContain(DND_CHIP_LABEL);
+    expect(html).toContain(DND_ACTIVE_LABEL);
     expect(html).toContain(DND_SUPPORTING_TEXT);
     expect(html).toContain(DND_NEXT_ACTION);
     expect(html).not.toContain("Do Not Disturb — cleaning paused.");
