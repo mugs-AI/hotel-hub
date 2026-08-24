@@ -75,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         session={session}
         onSignOut={() => signOut.mutate()}
         signingOut={signOut.isPending}
+        onRetry={() => void sessionQuery.refetch()}
       />
     );
   }
