@@ -1181,7 +1181,7 @@ export type Database = {
           out_state: string
         }[]
       }
-      hotelhub_direct_operation: {
+      hotelhub_direct_operation_v2: {
         Args: {
           p_actor_n3_user_key: string
           p_idempotency_key: string
@@ -1191,6 +1191,8 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: {
+          out_handoff_id: string
+          out_old_room_id: string
           out_request_id: string
           out_state: string
         }[]
@@ -1240,6 +1242,10 @@ export type Database = {
           out_reservation_id: string
           out_source: string
         }[]
+      }
+      hotelhub_hk_readiness_blocker_locked: {
+        Args: { p_room_ids: string[]; p_tenant_id: string }
+        Returns: string
       }
       hotelhub_hk_set_dnd: {
         Args: {
