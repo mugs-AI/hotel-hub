@@ -13,6 +13,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
+
 const sessionState: { data: Record<string, unknown> } = { data: {} };
 function resetSession(initial: Record<string, unknown> = {}) {
   sessionState.data = { ...initial };

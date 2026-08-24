@@ -197,21 +197,23 @@ async function occupancyByRoom(
   tenantId: string,
   today: string,
 ): Promise<Map<string, OccupancyResolution>> {
-  const physical = await sb
-    .from("hotel_reservation_rooms")
-    .select(OCCUPANCY_SELECT)
-    .eq("tenant_id", tenantId)
-    .eq("allocation_status", "occupied")
-    .eq("hotel_reservations.status", "checked_in");
+  // Independent reads — issued together, checked in the same order.
+  const [physical, planned] = await Promise.all([
+    sb
+      .from("hotel_reservation_rooms")
+      .select(OCCUPANCY_SELECT)
+      .eq("tenant_id", tenantId)
+      .eq("allocation_status", "occupied")
+      .eq("hotel_reservations.status", "checked_in"),
+    sb
+      .from("hotel_reservation_rooms")
+      .select(OCCUPANCY_SELECT)
+      .eq("tenant_id", tenantId)
+      .neq("allocation_status", "released")
+      .lte("arrival_date", today)
+      .gte("departure_date", today),
+  ]);
   if (physical.error) throw new HousekeepingError("housekeeping_failed");
-
-  const planned = await sb
-    .from("hotel_reservation_rooms")
-    .select(OCCUPANCY_SELECT)
-    .eq("tenant_id", tenantId)
-    .neq("allocation_status", "released")
-    .lte("arrival_date", today)
-    .gte("departure_date", today);
   if (planned.error) throw new HousekeepingError("housekeeping_failed");
 
   return resolveOccupancyByRoom(
@@ -381,31 +383,38 @@ export async function getHousekeepingBoard(input: {
   const sb = await admin();
   const today = propertyTodayIso(input.timezone) ?? propertyTodayIso("Asia/Kuala_Lumpur")!;
 
-  const roomsRes = await sb
-    .from("hotel_rooms")
-    .select(
-      "id, room_number, display_name, n3_stock_name, room_type, floor, max_occupancy, is_active",
-    )
-    .eq("tenant_id", input.tenantId)
-    .order("room_number");
-  if (roomsRes.error) throw new HousekeepingError("housekeeping_failed");
+  // Responsiveness: rooms, housekeeping rows, occupancy inputs and pending
+  // handoffs are INDEPENDENT tenant-scoped reads, so the board costs the
+  // slowest of them instead of their sum. Every fail-closed check below runs
+  // after all reads have landed, in the same order and with the same
+  // outcomes as the sequential version. Actor labels still follow the
+  // housekeeping rows they depend on.
+  const [roomsRes, hkRes, occupancy, handoffRead] = await Promise.all([
+    sb
+      .from("hotel_rooms")
+      .select(
+        "id, room_number, display_name, n3_stock_name, room_type, floor, max_occupancy, is_active",
+      )
+      .eq("tenant_id", input.tenantId)
+      .order("room_number"),
+    sb
+      .from("hotel_room_housekeeping")
+      .select(
+        "hotel_room_id, condition, dnd_active, dnd_set_at, last_action, last_actor_n3_user_key, last_transition_at",
+      )
+      .eq("tenant_id", input.tenantId),
+    occupancyByRoom(sb, input.tenantId, today),
+    readPendingHandoffRooms(input.tenantId),
+  ]);
 
-  const hkRes = await sb
-    .from("hotel_room_housekeeping")
-    .select(
-      "hotel_room_id, condition, dnd_active, dnd_set_at, last_action, last_actor_n3_user_key, last_transition_at",
-    )
-    .eq("tenant_id", input.tenantId);
+  if (roomsRes.error) throw new HousekeepingError("housekeeping_failed");
   if (hkRes.error) throw new HousekeepingError("housekeeping_failed");
 
   const hkByRoom = new Map<string, any>();
   for (const row of (hkRes.data ?? []) as any[]) hkByRoom.set(row.hotel_room_id, row);
 
-  const occupancy = await occupancyByRoom(sb, input.tenantId, today);
-
   // Fail CLOSED: if unresolved vacated-room handoffs cannot be read, the board
   // must not present stale conditions as trustworthy nor report zero pending.
-  const handoffRead = await readPendingHandoffRooms(input.tenantId);
   if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed");
   const pendingHandoffRooms = handoffRead;
   const labels = await resolveActorLabels(

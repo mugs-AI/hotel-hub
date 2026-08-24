@@ -466,5 +466,18 @@ export const OVERDUE_STAY_LABEL = "Departure overdue";
  */
 export const OVERDUE_OCCUPIED_BADGE_LABEL = "Occupied · Departure overdue";
 
-/** Shown when DND cannot be offered yet because the room has no housekeeping condition set. */
-export const DND_SETUP_HINT = "Set the room housekeeping condition first to enable Do Not Disturb.";
+/**
+ * Shown when DND cannot be offered yet because the room has no housekeeping
+ * condition set. The control stays VISIBLE (disabled) so an operator standing
+ * at an occupied, never-set-up room can see Do Not Disturb exists and knows
+ * the exact first step.
+ */
+export const DND_SETUP_HINT =
+  "First set this room as Ready or Dirty. Then you can turn on Do Not Disturb.";
+
+/** Shown when the room is mid-clean, where DND is deliberately unavailable. */
+export const DND_CLEANING_HINT =
+  "Cleaning is in progress. Stop cleaning and return the room to Dirty first. Then you can turn on Do Not Disturb.";
+
+/** The single DND control label, shared by the enabled and disabled states. */
+export const DND_SET_LABEL = "Set Do Not Disturb";

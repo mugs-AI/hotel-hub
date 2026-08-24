@@ -7,6 +7,7 @@ export type AuditEventType =
   | "session.destroyed"
   | "session.n3_401"
   | "access.denied"
+  | "access.owner_revoked"
   | "probe.executed"
   | "probe.denied"
   | "role.assigned"

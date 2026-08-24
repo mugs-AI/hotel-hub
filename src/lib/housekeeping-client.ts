@@ -1,6 +1,7 @@
 // Browser client for the WP1 housekeeping vertical. Same-origin only; no
 // direct database or N3 access, and no tokens ever touch this module.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type {
   HousekeepingBoardDTO,
   HousekeepingEventDTO,
@@ -74,8 +75,66 @@ export type HousekeepingAction =
   | { action: "transition"; transition: HousekeepingTransition; note?: string | null }
   | { action: "dnd"; active: boolean };
 
+/**
+ * Deterministically recompute the board's display counts from the
+ * AUTHORITATIVE cached room list. Never a guessed delta: after one room is
+ * replaced by the server's own DTO, the tallies are derived again from every
+ * room, so a count can never drift away from what the board shows.
+ */
+export function recomputeBoardCounts(
+  rooms: readonly HousekeepingRoomDTO[],
+): HousekeepingBoardDTO["counts"] {
+  const counts = {
+    needs_attention: 0,
+    in_progress: 0,
+    ready: 0,
+    not_set_up: 0,
+    dnd: 0,
+    uninitialized: 0,
+  } as HousekeepingBoardDTO["counts"];
+  for (const r of rooms) {
+    counts[r.group] += 1;
+    if (r.dndActive) counts.dnd += 1;
+    if (!r.initialized) counts.uninitialized += 1;
+  }
+  return counts;
+}
+
+/** Replace exactly one room in a cached board and re-derive the counts. */
+export function patchBoardWithRoom(
+  board: HousekeepingBoardDTO,
+  room: HousekeepingRoomDTO,
+): HousekeepingBoardDTO {
+  const rooms = board.rooms.map((r) => (r.roomId === room.roomId ? room : r));
+  return { ...board, rooms, counts: recomputeBoardCounts(rooms) };
+}
+
+/**
+ * P1 mode-change correction: a saved housekeeping workflow must be visible on
+ * the very next entry to /housekeeping, without a hard reload and without
+ * waiting for `staleTime`. Removing the exact board cache entry forces the
+ * next mount to perform an authoritative GET; the server response — not this
+ * client — remains the source of mode, authority and actions.
+ */
+export function resetHousekeepingBoardCache(qc: QueryClient): void {
+  qc.removeQueries({ queryKey: HOUSEKEEPING_QUERY_KEY, exact: true });
+  void qc.invalidateQueries({ queryKey: ["housekeeping"] });
+}
+
+/** Background resync delay: long enough for the patched card to repaint. */
+export const BOARD_RESYNC_DELAY_MS = 1500;
+
 export function useHousekeepingAction() {
   const qc = useQueryClient();
+  const resync = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resync.current) clearTimeout(resync.current);
+    },
+    [],
+  );
+
   return useMutation({
     mutationFn: async (input: { roomId: string } & HousekeepingAction) => {
       const { roomId, ...body } = input;
@@ -90,20 +149,33 @@ export function useHousekeepingAction() {
     },
     // Patch ONLY the room the server just told us about, from the server's own
     // authoritative DTO — no optimistic guess, no client-side transition
-    // matrix. The card repaints immediately; the full board resync follows in
-    // the background so the user never waits for it.
+    // matrix. The card repaints immediately and the counts are re-derived from
+    // the authoritative cached list.
     onSuccess: (result) => {
       const room = result?.room;
-      if (!room) return;
+      if (!room) {
+        // No authoritative room DTO: refetch immediately rather than show a
+        // card the server never confirmed.
+        void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+        return;
+      }
       qc.setQueryData<HousekeepingBoardDTO>(HOUSEKEEPING_QUERY_KEY, (prev) =>
-        prev
-          ? { ...prev, rooms: prev.rooms.map((r) => (r.roomId === room.roomId ? room : r)) }
-          : prev,
+        prev ? patchBoardWithRoom(prev, room) : prev,
       );
+      // Do NOT race a competing full-board fetch against the repaint. The
+      // board still carries pending handoffs and cross-room state, so an
+      // authoritative resync is SCHEDULED (and debounced across rapid
+      // actions) once the card has already repainted.
+      if (resync.current) clearTimeout(resync.current);
+      resync.current = setTimeout(() => {
+        resync.current = null;
+        void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+      }, BOARD_RESYNC_DELAY_MS);
     },
-    // Background resync in every case: the board carries counts and pending
-    // handoffs that a single room cannot fully describe. On error nothing is
-    // patched, so no state change is ever faked.
-    onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY }),
+    // A failed action changes nothing locally; resync immediately so the board
+    // reflects authoritative server state.
+    onError: () => {
+      void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+    },
   });
 }

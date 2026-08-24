@@ -33,12 +33,20 @@ describe("WP1 per-room responsiveness", () => {
 
   it("only the clicked rooms show Updating… / aria-busy", () => {
     expect(BOARD).toContain("aria-busy={busy}");
-    expect(BOARD).toContain("disabled={busy}");
+    // A busy room is disabled; the control may ALSO be disabled when it is
+    // shown-but-not-yet-available (e.g. DND before initialisation).
+    expect(BOARD).toContain("disabled={busy || disabled === true}");
     expect(BOARD).toContain('{busy ? "Updating…" : children}');
     expect(BOARD).toContain('busy ? "Updating…"');
     const busyProps = BOARD.match(/busy=\{[^}]+\}/g) ?? [];
     for (const p of busyProps) {
-      expect(p === "busy={busy}" || p === "busy={pendingRoomIds.has(room.roomId)}").toBe(true);
+      // `busy={false}` is the visible-but-disabled control (e.g. DND before
+      // initialisation): never a fake in-flight state.
+      expect(
+        p === "busy={busy}" ||
+          p === "busy={false}" ||
+          p === "busy={pendingRoomIds.has(room.roomId)}",
+      ).toBe(true);
     }
   });
 
@@ -116,7 +124,8 @@ describe("WP1 server authority on the write path", () => {
 
   it("the cache patch uses the server DTO only, and skips when absent", () => {
     expect(CLIENT).toContain("const room = result?.room;");
-    expect(CLIENT).toContain("if (!room) return;");
+    // Missing DTO → no patch at all, resync instead of inventing a state.
+    expect(CLIENT).toMatch(/if \(!room\) \{[\s\S]*invalidateQueries[\s\S]*return;/);
     expect(CLIENT).toContain("r.roomId === room.roomId ? room : r");
     // No client-side next-condition guess anywhere.
     expect(CLIENT).not.toContain("onMutate");
@@ -125,16 +134,19 @@ describe("WP1 server authority on the write path", () => {
   });
 
   it("errors never patch a fake state; the board always background-resyncs", () => {
-    expect(CLIENT).toContain(
-      "onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY })",
-    );
+    // A failed action resyncs immediately; a successful one schedules a
+    // debounced authoritative resync so it never races the card repaint.
+    expect(CLIENT).toMatch(/onError: \(\) => \{[\s\S]*invalidateQueries/);
+    expect(CLIENT).toContain("BOARD_RESYNC_DELAY_MS");
     // setQueryData happens only inside onSuccess.
     const successIdx = CLIENT.indexOf("onSuccess:");
     const patchIdx = CLIENT.indexOf("qc.setQueryData");
     expect(successIdx).toBeGreaterThan(-1);
     expect(patchIdx).toBeGreaterThan(successIdx);
     expect(CLIENT.match(/qc\.setQueryData/g)!.length).toBe(1);
-    expect(CLIENT).not.toContain("onError:");
+    // onError exists, but only to resync — it must never patch the cache.
+    const errIdx = CLIENT.indexOf("onError:");
+    expect(CLIENT.slice(errIdx)).not.toContain("setQueryData");
   });
 
   it("the server still decides transitions, DND authority and mode role authority", () => {
