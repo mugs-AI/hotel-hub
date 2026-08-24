@@ -112,7 +112,8 @@ export async function resolveEffectiveRole(input: {
   // against is unchanged; ownership itself always comes from N3.
   if (cached && cached.role !== "owner") {
     const localStillMatches =
-      cached.role === null || (input.localRole?.isActive === true && input.localRole.role === cached.role);
+      cached.role === null ||
+      (input.localRole?.isActive === true && input.localRole.role === cached.role);
     if (localStillMatches) return { ...cached, fromCache: true };
   } else if (cached) {
     return { ...cached, fromCache: true };

@@ -124,9 +124,7 @@ export function extractN3Users(body: unknown): N3UsersRead {
         null)
       : null;
   if (!Array.isArray(container)) return { status: "malformed" };
-  const users = container
-    .map(normalizeN3User)
-    .filter((u): u is N3UserRecord => u !== null);
+  const users = container.map(normalizeN3User).filter((u): u is N3UserRecord => u !== null);
   if (users.length === 0) return { status: "malformed" };
   return { status: "ok", users };
 }
@@ -172,7 +170,9 @@ export function matchN3User(
 }
 
 /** An active local assignment is only ever preserved for these roles. */
-function preservedLocalRole(local: { role: HotelRole; isActive: boolean } | null): HotelRole | null {
+function preservedLocalRole(
+  local: { role: HotelRole; isActive: boolean } | null,
+): HotelRole | null {
   if (!local || !local.isActive) return null;
   return local.role === "front_desk" || local.role === "housekeeper" ? local.role : null;
 }

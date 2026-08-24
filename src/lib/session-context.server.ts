@@ -18,7 +18,6 @@ export type RequestContext =
     }
   | { authenticated: false };
 
-
 export async function readRequestContext(): Promise<RequestContext> {
   const session = await getHotelSession();
   const data = session.data as Partial<HotelSessionData>;
@@ -90,7 +89,6 @@ export async function readRequestContext(): Promise<RequestContext> {
     roleReason: effective.reason,
   };
 }
-
 
 export async function requirePermission(
   permission: Permission,

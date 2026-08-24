@@ -259,7 +259,9 @@ describe("P1 — response-time stabilization", () => {
   it("keeps every fail-closed check after the parallel reads settle", () => {
     const idx = STORE.indexOf("const [roomsRes, hkRes, occupancy, handoffRead]");
     const after = STORE.slice(idx);
-    expect(after).toContain('if (roomsRes.error) throw new HousekeepingError("housekeeping_failed")');
+    expect(after).toContain(
+      'if (roomsRes.error) throw new HousekeepingError("housekeeping_failed")',
+    );
     expect(after).toContain(
       'if (handoffRead.status !== "ok") throw new HousekeepingError("readiness_read_failed")',
     );
@@ -282,7 +284,7 @@ describe("P1 — response-time stabilization", () => {
   });
 
   it("runs the post-write single-room read alongside the audit write", () => {
-    expect(ROOM_ROUTE).toContain("const viewPromise = timings.measure(\"room_view\"");
+    expect(ROOM_ROUTE).toContain('const viewPromise = timings.measure("room_view"');
     expect(ROOM_ROUTE).toContain("room: await viewPromise");
   });
 });

@@ -118,9 +118,7 @@ export async function handleRoomAction({
   let authority;
   let timezone = "Asia/Kuala_Lumpur";
   try {
-    const settings = await timings.measure("settings", () =>
-      getHotelSettingsReadOnly(tenantId),
-    );
+    const settings = await timings.measure("settings", () => getHotelSettingsReadOnly(tenantId));
     timezone = settings?.timezone ?? timezone;
     authority = housekeepingAuthority(settings?.housekeepingMode ?? "simple", ctx.role);
   } catch {
