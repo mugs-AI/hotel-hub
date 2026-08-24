@@ -16,15 +16,23 @@ import {
 } from "@/lib/housekeeping-store.server";
 import { housekeepingAuthority } from "@/lib/housekeeping";
 import { deny } from "@/lib/operations-api.server";
+import { ServerTimings } from "@/lib/server-timing";
 
 export async function handleHousekeepingBoard(): Promise<Response> {
-  const { ctx, decision } = await requirePermission("hotel:housekeeping:view");
+  // Coarse stage timings only (durations + fixed names) so board latency can
+  // be attributed without exposing any request data.
+  const timings = new ServerTimings();
+  const { ctx, decision } = await timings.measure("authz", () =>
+    requirePermission("hotel:housekeeping:view"),
+  );
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
   try {
     // Read-only: a GET must never create a settings row as a side effect.
-    const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
+    const settings = await timings.measure("settings", () =>
+      getHotelSettingsReadOnly(ctx.session.tenantId!),
+    );
     const mode = settings?.housekeepingMode ?? "simple";
 
     // The workflow the property runs narrows the static role matrix. A
@@ -34,15 +42,21 @@ export async function handleHousekeepingBoard(): Promise<Response> {
 
     // Self-healing: retry any vacated-room bookkeeping still outstanding
     // before reporting conditions, so the board is never quietly wrong.
-    await reconcilePendingHandoffs(ctx.session.tenantId!);
+    // Ordering is authoritative and unchanged: outstanding vacated-room
+    // bookkeeping is reconciled BEFORE the board reports conditions.
+    await timings.measure("reconcile", () => reconcilePendingHandoffs(ctx.session.tenantId!));
 
-    const board = await getHousekeepingBoard({
-      tenantId: ctx.session.tenantId!,
-      timezone: settings?.timezone ?? "Asia/Kuala_Lumpur",
-      mode,
-      role: ctx.role,
+    const board = await timings.measure("board", () =>
+      getHousekeepingBoard({
+        tenantId: ctx.session.tenantId!,
+        timezone: settings?.timezone ?? "Asia/Kuala_Lumpur",
+        mode,
+        role: ctx.role,
+      }),
+    );
+    return Response.json(board, {
+      headers: timings.headers({ "cache-control": "no-store" }),
     });
-    return Response.json(board, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const code = err instanceof HousekeepingError ? err.code : "housekeeping_failed";
     return deny(statusForHousekeepingError(code), code);
