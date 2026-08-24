@@ -112,22 +112,69 @@ export function normalizeN3User(raw: unknown): N3UserRecord | null {
   };
 }
 
+/**
+ * Pure envelope unwrapping for the official `/api/Users` response.
+ *
+ * Real N3 responses are wrapped, e.g.
+ *   { code: "0000", data: { value: [UserDto], count: n } }
+ * but casing and nesting vary across endpoints, so a small set of shapes is
+ * accepted. Two hard rules:
+ *  - when the envelope carries `code`/`Code`, ONLY "0000" is success: a
+ *    non-success envelope is refused even if it happens to contain an array;
+ *  - nothing here ever returns or exposes the raw body.
+ */
+export type N3ArrayUnwrap =
+  | { status: "ok"; items: unknown[] }
+  | { status: "non_success" }
+  | { status: "malformed" };
+
+function asArray(v: unknown): unknown[] | null {
+  return Array.isArray(v) ? v : null;
+}
+
+export function unwrapN3Array(body: unknown): N3ArrayUnwrap {
+  const top = asArray(body);
+  if (top) return { status: "ok", items: top };
+  if (!body || typeof body !== "object") return { status: "malformed" };
+  const b = body as Record<string, unknown>;
+
+  const code = b.code ?? b.Code;
+  if ((typeof code === "string" && code.trim() !== "" && code.trim() !== "0000") ||
+      (typeof code === "number" && code !== 0)) {
+    return { status: "non_success" };
+  }
+
+  const data = b.data ?? b.Data;
+  const dataArray = asArray(data);
+  if (dataArray) return { status: "ok", items: dataArray };
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    for (const v of [d.value, d.Value, d.items, d.Items, d.data, d.Data]) {
+      const arr = asArray(v);
+      if (arr) return { status: "ok", items: arr };
+    }
+  }
+  for (const v of [b.value, b.Value, b.items, b.Items, b.result, b.Result]) {
+    const arr = asArray(v);
+    if (arr) return { status: "ok", items: arr };
+  }
+  return { status: "malformed" };
+}
+
 /** Tolerantly extract the user array out of the official `/api/Users` body. */
 export function extractN3Users(body: unknown): N3UsersRead {
-  const container = Array.isArray(body)
-    ? body
-    : body && typeof body === "object"
-      ? ((body as Record<string, unknown>).data ??
-        (body as Record<string, unknown>).value ??
-        (body as Record<string, unknown>).items ??
-        (body as Record<string, unknown>).result ??
-        null)
-      : null;
-  if (!Array.isArray(container)) return { status: "malformed" };
-  const users = container.map(normalizeN3User).filter((u): u is N3UserRecord => u !== null);
+  const unwrapped = unwrapN3Array(body);
+  // A non-success envelope is an upstream refusal, not a payload we may read:
+  // Owner authority must fail closed exactly as if N3 were unreachable.
+  if (unwrapped.status === "non_success") return { status: "unavailable" };
+  if (unwrapped.status !== "ok") return { status: "malformed" };
+  const users = unwrapped.items
+    .map(normalizeN3User)
+    .filter((u): u is N3UserRecord => u !== null);
   if (users.length === 0) return { status: "malformed" };
   return { status: "ok", users };
 }
+
 
 export type SessionIdentity = {
   /** Stable JWT identity of the authenticated user (never browser-supplied). */
