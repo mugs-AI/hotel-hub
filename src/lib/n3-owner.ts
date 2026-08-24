@@ -2,9 +2,11 @@
 //
 // HotelHub treats N3 as the sole identity authority. The persistent
 // tenant-scoped `hotel_user_roles` row is a LOCAL assignment, never proof of
-// ownership: a user whose N3 `isOwner` flag was removed must lose HotelHub
-// Owner authority immediately, even though the stale local owner row still
-// exists.
+// ownership: a user whose N3 `isOwner` flag was removed loses HotelHub Owner
+// authority no later than the bounded server-side decision cache expires for
+// that token (see `n3-owner.server.ts`), even though the stale local owner
+// row still exists. Truthfully: enforced within the cache window, not
+// literally instantaneously.
 //
 // This module holds only the deterministic matching + decision rules so they
 // can be unit-tested exhaustively. Fetching `/api/Users` with the server-held
