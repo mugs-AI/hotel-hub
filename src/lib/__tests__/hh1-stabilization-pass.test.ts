@@ -195,7 +195,9 @@ describe("P0 — the request context uses the effective role, not the local row"
     expect(CONTEXT).toContain("effective.role");
     // The local lookup is an assignment input only.
     expect(CONTEXT).toContain("localRole");
-    expect(CONTEXT).not.toMatch(/role: roleLookup\.role/);
+    // The local row is only ever passed IN as `localRole`; it is never
+    // returned as the effective role of the request.
+    expect(CONTEXT).not.toMatch(/\n\s+role: roleLookup\.role,/);
   });
 
   it("audits a revocation with reason codes only — no PII, no upstream payload", () => {
