@@ -4,6 +4,8 @@ import { getHotelSession, type HotelSessionData } from "./session.server";
 import { lookupRole } from "./tenant-store.server";
 import { authorize, type Permission, type AuthzDecision } from "./rbac";
 import { logAudit } from "./audit.server";
+import { resolveEffectiveRole } from "./n3-owner.server";
+import type { EffectiveRoleReason } from "./n3-owner";
 
 export type RequestContext =
   | {
@@ -11,8 +13,11 @@ export type RequestContext =
       session: HotelSessionData;
       role: import("./rbac").HotelRole | null;
       roleStatus: "assigned" | "role_unassigned";
+      /** Safe diagnostic code for how the effective role was decided. */
+      roleReason: EffectiveRoleReason | null;
     }
   | { authenticated: false };
+
 
 export async function readRequestContext(): Promise<RequestContext> {
   const session = await getHotelSession();
