@@ -40,7 +40,13 @@ describe("WP1 per-room responsiveness", () => {
     expect(BOARD).toContain('busy ? "Updating…"');
     const busyProps = BOARD.match(/busy=\{[^}]+\}/g) ?? [];
     for (const p of busyProps) {
-      expect(p === "busy={busy}" || p === "busy={pendingRoomIds.has(room.roomId)}").toBe(true);
+      // `busy={false}` is the visible-but-disabled control (e.g. DND before
+      // initialisation): never a fake in-flight state.
+      expect(
+        p === "busy={busy}" ||
+          p === "busy={false}" ||
+          p === "busy={pendingRoomIds.has(room.roomId)}",
+      ).toBe(true);
     }
   });
 
@@ -138,7 +144,9 @@ describe("WP1 server authority on the write path", () => {
     expect(successIdx).toBeGreaterThan(-1);
     expect(patchIdx).toBeGreaterThan(successIdx);
     expect(CLIENT.match(/qc\.setQueryData/g)!.length).toBe(1);
-    expect(CLIENT).not.toContain("onError:");
+    // onError exists, but only to resync — it must never patch the cache.
+    const errIdx = CLIENT.indexOf("onError:");
+    expect(CLIENT.slice(errIdx)).not.toContain("setQueryData");
   });
 
   it("the server still decides transitions, DND authority and mode role authority", () => {
