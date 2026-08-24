@@ -12,6 +12,8 @@
 // Ready rooms are collapsed behind a filter/counter so they never dominate.
 import { useMemo, useRef, useState } from "react";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+
 
 import {
   CONDITION_LABELS,
