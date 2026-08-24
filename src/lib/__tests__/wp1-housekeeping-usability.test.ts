@@ -154,7 +154,9 @@ describe("Do Not Disturb discoverability rule", () => {
   });
 
   it("the hint text exists and explains the initialise-first requirement", () => {
-    expect(DND_SETUP_HINT).toMatch(/housekeeping condition/i);
+    // The hint now names the exact first step (set Ready or Dirty) instead of
+    // the internal phrase "housekeeping condition".
+    expect(DND_SETUP_HINT).toMatch(/Ready or Dirty/i);
     expect(DND_SETUP_HINT).toMatch(/Do Not Disturb/i);
   });
 

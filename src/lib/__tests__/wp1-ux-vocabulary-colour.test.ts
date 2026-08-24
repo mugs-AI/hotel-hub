@@ -17,6 +17,7 @@ import {
   TONE_STYLE,
   TRANSITION_LABELS,
   TRANSITION_TONE,
+  DND_SET_LABEL,
 } from "@/lib/housekeeping";
 
 const read = (rel: string) => readFileSync(resolve(__dirname, rel), "utf8");
@@ -34,7 +35,10 @@ describe("WP1 action vocabulary", () => {
   it("renders explicit set-up labels for an uninitialised room", () => {
     expect(BOARD).toContain("Set up as Ready");
     expect(BOARD).toContain("Set up as Dirty");
-    expect(BOARD).toContain("Set Do Not Disturb");
+    // The set-DND label is now a single shared constant, rendered in both the
+    // enabled and the visible-but-disabled states.
+    expect(DND_SET_LABEL).toBe("Set Do Not Disturb");
+    expect(BOARD).toContain("{DND_SET_LABEL}");
     expect(BOARD).toContain("Clear Do Not Disturb");
   });
 

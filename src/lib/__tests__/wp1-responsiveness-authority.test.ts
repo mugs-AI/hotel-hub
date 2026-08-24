@@ -33,7 +33,9 @@ describe("WP1 per-room responsiveness", () => {
 
   it("only the clicked rooms show Updating… / aria-busy", () => {
     expect(BOARD).toContain("aria-busy={busy}");
-    expect(BOARD).toContain("disabled={busy}");
+    // A busy room is disabled; the control may ALSO be disabled when it is
+    // shown-but-not-yet-available (e.g. DND before initialisation).
+    expect(BOARD).toContain("disabled={busy || disabled === true}");
     expect(BOARD).toContain('{busy ? "Updating…" : children}');
     expect(BOARD).toContain('busy ? "Updating…"');
     const busyProps = BOARD.match(/busy=\{[^}]+\}/g) ?? [];
@@ -116,7 +118,8 @@ describe("WP1 server authority on the write path", () => {
 
   it("the cache patch uses the server DTO only, and skips when absent", () => {
     expect(CLIENT).toContain("const room = result?.room;");
-    expect(CLIENT).toContain("if (!room) return;");
+    // Missing DTO → no patch at all, resync instead of inventing a state.
+    expect(CLIENT).toMatch(/if \(!room\) \{[\s\S]*invalidateQueries[\s\S]*return;/);
     expect(CLIENT).toContain("r.roomId === room.roomId ? room : r");
     // No client-side next-condition guess anywhere.
     expect(CLIENT).not.toContain("onMutate");
@@ -125,9 +128,10 @@ describe("WP1 server authority on the write path", () => {
   });
 
   it("errors never patch a fake state; the board always background-resyncs", () => {
-    expect(CLIENT).toContain(
-      "onSettled: () => qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY })",
-    );
+    // A failed action resyncs immediately; a successful one schedules a
+    // debounced authoritative resync so it never races the card repaint.
+    expect(CLIENT).toMatch(/onError: \(\) => \{[\s\S]*invalidateQueries/);
+    expect(CLIENT).toContain("BOARD_RESYNC_DELAY_MS");
     // setQueryData happens only inside onSuccess.
     const successIdx = CLIENT.indexOf("onSuccess:");
     const patchIdx = CLIENT.indexOf("qc.setQueryData");
