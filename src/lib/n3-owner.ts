@@ -141,8 +141,10 @@ export function unwrapN3Array(body: unknown): N3ArrayUnwrap {
   const b = body as Record<string, unknown>;
 
   const code = b.code ?? b.Code;
-  if ((typeof code === "string" && code.trim() !== "" && code.trim() !== "0000") ||
-      (typeof code === "number" && code !== 0)) {
+  if (
+    (typeof code === "string" && code.trim() !== "" && code.trim() !== "0000") ||
+    (typeof code === "number" && code !== 0)
+  ) {
     return { status: "non_success" };
   }
 
@@ -170,13 +172,10 @@ export function extractN3Users(body: unknown): N3UsersRead {
   // Owner authority must fail closed exactly as if N3 were unreachable.
   if (unwrapped.status === "non_success") return { status: "unavailable" };
   if (unwrapped.status !== "ok") return { status: "malformed" };
-  const users = unwrapped.items
-    .map(normalizeN3User)
-    .filter((u): u is N3UserRecord => u !== null);
+  const users = unwrapped.items.map(normalizeN3User).filter((u): u is N3UserRecord => u !== null);
   if (users.length === 0) return { status: "malformed" };
   return { status: "ok", users };
 }
-
 
 export type SessionIdentity = {
   /** Stable JWT identity of the authenticated user (never browser-supplied). */

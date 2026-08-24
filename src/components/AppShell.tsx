@@ -306,7 +306,6 @@ export function RoleUnassignedShell({
   );
 }
 
-
 function SessionBadge({
   session,
   onSignOut,

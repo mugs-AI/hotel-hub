@@ -151,7 +151,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   // submitting?", independent of React render timing.
   const guard = useRef(createRoomActionGuard());
 
-
   const rooms = board.data?.rooms ?? [];
   const floors = useMemo(() => {
     const set = new Set<string>();
@@ -227,7 +226,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       onSettled: (roomId) => setPendingRoomIds((prev) => removePendingRoom(prev, roomId)),
     });
   }
-
 
   if (board.isLoading) {
     return <p className="text-sm text-muted-foreground">Loading room conditions…</p>;
