@@ -25,7 +25,9 @@ describe("WP1 per-room responsiveness", () => {
     expect(BOARD).not.toContain("pendingRoomId === room.roomId");
     expect(BOARD).not.toMatch(/useState<string \| null>\(null\);\s*\n\s*const rooms/);
     expect(BOARD).toContain("busy={pendingRoomIds.has(room.roomId)}");
-    expect(BOARD).toContain("setPendingRoomIds((prev) => addPendingRoom(prev, payload.roomId))");
+    // Superseded by the controller correction: the pending id is now added
+    // in the guarded runner's onStart callback, keyed by the claimed roomId.
+    expect(BOARD).toContain("setPendingRoomIds((prev) => addPendingRoom(prev, roomId))");
     // No global board-wide disabling from the mutation object.
     expect(BOARD).not.toContain("act.isPending");
     expect(BOARD).not.toContain("disabled={act.isPending}");
@@ -51,9 +53,13 @@ describe("WP1 per-room responsiveness", () => {
   });
 
   it("removes only the settled room in onSettled so a failed action never freezes a card", () => {
+    // Superseded by the controller correction: each invocation clears its OWN
+    // id in its own finally (see runGuardedRoomAction), not via a shared
+    // mutation-observer callback.
     expect(BOARD).toContain(
-      "onSettled: () => setPendingRoomIds((prev) => removePendingRoom(prev, payload.roomId))",
+      "onSettled: (roomId) => setPendingRoomIds((prev) => removePendingRoom(prev, roomId))",
     );
+    expect(BOARD).toContain("runGuardedRoomAction");
     expect(BOARD).not.toContain("setPendingRoomId(null)");
   });
 });
