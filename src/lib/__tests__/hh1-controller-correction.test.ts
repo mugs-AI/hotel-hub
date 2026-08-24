@@ -280,7 +280,7 @@ describe("2 — ownership lookup never storms N3 and never stalls the app", () =
 
 // ------------------------------------------------------- 3. role-unassigned UI
 
-function sessionFixture(roleReason: SessionMe extends never ? never : unknown) {
+function sessionFixture(roleReason: unknown) {
   return {
     authenticated: true,
     tenant: {
