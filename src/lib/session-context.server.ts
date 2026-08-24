@@ -104,6 +104,7 @@ export async function requirePermission(
         session: {} as HotelSessionData,
         role: null,
         roleStatus: "role_unassigned",
+        roleReason: null,
       },
       decision,
     };
