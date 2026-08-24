@@ -55,7 +55,9 @@ export function depositsAttentionLine(deposits: ReadonlyArray<{ status: string }
 
   if (failed === 0 && unconfirmed === 0) return null;
   const parts: string[] = [];
-  if (unconfirmed > 0) parts.push(`${unconfirmed} unconfirmed in N3`);
+  if (unconfirmed > 0) {
+    parts.push(`${unconfirmed} unconfirmed in N3 — do not re-post, check N3 first`);
+  }
   if (failed > 0) parts.push(`${failed} failed`);
   return `Needs attention: ${parts.join(" · ")}`;
 }
@@ -79,7 +81,6 @@ export function DepositsCard({
   // Stable per-confirmation-attempt identity. Minted on "Add deposit",
   // cleared only on cancel or a completed server result.
   const [attempt, setAttempt] = useState<{ clientRequestId: string; amount: number } | null>(null);
-  const [showNoDepositDetails, setShowNoDepositDetails] = useState(false);
   // Quiet by default: the card only opens when someone asks for detail.
   const [expanded, setExpanded] = useState(false);
 
@@ -134,7 +135,7 @@ export function DepositsCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-          Deposits / Receive Payments
+          Deposits
         </h2>
         <div className="flex items-center gap-3">
           <span className="text-sm" style={{ color: NAVY }}>
@@ -172,37 +173,15 @@ export function DepositsCard({
           {q.isPending ? (
             <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
           ) : deposits.length === 0 ? (
-            <div className="mt-3 text-sm text-muted-foreground">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-medium" style={{ color: NAVY }}>
-                  {depositsCompactSummary({ gateOpen })}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowNoDepositDetails((v) => !v)}
-                  className="inline-flex items-center gap-1 text-xs font-medium underline"
-                  style={{ color: TEAL }}
-                  aria-expanded={showNoDepositDetails}
-                >
-                  {showNoDepositDetails ? (
-                    <ChevronUp className="h-3 w-3" aria-hidden />
-                  ) : (
-                    <ChevronDown className="h-3 w-3" aria-hidden />
-                  )}
-                  {showNoDepositDetails ? "Hide details" : "Show details"}
-                </button>
-              </div>
-              {showNoDepositDetails ? (
-                <div className="mt-2 space-y-1">
-                  <p>No HotelHub-linked deposits are recorded for this reservation.</p>
-                  {!gateOpen ? (
-                    <p>Deposit posting is currently disabled for this property.</p>
-                  ) : null}
-                  <p className="text-xs">
-                    A Receive Payment created directly in N3 is not linked here automatically.
-                  </p>
-                </div>
-              ) : null}
+            <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+              <p className="font-medium" style={{ color: NAVY }}>
+                {depositsCompactSummary({ gateOpen })}
+              </p>
+              <p>No HotelHub-linked deposits are recorded for this reservation.</p>
+              {!gateOpen ? <p>Deposit posting is currently disabled for this property.</p> : null}
+              <p className="text-xs">
+                A Receive Payment created directly in N3 is not linked here automatically.
+              </p>
             </div>
           ) : (
             <ul className="mt-3 space-y-2">

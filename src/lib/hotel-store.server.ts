@@ -67,7 +67,6 @@ function toSettings(row: SettingsRow): HotelSettings {
     standardCheckOutTime: row.standard_check_out_time,
     exceptionApprovalMode: row.exception_approval_mode === "direct" ? "direct" : "owner_approval",
 
-
     postCheckInGuestEditPolicy:
       row.post_check_in_guest_edit_policy === "locked" ? "locked" : "contact_only",
     allowOwnerPrimaryGuestChangeAfterCheckIn: Boolean(
@@ -87,7 +86,6 @@ function toSettings(row: SettingsRow): HotelSettings {
 
 const SETTINGS_COLS =
   "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
-
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -119,7 +117,9 @@ export async function getOrCreateHotelSettings(tenantId: string): Promise<HotelS
   if (existing.data) return toSettings(existing.data as SettingsRow);
   const inserted = await supabaseAdmin
     .from("hotel_settings" as never)
-    .insert({ tenant_id: tenantId } as never)
+    // A brand-new property starts on direct actions; existing properties are
+    // never migrated off owner approval.
+    .insert({ tenant_id: tenantId, exception_approval_mode: "direct" } as never)
     .select(SETTINGS_COLS)
     .single();
   if (inserted.error || !inserted.data) {
@@ -141,7 +141,6 @@ export async function updateHotelSettings(
     exceptionApprovalMode: "owner_approval" | "direct";
   }>,
 ): Promise<HotelSettings> {
-
   await getOrCreateHotelSettings(tenantId); // ensure row exists
   const update: Record<string, unknown> = {};
   if (patch.currency) update.currency = patch.currency;

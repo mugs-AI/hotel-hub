@@ -268,6 +268,33 @@ export function useDecideOperation(reservationId: string) {
 export type ExceptionApprovalMode = "owner_approval" | "direct";
 
 /**
+ * Effective behaviour, computed from the SERVER session role and the SERVER
+ * property setting. An Owner never queues an exception for themself, so an
+ * Owner is direct in either mode; Front Desk is direct only in direct mode.
+ */
+export function effectiveExceptionMode(
+  role: string | null | undefined,
+  setting: ExceptionApprovalMode | null | undefined,
+): ExceptionApprovalMode {
+  if (role === "owner") return "direct";
+  return setting === "direct" ? "direct" : "owner_approval";
+}
+
+/** Plain, imperative names used when the button really does the thing. */
+const DIRECT_ACTION_LABELS: Record<string, string> = {
+  early_check_in: "Early check-in",
+  late_checkout: "Late checkout",
+  stay_extension: "Extend stay",
+  room_change: "Change room",
+  rate_change: "Change rate",
+};
+
+/** Direct-mode name for an operation type. */
+export function directActionLabel(type: string, fallback: string): string {
+  return DIRECT_ACTION_LABELS[type] ?? fallback;
+}
+
+/**
  * Action-button label. In direct mode the button does what it says, so it must
  * NOT promise a request that will never be queued.
  */
@@ -277,7 +304,7 @@ export function exceptionActionLabel(label: string, mode: ExceptionApprovalMode)
 
 /** Submit-button label for the open exception flow. */
 export function exceptionSubmitLabel(mode: ExceptionApprovalMode, pending: boolean): string {
-  if (mode === "direct") return pending ? "Applying…" : "Apply now";
+  if (mode === "direct") return pending ? "Applying…" : "Apply change";
   return pending ? "Sending…" : "Send for approval";
 }
 

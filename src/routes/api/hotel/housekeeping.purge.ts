@@ -1,22 +1,47 @@
-// POST /api/hotel/housekeeping/purge — Owner only.
+// GET  /api/hotel/housekeeping/purge — Owner only. Authoritative preview.
+// POST /api/hotel/housekeeping/purge — Owner only. Fixed 30-day purge.
 //
-// Deletes this property's housekeeping history older than the requested
-// number of days (default 30). The delete and its audit record are applied in
-// ONE transaction by a service-role routine, so a purge is never silent. No
-// scheduler is involved: retention is an explicit, deliberate Owner action.
+// There is exactly ONE retention policy: remove this property's housekeeping
+// history older than 30 days. The browser cannot choose a window, a tenant or
+// an actor — tenant and actor come from the trusted session and the cut-off is
+// recomputed by the database on every call. The delete and its audit record
+// are applied in ONE transaction by a service-role routine, so a purge is
+// never silent. No scheduler is involved.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
-import { purgeHousekeepingHistory } from "@/lib/housekeeping-store.server";
+import {
+  HOUSEKEEPING_RETENTION_DAYS,
+  previewHousekeepingHistoryPurge,
+  purgeHousekeepingHistory,
+} from "@/lib/housekeeping-store.server";
 import { deny, isSameOriginWrite, readJsonBody, rejectUnknown } from "@/lib/operations-api.server";
 
-const ALLOWED = new Set(["days"]);
+/** The purge takes NO product parameters. Any field at all is refused. */
+const ALLOWED = new Set<string>();
 
-/** Owner-selectable retention windows. Anything else is refused. */
-export const RETENTION_DAY_OPTIONS = [30, 60, 90, 180, 365] as const;
+/** The one and only retention window. Kept exported for tests and the UI. */
+export const RETENTION_DAYS = HOUSEKEEPING_RETENTION_DAYS;
 
-export function isRetentionDays(v: unknown): v is number {
-  return typeof v === "number" && (RETENTION_DAY_OPTIONS as readonly number[]).includes(v);
+export async function handleHousekeepingPurgePreview(): Promise<Response> {
+  const { ctx, decision } = await requirePermission("hotel:setup");
+  if (!decision.ok) {
+    return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
+  }
+  try {
+    const preview = await previewHousekeepingHistoryPurge({
+      tenantId: ctx.session.tenantId!,
+    });
+    return Response.json(
+      {
+        ...preview,
+        tenantLabel: ctx.session.companyName ?? ctx.session.tenantCode ?? null,
+      },
+      { headers: { "cache-control": "no-store" } },
+    );
+  } catch {
+    return deny(503, "housekeeping_failed");
+  }
 }
 
 export async function handleHousekeepingPurge({
@@ -31,15 +56,13 @@ export async function handleHousekeepingPurge({
   }
   const parsed = await readJsonBody(request);
   if (!parsed.ok) return deny(400, parsed.code);
+  // No days, no tenant, no actor — nothing the browser can supply is honoured.
   if (rejectUnknown(parsed.body, ALLOWED) !== null) return deny(400, "unknown_field");
-  const days = parsed.body.days === undefined ? 30 : parsed.body.days;
-  if (!isRetentionDays(days)) return deny(400, "validation_failed");
 
   try {
     const result = await purgeHousekeepingHistory({
       tenantId: ctx.session.tenantId!,
       actorN3UserKey: ctx.session.n3UserKey,
-      days,
     });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch {
@@ -47,12 +70,14 @@ export async function handleHousekeepingPurge({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.housekeeping.history_purge_failed",
-      detail: { days },
+      detail: { days: RETENTION_DAYS },
     });
     return deny(503, "housekeeping_failed");
   }
 }
 
 export const Route = createFileRoute("/api/hotel/housekeeping/purge")({
-  server: { handlers: { POST: handleHousekeepingPurge } },
+  server: {
+    handlers: { GET: handleHousekeepingPurgePreview, POST: handleHousekeepingPurge },
+  },
 });

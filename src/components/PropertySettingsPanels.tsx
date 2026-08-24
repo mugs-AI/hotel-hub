@@ -1,7 +1,7 @@
 // Owner-only Settings panels: property basics, guest-editing controls and the
 // N3 integration mapping. All writes go through same-origin, cookie
 // authenticated API routes — never Supabase or N3 from the browser.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { resetHousekeepingBoardCache } from "@/lib/housekeeping-client";
@@ -467,32 +467,71 @@ export function ExceptionApprovalPanel({
   );
 }
 
-const RETENTION_OPTIONS = [30, 60, 90, 180, 365] as const;
+/** Fixed, non-negotiable retention window. There is no selectable option. */
+export const RETENTION_DAYS = 30;
+
+type PurgePreview = {
+  cutoff: string;
+  count: number;
+  days: number;
+  tenantLabel: string | null;
+};
+
+/** Exact Malaysian-local rendering of the server-computed cut-off. */
+export function retentionCutoffLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kuala_Lumpur",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
 
 export function HousekeepingRetentionPanel() {
-  const [days, setDays] = useState<number>(30);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState<PurgePreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const qc = useQueryClient();
+
+  const loadPreview = useCallback(async () => {
+    try {
+      const r = await hotelJson<PurgePreview>("/api/hotel/housekeeping/purge");
+      setPreview(r);
+      setPreviewError(null);
+    } catch (e) {
+      setPreview(null);
+      setPreviewError(
+        friendlyError((e as Error).message, "Unable to check the housekeeping history."),
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPreview();
+  }, [loadPreview]);
 
   async function purge() {
     setBusy(true);
     try {
+      // No parameters: the server owns the tenant, the actor and the cut-off.
       const r = await hotelJson<{ deleted: number; cutoff: string }>(
         "/api/hotel/housekeeping/purge",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ days }),
-        },
+        { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
       );
       resetHousekeepingBoardCache(qc);
       setConfirming(false);
       toast.success(
         r.deleted === 0
-          ? "Nothing to remove — no housekeeping history is older than that."
+          ? "Nothing to remove — no housekeeping history is older than 30 days."
           : `Removed ${r.deleted} housekeeping history ${r.deleted === 1 ? "entry" : "entries"}.`,
       );
+      await loadPreview();
     } catch (e) {
       toast.error(friendlyError((e as Error).message, "Unable to clean up housekeeping history."));
     } finally {
@@ -500,34 +539,40 @@ export function HousekeepingRetentionPanel() {
     }
   }
 
+  const cutoff = preview ? retentionCutoffLabel(preview.cutoff) : null;
+
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
       <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
         Housekeeping history retention
       </h2>
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-        Housekeeping history is kept until you remove it. Clearing older entries keeps the per-room
-        history readable. Current room conditions are never affected, and the clean-up itself is
-        recorded in the audit log.
+        There is one retention policy: housekeeping history older than {RETENTION_DAYS} days can be
+        removed. Current room conditions, Do Not Disturb and room handoffs are never affected, and
+        the clean-up itself is recorded in the audit log.
       </p>
 
-      <label className="mt-4 block text-xs font-medium" style={{ color: NAVY }}>
-        Remove entries older than
-        <select
-          value={days}
-          onChange={(e) => {
-            setDays(Number(e.target.value));
-            setConfirming(false);
-          }}
-          className="mt-1 block rounded-md border border-input bg-white px-2 py-1.5 text-sm"
-        >
-          {RETENTION_OPTIONS.map((d) => (
-            <option key={d} value={d}>
-              {d} days
-            </option>
-          ))}
-        </select>
-      </label>
+      <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-xs text-muted-foreground">Property</dt>
+          <dd style={{ color: NAVY }}>{preview?.tenantLabel ?? "This property"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Cut-off (Malaysia time)</dt>
+          <dd style={{ color: NAVY }}>{cutoff ?? "Checking…"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Entries older than the cut-off</dt>
+          <dd className="tabular-nums" style={{ color: NAVY }}>
+            {preview ? preview.count : "—"}
+          </dd>
+        </div>
+      </dl>
+      {previewError ? (
+        <p className="mt-2 text-xs" style={{ color: GOLD }}>
+          {previewError}
+        </p>
+      ) : null}
 
       {!confirming ? (
         <button
@@ -536,13 +581,15 @@ export function HousekeepingRetentionPanel() {
           className="mt-4 rounded-md border px-3 py-2 text-sm font-semibold"
           style={{ borderColor: GOLD, color: NAVY }}
         >
-          Clean up history…
+          Purge history older than 30 days
         </button>
       ) : (
         <div className="mt-4 rounded-md border p-3 text-sm" style={{ borderColor: `${GOLD}88` }}>
           <p style={{ color: NAVY }}>
-            This permanently removes housekeeping history older than {days} days. It cannot be
-            undone.
+            This permanently removes {preview ? preview.count : 0} housekeeping history{" "}
+            {preview && preview.count === 1 ? "entry" : "entries"} for{" "}
+            {preview?.tenantLabel ?? "this property"} recorded before {cutoff ?? "the cut-off"}. It
+            cannot be undone.
           </p>
           <div className="mt-2 flex gap-2">
             <button

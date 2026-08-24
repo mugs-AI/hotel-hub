@@ -26,8 +26,11 @@ import {
   DND_SET_LABEL,
   DND_ACTIVE_LABEL,
   DND_CLEAR_LABEL,
+  DND_NEXT_ACTION,
+  DND_SUPPORTING_TEXT,
   actorDisplayName,
   historyEntryLine,
+  historyTimestampLabel,
   TONE_STYLE,
   TRANSITION_LABELS,
   TRANSITION_TONE,
@@ -626,7 +629,7 @@ export function RoomCard({
           className="mt-2 rounded-md px-2 py-1 text-[11px] font-medium"
           style={{ backgroundColor: HK_COLORS.indigoSoft, color: HK_COLORS.indigoInk }}
         >
-          Do Not Disturb — cleaning paused.
+          {DND_SUPPORTING_TEXT} · {DND_NEXT_ACTION}
         </p>
       )}
 
@@ -688,8 +691,8 @@ export function RoomCard({
                 </ActionButton>
               ))}
               {canDnd && room.canClearDnd && (
-                <ActionButton tone="positive" busy={busy} primary onClick={() => onDnd(false)}>
-                  Clear Do Not Disturb
+                <ActionButton tone="dndClear" busy={busy} primary onClick={() => onDnd(false)}>
+                  {DND_CLEAR_LABEL}
                 </ActionButton>
               )}
             </div>
@@ -822,7 +825,7 @@ function RoomHistory({
                 {historyEntryLine(e)}
               </p>
               <p className="text-muted-foreground">
-                {actorDisplayName(e.actorLabel)} · {new Date(e.createdAt).toLocaleString()}
+                {actorDisplayName(e.actorLabel)} · {historyTimestampLabel(e.createdAt)}
               </p>
             </li>
           ))}

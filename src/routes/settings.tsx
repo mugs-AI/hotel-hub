@@ -122,11 +122,12 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "system" | "n3" | "sources";
+type SettingsTab = "property" | "guests" | "operations" | "system" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
+  { id: "operations", label: "Operations" },
   { id: "system", label: "System" },
   { id: "n3", label: "N3 Integration" },
   { id: "sources", label: "Booking Sources" },
@@ -194,6 +195,8 @@ function SettingsWorkspace() {
         <PropertyPanel settings={settings} onChange={setSettings} />
       ) : tab === "guests" ? (
         <GuestControlsPanel settings={settings} onChange={setSettings} />
+      ) : tab === "operations" ? (
+        <OperationsScreen settings={settings} onChange={setSettings} />
       ) : tab === "system" ? (
         <SystemScreen settings={settings} onChange={setSettings} />
       ) : (
@@ -227,11 +230,32 @@ function SystemScreen({
       <section aria-label="Housekeeping workflow">
         <HousekeepingPanel settings={settings} onChange={onChange} />
       </section>
-      <section aria-label="Reservation exception approvals">
-        <ExceptionApprovalPanel settings={settings} onChange={onChange} />
-      </section>
       <section aria-label="Housekeeping history retention">
         <HousekeepingRetentionPanel />
+      </section>
+    </div>
+  );
+}
+
+function OperationsScreen({
+  settings,
+  onChange,
+}: {
+  settings: Parameters<typeof ExceptionApprovalPanel>[0]["settings"];
+  onChange: Parameters<typeof ExceptionApprovalPanel>[0]["onChange"];
+}) {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+          Operations
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          How front-desk exceptions are authorised for your property.
+        </p>
+      </header>
+      <section aria-label="Reservation exception approvals">
+        <ExceptionApprovalPanel settings={settings} onChange={onChange} />
       </section>
     </div>
   );

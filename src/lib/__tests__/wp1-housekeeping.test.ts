@@ -161,7 +161,7 @@ describe("board grouping and guidance", () => {
   it("always gives a plain-language next step", () => {
     expect(nextStepHint(state({ initialized: false, condition: null }))).toMatch(/set up/i);
     expect(nextStepHint(state({ condition: "dirty" }))).toMatch(/start cleaning/i);
-    expect(nextStepHint(state({ dndActive: true }))).toMatch(/do not disturb/i);
+    expect(nextStepHint(state({ dndActive: true }))).toMatch(/clear dnd/i);
   });
 });
 

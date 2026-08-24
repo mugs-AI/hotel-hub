@@ -304,7 +304,7 @@ export function blockerLabel(code: string): string {
 export function nextStepHint(state: RoomTurnaroundState): string {
   if (!state.isActive) return "Inactive room — no housekeeping needed.";
   if (!state.initialized) return "Set up housekeeping for this room to start tracking it.";
-  if (state.dndActive) return "Guest asked not to be disturbed. Clear Do Not Disturb to continue.";
+  if (state.dndActive) return DND_NEXT_ACTION;
   switch (state.condition) {
     case "dirty":
       return "Start cleaning this room.";
@@ -493,7 +493,13 @@ export const DND_CLEANING_HINT =
 export const DND_SET_LABEL = "Set Do Not Disturb";
 
 export const DND_ACTIVE_LABEL = "DND Active";
-export const DND_CLEAR_LABEL = "Clear Do Not Disturb";
+export const DND_CLEAR_LABEL = "Clear DND";
+
+/** Why the room is paused — stated as the guest's choice, not a fault. */
+export const DND_SUPPORTING_TEXT = "Guest privacy requested";
+
+/** The single next action a DND room is waiting on. */
+export const DND_NEXT_ACTION = "Clear DND to resume housekeeping";
 
 /**
  * Human name for an actor in housekeeping history. N3 user keys and emails are
@@ -521,4 +527,19 @@ export function historyEntryLine(e: {
   return e.previousCondition && e.resultingCondition
     ? `${head} · ${e.previousCondition} → ${e.resultingCondition}`
     : head;
+}
+
+/** Property-local (Asia/Kuala_Lumpur) display for a history timestamp. */
+export function historyTimestampLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kuala_Lumpur",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }

@@ -1078,29 +1078,57 @@ export async function roomReadinessBlocker(
 }
 
 /**
- * Owner-only housekeeping history retention.
+ * Owner-only housekeeping history retention — ONE fixed policy.
  *
- * Permanently deletes this tenant's housekeeping events older than `days`.
- * The delete and its audit record happen inside ONE transactional
- * SECURITY DEFINER routine, so a purge can never be applied without being
- * recorded. There is no scheduler: retention is an explicit Owner action.
+ * There is no selectable window: the property either keeps its housekeeping
+ * history or removes everything older than exactly 30 days. The cut-off is
+ * computed by the database, never by the browser and never by this process.
  */
-export async function purgeHousekeepingHistory(input: {
+export const HOUSEKEEPING_RETENTION_DAYS = 30 as const;
+
+/**
+ * Authoritative preview: the exact server cut-off (now - 30 days) and how
+ * many of THIS tenant's housekeeping events fall before it.
+ */
+export async function previewHousekeepingHistoryPurge(input: {
   tenantId: string;
-  actorN3UserKey: string;
-  days: number;
-}): Promise<{ deleted: number; cutoff: string }> {
-  if (!Number.isInteger(input.days) || input.days < 1 || input.days > 3650) {
-    throw new HousekeepingError("validation_failed");
-  }
+}): Promise<{ cutoff: string; count: number; days: number }> {
   const sb = await admin();
-  const res = await sb.rpc("hotelhub_purge_housekeeping_history", {
+  const res = await sb.rpc("hotelhub_housekeeping_history_preview_30d", {
     p_tenant_id: input.tenantId,
-    p_actor_n3_user_key: input.actorN3UserKey,
-    p_days: input.days,
   });
   if (res.error) throw mapHousekeepingRpcError(res.error.message);
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new HousekeepingError("housekeeping_failed");
-  return { deleted: Number(row.out_deleted ?? 0), cutoff: String(row.out_cutoff) };
+  return {
+    cutoff: String(row.out_cutoff),
+    count: Number(row.out_count ?? 0),
+    days: HOUSEKEEPING_RETENTION_DAYS,
+  };
+}
+
+/**
+ * Permanently deletes this tenant's housekeeping events older than the fixed
+ * 30-day cut-off. The delete and its audit record happen inside ONE
+ * transactional SECURITY DEFINER routine, so a purge can never be applied
+ * without being recorded. There is no scheduler: retention is an explicit
+ * Owner action, and current room state, DND and handoffs are never touched.
+ */
+export async function purgeHousekeepingHistory(input: {
+  tenantId: string;
+  actorN3UserKey: string;
+}): Promise<{ deleted: number; cutoff: string; days: number }> {
+  const sb = await admin();
+  const res = await sb.rpc("hotelhub_purge_housekeeping_history_30d", {
+    p_tenant_id: input.tenantId,
+    p_actor_n3_user_key: input.actorN3UserKey,
+  });
+  if (res.error) throw mapHousekeepingRpcError(res.error.message);
+  const row = Array.isArray(res.data) ? res.data[0] : res.data;
+  if (!row) throw new HousekeepingError("housekeeping_failed");
+  return {
+    deleted: Number(row.out_deleted ?? 0),
+    cutoff: String(row.out_cutoff),
+    days: HOUSEKEEPING_RETENTION_DAYS,
+  };
 }

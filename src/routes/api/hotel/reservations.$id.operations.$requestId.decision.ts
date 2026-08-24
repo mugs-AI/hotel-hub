@@ -80,9 +80,7 @@ export async function handleOperationDecision({
   return Response.json(
     {
       ...outcome.result,
-      ...(outcome.housekeepingHandoff
-        ? { housekeepingHandoff: outcome.housekeepingHandoff }
-        : {}),
+      ...(outcome.housekeepingHandoff ? { housekeepingHandoff: outcome.housekeepingHandoff } : {}),
     },
     { headers: { "cache-control": "no-store" } },
   );
