@@ -492,23 +492,48 @@ export function retentionCutoffLabel(iso: string): string {
   }).format(d);
 }
 
+/**
+ * The destructive purge is only reachable from an authoritative preview.
+ * Pure so it can be proven directly: no preview, a failed preview or a preview
+ * still loading all mean "not allowed".
+ */
+export function canOpenRetentionConfirmation(input: {
+  preview: { cutoff: string; count: number } | null;
+  loading: boolean;
+  error: string | null;
+}): boolean {
+  if (input.loading || input.error !== null || input.preview === null) return false;
+  return typeof input.preview.cutoff === "string" && Number.isFinite(input.preview.count);
+}
+
 export function HousekeepingRetentionPanel() {
-  const [confirming, setConfirming] = useState(false);
+  // The destructive step is impossible without an authoritative preview: the
+  // confirmation FREEZES the exact property, cut-off and count it displays,
+  // and it can never be opened from a missing, failed or loading preview.
+  const [confirming, setConfirming] = useState<PurgePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<PurgePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(true);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const qc = useQueryClient();
 
   const loadPreview = useCallback(async () => {
+    setPreviewLoading(true);
     try {
       const r = await hotelJson<PurgePreview>("/api/hotel/housekeeping/purge");
+      if (!r || typeof r.cutoff !== "string" || typeof r.count !== "number") {
+        throw new Error("preview_unavailable");
+      }
       setPreview(r);
       setPreviewError(null);
     } catch (e) {
       setPreview(null);
+      setConfirming(null);
       setPreviewError(
         friendlyError((e as Error).message, "Unable to check the housekeeping history."),
       );
+    } finally {
+      setPreviewLoading(false);
     }
   }, []);
 
@@ -517,6 +542,7 @@ export function HousekeepingRetentionPanel() {
   }, [loadPreview]);
 
   async function purge() {
+    if (!confirming) return;
     setBusy(true);
     try {
       // No parameters: the server owns the tenant, the actor and the cut-off.
@@ -525,7 +551,7 @@ export function HousekeepingRetentionPanel() {
         { method: "POST", headers: { "content-type": "application/json" }, body: "{}" },
       );
       resetHousekeepingBoardCache(qc);
-      setConfirming(false);
+      setConfirming(null);
       toast.success(
         r.deleted === 0
           ? "Nothing to remove — no housekeeping history is older than 30 days."
@@ -539,7 +565,13 @@ export function HousekeepingRetentionPanel() {
     }
   }
 
+  const previewValid = canOpenRetentionConfirmation({
+    preview,
+    loading: previewLoading,
+    error: previewError,
+  });
   const cutoff = preview ? retentionCutoffLabel(preview.cutoff) : null;
+  const frozenCutoff = confirming ? retentionCutoffLabel(confirming.cutoff) : null;
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
@@ -559,26 +591,42 @@ export function HousekeepingRetentionPanel() {
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Cut-off (Malaysia time)</dt>
-          <dd style={{ color: NAVY }}>{cutoff ?? "Checking…"}</dd>
+          <dd style={{ color: NAVY }}>
+            {previewValid ? cutoff : previewLoading ? "Checking…" : "—"}
+          </dd>
         </div>
         <div>
           <dt className="text-xs text-muted-foreground">Entries older than the cut-off</dt>
           <dd className="tabular-nums" style={{ color: NAVY }}>
-            {preview ? preview.count : "—"}
+            {previewValid ? preview!.count : "—"}
           </dd>
         </div>
       </dl>
       {previewError ? (
         <p className="mt-2 text-xs" style={{ color: GOLD }}>
-          {previewError}
+          {previewError} Check your connection and try again — nothing can be removed until this
+          check succeeds.
         </p>
+      ) : null}
+      {previewError ? (
+        <button
+          type="button"
+          onClick={() => void loadPreview()}
+          className="mt-2 rounded-md border border-input px-3 py-1.5 text-sm"
+        >
+          Try again
+        </button>
       ) : null}
 
       {!confirming ? (
         <button
           type="button"
-          onClick={() => setConfirming(true)}
-          className="mt-4 rounded-md border px-3 py-2 text-sm font-semibold"
+          onClick={() => {
+            if (!previewValid || !preview) return;
+            setConfirming({ ...preview });
+          }}
+          disabled={!previewValid}
+          className="mt-4 rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-50"
           style={{ borderColor: GOLD, color: NAVY }}
         >
           Purge history older than 30 days
@@ -586,10 +634,10 @@ export function HousekeepingRetentionPanel() {
       ) : (
         <div className="mt-4 rounded-md border p-3 text-sm" style={{ borderColor: `${GOLD}88` }}>
           <p style={{ color: NAVY }}>
-            This permanently removes {preview ? preview.count : 0} housekeeping history{" "}
-            {preview && preview.count === 1 ? "entry" : "entries"} for{" "}
-            {preview?.tenantLabel ?? "this property"} recorded before {cutoff ?? "the cut-off"}. It
-            cannot be undone.
+            This permanently removes {confirming.count} housekeeping history{" "}
+            {confirming.count === 1 ? "entry" : "entries"} for{" "}
+            {confirming.tenantLabel ?? "this property"} recorded before {frozenCutoff}. It cannot be
+            undone.
           </p>
           <div className="mt-2 flex gap-2">
             <button
@@ -603,7 +651,7 @@ export function HousekeepingRetentionPanel() {
             </button>
             <button
               type="button"
-              onClick={() => setConfirming(false)}
+              onClick={() => setConfirming(null)}
               className="rounded-md border border-input px-3 py-1.5 text-sm"
             >
               Cancel

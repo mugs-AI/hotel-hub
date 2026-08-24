@@ -499,7 +499,10 @@ export function ReservationActionsCard({
                         <p className="mt-1 text-muted-foreground">
                           Current agreed rate will be preserved. Target base rate difference is
                           informational. Availability and housekeeping readiness are re-checked by
-                          the server when the Owner approves.
+                          the server{" "}
+                          {approvalMode === "direct"
+                            ? "when you apply the change."
+                            : "when the Owner approves."}
                         </p>
                       </div>
                     </div>

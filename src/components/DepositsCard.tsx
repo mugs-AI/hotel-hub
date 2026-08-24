@@ -40,10 +40,44 @@ export function depositsHeadline(opts: {
   count: number;
   currency: string | null;
   total: number;
+  statuses?: ReadonlyArray<string>;
 }): string {
   if (opts.count === 0) return "No deposit";
   const money = `${opts.currency ?? ""} ${opts.total.toFixed(2)}`.trim();
-  return opts.count === 1 ? `1 deposit · ${money}` : `${opts.count} deposits · ${money}`;
+  const statuses = opts.statuses ?? [];
+  const noun = opts.count === 1 ? "1 deposit" : `${opts.count} deposits`;
+  const status = depositsStatusSummary(statuses);
+  return status ? `${noun} · ${money} · ${status}` : `${noun} · ${money}`;
+}
+
+/** Compact, honest status word for the collapsed header. */
+export function compactDepositStatus(status: string): string {
+  switch (status) {
+    case "posted":
+      return "Posted";
+    case "failed":
+      return "Failed";
+    case "unknown":
+      return "Unconfirmed";
+    default:
+      return "Submitting";
+  }
+}
+
+/**
+ * Real status, never a euphemism: one deposit shows its own status, several
+ * show a compact count per status. The critical failed/unconfirmed warning is
+ * rendered separately and is never replaced by this line.
+ */
+export function depositsStatusSummary(statuses: ReadonlyArray<string>): string {
+  if (statuses.length === 0) return "";
+  if (statuses.length === 1) return compactDepositStatus(statuses[0]!);
+  const counts = new Map<string, number>();
+  for (const s of statuses) {
+    const label = compactDepositStatus(s);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([label, n]) => `${label} ${n}`).join(" · ");
 }
 
 /** Collapsed-state attention line: never hide an unconfirmed or failed post. */
@@ -125,6 +159,7 @@ export function DepositsCard({
     count: deposits.length,
     currency: deposits[0]?.currency ?? null,
     total,
+    statuses: deposits.map((d) => d.status),
   });
   const attention = depositsAttentionLine(deposits);
 

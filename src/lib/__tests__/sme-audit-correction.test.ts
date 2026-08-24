@@ -138,6 +138,12 @@ class FakeOperationError extends Error {
 vi.mock("@/lib/reservation-operations.server", () => ({
   OperationError: FakeOperationError,
   OPERATION_ERROR_CODES: new Set([
+    "room_dirty",
+    "dnd_active",
+    "destination_dnd_active",
+    "handoff_pending",
+    "handoff_not_recorded",
+    "readiness_read_failed",
     "operation_stale",
     "operation_pending",
     "room_unavailable",
@@ -292,23 +298,28 @@ describe("direct execution is atomic and fails closed", () => {
     });
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(body.error).toBe("room_unavailable");
-    // The separate "create request, then approve" path is never used, so no
-    // pending request can survive a failure.
+    // One transaction owns request + readiness + handover + apply, so a refusal
+    // rolls everything back: no separate request, no decide, no handover work.
     expect(calls.request).toHaveLength(0);
     expect(calls.decide).toHaveLength(0);
-    // The reserved handoff intent is positively withdrawn.
     expect(calls.apply).toHaveLength(0);
-    expect(calls.cancel).toEqual([{ tenantId: TENANT, handoffId: HANDOFF }]);
+    // The handover is never created or withdrawn from JavaScript.
+    expect(calls.enqueue).toHaveLength(0);
+    expect(calls.cancel).toHaveLength(0);
   });
 
-  it("keeps the durable handoff intent when the failure is uncertain", async () => {
+  it("reports an uncertain failure without inventing or withdrawing a handover", async () => {
     state.directThrows = new Error("network");
-    await createOperation({
+    const { res, body } = await createOperation({
       operationType: "room_change",
       payload: { reservation_room_id: RES_ROOM, to_hotel_room_id: NEW_ROOM },
       clientRequestId: CLIENT_REQ,
     });
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(body.error).toBe("operation_request_failed");
+    expect(calls.enqueue).toHaveLength(0);
     expect(calls.cancel).toHaveLength(0);
+    expect(calls.apply).toHaveLength(0);
   });
 
   it("replays idempotently: the same clientRequestId reaches the engine unchanged", async () => {
@@ -322,7 +333,9 @@ describe("direct execution is atomic and fails closed", () => {
   });
 
   it("refuses an early check-in when housekeeping is not ready, applying nothing", async () => {
-    state.readinessBlocker = "room_dirty";
+    // Readiness is now decided inside the transaction and surfaces as a
+    // refusal from the routine itself.
+    state.directThrows = new FakeOperationError("room_dirty");
     const { res, body } = await createOperation({
       operationType: "early_check_in",
       payload: {},
@@ -330,23 +343,25 @@ describe("direct execution is atomic and fails closed", () => {
     });
     expect(res.status).toBe(409);
     expect(body.error).toBe("room_dirty");
-    expect(calls.direct).toHaveLength(0);
+    expect(calls.decide).toHaveLength(0);
+    expect(calls.enqueue).toHaveLength(0);
   });
 
   it("refuses a room change into a DND destination", async () => {
-    state.readinessBlocker = "dnd_active";
-    const { body } = await createOperation({
+    state.directThrows = new FakeOperationError("destination_dnd_active");
+    const { res, body } = await createOperation({
       operationType: "room_change",
       payload: { reservation_room_id: RES_ROOM, to_hotel_room_id: NEW_ROOM },
       clientRequestId: CLIENT_REQ,
     });
+    expect(res.status).toBe(409);
     expect(body.error).toBe("destination_dnd_active");
-    expect(calls.direct).toHaveLength(0);
     expect(calls.enqueue).toHaveLength(0);
+    expect(calls.apply).toHaveLength(0);
   });
 
   it("fails closed when readiness cannot be read at all", async () => {
-    state.readinessThrows = true;
+    state.directThrows = new FakeOperationError("readiness_read_failed");
     const { res, body } = await createOperation({
       operationType: "early_check_in",
       payload: {},
@@ -354,19 +369,20 @@ describe("direct execution is atomic and fails closed", () => {
     });
     expect(res.status).toBe(503);
     expect(body.error).toBe("readiness_read_failed");
-    expect(calls.direct).toHaveLength(0);
+    expect(calls.decide).toHaveLength(0);
   });
 
   it("refuses to move a guest when the vacated-room handoff cannot be recorded", async () => {
-    state.enqueueReturns = null;
+    state.directThrows = new FakeOperationError("handoff_not_recorded");
     const { res, body } = await createOperation({
       operationType: "room_change",
       payload: { reservation_room_id: RES_ROOM, to_hotel_room_id: NEW_ROOM },
       clientRequestId: CLIENT_REQ,
     });
-    expect(res.status).toBe(503);
+    expect(res.status).toBeGreaterThanOrEqual(400);
     expect(body.error).toBe("handoff_not_recorded");
-    expect(calls.direct).toHaveLength(0);
+    expect(calls.apply).toHaveLength(0);
+    expect(calls.enqueue).toHaveLength(0);
   });
 
   it("rejects a stale/unknown field before anything is attempted", async () => {
@@ -505,7 +521,7 @@ describe("corrective migration", () => {
   const dir = resolve(__dirname, "../../../supabase/migrations");
   const files = readdirSync(dir).sort();
   const earlier = files.find((f) => f.startsWith("20260824093329"))!;
-  const corrective = files[files.length - 1]!;
+  const corrective = files.find((f) => f.startsWith("20260824095539"))!;
   const sql = readFileSync(resolve(dir, corrective), "utf8");
 
   it("adds a NEW file and leaves the already-applied migration in place", () => {
