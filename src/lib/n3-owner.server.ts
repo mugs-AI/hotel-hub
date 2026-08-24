@@ -90,6 +90,8 @@ export async function readN3Users(token: string): Promise<N3UsersRead> {
  * role every server permission check, `/api/session/me` and the navigation
  * shell may use.
  */
+export type ResolvedEffectiveRole = EffectiveRoleDecision & { fromCache: boolean };
+
 export async function resolveEffectiveRole(input: {
   token: string;
   tenantId: string;
@@ -98,7 +100,7 @@ export async function resolveEffectiveRole(input: {
   /** Test seam: inject the upstream read instead of calling N3. */
   readUsers?: (token: string) => Promise<N3UsersRead>;
   now?: number;
-}): Promise<EffectiveRoleDecision> {
+}): Promise<ResolvedEffectiveRole> {
   const now = input.now ?? Date.now();
   const key = ownershipCacheKey({
     token: input.token,
@@ -111,9 +113,9 @@ export async function resolveEffectiveRole(input: {
   if (cached && cached.role !== "owner") {
     const localStillMatches =
       cached.role === null || (input.localRole?.isActive === true && input.localRole.role === cached.role);
-    if (localStillMatches) return cached;
+    if (localStillMatches) return { ...cached, fromCache: true };
   } else if (cached) {
-    return cached;
+    return { ...cached, fromCache: true };
   }
 
   const read = await (input.readUsers ?? readN3Users)(input.token);
@@ -123,5 +125,5 @@ export async function resolveEffectiveRole(input: {
     localRole: input.localRole,
   });
   writeCache(key, decision, now);
-  return decision;
+  return { ...decision, fromCache: false };
 }
