@@ -2,7 +2,10 @@
 // N3 integration mapping. All writes go through same-origin, cookie
 // authenticated API routes — never Supabase or N3 from the browser.
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { resetHousekeepingBoardCache } from "@/lib/housekeeping-client";
+import { SESSION_QUERY_KEY } from "@/lib/session-client";
 import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
@@ -273,6 +276,7 @@ export function HousekeepingPanel({
 }) {
   const [mode, setMode] = useState(settings.housekeepingMode);
   const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
 
   async function save() {
     setSaving(true);
@@ -283,6 +287,11 @@ export function HousekeepingPanel({
         body: JSON.stringify({ housekeepingMode: mode }),
       });
       onChange(r.settings);
+      // The saved server response is authoritative. Drop the cached board so
+      // the next visit to /housekeeping performs a fresh authoritative GET —
+      // no hard refresh, no sign-out, no waiting for staleTime.
+      resetHousekeepingBoardCache(qc);
+      void qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
       toast.success("Housekeeping workflow saved");
     } catch (e) {
       toast.error(friendlyError((e as Error).message, "Unable to save the housekeeping workflow."));
