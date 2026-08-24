@@ -725,9 +725,14 @@ export async function applyDirectOperation(input: {
   operationType: OperationType;
   payload: OperationPayload;
   idempotencyKey: string;
-}): Promise<{ requestId: string; state: OperationState }> {
+}): Promise<{
+  requestId: string;
+  state: OperationState;
+  handoffId: string | null;
+  oldRoomId: string | null;
+}> {
   const sb = await admin();
-  const res = await sb.rpc("hotelhub_direct_operation", {
+  const res = await sb.rpc("hotelhub_direct_operation_v2", {
     p_tenant_id: input.tenantId,
     p_reservation_id: input.reservationId,
     p_actor_n3_user_key: input.actorN3UserKey,
@@ -738,7 +743,12 @@ export async function applyDirectOperation(input: {
   if (res.error) throw mapRpcError(res.error.message, "operation_request_failed");
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("operation_request_failed");
-  return { requestId: row.out_request_id, state: row.out_state };
+  return {
+    requestId: row.out_request_id,
+    state: row.out_state,
+    handoffId: (row.out_handoff_id as string | null) ?? null,
+    oldRoomId: (row.out_old_room_id as string | null) ?? null,
+  };
 }
 
 export async function decideOperation(input: {
