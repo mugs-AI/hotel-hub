@@ -35,3 +35,37 @@ export function createRoomActionGuard(): RoomActionGuard {
     },
   };
 }
+
+/**
+ * Run exactly one guarded per-room action.
+ *
+ * The claim is taken SYNCHRONOUSLY before the mutation is invoked, and the
+ * whole invocation uses its own async try/catch/finally, so each overlapping
+ * different-room request always produces its own confirmation or error and
+ * always releases its own pending id — regardless of settle order.
+ *
+ * Returns `false` when the call was ignored because the same room already had
+ * a request in flight.
+ */
+export async function runGuardedRoomAction<T>(opts: {
+  guard: RoomActionGuard;
+  roomId: string;
+  invoke: () => Promise<T>;
+  onStart?: (roomId: string) => void;
+  onSuccess?: (result: T) => void;
+  onError?: (error: unknown) => void;
+  onSettled?: (roomId: string) => void;
+}): Promise<boolean> {
+  if (!opts.guard.claim(opts.roomId)) return false;
+  opts.onStart?.(opts.roomId);
+  try {
+    const result = await opts.invoke();
+    opts.onSuccess?.(result);
+  } catch (error) {
+    opts.onError?.(error);
+  } finally {
+    opts.guard.release(opts.roomId);
+    opts.onSettled?.(opts.roomId);
+  }
+  return true;
+}
