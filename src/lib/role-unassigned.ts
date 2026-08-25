@@ -91,10 +91,11 @@ export function roleUnassignedGuidance(
         kind: "bootstrap",
         title: ROLE_UNASSIGNED_TITLES.bootstrap,
         body:
-          "Your N3 identity is verified, but no HotelHub role (owner, front_desk, housekeeper) " +
-          "has been assigned to it yet. All application content stays denied until a server " +
-          "administrator assigns one.",
-        showProvisioning: true,
+          "Your N3 identity is verified, but no HotelHub role is assigned to it, so all " +
+          "application content stays denied. Owner authority comes from N3 itself and cannot be " +
+          "granted inside HotelHub. If you need operational access, the current N3 Owner must " +
+          "explicitly assign you a Front desk or Housekeeper role in HotelHub.",
+        showProvisioning: false,
         showRetry: false,
         showIdentifiers: true,
       };
