@@ -21,6 +21,7 @@ import { getHotelSession } from "@/lib/session.server";
 
 function mapStatusToSafeCode(status: number): SafeLaunchErrorCode {
   if (status === 401) return "n3_rejected";
+  if (status === 403) return "n3_access_denied";
   if (status === 502) return "n3_unavailable";
   return "launch_failed";
 }
