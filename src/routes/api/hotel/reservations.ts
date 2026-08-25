@@ -146,6 +146,14 @@ export async function handleListReservations({ request }: { request: Request }):
     // For historical filtering: allow ANY tenant-scoped source (active or inactive).
     if (!found) return deny(400, "invalid_booking_source");
   }
+  // Strict allow-listed sorting. The full tenant-scoped filtered set is
+  // sorted server-side BEFORE pagination (see listReservations).
+  const sortKeyRaw = url.searchParams.get("sortKey");
+  const sortDirRaw = url.searchParams.get("sortDir");
+  if (sortKeyRaw !== null && sortKeyRaw !== "" && !isReservationSortKey(sortKeyRaw))
+    return deny(400, "invalid_sort");
+  if (sortDirRaw !== null && sortDirRaw !== "" && !isSortDirection(sortDirRaw))
+    return deny(400, "invalid_sort");
   try {
     const result = await listReservations({
       tenantId: ctx.session.tenantId!,
@@ -158,16 +166,22 @@ export async function handleListReservations({ request }: { request: Request }):
       arrivalTo: arrivalTo ?? undefined,
       limit: pag.limit,
       offset: pag.offset,
+      sortKey: isReservationSortKey(sortKeyRaw) ? sortKeyRaw : undefined,
+      sortDir: isSortDirection(sortDirRaw) ? sortDirRaw : undefined,
     });
     // Run 5D2.1 privacy: never forward the raw N3 actor key to the browser.
     const items = result.items.map(({ createdByN3UserKey: _omit, ...rest }) => {
       void _omit;
       return rest;
     });
+    const propertyDate = await resolvePropertyToday(ctx.session.tenantId!).catch(() =>
+      todayInKualaLumpurIso(),
+    );
     return Response.json(
-      { items, total: result.total },
+      { items, total: result.total, propertyDate },
       { headers: { "cache-control": "no-store" } },
     );
+
   } catch (err) {
     console.error("[reservations.list] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "reservations_list_failed");
