@@ -305,6 +305,12 @@ export type ReservationSummary = {
   id: string;
   bookingReference: string;
   primaryGuestName: string | null;
+  /**
+   * Primary guest mobile — Owner / Front Desk only, already an authorised
+   * DTO. Enables the Guest Contact sheet without a second fetch. No other
+   * identity, address, email or note data is ever added here.
+   */
+  primaryGuestMobile: string | null;
   bookingSource: string;
   status: string;
   arrivalDate: string;
@@ -317,6 +323,84 @@ export type ReservationSummary = {
   createdByN3UserKey: string;
 };
 
+/** Strict allow-list of sortable data columns. The action column is not sortable. */
+export const RESERVATION_SORT_KEYS = [
+  "bookingReference",
+  "primaryGuestName",
+  "arrivalDate",
+  "departureDate",
+  "roomNo",
+  "guestCount",
+  "bookingSource",
+  "status",
+  "createdAt",
+] as const;
+export type ReservationSortKey = (typeof RESERVATION_SORT_KEYS)[number];
+export type SortDirection = "asc" | "desc";
+
+export function isReservationSortKey(v: unknown): v is ReservationSortKey {
+  return typeof v === "string" && (RESERVATION_SORT_KEYS as readonly string[]).includes(v);
+}
+export function isSortDirection(v: unknown): v is SortDirection {
+  return v === "asc" || v === "desc";
+}
+
+const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+/**
+ * Deterministic comparator over the COMPLETE tenant-scoped filtered set.
+ * Sorting always happens before pagination, and `createdAt`+`id` is the
+ * stable tie-breaker so identical keys can never shuffle between pages.
+ */
+export function compareReservationSummaries(
+  a: ReservationSummary,
+  b: ReservationSummary,
+  key: ReservationSortKey,
+  dir: SortDirection,
+): number {
+  const mul = dir === "asc" ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case "bookingReference":
+      c = collator.compare(a.bookingReference, b.bookingReference);
+      break;
+    case "primaryGuestName":
+      c = collator.compare(a.primaryGuestName ?? "", b.primaryGuestName ?? "");
+      break;
+    case "arrivalDate":
+      c = a.arrivalDate < b.arrivalDate ? -1 : a.arrivalDate > b.arrivalDate ? 1 : 0;
+      break;
+    case "departureDate":
+      c = a.departureDate < b.departureDate ? -1 : a.departureDate > b.departureDate ? 1 : 0;
+      break;
+    case "roomNo":
+      c = collator.compare(a.roomLabels.join(", "), b.roomLabels.join(", "));
+      break;
+    case "guestCount":
+      c = a.guestCount - b.guestCount;
+      break;
+    case "bookingSource":
+      c = collator.compare(a.bookingSource, b.bookingSource);
+      break;
+    case "status":
+      c = collator.compare(a.status, b.status);
+      break;
+    case "createdAt":
+      c = a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+      break;
+  }
+  if (c !== 0) return c * mul;
+  // Stable tie-breaker — always newest first, then id, regardless of dir.
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export async function listReservations(input: {
   tenantId: string;
   bookingReference?: string;
@@ -328,10 +412,14 @@ export async function listReservations(input: {
   bookingSource?: string;
   limit?: number;
   offset?: number;
+  sortKey?: ReservationSortKey;
+  sortDir?: SortDirection;
 }): Promise<{ items: ReservationSummary[]; total: number }> {
   const sb = await admin();
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const offset = Math.max(input.offset ?? 0, 0);
+  const sortKey: ReservationSortKey = input.sortKey ?? "createdAt";
+  const sortDir: SortDirection = input.sortDir ?? "desc";
 
   // Guest search resolves ALL matching reservation IDs first (across the
   // full authenticated-tenant dataset, matching primary OR non-primary
@@ -362,11 +450,13 @@ export async function listReservations(input: {
     if (restrictIds.length === 0) return { items: [], total: 0 };
   }
 
+  // The COMPLETE tenant-scoped filtered set is read first; sorting (including
+  // computed columns such as primary guest and room numbers) happens over that
+  // whole set, and only then is the requested page sliced out.
   let q = sb
     .from("hotel_reservations")
     .select(
       "id, booking_reference, booking_source, status, arrival_date, departure_date, created_at, created_by_n3_user_key",
-      { count: "exact" },
     )
     .eq("tenant_id", input.tenantId)
     .order("created_at", { ascending: false })
@@ -380,7 +470,6 @@ export async function listReservations(input: {
   if (input.arrivalFrom) q = q.gte("arrival_date", input.arrivalFrom);
   if (input.arrivalTo) q = q.lte("arrival_date", input.arrivalTo);
 
-  q = q.range(offset, offset + limit - 1);
   const res = await q;
   if (res.error) throw new ReservationReadError(`reservations list failed: ${res.error.message}`);
   const rows = (res.data ?? []) as Array<{
@@ -394,35 +483,40 @@ export async function listReservations(input: {
     created_by_n3_user_key: string;
   }>;
   const ids = rows.map((r) => r.id);
-  const primaries = new Map<string, string>();
+  const primaries = new Map<string, { name: string; mobile: string | null }>();
   const roomCounts = new Map<string, number>();
   const roomLabelsMap = new Map<string, string[]>();
   const guestCounts = new Map<string, number>();
 
-  if (ids.length > 0) {
+  for (const idBatch of chunk(ids, 200)) {
     const rgRes = await sb
       .from("hotel_reservation_guests")
-      .select("reservation_id, is_primary, guest_id, hotel_guests(full_name)")
+      .select("reservation_id, is_primary, guest_id, hotel_guests(full_name, mobile)")
       .eq("tenant_id", input.tenantId)
-      .in("reservation_id", ids);
+      .in("reservation_id", idBatch);
     if (rgRes.error)
       throw new ReservationReadError(`reservation guests failed: ${rgRes.error.message}`);
     for (const g of (rgRes.data ?? []) as Array<{
       reservation_id: string;
       is_primary: boolean;
-      hotel_guests?: { full_name?: string } | Array<{ full_name?: string }>;
+      hotel_guests?:
+        | { full_name?: string; mobile?: string | null }
+        | Array<{ full_name?: string; mobile?: string | null }>;
     }>) {
       guestCounts.set(g.reservation_id, (guestCounts.get(g.reservation_id) ?? 0) + 1);
       if (g.is_primary) {
         const nested = Array.isArray(g.hotel_guests) ? g.hotel_guests[0] : g.hotel_guests;
-        primaries.set(g.reservation_id, nested?.full_name ?? "");
+        primaries.set(g.reservation_id, {
+          name: nested?.full_name ?? "",
+          mobile: nested?.mobile ?? null,
+        });
       }
     }
     const rrRes = await sb
       .from("hotel_reservation_rooms")
       .select("reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)")
       .eq("tenant_id", input.tenantId)
-      .in("reservation_id", ids);
+      .in("reservation_id", idBatch);
     if (rrRes.error)
       throw new ReservationReadError(`reservation rooms failed: ${rrRes.error.message}`);
     for (const r of (rrRes.data ?? []) as Array<{
@@ -450,10 +544,11 @@ export async function listReservations(input: {
     }
   }
 
-  const items = rows.map((r) => ({
+  const all: ReservationSummary[] = rows.map((r) => ({
     id: r.id,
     bookingReference: r.booking_reference,
-    primaryGuestName: primaries.get(r.id) ?? null,
+    primaryGuestName: primaries.get(r.id)?.name ?? null,
+    primaryGuestMobile: primaries.get(r.id)?.mobile ?? null,
     bookingSource: r.booking_source,
     status: r.status,
     arrivalDate: r.arrival_date,
@@ -465,8 +560,10 @@ export async function listReservations(input: {
     createdByN3UserKey: r.created_by_n3_user_key,
   }));
 
-  return { items, total: (res.count as number) ?? items.length };
+  all.sort((a, b) => compareReservationSummaries(a, b, sortKey, sortDir));
+  return { items: all.slice(offset, offset + limit), total: all.length };
 }
+
 
 /** Mask an identity number for display; keep the last 4 chars only. */
 export function maskIdentityNumberServer(v: string | null | undefined): string | null {
