@@ -80,7 +80,22 @@ export async function performN3Launch(
       return failure(401, "N3 token expired", "session_expired");
     }
 
-    const probe = await callN3Path(token, "/api/companyprofile/BasicInfo");
+    // A thrown network/timeout error at THIS call means N3 could not be
+    // reached — classify it as `n3_unavailable`, not as the generic
+    // `launch_failed` used for later local (session/db/upsert) failures.
+    // Only safe reason codes are audited: never the raw error, the token,
+    // or any upstream body.
+    let probe: Awaited<ReturnType<typeof callN3Path>>;
+    try {
+      probe = await callN3Path(token, "/api/companyprofile/BasicInfo");
+    } catch {
+      await clearSessionBestEffort();
+      await logAudit({
+        eventType: "session.launch.failure",
+        detail: { source, stage: "basicinfo", reason: "transport_failure" },
+      });
+      return failure(502, "N3 verification failed", "n3_unavailable");
+    }
     if (probe.status === 401) {
       await clearSessionBestEffort();
       await logAudit({
