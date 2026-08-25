@@ -3,7 +3,7 @@
 // usage counts, add/edit dialogs, and a deactivation confirmation.
 // Immutable `source_code` is only shown as contextual metadata; it is
 // derived once at creation time and can never be changed.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
