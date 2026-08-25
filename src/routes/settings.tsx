@@ -50,6 +50,7 @@ import {
 } from "@/lib/reservations-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import {
+  DisplaySizePanel,
   ExceptionApprovalPanel,
   GuestControlsPanel,
   HousekeepingPanel,
@@ -129,7 +130,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "guests", label: "Guest Controls" },
   { id: "operations", label: "Operations" },
   { id: "system", label: "System" },
-  { id: "n3", label: "N3 Integration" },
+  { id: "n3", label: "N3 Integrations" },
   { id: "sources", label: "Booking Sources" },
 ];
 
@@ -200,13 +201,52 @@ function SettingsWorkspace() {
       ) : tab === "system" ? (
         <SystemScreen settings={settings} onChange={setSettings} />
       ) : (
-        <N3IntegrationPanel
-          settings={settings}
-          onChange={setSettings}
-          onN3Unauthorized={() => void session.refetch()}
-        />
+        <div className="space-y-6">
+          <N3IntegrationConsoles />
+          <N3IntegrationPanel
+            settings={settings}
+            onChange={setSettings}
+            onN3Unauthorized={() => void session.refetch()}
+          />
+        </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Entry points to the existing read-only N3 consoles. Routes, permissions and
+ * direct URLs are unchanged — these are links, not new surfaces.
+ */
+function N3IntegrationConsoles() {
+  const cards = [
+    {
+      to: "/verification" as const,
+      title: "N3 Verification Console",
+      body: "Run the read-only N3 connectivity and mapping probes.",
+    },
+    {
+      to: "/settings/n3-financial-verification" as const,
+      title: "N3 Financial Verification",
+      body: "Read-only financial verification console for deposits and receipts.",
+    },
+  ];
+  return (
+    <section aria-label="N3 consoles" className="grid gap-3 sm:grid-cols-2">
+      {cards.map((c) => (
+        <Link
+          key={c.to}
+          to={c.to}
+          className="rounded-xl border bg-white p-5 shadow-sm transition-colors hover:bg-muted/40"
+          style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}
+        >
+          <span className="block text-sm font-semibold" style={{ color: NAVY }}>
+            {c.title}
+          </span>
+          <span className="mt-1 block text-sm text-muted-foreground">{c.body}</span>
+        </Link>
+      ))}
+    </section>
   );
 }
 
@@ -227,6 +267,9 @@ function SystemScreen({
           How HotelHub runs day to day for your property.
         </p>
       </header>
+      <section aria-label="Application display size">
+        <DisplaySizePanel settings={settings} onChange={onChange} />
+      </section>
       <section aria-label="Housekeeping workflow">
         <HousekeepingPanel settings={settings} onChange={onChange} />
       </section>
