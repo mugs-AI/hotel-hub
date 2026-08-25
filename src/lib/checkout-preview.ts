@@ -767,6 +767,8 @@ export type DepartureListItemDTO = {
   reservationId: string;
   bookingReference: string;
   primaryGuestName: string | null;
+  /** Owner / Front Desk only — powers the Guest Contact sheet without a second fetch. */
+  primaryGuestMobile: string | null;
   arrivalDate: string;
   departureDate: string;
   expectedCheckOutAt: string | null;
@@ -775,6 +777,7 @@ export type DepartureListItemDTO = {
   bucket: DepartureBucket;
   previewAvailable: boolean;
 };
+
 
 export type DeparturesResponseDTO = {
   propertyDate: string;
