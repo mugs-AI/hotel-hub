@@ -35,7 +35,8 @@ describe("hotelhub_list_reservations — SQL contract", () => {
   });
 
   it("uses no dynamic SQL", () => {
-    expect(SQL).not.toMatch(/\bexecute\b/i);
+    // `GRANT EXECUTE` is fine; an EXECUTE statement inside the body is not.
+    expect(SQL).not.toMatch(/execute\s+(format|'|"|v_|p_)/i);
     expect(SQL).not.toMatch(/quote_ident|format\(/i);
   });
 
