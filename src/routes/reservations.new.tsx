@@ -483,7 +483,10 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
               status: "",
               arrivalFrom: "",
               arrivalTo: "",
+              sortKey: "createdAt",
+              sortDir: "desc" as const,
               limit: 25,
+
               offset: 0,
             }}
             className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
