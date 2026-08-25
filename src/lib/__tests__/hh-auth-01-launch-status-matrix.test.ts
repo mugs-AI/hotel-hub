@@ -85,7 +85,8 @@ const BASIC_INFO_OK = {
   body: {
     code: "0000",
     data: {
-      dbCode: "n3-tenant",
+      tenantId: "n3-tenant",
+      tenantCode: "HOTEL",
       companyName: "Boutique Hotel",
       email: "staff@hotel.test",
       userName: "staff",
