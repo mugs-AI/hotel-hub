@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
 
 export const Route = createFileRoute("/departures")({
@@ -111,7 +112,24 @@ function DeparturesPage() {
                       }
                     >
                       <td className="px-4 py-2 font-mono text-xs">{it.bookingReference}</td>
-                      <td className="px-4 py-2">{it.primaryGuestName ?? "—"}</td>
+                      <td className="px-4 py-2">
+                        {it.primaryGuestName ? (
+                          <SheetTrigger
+                            label={`Guest contact for ${it.primaryGuestName}`}
+                            onOpen={() =>
+                              setContact({
+                                guestName: it.primaryGuestName,
+                                mobile: it.primaryGuestMobile,
+                                bookingReference: it.bookingReference,
+                              })
+                            }
+                          >
+                            {it.primaryGuestName}
+                          </SheetTrigger>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td className="px-4 py-2">{it.roomLabels.join(", ") || "—"}</td>
                       <td className="px-4 py-2">{it.guestCount}</td>
                       <td className="px-4 py-2">{it.departureDate}</td>
