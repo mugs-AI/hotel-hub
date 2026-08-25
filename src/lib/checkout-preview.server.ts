@@ -105,7 +105,10 @@ type DepartureRoomRow = {
 type DepartureGuestRow = {
   reservation_id: string;
   is_primary: boolean;
-  hotel_guests: { full_name: string } | { full_name: string }[] | null;
+  hotel_guests:
+    | { full_name: string; mobile: string | null }
+    | { full_name: string; mobile: string | null }[]
+    | null;
 };
 
 export async function listDepartures(input: {
@@ -141,6 +144,7 @@ export async function listDepartures(input: {
   const roomsByRes = new Map<string, string[]>();
   const guestsByRes = new Map<string, number>();
   const primaryByRes = new Map<string, string>();
+  const primaryMobileByRes = new Map<string, string | null>();
   if (ids.length > 0) {
     const rr = await sb
       .from<DepartureRoomRow>("hotel_reservation_rooms")
@@ -162,7 +166,7 @@ export async function listDepartures(input: {
     }
     const gg = await sb
       .from<DepartureGuestRow>("hotel_reservation_guests")
-      .select("reservation_id, is_primary, hotel_guests(full_name)")
+      .select("reservation_id, is_primary, hotel_guests(full_name, mobile)")
       .eq("tenant_id", tenantId)
       .in("reservation_id", ids);
     if (gg.error) throw new CheckoutPreviewError("checkout_preview_failed");
@@ -171,6 +175,7 @@ export async function listDepartures(input: {
       if (row.is_primary) {
         const g = nested(row.hotel_guests);
         if (g?.full_name) primaryByRes.set(row.reservation_id, g.full_name);
+        primaryMobileByRes.set(row.reservation_id, g?.mobile ?? null);
       }
     }
   }
@@ -179,6 +184,7 @@ export async function listDepartures(input: {
     reservationId: r.id,
     bookingReference: r.booking_reference,
     primaryGuestName: primaryByRes.get(r.id) ?? null,
+    primaryGuestMobile: primaryMobileByRes.get(r.id) ?? null,
     arrivalDate: r.arrival_date,
     departureDate: r.departure_date,
     expectedCheckOutAt: r.expected_check_out_at ?? null,
@@ -554,7 +560,10 @@ type ReservationGuestRow = {
   guest_id: string;
   is_primary: boolean;
   reservation_room_id: string | null;
-  hotel_guests: { full_name: string } | { full_name: string }[] | null;
+  hotel_guests:
+    | { full_name: string; mobile: string | null }
+    | { full_name: string; mobile: string | null }[]
+    | null;
 };
 
 type DepositRow = {
