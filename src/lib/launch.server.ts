@@ -21,10 +21,12 @@ export type LaunchSource = "path_a" | "root" | "path_b_dev";
 export const SAFE_LAUNCH_ERROR_CODES = [
   "session_expired",
   "n3_rejected",
+  "n3_access_denied",
   "n3_unavailable",
   "identity_unavailable",
   "launch_failed",
 ] as const;
+
 export type SafeLaunchErrorCode = (typeof SAFE_LAUNCH_ERROR_CODES)[number];
 
 /** Custom header on non-2xx launch responses so the interceptor can map
@@ -87,6 +89,18 @@ export async function performN3Launch(
       });
       return failure(401, "N3 rejected the launch token", "n3_rejected");
     }
+    // N3 accepted the token but denies this account access to the app.
+    // Fail closed WITHOUT creating a session and WITHOUT continuing to
+    // tenant/user upsert or /api/Users.
+    if (probe.status === 403) {
+      await clearSessionBestEffort();
+      await logAudit({
+        eventType: "session.launch.failure",
+        detail: { source, stage: "basicinfo", status: 403 },
+      });
+      return failure(403, "N3 denied access to HotelHub", "n3_access_denied");
+    }
+
     if (probe.status < 200 || probe.status >= 300) {
       await clearSessionBestEffort();
       await logAudit({
@@ -205,6 +219,7 @@ export function redirectToLaunchError(code: SafeLaunchErrorCode): Response {
 
 function mapStatusToSafeCode(status: number): SafeLaunchErrorCode {
   if (status === 401) return "n3_rejected";
+  if (status === 403) return "n3_access_denied";
   if (status === 502) return "n3_unavailable";
   return "launch_failed";
 }
