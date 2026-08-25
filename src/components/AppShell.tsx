@@ -287,13 +287,10 @@ export function RoleUnassignedShell({
             <dd className="font-mono break-all">{session.user.userEmail ?? "—"}</dd>
           </dl>
         )}
-        {guidance.showProvisioning && (
+        {guidance.showIdentifiers && (
           <p className="mt-4 text-xs text-muted-foreground">
-            Provide these identifiers to your server administrator. They will run{" "}
-            <code>
-              SELECT public.hotelhub_provision_owner(&lt;n3_tenant_key&gt;, &lt;n3_user_key&gt;)
-            </code>{" "}
-            in the Cloud SQL editor to assign the first Owner role.
+            Provide these identifiers to the current N3 Owner or your MUGS administrator when
+            asking for HotelHub access. No action is required from you here.
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
