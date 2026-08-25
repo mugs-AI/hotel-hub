@@ -339,12 +339,15 @@ describe("3 — role-unassigned UI tells the truth for each reason", () => {
     expect(unmatched).not.toContain("owner@hotel.test");
   });
 
-  it("only the genuine bootstrap case shows the first-Owner runbook", () => {
+  it("the no-local-role case shows identifiers but never a provisioner runbook", () => {
     for (const reason of ["n3_no_local_role", null]) {
       const html = renderGate(reason);
-      expect(html).toContain(PROVISION_SQL);
+      expect(html).not.toContain(PROVISION_SQL);
+      expect(html).not.toMatch(/SELECT\s+public\./);
       expect(html).toContain("HotelHub role not assigned");
       expect(html).toContain("n3_user_key");
+      expect(html).toMatch(/Front desk or Housekeeper/);
+      expect(roleUnassignedGuidance(reason as never).showProvisioning).toBe(false);
     }
   });
 });
