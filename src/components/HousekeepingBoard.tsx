@@ -27,7 +27,6 @@ import {
   DND_SET_LABEL,
   DND_ACTIVE_LABEL,
   DND_CLEAR_LABEL,
-
   actorDisplayName,
   historyEntryLine,
   historyTimestampLabel,
@@ -660,7 +659,6 @@ export function RoomCard({
         </div>
       )}
 
-
       {room.initialized && (
         <div className="mt-2 space-y-1.5">
           {/* The ONE dominant next action, straight from the server's
@@ -721,7 +719,6 @@ export function RoomCard({
           {canDnd && dndBlockedByCleaning && !room.dndActive && (
             <p className="text-[11px] text-muted-foreground">{DND_CLEANING_HINT_SHORT}</p>
           )}
-
 
           {onHistory && (
             <button

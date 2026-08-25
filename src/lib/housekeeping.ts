@@ -502,7 +502,6 @@ export const DND_CLEANING_HINT_SHORT = "Return to Dirty before DND";
 /** Short card label when only the Owner may set a room up. */
 export const SETUP_OWNER_ONLY_SHORT = "Owner only";
 
-
 /** The single DND control label, shared by the enabled and disabled states. */
 export const DND_SET_LABEL = "Set Do Not Disturb";
 

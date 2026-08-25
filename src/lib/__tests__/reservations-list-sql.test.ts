@@ -71,6 +71,8 @@ describe("hotelhub_list_reservations — SQL contract", () => {
 
   it("is executable only by the service role", () => {
     expect(SQL).toMatch(/revoke\s+all\s+on\s+function\s+public\.hotelhub_list_reservations/i);
-    expect(SQL).toMatch(/grant\s+execute\s+on\s+function\s+public\.hotelhub_list_reservations[\s\S]{0,200}service_role/i);
+    expect(SQL).toMatch(
+      /grant\s+execute\s+on\s+function\s+public\.hotelhub_list_reservations[\s\S]{0,200}service_role/i,
+    );
   });
 });

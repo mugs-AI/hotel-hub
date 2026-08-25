@@ -4,7 +4,6 @@
 // context (NEVER accepted from the browser).
 import { resolveActorLabels } from "./tenant-store.server";
 
-
 export const BOOKING_SOURCES = [
   "walk_in",
   "phone",
@@ -521,7 +520,6 @@ export async function listReservations(input: {
   const rawItems = Array.isArray(payload?.items) ? (payload!.items as ListRpcRow[]) : [];
   return { items: rawItems.map(toReservationSummary), total: num(payload?.total) };
 }
-
 
 /** Mask an identity number for display; keep the last 4 chars only. */
 export function maskIdentityNumberServer(v: string | null | undefined): string | null {

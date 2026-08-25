@@ -29,11 +29,7 @@ import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
 import { RoomCard } from "@/components/HousekeepingBoard";
 import { RoleUnassignedShell } from "@/components/AppShell";
-import {
-  DND_SETUP_HINT_SHORT,
-  DND_CLEANING_HINT_SHORT,
-  DND_SET_LABEL,
-} from "@/lib/housekeeping";
+import { DND_SETUP_HINT_SHORT, DND_CLEANING_HINT_SHORT, DND_SET_LABEL } from "@/lib/housekeeping";
 import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
 import type { SessionMe } from "@/lib/session-client";
 
