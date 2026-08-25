@@ -3,6 +3,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { useQuery } from "@tanstack/react-query";
@@ -337,6 +338,7 @@ function FloorGrid({
   const grouped = useMemo(() => groupRoomsByFloor(rooms), [rooms]);
   const [activeFloor, setActiveFloor] = useState<string>("__all__");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
 
   const visibleFloors =
     activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
@@ -345,10 +347,7 @@ function FloorGrid({
     grouped.floors.map((f) => [
       f,
       [...(grouped.byFloor.get(f) ?? [])].sort((a, b) =>
-        naturalCompare(
-          roomLabel(a.displayName, a.n3StockName, a.roomNumber),
-          roomLabel(b.displayName, b.n3StockName, b.roomNumber),
-        ),
+        naturalCompare(a.roomNumber, b.roomNumber),
       ),
     ]),
   );
@@ -367,6 +366,21 @@ function FloorGrid({
 
   return (
     <div className="space-y-3">
+      <RoomInformationSheet
+        room={
+          roomInfo
+            ? {
+                roomNumber: roomInfo.roomNumber,
+                n3StockCode: roomInfo.n3StockCode,
+                roomName: roomInfo.displayName ?? roomInfo.n3StockName,
+                roomType: roomInfo.roomType,
+                floor: roomInfo.floor,
+                isActive: roomInfo.isActive,
+              }
+            : null
+        }
+        onClose={() => setRoomInfo(null)}
+      />
       <FloorChips
         floors={grouped.floors}
         counts={new Map(grouped.floors.map((f) => [f, grouped.byFloor.get(f)?.length ?? 0]))}
@@ -458,6 +472,7 @@ function FloorGrid({
                         rangeEndExclusive={rangeEndExclusive}
                         template={rowTemplate}
                         rowWidth={rowWidth}
+                        onRoomInfo={setRoomInfo}
                       />
                     ))}
               </div>
@@ -551,6 +566,7 @@ function RoomRow({
   rangeEndExclusive,
   template,
   rowWidth,
+  onRoomInfo,
 }: {
   room: CalendarRoom;
   dates: string[];
@@ -561,6 +577,7 @@ function RoomRow({
   rangeEndExclusive: string;
   template: string;
   rowWidth: number;
+  onRoomInfo: (room: CalendarRoom) => void;
 }) {
   return (
     <div
