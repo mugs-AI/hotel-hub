@@ -12,6 +12,8 @@ import {
   createReservationAtomic,
   isIsoDate,
   isUuid,
+  isReservationSortKey,
+  isSortDirection,
   listReservations,
   ReservationCreateError,
   RESERVATION_ERROR_CODES,
@@ -21,6 +23,7 @@ import { isValidCountryCode, normalizeCountryCode } from "@/lib/iso-countries";
 import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 import { logAudit } from "@/lib/audit.server";
 import { todayInKualaLumpurIso } from "@/lib/malaysia-date";
+import { resolvePropertyToday } from "@/lib/checkout-preview.server";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -166,8 +169,8 @@ export async function handleListReservations({ request }: { request: Request }):
       arrivalTo: arrivalTo ?? undefined,
       limit: pag.limit,
       offset: pag.offset,
-      sortKey: isReservationSortKey(sortKeyRaw) ? sortKeyRaw : undefined,
-      sortDir: isSortDirection(sortDirRaw) ? sortDirRaw : undefined,
+      sortKey: sortKeyRaw !== null && isReservationSortKey(sortKeyRaw) ? sortKeyRaw : undefined,
+      sortDir: sortDirRaw !== null && isSortDirection(sortDirRaw) ? sortDirRaw : undefined,
     });
     // Run 5D2.1 privacy: never forward the raw N3 actor key to the browser.
     const items = result.items.map(({ createdByN3UserKey: _omit, ...rest }) => {
