@@ -29,7 +29,7 @@ import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
 import { RoomCard } from "@/components/HousekeepingBoard";
 import { RoleUnassignedShell } from "@/components/AppShell";
-import { DND_SETUP_HINT, DND_CLEANING_HINT, DND_SET_LABEL } from "@/lib/housekeeping";
+import { DND_SETUP_HINT_SHORT, DND_CLEANING_HINT_SHORT, DND_SET_LABEL } from "@/lib/housekeeping";
 import type { HousekeepingRoomDTO } from "@/lib/housekeeping-store.server";
 import type { SessionMe } from "@/lib/session-client";
 
@@ -417,7 +417,7 @@ describe("4 — DND evidence is rendered, not source text", () => {
     const buttons = dndButtons(html);
     expect(buttons).toHaveLength(1);
     expect(buttons[0]!.disabled).toBe(true);
-    expect(html).toContain(DND_SETUP_HINT);
+    expect(html).toContain(DND_SETUP_HINT_SHORT);
   });
 
   it("initialized, occupied and eligible: Set DND is rendered ENABLED", () => {
@@ -435,7 +435,7 @@ describe("4 — DND evidence is rendered, not source text", () => {
     const buttons = dndButtons(html);
     expect(buttons).toHaveLength(1);
     expect(buttons[0]!.disabled).toBe(true);
-    expect(html).toContain(DND_CLEANING_HINT);
+    expect(html).toContain(DND_CLEANING_HINT_SHORT);
   });
 
   it("vacant room: no enabled DND control", () => {

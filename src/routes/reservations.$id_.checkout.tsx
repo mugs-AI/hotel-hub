@@ -38,7 +38,7 @@ function CheckoutPreviewPage() {
               not changed.
             </p>
           </div>
-          <div className="flex gap-2 text-xs">
+          <div className="flex gap-2 text-sm">
             <Link
               to="/departures"
               className="rounded-md border border-input bg-background px-3 py-1.5 font-medium hover:bg-accent"
@@ -65,7 +65,7 @@ function CheckoutPreviewPage() {
         {d ? (
           <>
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold">
+              <h2 className="text-base font-semibold">
                 {d.reservation.bookingReference} · {d.reservation.primaryGuestName ?? "Guest"}
               </h2>
               <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
@@ -82,14 +82,14 @@ function CheckoutPreviewPage() {
 
             <section className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Room folio (room charges only)</h2>
-                <span className="text-xs text-muted-foreground">
+                <h2 className="text-base font-semibold">Room folio (room charges only)</h2>
+                <span className="text-sm text-muted-foreground">
                   {d.folio.calculationStatus === "calculated" ? "Calculated" : "Blocked"}
                 </span>
               </div>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full min-w-[720px] text-sm">
-                  <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <thead className="text-left text-sm uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="py-2">Room</th>
                       <th className="py-2">Stock code</th>
@@ -103,7 +103,7 @@ function CheckoutPreviewPage() {
                     {d.folio.lines.map((l) => (
                       <tr key={l.reservationRoomId} className="border-t border-border">
                         <td className="py-2">{l.roomLabel}</td>
-                        <td className="py-2 font-mono text-xs">{l.n3StockCode ?? "unmapped"}</td>
+                        <td className="py-2 font-mono text-sm">{l.n3StockCode ?? "unmapped"}</td>
                         <td className="py-2">
                           {l.servicePeriodStart} → {l.servicePeriodEnd}
                         </td>
@@ -115,13 +115,13 @@ function CheckoutPreviewPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-right text-sm font-semibold">
+              <p className="mt-3 text-right text-base font-semibold">
                 Room charge total: {formatMoney(d.folio.roomChargeTotal, d.reservation.currency)}
               </p>
             </section>
 
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold">Verified deposits (N3, read-only)</h2>
+              <h2 className="text-base font-semibold">Verified deposits (N3, read-only)</h2>
               {d.deposits.rows.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">
                   No deposits recorded for this reservation.
@@ -133,11 +133,11 @@ function CheckoutPreviewPage() {
                       key={r.id}
                       className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2"
                     >
-                      <span className="font-mono text-xs">{r.n3DocCode ?? "—"}</span>
+                      <span className="font-mono text-sm">{r.n3DocCode ?? "—"}</span>
                       <span>{r.customerLabel ?? "—"}</span>
                       <span>{formatMoney(r.amount, r.currency)}</span>
                       <span
-                        className="rounded px-2 py-0.5 text-xs font-medium"
+                        className="rounded px-2 py-0.5 text-sm font-medium"
                         style={{
                           backgroundColor: r.verification === "verified" ? "#E7F6F3" : "#FDF3E7",
                           color: "#102A43",
@@ -150,17 +150,17 @@ function CheckoutPreviewPage() {
                   ))}
                 </ul>
               )}
-              <p className="mt-3 text-right text-sm font-semibold">
+              <p className="mt-3 text-right text-base font-semibold">
                 Verified deposit total:{" "}
                 {formatMoney(d.deposits.verifiedTotal, d.reservation.currency)}
               </p>
             </section>
 
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold">Estimated settlement</h2>
+              <h2 className="text-base font-semibold">Estimated settlement</h2>
               <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
                 <dt className="text-muted-foreground">Estimated balance due</dt>
-                <dd className="text-right font-semibold">
+                <dd className="text-right text-base font-semibold">
                   {formatMoney(d.summary.estimatedBalance, d.reservation.currency)}
                 </dd>
                 <dt className="text-muted-foreground">Excess deposit / credit requiring review</dt>
@@ -174,7 +174,7 @@ function CheckoutPreviewPage() {
             </section>
 
             <section className="rounded-lg border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold">
+              <h2 className="text-base font-semibold">
                 Checkout readiness — {d.readiness.calculationComplete ? "calculated" : "blocked"}
               </h2>
               <ul className="mt-3 space-y-2 text-sm">
@@ -187,14 +187,14 @@ function CheckoutPreviewPage() {
                       backgroundColor: b.severity === "blocking" ? "#FDECEC" : "#F8FAFC",
                     }}
                   >
-                    <span className="text-xs font-semibold uppercase tracking-wide">
+                    <span className="text-sm font-semibold uppercase tracking-wide">
                       {b.severity}
                     </span>
                     <p className="mt-1">{b.message}</p>
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-xs text-muted-foreground">
+              <p className="mt-4 text-sm text-muted-foreground">
                 Financial posting is disabled in this milestone: no CashMemo, no deposit matching,
                 no refund and no room-status change.
               </p>

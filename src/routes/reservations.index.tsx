@@ -439,14 +439,14 @@ function FiltersCard({
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
           >
             <X className="h-3.5 w-3.5" aria-hidden />
             Clear filters
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white"
             style={{ backgroundColor: NAVY }}
           >
             <Search className="h-3.5 w-3.5" aria-hidden />
@@ -460,7 +460,7 @@ function FiltersCard({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-xs">
+    <label className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: NAVY }}>
         {label}
       </span>
@@ -535,7 +535,7 @@ function ResultsCard(props: {
           <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
             Reservations
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {loading
               ? "Loading…"
               : total === 0
@@ -544,10 +544,10 @@ function ResultsCard(props: {
             {refreshing ? " · refreshing…" : ""}
           </p>
         </div>
-        <label className="text-xs">
+        <label className="text-sm">
           <span className="mr-2 text-muted-foreground">Rows per page</span>
           <select
-            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
             value={limit}
             onChange={(e) => onLimit(Number(e.target.value))}
           >
@@ -569,7 +569,7 @@ function ResultsCard(props: {
           <span>{friendlyError(error, "Unable to load reservations right now.")}</span>
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-2 py-1 text-xs font-medium"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-2 py-1 text-sm font-medium"
             style={{ color: NAVY }}
           >
             <RefreshCw className="h-3 w-3" aria-hidden />
@@ -581,7 +581,7 @@ function ResultsCard(props: {
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
+            <tr className="text-left text-sm uppercase" style={{ color: NAVY }}>
               {(
                 [
                   ["bookingReference", "Booking"],
@@ -622,7 +622,7 @@ function ResultsCard(props: {
                   <CalendarClock className="mx-auto mb-2 h-5 w-5" aria-hidden />
                   <p>No reservations match your filters.</p>
                   {canCreate ? (
-                    <p className="mt-1 text-xs">
+                    <p className="mt-1 text-sm">
                       <Link to="/reservations/new" className="underline" style={{ color: NAVY }}>
                         Create the first reservation
                       </Link>
@@ -633,7 +633,7 @@ function ResultsCard(props: {
             ) : (
               rows.map((r) => (
                 <tr key={r.id} className="border-t border-border/60 hover:bg-muted/30">
-                  <td className="py-2 pr-4 font-mono text-xs">
+                  <td className="py-2 pr-4 font-mono text-sm">
                     <Link
                       to="/reservations/$id"
                       params={{ id: r.id }}
@@ -667,7 +667,7 @@ function ResultsCard(props: {
                   <td className="py-2 pr-4 tabular-nums">
                     <TodayDate iso={r.departureDate} propertyDate={propertyDate} kind="departure" />
                   </td>
-                  <td className="py-2 pr-4 text-xs" title={r.roomLabels.join(", ")}>
+                  <td className="py-2 pr-4 text-sm" title={r.roomLabels.join(", ")}>
                     {formatRoomLabelsList(r.roomLabels)}
                     {r.roomCount > 0 ? (
                       <span className="ml-1 text-muted-foreground">({r.roomCount})</span>
@@ -677,20 +677,20 @@ function ResultsCard(props: {
                   <td className="py-2 pr-4">{sourceLabel(r.bookingSource)}</td>
                   <td className="py-2 pr-4">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      className="rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
                       style={{ backgroundColor: `${TEAL}22`, color: TEAL }}
                     >
                       {r.status}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-xs text-muted-foreground">
+                  <td className="py-2 pr-4 text-sm text-muted-foreground">
                     {formatCreatedAt(r.createdAt)}
                   </td>
                   <td className="py-2 pr-4">
                     <Link
                       to="/reservations/$id"
                       params={{ id: r.id }}
-                      className="text-xs font-medium underline"
+                      className="text-sm font-medium underline"
                       style={{ color: TEAL }}
                     >
                       View
@@ -706,7 +706,7 @@ function ResultsCard(props: {
       <GuestContactSheet info={contact} onClose={() => setContact(null)} />
 
       {total > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-muted-foreground">
             Page {currentPage} of {totalPages}
           </p>
@@ -794,7 +794,7 @@ function TodayDate({
       title={kind === "arrival" ? "Arriving today" : "Departing today"}
     >
       {formatIsoDate(iso)}
-      <span className="text-[10px] uppercase tracking-wide" style={{ color }}>
+      <span className="text-sm uppercase tracking-wide" style={{ color }}>
         Today
       </span>
     </span>

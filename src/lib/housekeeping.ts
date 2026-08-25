@@ -489,6 +489,19 @@ export const DND_SETUP_HINT =
 export const DND_CLEANING_HINT =
   "Cleaning is in progress. Stop cleaning and return the room to Dirty first. Then you can turn on Do Not Disturb.";
 
+/**
+ * Front-desk card wording. The cards are scanned, not read: the card shows the
+ * SHORT form and nothing else, while the long form above stays available for
+ * places that can afford a full explanation.
+ */
+export const DND_SETUP_HINT_SHORT = "Set condition before DND";
+
+/** Short, safety-only label for the mid-clean DND block. */
+export const DND_CLEANING_HINT_SHORT = "Return to Dirty before DND";
+
+/** Short card label when only the Owner may set a room up. */
+export const SETUP_OWNER_ONLY_SHORT = "Owner only";
+
 /** The single DND control label, shared by the enabled and disabled states. */
 export const DND_SET_LABEL = "Set Do Not Disturb";
 
