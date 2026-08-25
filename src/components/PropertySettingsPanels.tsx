@@ -9,6 +9,12 @@ import { SESSION_QUERY_KEY } from "@/lib/session-client";
 import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
+import {
+  applyDisplaySize,
+  coerceDisplaySize,
+  DISPLAY_SIZE_OPTIONS,
+  type DisplaySize,
+} from "@/lib/display-size";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -367,6 +373,93 @@ export function HousekeepingPanel({
         style={{ backgroundColor: NAVY }}
       >
         {saving ? "Saving…" : "Save housekeeping workflow"}
+      </button>
+    </section>
+  );
+}
+
+/**
+ * Owner-controlled, property-wide application display size. The saved value is
+ * stored in tenant-scoped HotelHub settings and delivered by the session, so
+ * every authorised member of staff receives it. Invalidating the session cache
+ * on save applies it immediately — no Ctrl+Shift+R, no sign-out, no reload.
+ */
+export function DisplaySizePanel({
+  settings,
+  onChange,
+}: {
+  settings: HotelSettingsDTO;
+  onChange: (s: HotelSettingsDTO) => void;
+}) {
+  const [size, setSize] = useState<DisplaySize>(coerceDisplaySize(settings.displaySize));
+  const [saving, setSaving] = useState(false);
+  const qc = useQueryClient();
+
+  async function save() {
+    setSaving(true);
+    try {
+      const r = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displaySize: size }),
+      });
+      onChange(r.settings);
+      applyDisplaySize(typeof document === "undefined" ? undefined : document, size);
+      void qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+      toast.success("Application display size saved");
+    } catch (e) {
+      toast.error(friendlyError((e as Error).message, "Unable to save the display size."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Application display size
+      </h2>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        Sets how large HotelHub appears for the whole property. Levels are display sizes, not exact
+        text sizes; headings, tables and controls keep their relative hierarchy.
+      </p>
+      <fieldset className="mt-4 space-y-2">
+        <legend className="text-xs font-medium" style={{ color: NAVY }}>
+          Display size
+        </legend>
+        {DISPLAY_SIZE_OPTIONS.map((o) => (
+          <label
+            key={o.value}
+            className="flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm"
+            style={{
+              borderColor: size === o.value ? TEAL : `${NAVY}1F`,
+              backgroundColor: size === o.value ? `${TEAL}0D` : "white",
+            }}
+          >
+            <input
+              type="radio"
+              name="display-size"
+              className="mt-1"
+              checked={size === o.value}
+              onChange={() => setSize(o.value)}
+            />
+            <span>
+              <span className="font-medium" style={{ color: NAVY }}>
+                {o.label}
+              </span>
+              <span className="block text-xs text-muted-foreground">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving || size === coerceDisplaySize(settings.displaySize)}
+        className="mt-4 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        style={{ backgroundColor: NAVY }}
+      >
+        {saving ? "Saving…" : "Save display size"}
       </button>
     </section>
   );

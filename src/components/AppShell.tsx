@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
@@ -6,6 +6,7 @@ import { housekeepingAuthority } from "@/lib/housekeeping";
 import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
+import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
 
 type NavItem = {
   to:
@@ -39,7 +40,6 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
 
   { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
-  { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
   { to: "/", label: "Guests", disabled: true },
   { to: "/", label: "Folios & AR", disabled: true },
@@ -51,6 +51,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
+
+  // Property-wide display size. The authoritative value arrives with the
+  // session, so a confirmed Owner save applies as soon as the session cache
+  // refreshes — no hard refresh, no sign-out.
+  const sessionData = sessionQuery.data;
+  const displaySize =
+    sessionData && sessionData.authenticated === true
+      ? coerceDisplaySize(sessionData.displaySize)
+      : 7;
+  useEffect(() => {
+    applyDisplaySize(typeof document === "undefined" ? undefined : document, displaySize);
+  }, [displaySize]);
 
   // Note: the N3 launch token is consumed server-side by the root-URL
   // interceptor in `src/start.ts` and the `/api/auth/launch` handler, then

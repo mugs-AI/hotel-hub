@@ -7,7 +7,7 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useSessionMe } from "@/lib/session-client";
-import { buildListQuery, type ListFilters } from "@/lib/reservations-ui";
+import { buildListQuery, type ListFilters, type ReservationSort } from "@/lib/reservations-ui";
 
 export class ReservationApiError extends Error {
   status: number;
@@ -84,6 +84,8 @@ export type ReservationListItem = {
   id: string;
   bookingReference: string;
   primaryGuestName: string | null;
+  /** Owner / Front Desk only — powers the Guest Contact sheet with no extra fetch. */
+  primaryGuestMobile: string | null;
   bookingSource: string;
   status: string;
   arrivalDate: string;
@@ -94,7 +96,12 @@ export type ReservationListItem = {
   guestCount: number;
   createdAt: string;
 };
-export type ReservationListResponse = { items: ReservationListItem[]; total: number };
+export type ReservationListResponse = {
+  items: ReservationListItem[];
+  total: number;
+  /** Authoritative property-local date. Never the workstation clock. */
+  propertyDate?: string;
+};
 
 export type AvailabilityRoomDTO = {
   hotelRoomId: string;
@@ -282,10 +289,10 @@ function useTenantId(): string | null {
 export function useReservationList(
   filters: ListFilters,
   page: { limit: number; offset: number },
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; sort?: ReservationSort },
 ) {
   const tenantId = useTenantId();
-  const params = buildListQuery(filters, page);
+  const params = buildListQuery(filters, page, options?.sort ?? null);
   return useQuery<ReservationListResponse, ReservationApiError>({
     queryKey: reservationsListKey(tenantId, params),
     queryFn: () =>

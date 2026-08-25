@@ -576,7 +576,7 @@ export function RoomCard({
 
   return (
     <li
-      className="rounded-lg border p-3 shadow-sm"
+      className="rounded-lg border p-2.5 shadow-sm"
       style={
         overdueOccupied
           ? {
@@ -589,10 +589,10 @@ export function RoomCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-base font-semibold" style={{ color: NAVY }}>
+          <div className="truncate text-sm font-semibold leading-tight" style={{ color: NAVY }}>
             {room.roomLabel}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="text-[11px] leading-tight text-muted-foreground">
             {room.floor?.trim() || "Unassigned floor"} · {OCCUPANCY_LABELS[room.occupancy]}
             {room.occupancyOverdue && !overdueOccupied ? ` · ${OVERDUE_STAY_LABEL}` : ""}
           </div>
@@ -626,7 +626,7 @@ export function RoomCard({
 
       {room.dndActive && (
         <p
-          className="mt-2 rounded-md px-2 py-1 text-[11px] font-medium"
+          className="mt-1.5 rounded px-2 py-0.5 text-[11px] font-medium leading-tight"
           style={{ backgroundColor: HK_COLORS.indigoSoft, color: HK_COLORS.indigoInk }}
         >
           {DND_SUPPORTING_TEXT} · {DND_NEXT_ACTION}
@@ -639,12 +639,12 @@ export function RoomCard({
         </p>
       )}
 
-      <p className="mt-2 text-xs" style={{ color: NAVY }}>
+      <p className="mt-1.5 text-[11px] leading-tight" style={{ color: NAVY }}>
         Next: {room.nextStep}
       </p>
 
       {!room.initialized && (
-        <div className="mt-3">
+        <div className="mt-2">
           {canInitialize ? (
             <div className="flex flex-wrap gap-2">
               <ActionButton tone="positive" busy={busy} onClick={() => onInitialize("ready")}>
@@ -674,7 +674,7 @@ export function RoomCard({
       )}
 
       {room.initialized && (
-        <div className="mt-3 space-y-2">
+        <div className="mt-2 space-y-1.5">
           {/* The ONE dominant next action, straight from the server's
               availableTransitions — never a client-invented shortcut. */}
           {canUpdate && primaryTransitions.length > 0 && (

@@ -3,6 +3,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { useQuery } from "@tanstack/react-query";
@@ -78,6 +79,7 @@ type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
   displayName: string | null;
+  n3StockCode: string | null;
   n3StockName: string | null;
   roomType: string;
   floor: string | null;
@@ -336,6 +338,7 @@ function FloorGrid({
   const grouped = useMemo(() => groupRoomsByFloor(rooms), [rooms]);
   const [activeFloor, setActiveFloor] = useState<string>("__all__");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
 
   const visibleFloors =
     activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
@@ -344,10 +347,7 @@ function FloorGrid({
     grouped.floors.map((f) => [
       f,
       [...(grouped.byFloor.get(f) ?? [])].sort((a, b) =>
-        naturalCompare(
-          roomLabel(a.displayName, a.n3StockName, a.roomNumber),
-          roomLabel(b.displayName, b.n3StockName, b.roomNumber),
-        ),
+        naturalCompare(a.roomNumber, b.roomNumber),
       ),
     ]),
   );
@@ -366,6 +366,21 @@ function FloorGrid({
 
   return (
     <div className="space-y-3">
+      <RoomInformationSheet
+        room={
+          roomInfo
+            ? {
+                roomNumber: roomInfo.roomNumber,
+                n3StockCode: roomInfo.n3StockCode,
+                roomName: roomInfo.displayName ?? roomInfo.n3StockName,
+                roomType: roomInfo.roomType,
+                floor: roomInfo.floor,
+                isActive: roomInfo.isActive,
+              }
+            : null
+        }
+        onClose={() => setRoomInfo(null)}
+      />
       <FloorChips
         floors={grouped.floors}
         counts={new Map(grouped.floors.map((f) => [f, grouped.byFloor.get(f)?.length ?? 0]))}
@@ -457,6 +472,7 @@ function FloorGrid({
                         rangeEndExclusive={rangeEndExclusive}
                         template={rowTemplate}
                         rowWidth={rowWidth}
+                        onRoomInfo={setRoomInfo}
                       />
                     ))}
               </div>
@@ -550,6 +566,7 @@ function RoomRow({
   rangeEndExclusive,
   template,
   rowWidth,
+  onRoomInfo,
 }: {
   room: CalendarRoom;
   dates: string[];
@@ -560,6 +577,7 @@ function RoomRow({
   rangeEndExclusive: string;
   template: string;
   rowWidth: number;
+  onRoomInfo: (room: CalendarRoom) => void;
 }) {
   return (
     <div
@@ -582,16 +600,15 @@ function RoomRow({
           className="sticky left-0 z-10 bg-white p-1.5"
           style={{ borderRight: `1px solid ${NAVY}11` }}
         >
-          <div className="truncate text-xs font-semibold" style={{ color: NAVY }}>
-            {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
-          </div>
-          <div className="truncate text-[10px] text-muted-foreground">
-            <span className="font-mono">{room.roomNumber}</span>
-            {" · "}
-            {room.roomType}
-            {room.floor ? ` · Fl ${room.floor}` : ""}
-            {!room.isActive ? " · inactive" : ""}
-          </div>
+          {/* Room number only. Stock code, type and floor live in the Room
+              information sheet so the grid stays scannable. */}
+          <SheetTrigger
+            label={`Room information for room ${room.roomNumber}`}
+            onOpen={() => onRoomInfo(room)}
+            className="rounded font-mono text-sm font-semibold underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {room.roomNumber}
+          </SheetTrigger>
         </div>
         {dates.map((d) => {
           const dow = dayOfWeek(d);

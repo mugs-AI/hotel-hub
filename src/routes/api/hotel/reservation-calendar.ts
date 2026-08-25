@@ -64,6 +64,7 @@ export type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
   displayName: string | null;
+  n3StockCode: string | null;
   n3StockName: string | null;
   roomType: string;
   floor: string | null;
@@ -118,13 +119,16 @@ export async function handleCalendar({ request }: { request: Request }): Promise
     // Active rooms.
     const roomsRes = await sb
       .from("hotel_rooms")
-      .select("id, room_number, display_name, n3_stock_name, room_type, floor, is_active")
+      .select(
+        "id, room_number, display_name, n3_stock_code, n3_stock_name, room_type, floor, is_active",
+      )
       .eq("tenant_id", tenantId);
     if (roomsRes.error) throw new Error(`rooms read failed: ${roomsRes.error.message}`);
     const allRooms = (roomsRes.data ?? []) as Array<{
       id: string;
       room_number: string;
       display_name: string | null;
+      n3_stock_code: string | null;
       n3_stock_name: string | null;
       room_type: string;
       floor: string | null;
@@ -203,6 +207,7 @@ export async function handleCalendar({ request }: { request: Request }): Promise
       hotelRoomId: r.id,
       roomNumber: r.room_number,
       displayName: r.display_name ?? null,
+      n3StockCode: r.n3_stock_code ?? null,
       n3StockName: r.n3_stock_name ?? null,
       roomType: r.room_type,
       floor: r.floor,

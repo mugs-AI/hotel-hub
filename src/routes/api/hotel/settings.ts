@@ -44,6 +44,7 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
     allowOwnerPrimaryGuestChangeAfterCheckIn?: boolean;
     housekeepingMode?: "simple" | "dedicated";
     exceptionApprovalMode?: "owner_approval" | "direct";
+    displaySize?: 7 | 8 | 9;
   } = {};
 
   if (typeof body.currency === "string" && /^[A-Z]{3}$/.test(body.currency)) {
@@ -72,6 +73,9 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
   }
   if (body.exceptionApprovalMode === "owner_approval" || body.exceptionApprovalMode === "direct") {
     patch.exceptionApprovalMode = body.exceptionApprovalMode;
+  }
+  if (body.displaySize === 7 || body.displaySize === 8 || body.displaySize === 9) {
+    patch.displaySize = body.displaySize;
   }
   if (Object.keys(patch).length === 0) return deny(400, "no_valid_fields");
   const settings = await updateHotelSettings(ctx.session.tenantId!, patch);

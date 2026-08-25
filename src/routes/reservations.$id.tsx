@@ -141,6 +141,8 @@ function Header({
             status: "",
             arrivalFrom: "",
             arrivalTo: "",
+            sortKey: "createdAt",
+            sortDir: "desc" as const,
             limit: 25,
             offset: 0,
           }}
