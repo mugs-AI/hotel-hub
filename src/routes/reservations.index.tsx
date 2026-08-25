@@ -17,7 +17,18 @@ import {
   useBookingSources,
   useReservationList,
 } from "@/lib/reservations-client";
-import { CalendarClock, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarClock,
+  Filter,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
+import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -32,9 +43,33 @@ type ListSearch = {
   status: string;
   arrivalFrom: string;
   arrivalTo: string;
+  sortKey: string;
+  sortDir: "asc" | "desc";
   limit: number;
   offset: number;
 };
+
+const SORTABLE_KEYS = [
+  "bookingReference",
+  "primaryGuestName",
+  "arrivalDate",
+  "departureDate",
+  "roomNo",
+  "guestCount",
+  "bookingSource",
+  "status",
+  "createdAt",
+] as const;
+type SortKey = (typeof SORTABLE_KEYS)[number];
+
+function sortKeyOf(v: unknown): SortKey {
+  return typeof v === "string" && (SORTABLE_KEYS as readonly string[]).includes(v)
+    ? (v as SortKey)
+    : "createdAt";
+}
+function sortDirOf(v: unknown): "asc" | "desc" {
+  return v === "asc" ? "asc" : "desc";
+}
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
@@ -53,6 +88,8 @@ export const Route = createFileRoute("/reservations/")({
     status: str(raw.status),
     arrivalFrom: str(raw.arrivalFrom),
     arrivalTo: str(raw.arrivalTo),
+    sortKey: sortKeyOf(raw.sortKey),
+    sortDir: sortDirOf(raw.sortDir),
     limit: int(raw.limit, 25),
     offset: int(raw.offset, 0),
   }),
@@ -168,7 +205,13 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
     filters.arrivalTo,
   ]);
 
-  const query = useReservationList(filters, { limit, offset });
+  const sortKey = sortKeyOf(search.sortKey);
+  const sortDir = sortDirOf(search.sortDir);
+  const query = useReservationList(
+    filters,
+    { limit, offset },
+    { sort: { key: sortKey, dir: sortDir } },
+  );
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
   const rows = query.data?.items ?? [];
@@ -182,6 +225,19 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   function setPage(page: number) {
     const clamped = Math.min(totalPages, Math.max(1, page));
     navigate({ search: (prev: ListSearch) => ({ ...prev, offset: (clamped - 1) * limit }) });
+  }
+  function setSort(key: SortKey) {
+    navigate({
+      search: (prev: ListSearch) => ({
+        ...prev,
+        sortKey: key,
+        // First click on a new column sorts ascending; clicking the active
+        // column flips direction. Sorting always restarts at page 1 and the
+        // server re-sorts the complete filtered set.
+        sortDir: prev.sortKey === key && prev.sortDir === "asc" ? "desc" : "asc",
+        offset: 0,
+      }),
+    });
   }
   function setLimit(l: number) {
     navigate({ search: (prev: ListSearch) => ({ ...prev, limit: l, offset: 0 }) });
@@ -213,6 +269,10 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
         onRetry={() => query.refetch()}
         canCreate={canCreate}
         sourceLabel={(code) => tenantSourceLabel(sources, code)}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={setSort}
+        propertyDate={query.data?.propertyDate ?? null}
       />
     </>
   );
@@ -234,6 +294,8 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
           status: "",
           arrivalFrom: "",
           arrivalTo: "",
+          sortKey: "createdAt",
+          sortDir: "desc" as const,
           limit: 25,
           offset: 0,
         }}
@@ -415,6 +477,7 @@ function ResultsCard(props: {
     id: string;
     bookingReference: string;
     primaryGuestName: string | null;
+    primaryGuestMobile: string | null;
     bookingSource: string;
     status: string;
     arrivalDate: string;
@@ -433,6 +496,10 @@ function ResultsCard(props: {
   onRetry: () => void;
   canCreate: boolean;
   sourceLabel: (code: string) => string;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  propertyDate: string | null;
 }) {
   const {
     loading,
@@ -448,7 +515,12 @@ function ResultsCard(props: {
     onRetry,
     canCreate,
     sourceLabel,
+    sortKey,
+    sortDir,
+    onSort,
+    propertyDate,
   } = props;
+  const [contact, setContact] = useState<GuestContactInfo | null>(null);
 
   const from = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const to = Math.min(total, currentPage * limit);
@@ -510,15 +582,28 @@ function ResultsCard(props: {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
-              <th className="py-2 pr-4">Booking</th>
-              <th className="py-2 pr-4">Primary guest</th>
-              <th className="py-2 pr-4">Arrival</th>
-              <th className="py-2 pr-4">Departure</th>
-              <th className="py-2 pr-4">Room no.</th>
-              <th className="py-2 pr-4">Guests</th>
-              <th className="py-2 pr-4">Source</th>
-              <th className="py-2 pr-4">Status</th>
-              <th className="py-2 pr-4">Created</th>
+              {(
+                [
+                  ["bookingReference", "Booking"],
+                  ["primaryGuestName", "Primary guest"],
+                  ["arrivalDate", "Arrival"],
+                  ["departureDate", "Departure"],
+                  ["roomNo", "Room no."],
+                  ["guestCount", "Guests"],
+                  ["bookingSource", "Source"],
+                  ["status", "Status"],
+                  ["createdAt", "Created"],
+                ] as Array<[SortKey, string]>
+              ).map(([key, label]) => (
+                <SortHeader
+                  key={key}
+                  columnKey={key}
+                  label={label}
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={onSort}
+                />
+              ))}
               <th className="py-2 pr-4"></th>
             </tr>
           </thead>
@@ -558,9 +643,30 @@ function ResultsCard(props: {
                       {r.bookingReference}
                     </Link>
                   </td>
-                  <td className="py-2 pr-4">{r.primaryGuestName ?? "—"}</td>
-                  <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.arrivalDate)}</td>
-                  <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.departureDate)}</td>
+                  <td className="py-2 pr-4">
+                    {r.primaryGuestName ? (
+                      <SheetTrigger
+                        label={`Guest contact for ${r.primaryGuestName}`}
+                        onOpen={() =>
+                          setContact({
+                            guestName: r.primaryGuestName,
+                            mobile: r.primaryGuestMobile,
+                            bookingReference: r.bookingReference,
+                          })
+                        }
+                      >
+                        {r.primaryGuestName}
+                      </SheetTrigger>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    <TodayDate iso={r.arrivalDate} propertyDate={propertyDate} kind="arrival" />
+                  </td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    <TodayDate iso={r.departureDate} propertyDate={propertyDate} kind="departure" />
+                  </td>
                   <td className="py-2 pr-4 text-xs" title={r.roomLabels.join(", ")}>
                     {formatRoomLabelsList(r.roomLabels)}
                     {r.roomCount > 0 ? (
@@ -597,6 +703,8 @@ function ResultsCard(props: {
         </table>
       </div>
 
+      <GuestContactSheet info={contact} onClose={() => setContact(null)} />
+
       {total > 0 ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
           <p className="text-muted-foreground">
@@ -621,5 +729,75 @@ function ResultsCard(props: {
         </div>
       ) : null}
     </section>
+  );
+}
+
+
+/**
+ * Sortable column header. Every data column is sortable server-side; the
+ * action column is not. The active column exposes aria-sort so screen readers
+ * announce the current order.
+ */
+function SortHeader({
+  columnKey,
+  label,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  columnKey: SortKey;
+  label: string;
+  activeKey: SortKey;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const active = activeKey === columnKey;
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th
+      className="py-2 pr-4"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(columnKey)}
+        className="inline-flex items-center gap-1 rounded uppercase hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ color: NAVY, fontWeight: active ? 700 : 600 }}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3" aria-hidden />
+      </button>
+    </th>
+  );
+}
+
+/**
+ * Renders a stay date and marks it when it equals the authoritative
+ * property-local date returned by the server. The workstation clock is never
+ * used for this decision.
+ */
+function TodayDate({
+  iso,
+  propertyDate,
+  kind,
+}: {
+  iso: string;
+  propertyDate: string | null;
+  kind: "arrival" | "departure";
+}) {
+  const isToday = propertyDate !== null && iso === propertyDate;
+  if (!isToday) return <>{formatIsoDate(iso)}</>;
+  const color = kind === "arrival" ? TEAL : GOLD;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold"
+      style={{ backgroundColor: `${color}22`, color: NAVY }}
+      title={kind === "arrival" ? "Arriving today" : "Departing today"}
+    >
+      {formatIsoDate(iso)}
+      <span className="text-[10px] uppercase tracking-wide" style={{ color }}>
+        Today
+      </span>
+    </span>
   );
 }
