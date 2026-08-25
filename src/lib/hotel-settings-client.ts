@@ -11,6 +11,7 @@ export type HotelSettingsDTO = {
   allowOwnerPrimaryGuestChangeAfterCheckIn: boolean;
   housekeepingMode: "simple" | "dedicated";
   exceptionApprovalMode: "owner_approval" | "direct";
+  displaySize: 7 | 8 | 9;
   walkInCustomer: { n3Id: string; n3Code: string; n3Name: string | null } | null;
 };
 

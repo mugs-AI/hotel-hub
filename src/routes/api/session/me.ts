@@ -39,6 +39,8 @@ export type SessionMeResponse =
       housekeepingMode: "simple" | "dedicated";
       /** SME approval policy for reservation exceptions. */
       exceptionApprovalMode: "owner_approval" | "direct";
+      /** Property-wide application display size level (7 | 8 | 9). */
+      displaySize: 7 | 8 | 9;
     };
 
 export async function handleSessionMe(): Promise<Response> {
@@ -52,13 +54,16 @@ export async function handleSessionMe(): Promise<Response> {
   // Read-only: never creates a settings row as a side effect of loading.
   let housekeepingMode: "simple" | "dedicated" = "simple";
   let exceptionApprovalMode: "owner_approval" | "direct" = "owner_approval";
+  let displaySize: 7 | 8 | 9 = 7;
   try {
     const settings = s.tenantId ? await getHotelSettingsReadOnly(s.tenantId) : null;
     housekeepingMode = settings?.housekeepingMode ?? "simple";
     exceptionApprovalMode = settings?.exceptionApprovalMode ?? "owner_approval";
+    displaySize = settings?.displaySize ?? 7;
   } catch {
     housekeepingMode = "simple";
     exceptionApprovalMode = "owner_approval";
+    displaySize = 7;
   }
   const body: SessionMeResponse = {
     authenticated: true,
@@ -78,6 +83,7 @@ export async function handleSessionMe(): Promise<Response> {
     roleReason: ctx.roleReason,
     housekeepingMode,
     exceptionApprovalMode,
+    displaySize,
   };
   return Response.json(body, { headers: { "cache-control": "no-store" } });
 }
