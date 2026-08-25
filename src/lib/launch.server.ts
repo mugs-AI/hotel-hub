@@ -21,10 +21,12 @@ export type LaunchSource = "path_a" | "root" | "path_b_dev";
 export const SAFE_LAUNCH_ERROR_CODES = [
   "session_expired",
   "n3_rejected",
+  "n3_access_denied",
   "n3_unavailable",
   "identity_unavailable",
   "launch_failed",
 ] as const;
+
 export type SafeLaunchErrorCode = (typeof SAFE_LAUNCH_ERROR_CODES)[number];
 
 /** Custom header on non-2xx launch responses so the interceptor can map
