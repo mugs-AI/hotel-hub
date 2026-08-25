@@ -32,6 +32,8 @@ export const Route = createFileRoute("/launch-error")({
 const MESSAGES: Record<SafeCode, string> = {
   session_expired: "Your N3 session has expired. Reopen HotelHub from N3 → Marketplace → My Apps.",
   n3_rejected: "N3 did not accept the launch token. Please launch HotelHub again from N3 My Apps.",
+  n3_access_denied:
+    "N3 accepted the launch, but this account does not have permission to open HotelHub. Return to N3 My Apps, or ask the current N3 Owner or administrator to confirm this account's HotelHub access.",
   n3_unavailable: "N3 could not be reached right now. Please try launching HotelHub again shortly.",
   identity_unavailable:
     "N3 did not return the identity information HotelHub needs to start a session.",
