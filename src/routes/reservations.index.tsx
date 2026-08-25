@@ -133,7 +133,7 @@ function Header({ canCreate }: { canCreate: boolean }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            className="inline-block rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
             style={{ backgroundColor: GOLD, color: NAVY }}
           >
             Front Desk
@@ -282,7 +282,7 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
   return (
     <nav
       aria-label="Reservations view"
-      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-xs shadow-sm"
+      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-sm shadow-sm"
     >
       <Link
         to="/reservations"

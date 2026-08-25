@@ -76,3 +76,50 @@ describe("hotelhub_list_reservations — SQL contract", () => {
     );
   });
 });
+
+const LATEST = readdirSync(DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(join(DIR, f), "utf8"))
+  .filter((s) => s.includes("CREATE OR REPLACE FUNCTION public.hotelhub_list_reservations"))
+  .slice(-1)[0] as string;
+
+describe("hotelhub_list_reservations — roomNo sorts on room_number", () => {
+  it("derives a tenant-scoped room-number sort aggregate", () => {
+    expect(LATEST).toContain("AS room_number_sort");
+    expect(LATEST).toMatch(
+      /string_agg\(num, ',' ORDER BY num\)[\s\S]{0,400}rm\.room_number[\s\S]{0,400}rm\.tenant_id = p_tenant_id/,
+    );
+  });
+
+  it("uses the room-number key for roomNo, not the display labels", () => {
+    expect(LATEST).toContain("WHEN 'roomNo' THEN a.room_number_sort");
+    expect(LATEST).not.toMatch(/WHEN 'roomNo' THEN[^\n]*room_labels/);
+  });
+
+  it("still returns display labels unchanged", () => {
+    expect(LATEST).toContain("'roomLabels', to_jsonb(n.room_labels)");
+    expect(LATEST).toMatch(/nullif\(btrim\(coalesce\(rm\.display_name, ''\)\), ''\)/);
+  });
+
+  it("keeps deterministic tie-breakers and service-role-only execution", () => {
+    expect(LATEST.toLowerCase()).toMatch(/created_at desc,\s*\n?\s*id desc/);
+    expect(LATEST).toMatch(/grant\s+execute[\s\S]{0,200}service_role/i);
+    expect(LATEST).not.toMatch(/execute\s+(format|'|v_|p_)/i);
+  });
+});
+
+describe("front-desk routes — no prohibited small text classes", () => {
+  const ROUTES = [
+    "src/routes/reservations.index.tsx",
+    "src/routes/reservations.calendar.tsx",
+    "src/routes/reservations.$id_.checkout.tsx",
+  ];
+  for (const route of ROUTES) {
+    it(`${route} uses at least text-sm`, () => {
+      const src = readFileSync(join(process.cwd(), route), "utf8");
+      expect(src).not.toMatch(/text-xs/);
+      expect(src).not.toMatch(/text-\[1[012]px\]/);
+    });
+  }
+});
