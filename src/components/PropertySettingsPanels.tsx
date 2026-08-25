@@ -16,7 +16,6 @@ import {
   type DisplaySize,
 } from "@/lib/display-size";
 
-
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
@@ -467,7 +466,6 @@ export function DisplaySizePanel({
 }
 
 export function ExceptionApprovalPanel({
-
   settings,
   onChange,
 }: {

@@ -732,7 +732,6 @@ function ResultsCard(props: {
   );
 }
 
-
 /**
  * Sortable column header. Every data column is sortable server-side; the
  * action column is not. The active column exposes aria-sort so screen readers
