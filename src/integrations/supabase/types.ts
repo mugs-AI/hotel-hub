@@ -932,6 +932,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in: boolean
           created_at: string
           currency: string
+          display_size: number
           exception_approval_mode: string
           housekeeping_mode: string
           id: string
@@ -949,6 +950,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          display_size?: number
           exception_approval_mode?: string
           housekeeping_mode?: string
           id?: string
@@ -966,6 +968,7 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          display_size?: number
           exception_approval_mode?: string
           housekeeping_mode?: string
           id?: string
