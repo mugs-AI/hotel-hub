@@ -151,16 +151,29 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
     expect(failures[0]!.detail).toEqual({ source: "root", stage: "basicinfo", status: 403 });
   });
 
-  it("BasicInfo 5xx and transport failure -> n3_unavailable / launch_failed, never n3_access_denied", async () => {
+  it("BasicInfo 5xx and transport failure both -> n3_unavailable, never n3_access_denied", async () => {
     gatewayQueue.push({ status: 500, body: {} });
     const five = await performN3Launch(VALID(), "/", "root");
     expect(code(five)).toBe("n3_unavailable");
+    expect(five.status).toBe(502);
 
     gatewayQueue.push({ throws: "network down" });
     const net = await performN3Launch(VALID(), "/", "root");
-    expect(code(net)).toBe("launch_failed");
+    expect(code(net)).toBe("n3_unavailable");
+    expect(net.status).toBe(502);
     expect(code(net)).not.toBe("n3_access_denied");
     expect(sessionState.updates).toBe(0);
+    expect(upsertCalls).toEqual([]);
+
+    // Safe audit only: no raw error text, no token, no upstream body.
+    const failures = auditEvents.filter((e) => e.eventType === "session.launch.failure");
+    expect(failures.at(-1)!.detail).toEqual({
+      source: "root",
+      stage: "basicinfo",
+      reason: "transport_failure",
+    });
+    expect(JSON.stringify(auditEvents)).not.toContain("network down");
+    expect(JSON.stringify(auditEvents)).not.toContain(VALID());
   });
 
   it("malformed BasicInfo envelope stays fail-closed as n3_unavailable", async () => {
