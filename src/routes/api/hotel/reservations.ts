@@ -184,7 +184,6 @@ export async function handleListReservations({ request }: { request: Request }):
       { items, total: result.total, propertyDate },
       { headers: { "cache-control": "no-store" } },
     );
-
   } catch (err) {
     console.error("[reservations.list] failed", (err as Error).message?.slice(0, 200));
     return deny(500, "reservations_list_failed");

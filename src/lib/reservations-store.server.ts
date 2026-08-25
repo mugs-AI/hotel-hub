@@ -564,7 +564,6 @@ export async function listReservations(input: {
   return { items: all.slice(offset, offset + limit), total: all.length };
 }
 
-
 /** Mask an identity number for display; keep the last 4 chars only. */
 export function maskIdentityNumberServer(v: string | null | undefined): string | null {
   if (v == null) return null;

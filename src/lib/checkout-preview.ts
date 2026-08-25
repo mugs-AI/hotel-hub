@@ -778,7 +778,6 @@ export type DepartureListItemDTO = {
   previewAvailable: boolean;
 };
 
-
 export type DeparturesResponseDTO = {
   propertyDate: string;
   bucket: DeparturesQuery["bucket"];

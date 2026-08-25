@@ -58,9 +58,7 @@ export function GuestContactSheet({
                   {info.mobile}
                 </a>
               ) : (
-                <span className="font-normal text-muted-foreground">
-                  No mobile number recorded
-                </span>
+                <span className="font-normal text-muted-foreground">No mobile number recorded</span>
               )}
             </SheetRow>
             <SheetRow label="Booking">

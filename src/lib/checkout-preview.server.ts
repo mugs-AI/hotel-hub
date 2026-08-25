@@ -561,7 +561,6 @@ type ReservationGuestRow = {
   is_primary: boolean;
   reservation_room_id: string | null;
   hotel_guests: { full_name: string } | { full_name: string }[] | null;
-
 };
 
 type DepositRow = {

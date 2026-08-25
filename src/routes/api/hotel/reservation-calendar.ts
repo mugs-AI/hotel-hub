@@ -119,7 +119,9 @@ export async function handleCalendar({ request }: { request: Request }): Promise
     // Active rooms.
     const roomsRes = await sb
       .from("hotel_rooms")
-      .select("id, room_number, display_name, n3_stock_code, n3_stock_name, room_type, floor, is_active")
+      .select(
+        "id, room_number, display_name, n3_stock_code, n3_stock_name, room_type, floor, is_active",
+      )
       .eq("tenant_id", tenantId);
     if (roomsRes.error) throw new Error(`rooms read failed: ${roomsRes.error.message}`);
     const allRooms = (roomsRes.data ?? []) as Array<{
