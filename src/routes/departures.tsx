@@ -34,10 +34,12 @@ const BUCKETS = [
 function DeparturesPage() {
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]["key"]>("today");
   const q = useDepartures({ bucket, limit: 50 });
+  const [contact, setContact] = useState<GuestContactInfo | null>(null);
 
   return (
     <AppShell>
       <div className="space-y-5">
+        <GuestContactSheet info={contact} onClose={() => setContact(null)} />
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Departures</h1>
           <p className="mt-1 text-sm text-muted-foreground">
