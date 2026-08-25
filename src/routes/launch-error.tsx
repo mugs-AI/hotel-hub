@@ -7,10 +7,12 @@ import { createFileRoute } from "@tanstack/react-router";
 const SAFE_CODES = [
   "session_expired",
   "n3_rejected",
+  "n3_access_denied",
   "n3_unavailable",
   "identity_unavailable",
   "launch_failed",
 ] as const;
+
 type SafeCode = (typeof SAFE_CODES)[number];
 
 function coerce(code: unknown): SafeCode {
