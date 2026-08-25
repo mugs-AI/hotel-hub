@@ -78,6 +78,7 @@ type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
   displayName: string | null;
+  n3StockCode: string | null;
   n3StockName: string | null;
   roomType: string;
   floor: string | null;
@@ -582,16 +583,15 @@ function RoomRow({
           className="sticky left-0 z-10 bg-white p-1.5"
           style={{ borderRight: `1px solid ${NAVY}11` }}
         >
-          <div className="truncate text-xs font-semibold" style={{ color: NAVY }}>
-            {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
-          </div>
-          <div className="truncate text-[10px] text-muted-foreground">
-            <span className="font-mono">{room.roomNumber}</span>
-            {" · "}
-            {room.roomType}
-            {room.floor ? ` · Fl ${room.floor}` : ""}
-            {!room.isActive ? " · inactive" : ""}
-          </div>
+          {/* Room number only. Stock code, type and floor live in the Room
+              information sheet so the grid stays scannable. */}
+          <SheetTrigger
+            label={`Room information for room ${room.roomNumber}`}
+            onOpen={() => onRoomInfo(room)}
+            className="rounded font-mono text-sm font-semibold underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {room.roomNumber}
+          </SheetTrigger>
         </div>
         {dates.map((d) => {
           const dow = dayOfWeek(d);
