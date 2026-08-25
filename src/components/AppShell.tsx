@@ -289,8 +289,8 @@ export function RoleUnassignedShell({
         )}
         {guidance.showIdentifiers && (
           <p className="mt-4 text-xs text-muted-foreground">
-            Provide these identifiers to the current N3 Owner or your MUGS administrator when
-            asking for HotelHub access. No action is required from you here.
+            Provide these identifiers to the current N3 Owner or your MUGS administrator when asking
+            for HotelHub access. No action is required from you here.
           </p>
         )}
         <div className="mt-5 flex justify-end gap-2">
