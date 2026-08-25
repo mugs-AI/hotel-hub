@@ -9,6 +9,13 @@ import { SESSION_QUERY_KEY } from "@/lib/session-client";
 import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
+import {
+  applyDisplaySize,
+  coerceDisplaySize,
+  DISPLAY_SIZE_OPTIONS,
+  type DisplaySize,
+} from "@/lib/display-size";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
