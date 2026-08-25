@@ -89,6 +89,18 @@ export async function performN3Launch(
       });
       return failure(401, "N3 rejected the launch token", "n3_rejected");
     }
+    // N3 accepted the token but denies this account access to the app.
+    // Fail closed WITHOUT creating a session and WITHOUT continuing to
+    // tenant/user upsert or /api/Users.
+    if (probe.status === 403) {
+      await clearSessionBestEffort();
+      await logAudit({
+        eventType: "session.launch.failure",
+        detail: { source, stage: "basicinfo", status: 403 },
+      });
+      return failure(403, "N3 denied access to HotelHub", "n3_access_denied");
+    }
+
     if (probe.status < 200 || probe.status >= 300) {
       await clearSessionBestEffort();
       await logAudit({
