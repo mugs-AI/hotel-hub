@@ -401,8 +401,9 @@ describe("Correction A / Defect 1 — global guest search", () => {
       data: [{ reservation_id: "res-A" }, { reservation_id: "res-B" }, { reservation_id: "res-C" }],
       error: null,
     });
-    // Reservations page: server returns just the filtered subset with the
-    // true filtered total = 3.
+    // Reservations read: the COMPLETE filtered set is fetched so sorting can
+    // run over computed columns; the requested page is sliced afterwards, and
+    // `total` is the filtered total (3), not the tenant total.
     enqueue("hotel_reservations", {
       data: [
         {
@@ -413,6 +414,26 @@ describe("Correction A / Defect 1 — global guest search", () => {
           arrival_date: "2027-07-20",
           departure_date: "2027-07-22",
           created_at: "2027-07-20T00:00:00Z",
+          created_by_n3_user_key: "user-1",
+        },
+        {
+          id: "res-B",
+          booking_reference: "BK-B",
+          booking_source: "walk_in",
+          status: "confirmed",
+          arrival_date: "2027-07-21",
+          departure_date: "2027-07-23",
+          created_at: "2027-07-19T00:00:00Z",
+          created_by_n3_user_key: "user-1",
+        },
+        {
+          id: "res-C",
+          booking_reference: "BK-C",
+          booking_source: "walk_in",
+          status: "confirmed",
+          arrival_date: "2027-07-22",
+          departure_date: "2027-07-24",
+          created_at: "2027-07-18T00:00:00Z",
           created_by_n3_user_key: "user-1",
         },
       ],
