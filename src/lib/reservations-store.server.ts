@@ -3,7 +3,7 @@
 // client and require an explicit tenantId supplied by the trusted server
 // context (NEVER accepted from the browser).
 import { resolveActorLabels } from "./tenant-store.server";
-import { roomLabel } from "./reservations-ui";
+
 
 export const BOOKING_SOURCES = [
   "walk_in",
@@ -395,12 +395,79 @@ export function compareReservationSummaries(
   return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+/** Row shape returned by the `hotelhub_list_reservations` database routine. */
+type ListRpcRow = {
+  id?: unknown;
+  bookingReference?: unknown;
+  primaryGuestName?: unknown;
+  primaryGuestMobile?: unknown;
+  bookingSource?: unknown;
+  status?: unknown;
+  arrivalDate?: unknown;
+  departureDate?: unknown;
+  roomCount?: unknown;
+  roomLabels?: unknown;
+  guestCount?: unknown;
+  createdAt?: unknown;
+  createdByN3UserKey?: unknown;
+};
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+function strOrNull(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Map ONE database row to the already-approved list DTO. Nothing outside the
+ * approved field set is ever copied through, even if the routine were to
+ * return extra columns.
+ */
+export function toReservationSummary(row: ListRpcRow): ReservationSummary {
+  return {
+    id: str(row.id),
+    bookingReference: str(row.bookingReference),
+    primaryGuestName: strOrNull(row.primaryGuestName),
+    primaryGuestMobile: strOrNull(row.primaryGuestMobile),
+    bookingSource: str(row.bookingSource),
+    status: str(row.status),
+    arrivalDate: str(row.arrivalDate),
+    departureDate: str(row.departureDate),
+    roomCount: num(row.roomCount),
+    roomLabels: Array.isArray(row.roomLabels)
+      ? row.roomLabels.map((l) => str(l)).filter((l) => l !== "")
+      : [],
+    guestCount: num(row.guestCount),
+    createdAt: str(row.createdAt),
+    createdByN3UserKey: str(row.createdByN3UserKey),
+  };
+}
+
+/**
+ * Reservation list — filtering, sorting AND pagination all run INSIDE the
+ * database.
+ *
+ * Why a database routine rather than "read everything then sort in Node":
+ *  - the complete tenant-scoped filtered set is what gets sorted, but it is
+ *    never shipped into the application process; only the requested page
+ *    crosses the wire;
+ *  - guest-name / mobile filtering matches ANY linked guest (primary or not)
+ *    over the complete tenant result, before sorting and paging;
+ *  - the sort key is a strict allow-list checked here AND again in SQL; the
+ *    routine uses fixed CASE expressions, never dynamic/interpolated SQL;
+ *  - ordering ties are broken deterministically by `created_at DESC, id DESC`
+ *    so a row can never appear on two pages or vanish between them.
+ *
+ * `tenantId` always comes from the authenticated server session — never from
+ * the browser — and the routine is executable only by the service role.
+ */
 export async function listReservations(input: {
   tenantId: string;
   bookingReference?: string;
@@ -418,151 +485,43 @@ export async function listReservations(input: {
   const sb = await admin();
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const offset = Math.max(input.offset ?? 0, 0);
-  const sortKey: ReservationSortKey = input.sortKey ?? "createdAt";
-  const sortDir: SortDirection = input.sortDir ?? "desc";
+  const sortKey = input.sortKey ?? "createdAt";
+  const sortDir = input.sortDir ?? "desc";
 
-  // Guest search resolves ALL matching reservation IDs first (across the
-  // full authenticated-tenant dataset, matching primary OR non-primary
-  // guests), then reservation pagination is applied to that filtered set.
-  // Never page reservations first and filter guests inside the page.
-  let restrictIds: string[] | null = null;
-  const guestNeedle = input.guestName?.trim() ?? "";
-  const mobileNeedle = input.guestMobile?.trim() ?? "";
-  if (guestNeedle || mobileNeedle) {
-    let gq = sb.from("hotel_guests").select("id").eq("tenant_id", input.tenantId);
-    if (guestNeedle) gq = gq.ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
-    if (mobileNeedle) gq = gq.ilike("mobile", `%${mobileNeedle.replace(/[%_]/g, "")}%`);
-    const g = await gq;
-    if (g.error) throw new ReservationReadError(`guest search failed: ${g.error.message}`);
-    const guestIds = ((g.data ?? []) as Array<{ id: string }>).map((r) => r.id);
-    if (guestIds.length === 0) return { items: [], total: 0 };
-    const link = await sb
-      .from("hotel_reservation_guests")
-      .select("reservation_id")
-      .eq("tenant_id", input.tenantId)
-      .in("guest_id", guestIds);
-    if (link.error) throw new ReservationReadError(`guest link failed: ${link.error.message}`);
-    restrictIds = Array.from(
-      new Set(
-        ((link.data ?? []) as Array<{ reservation_id: string }>).map((r) => r.reservation_id),
-      ),
-    );
-    if (restrictIds.length === 0) return { items: [], total: 0 };
-  }
+  // Defence in depth: the session-derived tenant must be a real uuid, and the
+  // sort parameters must survive the allow-list a second time even though the
+  // route already validated them.
+  if (typeof input.tenantId !== "string" || input.tenantId.trim() === "")
+    throw new ReservationReadError("invalid tenant");
+  if (!isReservationSortKey(sortKey)) throw new ReservationReadError("invalid sort key");
+  if (!isSortDirection(sortDir)) throw new ReservationReadError("invalid sort direction");
 
-  // The COMPLETE tenant-scoped filtered set is read first; sorting (including
-  // computed columns such as primary guest and room numbers) happens over that
-  // whole set, and only then is the requested page sliced out.
-  let q = sb
-    .from("hotel_reservations")
-    .select(
-      "id, booking_reference, booking_source, status, arrival_date, departure_date, created_at, created_by_n3_user_key",
-    )
-    .eq("tenant_id", input.tenantId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+  const clean = (v: string | undefined): string | null => {
+    const s = (v ?? "").trim();
+    return s === "" ? null : s;
+  };
 
-  if (restrictIds) q = q.in("id", restrictIds);
-  if (input.bookingReference)
-    q = q.ilike("booking_reference", `%${input.bookingReference.replace(/[%_]/g, "")}%`);
-  if (input.status) q = q.eq("status", input.status);
-  if (input.bookingSource) q = q.eq("booking_source", input.bookingSource);
-  if (input.arrivalFrom) q = q.gte("arrival_date", input.arrivalFrom);
-  if (input.arrivalTo) q = q.lte("arrival_date", input.arrivalTo);
-
-  const res = await q;
+  const res = await sb.rpc("hotelhub_list_reservations", {
+    p_tenant_id: input.tenantId,
+    p_booking_reference: clean(input.bookingReference),
+    p_guest_name: clean(input.guestName),
+    p_guest_mobile: clean(input.guestMobile),
+    p_status: clean(input.status),
+    p_booking_source: clean(input.bookingSource),
+    p_arrival_from: clean(input.arrivalFrom),
+    p_arrival_to: clean(input.arrivalTo),
+    p_sort_key: sortKey,
+    p_sort_dir: sortDir,
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (res.error) throw new ReservationReadError(`reservations list failed: ${res.error.message}`);
-  const rows = (res.data ?? []) as Array<{
-    id: string;
-    booking_reference: string;
-    booking_source: string;
-    status: string;
-    arrival_date: string;
-    departure_date: string;
-    created_at: string;
-    created_by_n3_user_key: string;
-  }>;
-  const ids = rows.map((r) => r.id);
-  const primaries = new Map<string, { name: string; mobile: string | null }>();
-  const roomCounts = new Map<string, number>();
-  const roomLabelsMap = new Map<string, string[]>();
-  const guestCounts = new Map<string, number>();
 
-  for (const idBatch of chunk(ids, 200)) {
-    const rgRes = await sb
-      .from("hotel_reservation_guests")
-      .select("reservation_id, is_primary, guest_id, hotel_guests(full_name, mobile)")
-      .eq("tenant_id", input.tenantId)
-      .in("reservation_id", idBatch);
-    if (rgRes.error)
-      throw new ReservationReadError(`reservation guests failed: ${rgRes.error.message}`);
-    for (const g of (rgRes.data ?? []) as Array<{
-      reservation_id: string;
-      is_primary: boolean;
-      hotel_guests?:
-        | { full_name?: string; mobile?: string | null }
-        | Array<{ full_name?: string; mobile?: string | null }>;
-    }>) {
-      guestCounts.set(g.reservation_id, (guestCounts.get(g.reservation_id) ?? 0) + 1);
-      if (g.is_primary) {
-        const nested = Array.isArray(g.hotel_guests) ? g.hotel_guests[0] : g.hotel_guests;
-        primaries.set(g.reservation_id, {
-          name: nested?.full_name ?? "",
-          mobile: nested?.mobile ?? null,
-        });
-      }
-    }
-    const rrRes = await sb
-      .from("hotel_reservation_rooms")
-      .select("reservation_id, hotel_rooms(room_number, display_name, n3_stock_name)")
-      .eq("tenant_id", input.tenantId)
-      .in("reservation_id", idBatch);
-    if (rrRes.error)
-      throw new ReservationReadError(`reservation rooms failed: ${rrRes.error.message}`);
-    for (const r of (rrRes.data ?? []) as Array<{
-      reservation_id: string;
-      hotel_rooms?:
-        | {
-            room_number?: string | null;
-            display_name?: string | null;
-            n3_stock_name?: string | null;
-          }
-        | Array<{
-            room_number?: string | null;
-            display_name?: string | null;
-            n3_stock_name?: string | null;
-          }>;
-    }>) {
-      roomCounts.set(r.reservation_id, (roomCounts.get(r.reservation_id) ?? 0) + 1);
-      const nested = Array.isArray(r.hotel_rooms) ? r.hotel_rooms[0] : r.hotel_rooms;
-      const label = roomLabel(nested?.display_name, nested?.n3_stock_name, nested?.room_number);
-      if (label) {
-        const arr = roomLabelsMap.get(r.reservation_id) ?? [];
-        arr.push(label);
-        roomLabelsMap.set(r.reservation_id, arr);
-      }
-    }
-  }
-
-  const all: ReservationSummary[] = rows.map((r) => ({
-    id: r.id,
-    bookingReference: r.booking_reference,
-    primaryGuestName: primaries.get(r.id)?.name ?? null,
-    primaryGuestMobile: primaries.get(r.id)?.mobile ?? null,
-    bookingSource: r.booking_source,
-    status: r.status,
-    arrivalDate: r.arrival_date,
-    departureDate: r.departure_date,
-    roomCount: roomCounts.get(r.id) ?? 0,
-    roomLabels: roomLabelsMap.get(r.id) ?? [],
-    guestCount: guestCounts.get(r.id) ?? 0,
-    createdAt: r.created_at,
-    createdByN3UserKey: r.created_by_n3_user_key,
-  }));
-
-  all.sort((a, b) => compareReservationSummaries(a, b, sortKey, sortDir));
-  return { items: all.slice(offset, offset + limit), total: all.length };
+  const payload = (res.data ?? null) as { items?: unknown; total?: unknown } | null;
+  const rawItems = Array.isArray(payload?.items) ? (payload!.items as ListRpcRow[]) : [];
+  return { items: rawItems.map(toReservationSummary), total: num(payload?.total) };
 }
+
 
 /** Mask an identity number for display; keep the last 4 chars only. */
 export function maskIdentityNumberServer(v: string | null | undefined): string | null {

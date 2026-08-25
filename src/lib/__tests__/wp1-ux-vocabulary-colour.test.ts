@@ -33,8 +33,9 @@ describe("WP1 action vocabulary", () => {
   });
 
   it("renders explicit set-up labels for an uninitialised room", () => {
-    expect(BOARD).toContain("Set up as Ready");
-    expect(BOARD).toContain("Set up as Dirty");
+    // Front-desk correction: the set-up buttons use the short card labels.
+    expect(BOARD).toContain("Set Ready");
+    expect(BOARD).toContain("Set Dirty");
     // The set-DND label is now a single shared constant, rendered in both the
     // enabled and the visible-but-disabled states.
     expect(DND_SET_LABEL).toBe("Set Do Not Disturb");
@@ -49,13 +50,13 @@ describe("WP1 action vocabulary", () => {
 });
 
 describe("WP1 semantic tones", () => {
-  it("Set up as Ready uses the positive apple-green tone", () => {
-    expect(BOARD).toMatch(/tone="positive"[\s\S]{0,120}Set up as Ready/);
+  it("Set Ready uses the positive apple-green tone", () => {
+    expect(BOARD).toMatch(/tone="positive"[\s\S]{0,120}Set Ready/);
     expect(TONE_STYLE.positive.bg).toBe(HK_COLORS.appleGreen);
   });
 
-  it("Set up as Dirty uses the corrective amber tone", () => {
-    expect(BOARD).toMatch(/tone="corrective"[\s\S]{0,120}Set up as Dirty/);
+  it("Set Dirty uses the corrective amber tone", () => {
+    expect(BOARD).toMatch(/tone="corrective"[\s\S]{0,120}Set Dirty/);
     expect(TONE_STYLE.corrective.border).toBe(HK_COLORS.amber);
     expect(TONE_STYLE.corrective.bg).toBe(HK_COLORS.amberSoft);
   });
@@ -118,7 +119,9 @@ describe("WP1 condition chips follow the same semantics", () => {
     expect(CONDITION_LABELS.dirty).toBeTruthy();
     expect(BOARD).toContain("CONDITION_LABELS[room.condition]");
     expect(BOARD).toContain('"Not set up"');
-    expect(BOARD).toContain("Next: {room.nextStep}");
+    // The wordy per-card "Next:" line was removed in the readability
+    // correction; the state chip carries the meaning instead.
+    expect(BOARD).not.toContain("Next: {room.nextStep}");
     // Every summary tile carries a text label next to its number.
     expect(BOARD).toContain('label="Dirty"');
     expect(BOARD).toContain('label="Ready"');

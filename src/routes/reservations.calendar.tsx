@@ -214,7 +214,7 @@ function Grid() {
     >
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div className="w-48">
-          <label className="mb-1 block text-xs font-medium" style={{ color: NAVY }}>
+          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
             Start date
           </label>
           <MalaysianDateInput
@@ -226,13 +226,13 @@ function Grid() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: NAVY }}>
+          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
             Range
           </label>
           <div
             role="radiogroup"
             aria-label="Range"
-            className="inline-flex rounded-md border border-input bg-white p-0.5 text-xs"
+            className="inline-flex rounded-md border border-input bg-white p-0.5 text-sm"
           >
             {[7, 14, 30].map((d) => {
               const active = d === days;
@@ -243,7 +243,7 @@ function Grid() {
                   role="radio"
                   aria-checked={active}
                   onClick={() => navigate({ search: (prev: Search) => ({ ...prev, days: d }) })}
-                  className="rounded px-2 py-1 font-medium"
+                  className="rounded px-3 py-1.5 font-medium"
                   style={{
                     backgroundColor: active ? NAVY : "transparent",
                     color: active ? "white" : NAVY,
@@ -259,7 +259,7 @@ function Grid() {
           <button
             type="button"
             onClick={() => move(-days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
             aria-label="Previous range"
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
@@ -267,14 +267,14 @@ function Grid() {
           <button
             type="button"
             onClick={() => navigate({ search: (prev: Search) => ({ ...prev, startDate: today }) })}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <CalendarDays className="h-3.5 w-3.5" aria-hidden /> Today
           </button>
           <button
             type="button"
             onClick={() => move(days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
             aria-label="Next range"
           >
             Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -314,9 +314,9 @@ function Grid() {
 
 // Column geometry: single source of truth so header, row, and overlay
 // stay perfectly aligned even under overflow-x scroll.
-const LABEL_COL_PX = 200;
-const DAY_COL_PX = 72;
-const ROW_HEIGHT_PX = 42;
+const LABEL_COL_PX = 220;
+const DAY_COL_PX = 96;
+const ROW_HEIGHT_PX = 48;
 
 function FloorGrid({
   rooms,
@@ -401,7 +401,7 @@ function FloorGrid({
             }}
           >
             <div
-              className="sticky left-0 z-30 p-2 text-xs font-semibold"
+              className="sticky left-0 z-30 p-2 text-sm font-semibold"
               style={{ color: NAVY, backgroundColor: "white" }}
             >
               Room
@@ -413,7 +413,7 @@ function FloorGrid({
               return (
                 <div
                   key={d}
-                  className="border-l p-1 text-center text-xs"
+                  className="border-l p-1.5 text-center text-sm"
                   style={{
                     borderColor: `${NAVY}11`,
                     backgroundColor: isToday ? `${GOLD}22` : weekend ? `${NAVY}08` : "white",
@@ -421,7 +421,7 @@ function FloorGrid({
                   }}
                 >
                   <div className="font-semibold">{formatMyDate(d).slice(0, 5)}</div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}
                   </div>
                 </div>
@@ -439,7 +439,7 @@ function FloorGrid({
                 <button
                   type="button"
                   onClick={() => toggle(floorKey)}
-                  className="flex w-full items-center gap-2 border-b border-t px-2 py-1.5 text-left text-xs font-semibold"
+                  className="flex w-full items-center gap-2 border-b border-t px-3 py-2 text-left text-sm font-semibold"
                   style={{
                     color: NAVY,
                     borderColor: `${NAVY}22`,
@@ -454,7 +454,7 @@ function FloorGrid({
                     style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
                   />
                   <span>{label}</span>
-                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">
                     ({list.length})
                   </span>
                 </button>
@@ -505,7 +505,7 @@ function FloorChips({
         type="button"
         onClick={() => onChange(id)}
         aria-pressed={isActive}
-        className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium"
+        className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium"
         style={{
           borderColor: isActive ? NAVY : `${NAVY}22`,
           backgroundColor: isActive ? NAVY : "white",
@@ -514,7 +514,7 @@ function FloorChips({
       >
         {label}
         <span
-          className="rounded-full px-1.5 text-[10px]"
+          className="rounded-full px-1.5 text-sm"
           style={{ backgroundColor: isActive ? "rgba(255,255,255,0.2)" : `${NAVY}0F` }}
         >
           {count}
@@ -539,7 +539,7 @@ function Legend() {
     { label: "Checked-out", color: "#9AA5B1" },
   ];
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+    <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
       {items.map((i) => (
         <span key={i.label} className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: i.color }} />
@@ -647,12 +647,12 @@ function RoomRow({
             to="/reservations/$id"
             params={{ id: a.reservationId }}
             search={{ from: "calendar", calStart: rangeStart, calDays: days as 7 | 14 | 30 }}
-            className="absolute flex items-center overflow-hidden rounded px-2 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
+            className="absolute flex items-center overflow-hidden rounded px-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
             style={{
               left,
               width: clampedWidth,
-              top: 6,
-              height: 30,
+              top: 7,
+              height: 34,
               backgroundColor: statusColor(a.allocationStatus),
             }}
             title={`${a.bookingReference} · ${a.primaryGuestName ?? ""}`}

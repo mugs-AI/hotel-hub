@@ -97,7 +97,11 @@ describe("M/N. Actions and blockers come from the server", () => {
   });
 
   it("keeps DND and check-in blockers visible", () => {
-    expect(BOARD).toMatch(/\{DND_SUPPORTING_TEXT\} · \{DND_NEXT_ACTION\}/);
+    // DND evidence on the card is the state chip plus the Clear DND action;
+    // the combined supporting sentence was removed for scannability.
+    expect(BOARD).not.toMatch(/\{DND_SUPPORTING_TEXT\} · \{DND_NEXT_ACTION\}/);
+    expect(BOARD).toMatch(/\{DND_ACTIVE_LABEL\}/);
+    expect(BOARD).toMatch(/\{DND_CLEAR_LABEL\}/);
     expect(BOARD).toMatch(/Arrival today is blocked: \{blockerLabel/);
   });
 

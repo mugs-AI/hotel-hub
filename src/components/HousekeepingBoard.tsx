@@ -21,13 +21,13 @@ import {
   OCCUPANCY_LABELS,
   OVERDUE_STAY_LABEL,
   OVERDUE_OCCUPIED_BADGE_LABEL,
-  DND_SETUP_HINT,
-  DND_CLEANING_HINT,
+  DND_SETUP_HINT_SHORT,
+  DND_CLEANING_HINT_SHORT,
+  SETUP_OWNER_ONLY_SHORT,
   DND_SET_LABEL,
   DND_ACTIVE_LABEL,
   DND_CLEAR_LABEL,
-  DND_NEXT_ACTION,
-  DND_SUPPORTING_TEXT,
+
   actorDisplayName,
   historyEntryLine,
   historyTimestampLabel,
@@ -624,14 +624,8 @@ export function RoomCard({
         </p>
       )}
 
-      {room.dndActive && (
-        <p
-          className="mt-1.5 rounded px-2 py-0.5 text-[11px] font-medium leading-tight"
-          style={{ backgroundColor: HK_COLORS.indigoSoft, color: HK_COLORS.indigoInk }}
-        >
-          {DND_SUPPORTING_TEXT} · {DND_NEXT_ACTION}
-        </p>
-      )}
+      {/* DND needs no prose on the card: the state chip above says it is on,
+          and Clear DND below says what to do next. */}
 
       {room.checkInBlockers.length > 0 && room.occupancy === "arriving" && (
         <p className="mt-2 rounded-md bg-[#FDECEC] px-2 py-1 text-[11px] font-medium text-[#9B1C1C]">
@@ -639,39 +633,33 @@ export function RoomCard({
         </p>
       )}
 
-      <p className="mt-1.5 text-[11px] leading-tight" style={{ color: NAVY }}>
-        Next: {room.nextStep}
-      </p>
-
       {!room.initialized && (
         <div className="mt-2">
           {canInitialize ? (
             <div className="flex flex-wrap gap-2">
               <ActionButton tone="positive" busy={busy} onClick={() => onInitialize("ready")}>
-                Set up as Ready
+                Set Ready
               </ActionButton>
               <ActionButton tone="corrective" busy={busy} onClick={() => onInitialize("dirty")}>
-                Set up as Dirty
+                Set Dirty
               </ActionButton>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Only the Owner can set this room up for housekeeping.
-            </p>
+            <p className="text-[11px] text-muted-foreground">{SETUP_OWNER_ONLY_SHORT}</p>
           )}
           {/* An occupied room that has never been set up still shows the Do
-              Not Disturb control — disabled, but unmistakably present, with
-              the exact first step written out. */}
+              Not Disturb control — disabled, with one short hint only. */}
           {room.occupancy === "occupied" && canDnd && (
-            <div className="mt-3 border-t border-dashed pt-2" style={{ borderColor: "#E2E8F0" }}>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <ActionButton tone="dnd" busy={false} disabled onClick={() => {}}>
                 {DND_SET_LABEL}
               </ActionButton>
-              <p className="mt-1 text-[11px] text-muted-foreground">{DND_SETUP_HINT}</p>
+              <span className="text-[11px] text-muted-foreground">{DND_SETUP_HINT_SHORT}</span>
             </div>
           )}
         </div>
       )}
+
 
       {room.initialized && (
         <div className="mt-2 space-y-1.5">
@@ -731,8 +719,9 @@ export function RoomCard({
           </div>
 
           {canDnd && dndBlockedByCleaning && !room.dndActive && (
-            <p className="text-[11px] text-muted-foreground">{DND_CLEANING_HINT}</p>
+            <p className="text-[11px] text-muted-foreground">{DND_CLEANING_HINT_SHORT}</p>
           )}
+
 
           {onHistory && (
             <button

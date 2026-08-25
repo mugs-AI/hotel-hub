@@ -1313,6 +1313,23 @@ export type Database = {
           out_cutoff: string
         }[]
       }
+      hotelhub_list_reservations: {
+        Args: {
+          p_arrival_from?: string
+          p_arrival_to?: string
+          p_booking_reference?: string
+          p_booking_source?: string
+          p_guest_mobile?: string
+          p_guest_name?: string
+          p_limit?: number
+          p_offset?: number
+          p_sort_dir?: string
+          p_sort_key?: string
+          p_status?: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       hotelhub_property_now: { Args: { p_tenant_id: string }; Returns: string }
       hotelhub_provision_owner: {
         Args: { p_n3_tenant_key: string; p_n3_user_key: string }

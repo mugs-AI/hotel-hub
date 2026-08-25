@@ -138,13 +138,15 @@ describe("DND presentation", () => {
     }),
   );
 
-  it("shows the chip, the reason and the next action — not the old sentence", () => {
+  it("shows only the DND chip and the clear action — no supporting prose", () => {
     expect(DND_ACTIVE_LABEL).toBe("DND Active");
     expect(DND_SUPPORTING_TEXT).toBe("Guest privacy requested");
     expect(DND_NEXT_ACTION).toBe("Clear DND to resume housekeeping");
     expect(html).toContain(DND_ACTIVE_LABEL);
-    expect(html).toContain(DND_SUPPORTING_TEXT);
-    expect(html).toContain(DND_NEXT_ACTION);
+    // Readability correction: the card no longer repeats the reason and the
+    // next action as a sentence.
+    expect(html).not.toContain(DND_SUPPORTING_TEXT);
+    expect(html).not.toContain(DND_NEXT_ACTION);
     expect(html).not.toContain("Do Not Disturb — cleaning paused.");
   });
 
