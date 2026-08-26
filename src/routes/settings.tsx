@@ -181,7 +181,9 @@ function SettingsWorkspace() {
         className="flex flex-wrap gap-1 rounded-lg border bg-white p-1 shadow-sm"
         style={{ borderColor: `${NAVY}1F` }}
       >
-        {TABS.map((t) => (
+        {visibleSettingsTabs(
+          session.data && session.data.authenticated !== false ? session.data.role : null,
+        ).map((t) => (
           <button
             key={t.id}
             type="button"
