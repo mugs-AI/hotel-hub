@@ -171,3 +171,24 @@ export async function resolveEffectiveRole(input: {
     inFlight.delete(key);
   }
 }
+
+/**
+ * HH-AUTH-02 — narrow cache invalidation.
+ *
+ * Drops every cached effective-role decision for one tenant + N3 user, across
+ * all token fingerprints, so a grant or revocation is observed on that user's
+ * NEXT authorization decision instead of up to 60s later. Scope is limited to
+ * the exact `tenantId::n3UserKey::` key prefix: no other user, tenant or
+ * session is affected, and no credential is read.
+ */
+export function invalidateOwnershipCacheForUser(tenantId: string, n3UserKey: string): number {
+  const prefix = `${tenantId}::${n3UserKey}::`;
+  let removed = 0;
+  for (const key of Array.from(decisionCache.keys())) {
+    if (key.startsWith(prefix)) {
+      decisionCache.delete(key);
+      removed += 1;
+    }
+  }
+  return removed;
+}
