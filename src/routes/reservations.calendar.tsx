@@ -3,6 +3,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { useQuery } from "@tanstack/react-query";
@@ -78,6 +79,7 @@ type CalendarRoom = {
   hotelRoomId: string;
   roomNumber: string;
   displayName: string | null;
+  n3StockCode: string | null;
   n3StockName: string | null;
   roomType: string;
   floor: string | null;
@@ -127,7 +129,7 @@ function Header({ canCreate }: { canCreate: boolean }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            className="inline-block rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
             style={{ backgroundColor: GOLD, color: NAVY }}
           >
             Planning
@@ -212,7 +214,7 @@ function Grid() {
     >
       <div className="mb-3 flex flex-wrap items-end gap-3">
         <div className="w-48">
-          <label className="mb-1 block text-xs font-medium" style={{ color: NAVY }}>
+          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
             Start date
           </label>
           <MalaysianDateInput
@@ -224,13 +226,13 @@ function Grid() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: NAVY }}>
+          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
             Range
           </label>
           <div
             role="radiogroup"
             aria-label="Range"
-            className="inline-flex rounded-md border border-input bg-white p-0.5 text-xs"
+            className="inline-flex rounded-md border border-input bg-white p-0.5 text-sm"
           >
             {[7, 14, 30].map((d) => {
               const active = d === days;
@@ -241,7 +243,7 @@ function Grid() {
                   role="radio"
                   aria-checked={active}
                   onClick={() => navigate({ search: (prev: Search) => ({ ...prev, days: d }) })}
-                  className="rounded px-2 py-1 font-medium"
+                  className="rounded px-3 py-1.5 font-medium"
                   style={{
                     backgroundColor: active ? NAVY : "transparent",
                     color: active ? "white" : NAVY,
@@ -257,7 +259,7 @@ function Grid() {
           <button
             type="button"
             onClick={() => move(-days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
             aria-label="Previous range"
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
@@ -265,14 +267,14 @@ function Grid() {
           <button
             type="button"
             onClick={() => navigate({ search: (prev: Search) => ({ ...prev, startDate: today }) })}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
           >
             <CalendarDays className="h-3.5 w-3.5" aria-hidden /> Today
           </button>
           <button
             type="button"
             onClick={() => move(days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
             aria-label="Next range"
           >
             Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
@@ -312,9 +314,9 @@ function Grid() {
 
 // Column geometry: single source of truth so header, row, and overlay
 // stay perfectly aligned even under overflow-x scroll.
-const LABEL_COL_PX = 200;
-const DAY_COL_PX = 72;
-const ROW_HEIGHT_PX = 42;
+const LABEL_COL_PX = 220;
+const DAY_COL_PX = 96;
+const ROW_HEIGHT_PX = 48;
 
 function FloorGrid({
   rooms,
@@ -336,6 +338,7 @@ function FloorGrid({
   const grouped = useMemo(() => groupRoomsByFloor(rooms), [rooms]);
   const [activeFloor, setActiveFloor] = useState<string>("__all__");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
 
   const visibleFloors =
     activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
@@ -344,10 +347,7 @@ function FloorGrid({
     grouped.floors.map((f) => [
       f,
       [...(grouped.byFloor.get(f) ?? [])].sort((a, b) =>
-        naturalCompare(
-          roomLabel(a.displayName, a.n3StockName, a.roomNumber),
-          roomLabel(b.displayName, b.n3StockName, b.roomNumber),
-        ),
+        naturalCompare(a.roomNumber, b.roomNumber),
       ),
     ]),
   );
@@ -366,6 +366,21 @@ function FloorGrid({
 
   return (
     <div className="space-y-3">
+      <RoomInformationSheet
+        room={
+          roomInfo
+            ? {
+                roomNumber: roomInfo.roomNumber,
+                n3StockCode: roomInfo.n3StockCode,
+                roomName: roomInfo.displayName ?? roomInfo.n3StockName,
+                roomType: roomInfo.roomType,
+                floor: roomInfo.floor,
+                isActive: roomInfo.isActive,
+              }
+            : null
+        }
+        onClose={() => setRoomInfo(null)}
+      />
       <FloorChips
         floors={grouped.floors}
         counts={new Map(grouped.floors.map((f) => [f, grouped.byFloor.get(f)?.length ?? 0]))}
@@ -386,7 +401,7 @@ function FloorGrid({
             }}
           >
             <div
-              className="sticky left-0 z-30 p-2 text-xs font-semibold"
+              className="sticky left-0 z-30 p-2 text-sm font-semibold"
               style={{ color: NAVY, backgroundColor: "white" }}
             >
               Room
@@ -398,7 +413,7 @@ function FloorGrid({
               return (
                 <div
                   key={d}
-                  className="border-l p-1 text-center text-xs"
+                  className="border-l p-1.5 text-center text-sm"
                   style={{
                     borderColor: `${NAVY}11`,
                     backgroundColor: isToday ? `${GOLD}22` : weekend ? `${NAVY}08` : "white",
@@ -406,7 +421,7 @@ function FloorGrid({
                   }}
                 >
                   <div className="font-semibold">{formatMyDate(d).slice(0, 5)}</div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-sm text-muted-foreground">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}
                   </div>
                 </div>
@@ -424,7 +439,7 @@ function FloorGrid({
                 <button
                   type="button"
                   onClick={() => toggle(floorKey)}
-                  className="flex w-full items-center gap-2 border-b border-t px-2 py-1.5 text-left text-xs font-semibold"
+                  className="flex w-full items-center gap-2 border-b border-t px-3 py-2 text-left text-sm font-semibold"
                   style={{
                     color: NAVY,
                     borderColor: `${NAVY}22`,
@@ -439,7 +454,7 @@ function FloorGrid({
                     style={{ transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
                   />
                   <span>{label}</span>
-                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                  <span className="ml-1 text-sm font-normal text-muted-foreground">
                     ({list.length})
                   </span>
                 </button>
@@ -457,6 +472,7 @@ function FloorGrid({
                         rangeEndExclusive={rangeEndExclusive}
                         template={rowTemplate}
                         rowWidth={rowWidth}
+                        onRoomInfo={setRoomInfo}
                       />
                     ))}
               </div>
@@ -489,7 +505,7 @@ function FloorChips({
         type="button"
         onClick={() => onChange(id)}
         aria-pressed={isActive}
-        className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium"
+        className="inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm font-medium"
         style={{
           borderColor: isActive ? NAVY : `${NAVY}22`,
           backgroundColor: isActive ? NAVY : "white",
@@ -498,7 +514,7 @@ function FloorChips({
       >
         {label}
         <span
-          className="rounded-full px-1.5 text-[10px]"
+          className="rounded-full px-1.5 text-sm"
           style={{ backgroundColor: isActive ? "rgba(255,255,255,0.2)" : `${NAVY}0F` }}
         >
           {count}
@@ -523,7 +539,7 @@ function Legend() {
     { label: "Checked-out", color: "#9AA5B1" },
   ];
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+    <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
       {items.map((i) => (
         <span key={i.label} className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: i.color }} />
@@ -550,6 +566,7 @@ function RoomRow({
   rangeEndExclusive,
   template,
   rowWidth,
+  onRoomInfo,
 }: {
   room: CalendarRoom;
   dates: string[];
@@ -560,6 +577,7 @@ function RoomRow({
   rangeEndExclusive: string;
   template: string;
   rowWidth: number;
+  onRoomInfo: (room: CalendarRoom) => void;
 }) {
   return (
     <div
@@ -582,16 +600,15 @@ function RoomRow({
           className="sticky left-0 z-10 bg-white p-1.5"
           style={{ borderRight: `1px solid ${NAVY}11` }}
         >
-          <div className="truncate text-xs font-semibold" style={{ color: NAVY }}>
-            {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
-          </div>
-          <div className="truncate text-[10px] text-muted-foreground">
-            <span className="font-mono">{room.roomNumber}</span>
-            {" · "}
-            {room.roomType}
-            {room.floor ? ` · Fl ${room.floor}` : ""}
-            {!room.isActive ? " · inactive" : ""}
-          </div>
+          {/* Room number only. Stock code, type and floor live in the Room
+              information sheet so the grid stays scannable. */}
+          <SheetTrigger
+            label={`Room information for room ${room.roomNumber}`}
+            onOpen={() => onRoomInfo(room)}
+            className="rounded font-mono text-sm font-semibold underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {room.roomNumber}
+          </SheetTrigger>
         </div>
         {dates.map((d) => {
           const dow = dayOfWeek(d);
@@ -630,12 +647,12 @@ function RoomRow({
             to="/reservations/$id"
             params={{ id: a.reservationId }}
             search={{ from: "calendar", calStart: rangeStart, calDays: days as 7 | 14 | 30 }}
-            className="absolute flex items-center overflow-hidden rounded px-2 text-[11px] font-medium text-white shadow-sm hover:opacity-90"
+            className="absolute flex items-center overflow-hidden rounded px-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
             style={{
               left,
               width: clampedWidth,
-              top: 6,
-              height: 30,
+              top: 7,
+              height: 34,
               backgroundColor: statusColor(a.allocationStatus),
             }}
             title={`${a.bookingReference} · ${a.primaryGuestName ?? ""}`}

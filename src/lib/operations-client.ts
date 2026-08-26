@@ -18,6 +18,8 @@ export type OperationRequestDTO = {
   state: OperationState;
   summary: string;
   requestedByLabel: string | null;
+  /** room_change only: server-derived destination room id (never guessed). */
+  destinationHotelRoomId: string | null;
   requestedAt: string;
   decidedByLabel: string | null;
   decidedAt: string | null;
@@ -109,12 +111,14 @@ export function operationStateLabel(s: string): string {
   }
 }
 
-export function operationErrorMessage(code: string): string {
+export function operationErrorMessage(code: string, operationType?: string): string {
   switch (code) {
     case "operation_stale":
       return "This request is out of date and was not applied. Reload and try again.";
     case "operation_pending":
-      return "A similar request is already waiting for Owner approval.";
+      return operationType === "room_change"
+        ? "A room-change request is already pending. Approve or Reject it below before creating another."
+        : "A similar request is already waiting for Owner approval.";
     case "invalid_transition":
       return "This change is not allowed for the reservation's current status.";
     case "reservation_changed":
@@ -125,6 +129,42 @@ export function operationErrorMessage(code: string): string {
       return "The room is not available for that period.";
     case "room_capacity_exceeded":
       return "That room cannot hold this many guests.";
+    // Check-in readiness — the room a guest is being checked into now.
+    case "housekeeping_not_initialized":
+      return "This room is not set up for housekeeping yet. Mark it Ready in Housekeeping before check-in.";
+    case "room_not_ready":
+      return "This room is not Ready yet. Finish housekeeping and mark it Ready before check-in.";
+    case "room_dirty":
+      return "This room is Dirty and not ready for check-in. Please complete housekeeping first.";
+    case "room_cleaning":
+      return "This room is still being cleaned. Wait until it is Inspected and Ready before check-in.";
+    case "room_inspected":
+      return "Cleaning is complete, but this room is still waiting to be marked Ready.";
+    case "dnd_active":
+      return "Do Not Disturb is active for this room. Clear DND before check-in.";
+    case "handoff_pending":
+      return "This room is still being released from a previous stay. Please wait for Housekeeping to finish the room handoff.";
+    case "readiness_read_failed":
+      return "We could not confirm this room's housekeeping status. Please try again, or contact support if this continues.";
+    // Same blockers, restated from the destination room's point of view
+    // (early check-in / room change into a room that is not yet Ready).
+    case "destination_housekeeping_not_initialized":
+      return "The destination room is not set up for housekeeping yet. Mark it Ready in Housekeeping first.";
+    case "destination_room_not_ready":
+    case "destination_not_ready":
+      return "The destination room is not Ready yet. Finish housekeeping and mark it Ready first.";
+    case "destination_room_dirty":
+      return "The destination room is Dirty and not ready for the guest. Please complete housekeeping first.";
+    case "destination_room_cleaning":
+      return "The destination room is still being cleaned. Wait until it is Inspected and Ready.";
+    case "destination_room_inspected":
+      return "Cleaning is complete, but the destination room is still waiting to be marked Ready.";
+    case "destination_dnd_active":
+      return "Do Not Disturb is active for the destination room. Clear DND first.";
+    case "destination_handoff_pending":
+      return "The destination room is still being released from a previous stay. Please wait for Housekeeping to finish the room handoff.";
+    case "destination_readiness_read_failed":
+      return "We could not confirm the destination room's housekeeping status. Please try again, or contact support if this continues.";
     case "forbidden":
     case "role_unassigned":
       return "Your role does not allow this action.";
@@ -219,4 +259,58 @@ export function useDecideOperation(reservationId: string) {
       ),
     onSuccess: invalidate,
   });
+}
+
+// ---------------------------------------------------------------------------
+// SME approval policy — pure label helpers (unit tested)
+// ---------------------------------------------------------------------------
+
+export type ExceptionApprovalMode = "owner_approval" | "direct";
+
+/**
+ * Effective behaviour, computed from the SERVER session role and the SERVER
+ * property setting. An Owner never queues an exception for themself, so an
+ * Owner is direct in either mode; Front Desk is direct only in direct mode.
+ */
+export function effectiveExceptionMode(
+  role: string | null | undefined,
+  setting: ExceptionApprovalMode | null | undefined,
+): ExceptionApprovalMode {
+  if (role === "owner") return "direct";
+  return setting === "direct" ? "direct" : "owner_approval";
+}
+
+/** Plain, imperative names used when the button really does the thing. */
+const DIRECT_ACTION_LABELS: Record<string, string> = {
+  early_check_in: "Early check-in",
+  late_checkout: "Late checkout",
+  stay_extension: "Extend stay",
+  room_change: "Change room",
+  rate_change: "Change rate",
+};
+
+/** Direct-mode name for an operation type. */
+export function directActionLabel(type: string, fallback: string): string {
+  return DIRECT_ACTION_LABELS[type] ?? fallback;
+}
+
+/**
+ * Action-button label. In direct mode the button does what it says, so it must
+ * NOT promise a request that will never be queued.
+ */
+export function exceptionActionLabel(label: string, mode: ExceptionApprovalMode): string {
+  return mode === "direct" ? label : `Request ${label.toLowerCase()}`;
+}
+
+/** Submit-button label for the open exception flow. */
+export function exceptionSubmitLabel(mode: ExceptionApprovalMode, pending: boolean): string {
+  if (mode === "direct") return pending ? "Applying…" : "Apply change";
+  return pending ? "Sending…" : "Send for approval";
+}
+
+/** One-line explanation above the exception actions. */
+export function exceptionModeHint(mode: ExceptionApprovalMode): string {
+  return mode === "direct"
+    ? "You can carry these out directly. Every action is still recorded in the timeline."
+    : "Exceptions need Owner approval before they take effect.";
 }

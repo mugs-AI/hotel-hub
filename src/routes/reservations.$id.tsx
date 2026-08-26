@@ -21,10 +21,20 @@ import {
   ReservationActionsCard,
   ReservationTimelineCard,
 } from "@/components/ReservationOperations";
+import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { GuestRoomAssignmentCard } from "@/components/GuestRoomAssignmentCard";
 import {
   ArrowLeft,
   CalendarDays,
+  History,
   ListOrdered,
   Pencil,
   Plus,
@@ -131,6 +141,8 @@ function Header({
             status: "",
             arrivalFrom: "",
             arrivalTo: "",
+            sortKey: "createdAt",
+            sortDir: "desc" as const,
             limit: 25,
             offset: 0,
           }}
@@ -400,6 +412,7 @@ function Detail({
         canRequest={hasPermission(role, "hotel:operations:request")}
         rooms={data.rooms.map((r) => ({
           id: r.id,
+          hotelRoomId: r.hotelRoomId,
           label: roomLabel(r.displayName, r.n3StockName, r.roomNumber),
           agreedRate: r.agreedRate,
         }))}
@@ -411,8 +424,9 @@ function Detail({
         canApprove={hasPermission(role, "hotel:operations:approve")}
       />
 
-      <ReservationTimelineCard
+      <ReservationTimelineDrawer
         reservationId={data.id}
+        bookingReference={data.bookingReference}
         canView={hasPermission(role, "hotel:operations:view")}
       />
 
@@ -432,6 +446,54 @@ function Detail({
 
       <GuestRoomAssignmentCard reservationId={data.id} data={data} capabilities={capabilities} />
     </div>
+  );
+}
+
+/**
+ * Read-only right-side drawer for the reservation timeline. Replaces the
+ * large permanent timeline card in the main vertical flow with a compact
+ * trigger button; the drawer content is exactly the existing
+ * `ReservationTimelineCard` (no extra guest data, no write actions).
+ */
+export function timelineDrawerTitle(bookingReference: string): string {
+  return `Timeline · ${bookingReference}`;
+}
+
+function ReservationTimelineDrawer({
+  reservationId,
+  bookingReference,
+  canView,
+}: {
+  reservationId: string;
+  bookingReference: string;
+  canView: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!canView) return null;
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium shadow-sm"
+          style={{ color: NAVY }}
+        >
+          <History className="h-3.5 w-3.5" aria-hidden />
+          Show timeline
+        </button>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>{timelineDrawerTitle(bookingReference)}</SheetTitle>
+          <SheetDescription>
+            Read-only history for this reservation. Close to return to the reservation.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="mt-4">
+          <ReservationTimelineCard reservationId={reservationId} canView={canView} />
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

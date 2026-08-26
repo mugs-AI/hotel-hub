@@ -1,16 +1,15 @@
 // POST /api/hotel/reservations/:id/operations/:requestId/decision — Owner only.
 // Approves or rejects a pending reservation-operation request. Never touches
 // N3 or deposit records.
+//
+// The guest-safety rules (fail-closed readiness gate + durable vacated-room
+// handoff) live in `executeOperationDecision`, shared verbatim with the SME
+// direct-action path so both routes behave identically.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
-import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
-import {
-  decideOperation,
-  getOperationRequestReservationId,
-  OperationError,
-  OPERATION_ERROR_CODES,
-} from "@/lib/reservation-operations.server";
+import { getOperationRequestReservationId } from "@/lib/reservation-operations.server";
+import { executeOperationDecision } from "@/lib/operation-decision.server";
 import {
   deny,
   isSameOriginWrite,
@@ -52,49 +51,39 @@ export async function handleOperationDecision({
   }
   const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) || null : null;
 
+  const tenantId = ctx.session.tenantId!;
+  const actor = ctx.session.n3UserKey;
+
   // Bind the request to the reservation in the URL. Without this the audit
   // trail could name a reservation the request does not belong to.
   let boundReservationId: string | null;
   try {
-    boundReservationId = await getOperationRequestReservationId(ctx.session.tenantId!, requestId);
+    boundReservationId = await getOperationRequestReservationId(tenantId, requestId);
   } catch {
     return deny(500, "operation_decision_failed");
   }
   if (boundReservationId === null) return deny(404, "operation_not_found");
   if (boundReservationId !== id) return deny(404, "operation_not_found");
 
-  try {
-    const result = await decideOperation({
-      tenantId: ctx.session.tenantId!,
-      requestId,
-      actorN3UserKey: ctx.session.n3UserKey,
-      decision: verdict,
-      note,
-      idempotencyKey: clientRequestId as string,
-    });
-    await logAudit({
-      tenantId: ctx.session.tenantId,
-      n3UserKey: ctx.session.n3UserKey,
-      eventType:
-        verdict === "approve"
-          ? "hotel.reservation.operation_applied"
-          : "hotel.reservation.operation_rejected",
-      detail: { reservationId: id, requestId, state: result.state },
-    });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
-  } catch (err) {
-    const code =
-      err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
-        ? err.code
-        : "operation_decision_failed";
-    await logAudit({
-      tenantId: ctx.session.tenantId,
-      n3UserKey: ctx.session.n3UserKey,
-      eventType: "hotel.reservation.operation_decision_failed",
-      detail: { reservationId: id, requestId, code },
-    });
-    return deny(statusForOperationError(code), code);
-  }
+  const outcome = await executeOperationDecision({
+    tenantId,
+    actorN3UserKey: actor,
+    reservationId: id,
+    requestId,
+    decision: verdict,
+    note,
+    clientRequestId: clientRequestId as string,
+    statusForOperationError,
+  });
+  if (!outcome.ok) return deny(outcome.status, outcome.code);
+
+  return Response.json(
+    {
+      ...outcome.result,
+      ...(outcome.housekeepingHandoff ? { housekeepingHandoff: outcome.housekeepingHandoff } : {}),
+    },
+    { headers: { "cache-control": "no-store" } },
+  );
 }
 
 export const Route = createFileRoute("/api/hotel/reservations/$id/operations/$requestId/decision")({

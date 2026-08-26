@@ -7,6 +7,7 @@ export type AuditEventType =
   | "session.destroyed"
   | "session.n3_401"
   | "access.denied"
+  | "access.owner_revoked"
   | "probe.executed"
   | "probe.denied"
   | "role.assigned"
@@ -48,7 +49,28 @@ export type AuditEventType =
   | "hotel.reservation.operation_applied"
   | "hotel.reservation.operation_rejected"
   | "hotel.reservation.operation_decision_failed"
-  | "hotel.reservation.operation_denied";
+  | "hotel.reservation.operation_denied"
+  // WP1 — Housekeeping & Room Turnaround
+  | "hotel.housekeeping.initialized"
+  | "hotel.housekeeping.transitioned"
+  | "hotel.housekeeping.dnd_set"
+  | "hotel.housekeeping.dnd_cleared"
+  | "hotel.housekeeping.action_failed"
+  | "hotel.housekeeping.action_denied"
+  | "hotel.housekeeping.mode_updated"
+  | "hotel.housekeeping.vacated"
+  | "hotel.housekeeping.vacate_pending"
+  | "hotel.housekeeping.destination_not_ready"
+  | "hotel.housekeeping.handoff_not_recorded"
+  | "hotel.housekeeping.handoff_precheck_failed"
+  | "hotel.housekeeping.readiness_read_failed"
+  | "hotel.reservation.operation_read_failed"
+  | "hotel.reservation.check_in_blocked"
+  // SME operations usability + retention
+  | "hotel.settings.exception_approval_mode_updated"
+  | "hotel.reservation.operation_direct"
+  | "hotel.housekeeping.history_purged"
+  | "hotel.housekeeping.history_purge_failed";
 
 const SENSITIVE_KEYS = new Set([
   "token",

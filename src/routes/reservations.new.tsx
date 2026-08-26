@@ -47,6 +47,13 @@ import {
   vaultSetIdentity,
 } from "@/lib/reservation-draft";
 
+import { useHousekeepingBoard } from "@/lib/housekeeping-client";
+import {
+  resolveHousekeepingBadge,
+  HOUSEKEEPING_UNKNOWN_BADGE,
+  type HousekeepingBadge,
+} from "@/lib/room-picker";
+import { HK_COLORS } from "@/lib/housekeeping";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { CountryCombobox } from "@/components/country-combobox";
 import { countryName } from "@/lib/iso-countries";
@@ -114,6 +121,8 @@ function Header() {
           status: "",
           arrivalFrom: "",
           arrivalTo: "",
+          sortKey: "createdAt",
+          sortDir: "desc" as const,
           limit: 25,
           offset: 0,
         }}
@@ -474,7 +483,10 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
               status: "",
               arrivalFrom: "",
               arrivalTo: "",
+              sortKey: "createdAt",
+              sortDir: "desc" as const,
               limit: 25,
+
               offset: 0,
             }}
             className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
@@ -812,6 +824,25 @@ function RoomsStep({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<10 | 20 | 50>(20);
 
+  // Housekeeping status is informational only — it is sourced from the
+  // server-authoritative board and NEVER used to filter, disable, or
+  // otherwise gate room selection/availability. If the board can't be
+  // loaded (error, still loading, or the actor isn't authorized to view
+  // it), every room simply shows "Housekeeping unknown".
+  const housekeeping = useHousekeepingBoard();
+  const housekeepingBoard = housekeeping.data ?? null;
+  const housekeepingHasError = Boolean(housekeeping.error) || housekeeping.isPending;
+  const housekeepingBadges = useMemo(() => {
+    const map = new Map<string, HousekeepingBadge>();
+    for (const r of availability) {
+      map.set(
+        r.hotelRoomId,
+        resolveHousekeepingBadge(r.hotelRoomId, housekeepingBoard, housekeepingHasError),
+      );
+    }
+    return map;
+  }, [availability, housekeepingBoard, housekeepingHasError]);
+
   const selectedIds = useMemo(() => new Set(selected.map((s) => s.hotelRoomId)), [selected]);
   const grouped = useMemo(() => groupRoomsByFloor(availability), [availability]);
   const roomTypes = useMemo(
@@ -867,16 +898,20 @@ function RoomsStep({
   useEffect(() => setPage(1), [search, floor, roomType, minCapacity, pageSize]);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="space-y-4">
+      {/* Selected-room summary lives ABOVE the list, full-width, on every
+          breakpoint — it is the obvious source of truth for what's booked. */}
+      <SelectedRoomsSummary rooms={selected} badges={housekeepingBadges} onChange={onChange} />
+
       <Card title={STEP_LABELS[2]}>
         {!stayValid ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Enter valid arrival and departure dates to load availability.
           </p>
         ) : isLoading ? (
-          <p className="text-xs text-muted-foreground">Loading availability…</p>
+          <p className="text-sm text-muted-foreground">Loading availability…</p>
         ) : error ? (
-          <p className="text-xs" style={{ color: ERR }}>
+          <p className="text-sm" style={{ color: ERR }}>
             {friendlyError(error, "Unable to load availability.")}{" "}
             <button type="button" onClick={onRefetch} className="underline">
               Retry
@@ -931,52 +966,59 @@ function RoomsStep({
 
             {/* Result table */}
             <div
-              className="mt-3 max-h-[520px] overflow-auto rounded-md border"
+              className="mt-3 max-h-[560px] overflow-auto rounded-md border"
               style={{ borderColor: `${NAVY}22` }}
             >
               <table className="min-w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-white">
-                  <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
+                  <tr className="text-left text-sm uppercase" style={{ color: NAVY }}>
                     <th className="py-2 pl-3 pr-2">Room</th>
                     <th className="py-2 pr-2">Type</th>
                     <th className="py-2 pr-2">Floor</th>
                     <th className="py-2 pr-2">Max</th>
                     <th className="py-2 pr-2">Base</th>
+                    <th className="py-2 pr-2">Housekeeping</th>
                     <th className="py-2 pr-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {paged.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-xs text-muted-foreground">
+                      <td colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                         No rooms match your filters.
                       </td>
                     </tr>
                   ) : null}
                   {paged.map((r, i) => {
                     const already = selectedIds.has(r.hotelRoomId);
+                    const badge =
+                      housekeepingBadges.get(r.hotelRoomId) ??
+                      resolveHousekeepingBadge(r.hotelRoomId, housekeepingBoard, true);
                     return (
                       <tr
                         key={r.hotelRoomId}
                         className="border-t border-border/60"
                         style={{ backgroundColor: i % 2 === 1 ? `${TEAL}06` : "white" }}
                       >
-                        <td className="py-1.5 pl-3 pr-2">
-                          <div className="font-medium" style={{ color: NAVY }}>
+                        <td className="py-2 pl-3 pr-2">
+                          <div className="text-base font-medium" style={{ color: NAVY }}>
                             {roomLabel(r.displayName, r.n3StockName, r.roomNumber)}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-xs text-muted-foreground">
                             <span className="font-mono">{r.roomNumber}</span>
                             {r.n3StockName ? ` · ${r.n3StockName}` : ""}
                           </div>
                         </td>
-                        <td className="py-1.5 pr-2 text-xs">{r.roomType}</td>
-                        <td className="py-1.5 pr-2 text-xs">{r.floor ?? "—"}</td>
-                        <td className="py-1.5 pr-2 text-center text-xs">{r.maxOccupancy}</td>
-                        <td className="py-1.5 pr-2 text-xs tabular-nums">
+                        <td className="py-2 pr-2 text-sm">{r.roomType}</td>
+                        <td className="py-2 pr-2 text-sm">{r.floor ?? "—"}</td>
+                        <td className="py-2 pr-2 text-center text-sm">{r.maxOccupancy}</td>
+                        <td className="py-2 pr-2 text-sm tabular-nums">
                           {r.currency} {r.baseRate.toFixed(2)}
                         </td>
-                        <td className="py-1.5 pr-3 text-right">
+                        <td className="py-2 pr-2">
+                          <HousekeepingBadgeChip badge={badge} />
+                        </td>
+                        <td className="py-2 pr-3 text-right">
                           <button
                             type="button"
                             onClick={() => onAdd(r)}
@@ -1046,8 +1088,6 @@ function RoomsStep({
           </>
         )}
       </Card>
-
-      <SelectedRoomsPanel rooms={selected} onChange={onChange} />
     </div>
   );
 }
@@ -1100,11 +1140,40 @@ function FloorChips({
   );
 }
 
-function SelectedRoomsPanel({
+const HOUSEKEEPING_BADGE_STYLE: Record<HousekeepingBadge["tone"], { bg: string; fg: string }> = {
+  ready: { bg: HK_COLORS.appleGreenSoft, fg: HK_COLORS.appleGreenInk },
+  dirty: { bg: HK_COLORS.amberSoft, fg: HK_COLORS.amberInk },
+  cleaning: { bg: HK_COLORS.tealSoft, fg: HK_COLORS.tealInk },
+  inspected: { bg: HK_COLORS.blueSoft, fg: HK_COLORS.blue },
+  dnd: { bg: HK_COLORS.indigoSoft, fg: HK_COLORS.indigoInk },
+  unset: { bg: HK_COLORS.graySoft, fg: HK_COLORS.gray },
+  unknown: { bg: HK_COLORS.graySoft, fg: HK_COLORS.gray },
+};
+
+function HousekeepingBadgeChip({ badge }: { badge: HousekeepingBadge }) {
+  const style = HOUSEKEEPING_BADGE_STYLE[badge.tone];
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+      style={{ backgroundColor: style.bg, color: style.fg }}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Selected-room summary — full-width, placed above the room list on every
+// breakpoint. Housekeeping status here is informational only; it never
+// affects which rooms may be selected or kept.
+// ---------------------------------------------------------------------------
+function SelectedRoomsSummary({
   rooms,
+  badges,
   onChange,
 }: {
   rooms: RoomDraft[];
+  badges: Map<string, HousekeepingBadge>;
   onChange: (rooms: RoomDraft[]) => void;
 }) {
   const totals = useMemo(() => {
@@ -1120,61 +1189,62 @@ function SelectedRoomsPanel({
   }, [rooms]);
 
   return (
-    <aside
-      className="h-fit rounded-lg border bg-white p-3 shadow-sm lg:sticky lg:top-4"
+    <section
+      className="w-full rounded-lg border bg-white p-4 shadow-sm"
       style={{ borderColor: `${GOLD}55` }}
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold" style={{ color: NAVY }}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-semibold" style={{ color: NAVY }}>
           Selected rooms
         </h3>
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-          style={{ backgroundColor: `${GOLD}22`, color: GOLD }}
-        >
-          {rooms.length}
-        </span>
+        <div className="flex items-center gap-3">
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
+            style={{ backgroundColor: `${GOLD}22`, color: GOLD }}
+          >
+            {rooms.length} {rooms.length === 1 ? "room" : "rooms"}
+          </span>
+          {rooms.length > 0 ? (
+            <span className="text-sm text-muted-foreground">
+              {totals.adults} adult{totals.adults === 1 ? "" : "s"} · {totals.children} child
+              {totals.children === 1 ? "" : "ren"} ·{" "}
+              <span className="font-semibold tabular-nums" style={{ color: NAVY }}>
+                {rooms[0]?.currency ?? "MYR"} {totals.nightly.toFixed(2)}
+              </span>{" "}
+              / night
+            </span>
+          ) : null}
+        </div>
       </div>
       {rooms.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Pick rooms from the list. Selected rooms appear here.
+        <p className="text-sm text-muted-foreground">
+          Pick rooms from the list below. Selected rooms appear here.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {rooms.map((r, i) => (
-            <CompactRoomRow
+            <SummaryRoomCard
               key={r.hotelRoomId}
               room={r}
+              badge={badges.get(r.hotelRoomId) ?? HOUSEKEEPING_UNKNOWN_BADGE}
               onChange={(next) => onChange(rooms.map((x, j) => (i === j ? next : x)))}
               onRemove={() => onChange(rooms.filter((_, j) => j !== i))}
             />
           ))}
         </ul>
       )}
-      <dl className="mt-3 border-t pt-2 text-[11px]" style={{ borderColor: `${NAVY}18` }}>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Adults / Children</dt>
-          <dd className="tabular-nums">
-            {totals.adults} / {totals.children}
-          </dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">Nightly room total</dt>
-          <dd className="tabular-nums font-semibold" style={{ color: NAVY }}>
-            {rooms[0]?.currency ?? "MYR"} {totals.nightly.toFixed(2)}
-          </dd>
-        </div>
-      </dl>
-    </aside>
+    </section>
   );
 }
 
-function CompactRoomRow({
+function SummaryRoomCard({
   room,
+  badge,
   onChange,
   onRemove,
 }: {
   room: RoomDraft;
+  badge: HousekeepingBadge;
   onChange: (r: RoomDraft) => void;
   onRemove: () => void;
 }) {
@@ -1182,26 +1252,35 @@ function CompactRoomRow({
   const v = validateRoom(room);
   const err = v.ok ? null : v;
   return (
-    <li className="rounded-md border p-2 text-xs" style={{ borderColor: `${NAVY}22` }}>
+    <li className="rounded-md border p-3 text-sm" style={{ borderColor: `${NAVY}22` }}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-semibold" style={{ color: NAVY }}>
+          <div className="truncate text-base font-semibold" style={{ color: NAVY }}>
             {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
           </div>
-          <div className="truncate text-[10px] text-muted-foreground">
-            {room.floor ? `Fl ${room.floor} · ` : ""}
-            {room.roomType} · Max {room.maxOccupancy}
+          <div className="truncate text-xs text-muted-foreground">
+            {room.floor ? `Floor ${room.floor} · ` : ""}
+            {room.roomType} · Max {room.maxOccupancy} guests
+          </div>
+          <div className="mt-1">
+            <HousekeepingBadgeChip badge={badge} />
           </div>
         </div>
         <button
           type="button"
           onClick={onRemove}
-          className="rounded p-1 text-[11px]"
+          className="rounded p-1 text-sm"
           style={{ color: ERR }}
           aria-label="Remove room"
         >
-          <X className="h-3 w-3" aria-hidden />
+          <X className="h-4 w-4" aria-hidden />
         </button>
+      </div>
+      <div className="mt-2 flex items-baseline justify-between text-xs text-muted-foreground">
+        <span>Base rate</span>
+        <span className="tabular-nums">
+          {room.currency} {room.baseRate.toFixed(2)}
+        </span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-1.5">
         <label className="flex items-center justify-between gap-1">
@@ -1212,7 +1291,7 @@ function CompactRoomRow({
             step={1}
             value={room.adults}
             onChange={(e) => onChange({ ...room, adults: parseInt(e.target.value, 10) || 0 })}
-            className="w-14 rounded border border-input bg-background px-1 py-0.5 text-right text-xs"
+            className="w-14 rounded border border-input bg-background px-1 py-0.5 text-right text-sm"
           />
         </label>
         <label className="flex items-center justify-between gap-1">
@@ -1223,14 +1302,11 @@ function CompactRoomRow({
             step={1}
             value={room.children}
             onChange={(e) => onChange({ ...room, children: parseInt(e.target.value, 10) || 0 })}
-            className="w-14 rounded border border-input bg-background px-1 py-0.5 text-right text-xs"
+            className="w-14 rounded border border-input bg-background px-1 py-0.5 text-right text-sm"
           />
         </label>
         <label className="col-span-2 flex items-center justify-between gap-1">
-          <span className="text-muted-foreground">
-            Room rate ({room.currency})
-            <span className="ml-1 text-[10px]">Base {room.baseRate.toFixed(2)}</span>
-          </span>
+          <span className="text-muted-foreground">Agreed rate ({room.currency})</span>
           <input
             type="number"
             min={0}
@@ -1244,14 +1320,14 @@ function CompactRoomRow({
                   : 0,
               })
             }
-            className="w-20 rounded border border-input bg-background px-1 py-0.5 text-right text-xs"
+            className="w-20 rounded border border-input bg-background px-1 py-0.5 text-right text-sm"
             style={{ color: overridden ? GOLD : undefined, fontWeight: overridden ? 600 : 400 }}
           />
         </label>
       </div>
       {overridden ? (
         <input
-          className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-xs"
+          className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-sm"
           placeholder="Reason for rate change"
           value={room.rateOverrideReason}
           onChange={(e) => onChange({ ...room, rateOverrideReason: e.target.value })}
@@ -1259,7 +1335,7 @@ function CompactRoomRow({
         />
       ) : null}
       <textarea
-        className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-xs"
+        className="mt-1 w-full rounded border border-input bg-background px-1.5 py-1 text-sm"
         placeholder="Room remark (optional, max 500 chars)"
         value={room.remark}
         onChange={(e) => onChange({ ...room, remark: e.target.value })}
@@ -1270,7 +1346,7 @@ function CompactRoomRow({
         {room.remark.length}/500
       </div>
       {err ? (
-        <p className="mt-1 text-[11px]" style={{ color: ERR }}>
+        <p className="mt-1 text-xs" style={{ color: ERR }}>
           {friendlyError(err.code)}
         </p>
       ) : null}

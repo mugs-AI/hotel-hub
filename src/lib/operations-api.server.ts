@@ -84,7 +84,26 @@ export function statusForOperationError(code: string): number {
     case "primary_guest_required":
     case "guest_assignment_required":
     case "idempotency_conflict":
+    case "housekeeping_not_initialized":
+    case "room_not_ready":
+    case "room_dirty":
+    case "room_cleaning":
+    case "room_inspected":
+    case "dnd_active":
+    case "destination_housekeeping_not_initialized":
+    case "destination_room_not_ready":
+    case "destination_room_dirty":
+    case "destination_room_cleaning":
+    case "destination_room_inspected":
+    case "destination_dnd_active":
+    case "illegal_transition":
+    case "room_not_occupied":
+    case "cleaning_in_progress":
+    case "handoff_pending":
       return 409;
+    // Readiness could not be determined — refuse, never assume it is clear.
+    case "readiness_read_failed":
+      return 503;
 
     case "validation_failed":
     case "invalid_id":

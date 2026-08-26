@@ -8,6 +8,25 @@
  * or N3 imports, deleted files stay deleted, nav enabled correctly).
  */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
+
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 
@@ -535,7 +554,8 @@ describe("Milestone 1.1.2 — static safety", () => {
     // matchPrefix drives active state on /reservations, /reservations/new, /reservations/$id
     expect(s).toMatch(/matchPrefix:\s*"\/reservations"/);
     // Other deferred items remain disabled
-    for (const label of ["Guests", "Housekeeping", "Folios & AR", "Reports"]) {
+    // Housekeeping shipped in WP1 and is no longer a deferred placeholder.
+    for (const label of ["Guests", "Folios & AR", "Reports"]) {
       const re = new RegExp(
         `label:\\s*"${label.replace(/[&]/g, "\\$&")}"[^}]*disabled:\\s*true`,
         "s",
@@ -544,6 +564,7 @@ describe("Milestone 1.1.2 — static safety", () => {
     }
     // Reservations must NOT be listed as disabled/soon
     expect(s).not.toMatch(/label:\s*"Reservations"[^}]*disabled:\s*true/s);
+    expect(s).not.toMatch(/label:\s*"Housekeeping"[^}]*disabled:\s*true/s);
   });
 
   it("reservation route files exist for /reservations, /new, /$id", () => {

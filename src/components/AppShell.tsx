@@ -1,11 +1,22 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
+import { housekeepingAuthority } from "@/lib/housekeeping";
+import { roleUnassignedGuidance } from "@/lib/role-unassigned";
+
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
+import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
 
 type NavItem = {
-  to: "/" | "/verification" | "/rooms-rates" | "/reservations" | "/settings" | "/departures";
+  to:
+    | "/"
+    | "/verification"
+    | "/rooms-rates"
+    | "/reservations"
+    | "/settings"
+    | "/departures"
+    | "/housekeeping";
   label: string;
   permission?: Permission;
   disabled?: boolean;
@@ -21,13 +32,16 @@ const NAV_ITEMS: NavItem[] = [
     matchPrefix: "/reservations",
   },
   { to: "/departures", label: "Departures", permission: "hotel:checkout:view" },
+  {
+    to: "/housekeeping",
+    label: "Housekeeping",
+    permission: "hotel:housekeeping:view",
+  },
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
 
   { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
-  { to: "/verification", label: "N3 Verification Console", permission: "n3:verify" },
   // Deferred MAF milestones — placeholders only.
   { to: "/", label: "Guests", disabled: true },
-  { to: "/", label: "Housekeeping", disabled: true },
   { to: "/", label: "Folios & AR", disabled: true },
   { to: "/", label: "Reports", disabled: true },
 ];
@@ -37,6 +51,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
+
+  // Property-wide display size. The authoritative value arrives with the
+  // session, so a confirmed Owner save applies as soon as the session cache
+  // refreshes — no hard refresh, no sign-out.
+  const sessionData = sessionQuery.data;
+  const displaySize =
+    sessionData && sessionData.authenticated === true
+      ? coerceDisplaySize(sessionData.displaySize)
+      : 7;
+  useEffect(() => {
+    applyDisplaySize(typeof document === "undefined" ? undefined : document, displaySize);
+  }, [displaySize]);
 
   // Note: the N3 launch token is consumed server-side by the root-URL
   // interceptor in `src/start.ts` and the `/api/auth/launch` handler, then
@@ -61,11 +87,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         session={session}
         onSignOut={() => signOut.mutate()}
         signingOut={signOut.isPending}
+        onRetry={() => void sessionQuery.refetch()}
       />
     );
   }
 
   const role = session.role;
+  // Mode authority: Housekeeping is a normal workspace for anyone the server
+  // lets view the board. A housekeeper in simple mode still has no access.
+  const hkAuthority = housekeepingAuthority(session.housekeepingMode ?? "simple", role);
   const containerClass = widthContainerClass(displayWidth);
 
   return (
@@ -113,7 +143,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   (item.matchPrefix
                     ? path === item.matchPrefix || path.startsWith(item.matchPrefix + "/")
                     : false));
-              const visible = !item.permission || hasPermission(role, item.permission);
+              const visible =
+                item.to === "/housekeeping"
+                  ? hkAuthority.canOpenWorkspace
+                  : !item.permission || hasPermission(role, item.permission);
               if (item.disabled || !visible) {
                 const title = item.disabled
                   ? "Deferred MAF milestone"
@@ -212,53 +245,63 @@ function DisplayWidthToggle({
 }
 
 /**
- * Full-page gate shown to authenticated N3 users who do not yet have a
- * HotelHub role. Replaces the entire application shell — no navigation,
- * no dashboard, no verification console — and surfaces the immutable
- * identifiers a server operator (MUGS) needs to provision the first
- * Owner via the documented SQL runbook.
+ * Full-page gate shown to authenticated N3 users who have no effective
+ * HotelHub role. Replaces the entire application shell — no navigation, no
+ * dashboard, no verification console.
+ *
+ * WHAT it says depends on the safe `roleReason` from the server: a revoked
+ * ex-Owner, an unconfirmable ownership read, an inactive/unmatched N3 user
+ * and a genuine first-Owner bootstrap are four different situations, and only
+ * the last one may show the provisioning runbook.
  */
-function RoleUnassignedShell({
+export function RoleUnassignedShell({
   session,
   onSignOut,
   signingOut,
+  onRetry,
 }: {
   session: Extract<SessionMe, { authenticated: true }>;
   onSignOut: () => void;
   signingOut: boolean;
+  onRetry?: () => void;
 }) {
+  const guidance = roleUnassignedGuidance(session.roleReason ?? null);
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-2xl rounded-lg border border-amber-500/40 bg-amber-500/10 p-6">
-        <p className="text-sm font-semibold">HotelHub role not assigned</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your N3 identity has been verified, but no HotelHub role (<code>owner</code>,{" "}
-          <code>front_desk</code>, <code>housekeeper</code>) is assigned yet. All application
-          content is denied by default until a server administrator grants a role via the
-          first-Owner provisioning runbook.
-        </p>
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-background/60 p-4 text-xs sm:grid-cols-[max-content_1fr]">
-          <dt className="text-muted-foreground">Company</dt>
-          <dd className="font-mono break-all">{session.tenant.companyName ?? "—"}</dd>
-          <dt className="text-muted-foreground">Tenant code</dt>
-          <dd className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</dd>
-          <dt className="text-muted-foreground">hotel_tenants.id</dt>
-          <dd className="font-mono break-all">{session.tenant.tenantId}</dd>
-          <dt className="text-muted-foreground">n3_tenant_key</dt>
-          <dd className="font-mono break-all">{session.tenant.n3TenantKey}</dd>
-          <dt className="text-muted-foreground">n3_user_key</dt>
-          <dd className="font-mono break-all">{session.user.n3UserKey}</dd>
-          <dt className="text-muted-foreground">User email</dt>
-          <dd className="font-mono break-all">{session.user.userEmail ?? "—"}</dd>
-        </dl>
-        <p className="mt-4 text-xs text-muted-foreground">
-          Provide these identifiers to your server administrator. They will run{" "}
-          <code>
-            SELECT public.hotelhub_provision_owner(&lt;n3_tenant_key&gt;, &lt;n3_user_key&gt;)
-          </code>{" "}
-          in the Cloud SQL editor to assign the first Owner role.
-        </p>
-        <div className="mt-5 flex justify-end">
+        <p className="text-sm font-semibold">{guidance.title}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{guidance.body}</p>
+        {guidance.showIdentifiers && (
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-2 rounded-md bg-background/60 p-4 text-xs sm:grid-cols-[max-content_1fr]">
+            <dt className="text-muted-foreground">Company</dt>
+            <dd className="font-mono break-all">{session.tenant.companyName ?? "—"}</dd>
+            <dt className="text-muted-foreground">Tenant code</dt>
+            <dd className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</dd>
+            <dt className="text-muted-foreground">hotel_tenants.id</dt>
+            <dd className="font-mono break-all">{session.tenant.tenantId}</dd>
+            <dt className="text-muted-foreground">n3_tenant_key</dt>
+            <dd className="font-mono break-all">{session.tenant.n3TenantKey}</dd>
+            <dt className="text-muted-foreground">n3_user_key</dt>
+            <dd className="font-mono break-all">{session.user.n3UserKey}</dd>
+            <dt className="text-muted-foreground">User email</dt>
+            <dd className="font-mono break-all">{session.user.userEmail ?? "—"}</dd>
+          </dl>
+        )}
+        {guidance.showIdentifiers && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Provide these identifiers to the current N3 Owner or your MUGS administrator when asking
+            for HotelHub access. No action is required from you here.
+          </p>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          {guidance.showRetry && onRetry && (
+            <button
+              onClick={onRetry}
+              className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+            >
+              Try again
+            </button>
+          )}
           <button
             onClick={onSignOut}
             disabled={signingOut}

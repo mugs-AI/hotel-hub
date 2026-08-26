@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { getReservationById, isUuid } from "@/lib/reservations-store.server";
 import { getOrCreateHotelSettings } from "@/lib/hotel-store.server";
+import { effectiveDirectExecution, executeDirectOperation } from "@/lib/operation-decision.server";
 import {
   isOperationType,
   listOperationRequests,
@@ -96,6 +97,37 @@ export async function handleOperationCreate({
     payload.payload.expected_check_out_at = window.utcIso;
   }
 
+  // Effective authority is decided by the SERVER: an Owner never queues an
+  // exception for themself, and Front Desk goes direct only when the property
+  // has chosen direct mode. Nothing here trusts a browser-supplied role,
+  // tenant, actor or mode.
+  let approvalMode: "owner_approval" | "direct" = "owner_approval";
+  try {
+    approvalMode = (await getOrCreateHotelSettings(ctx.session.tenantId!)).exceptionApprovalMode;
+  } catch {
+    approvalMode = "owner_approval";
+  }
+  const direct = effectiveDirectExecution(ctx.role, approvalMode);
+
+  if (direct) {
+    // Atomic: request + apply in ONE transaction, identical fail-closed
+    // readiness gates and durable vacated-room handoff.
+    const outcome = await executeDirectOperation({
+      tenantId: ctx.session.tenantId!,
+      actorN3UserKey: ctx.session.n3UserKey,
+      reservationId: id,
+      operationType: type,
+      payload: payload.payload,
+      idempotencyKey: clientRequestId as string,
+      statusForOperationError,
+    });
+    if (!outcome.ok) return deny(outcome.status, outcome.code);
+    return Response.json(
+      { ...outcome.result, direct: true, outcome: "applied" },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }
+
   try {
     const result = await requestOperation({
       tenantId: ctx.session.tenantId!,
@@ -111,7 +143,10 @@ export async function handleOperationCreate({
       eventType: "hotel.reservation.operation_requested",
       detail: { reservationId: id, operationType: type, state: result.state },
     });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+    return Response.json(
+      { ...result, direct: false, outcome: "submitted" },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (err) {
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)

@@ -304,16 +304,169 @@ export type ReservationSummary = {
   id: string;
   bookingReference: string;
   primaryGuestName: string | null;
+  /**
+   * Primary guest mobile — Owner / Front Desk only, already an authorised
+   * DTO. Enables the Guest Contact sheet without a second fetch. No other
+   * identity, address, email or note data is ever added here.
+   */
+  primaryGuestMobile: string | null;
   bookingSource: string;
   status: string;
   arrivalDate: string;
   departureDate: string;
   roomCount: number;
+  /** Human-readable room labels (displayName || n3StockName || roomNumber). Never raw UUIDs. */
+  roomLabels: string[];
   guestCount: number;
   createdAt: string;
   createdByN3UserKey: string;
 };
 
+/** Strict allow-list of sortable data columns. The action column is not sortable. */
+export const RESERVATION_SORT_KEYS = [
+  "bookingReference",
+  "primaryGuestName",
+  "arrivalDate",
+  "departureDate",
+  "roomNo",
+  "guestCount",
+  "bookingSource",
+  "status",
+  "createdAt",
+] as const;
+export type ReservationSortKey = (typeof RESERVATION_SORT_KEYS)[number];
+export type SortDirection = "asc" | "desc";
+
+export function isReservationSortKey(v: unknown): v is ReservationSortKey {
+  return typeof v === "string" && (RESERVATION_SORT_KEYS as readonly string[]).includes(v);
+}
+export function isSortDirection(v: unknown): v is SortDirection {
+  return v === "asc" || v === "desc";
+}
+
+const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+/**
+ * Deterministic comparator over the COMPLETE tenant-scoped filtered set.
+ * Sorting always happens before pagination, and `createdAt`+`id` is the
+ * stable tie-breaker so identical keys can never shuffle between pages.
+ */
+export function compareReservationSummaries(
+  a: ReservationSummary,
+  b: ReservationSummary,
+  key: ReservationSortKey,
+  dir: SortDirection,
+): number {
+  const mul = dir === "asc" ? 1 : -1;
+  let c = 0;
+  switch (key) {
+    case "bookingReference":
+      c = collator.compare(a.bookingReference, b.bookingReference);
+      break;
+    case "primaryGuestName":
+      c = collator.compare(a.primaryGuestName ?? "", b.primaryGuestName ?? "");
+      break;
+    case "arrivalDate":
+      c = a.arrivalDate < b.arrivalDate ? -1 : a.arrivalDate > b.arrivalDate ? 1 : 0;
+      break;
+    case "departureDate":
+      c = a.departureDate < b.departureDate ? -1 : a.departureDate > b.departureDate ? 1 : 0;
+      break;
+    case "roomNo":
+      c = collator.compare(a.roomLabels.join(", "), b.roomLabels.join(", "));
+      break;
+    case "guestCount":
+      c = a.guestCount - b.guestCount;
+      break;
+    case "bookingSource":
+      c = collator.compare(a.bookingSource, b.bookingSource);
+      break;
+    case "status":
+      c = collator.compare(a.status, b.status);
+      break;
+    case "createdAt":
+      c = a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+      break;
+  }
+  if (c !== 0) return c * mul;
+  // Stable tie-breaker — always newest first, then id, regardless of dir.
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+}
+
+/** Row shape returned by the `hotelhub_list_reservations` database routine. */
+type ListRpcRow = {
+  id?: unknown;
+  bookingReference?: unknown;
+  primaryGuestName?: unknown;
+  primaryGuestMobile?: unknown;
+  bookingSource?: unknown;
+  status?: unknown;
+  arrivalDate?: unknown;
+  departureDate?: unknown;
+  roomCount?: unknown;
+  roomLabels?: unknown;
+  guestCount?: unknown;
+  createdAt?: unknown;
+  createdByN3UserKey?: unknown;
+};
+
+function str(v: unknown): string {
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+function strOrNull(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Map ONE database row to the already-approved list DTO. Nothing outside the
+ * approved field set is ever copied through, even if the routine were to
+ * return extra columns.
+ */
+export function toReservationSummary(row: ListRpcRow): ReservationSummary {
+  return {
+    id: str(row.id),
+    bookingReference: str(row.bookingReference),
+    primaryGuestName: strOrNull(row.primaryGuestName),
+    primaryGuestMobile: strOrNull(row.primaryGuestMobile),
+    bookingSource: str(row.bookingSource),
+    status: str(row.status),
+    arrivalDate: str(row.arrivalDate),
+    departureDate: str(row.departureDate),
+    roomCount: num(row.roomCount),
+    roomLabels: Array.isArray(row.roomLabels)
+      ? row.roomLabels.map((l) => str(l)).filter((l) => l !== "")
+      : [],
+    guestCount: num(row.guestCount),
+    createdAt: str(row.createdAt),
+    createdByN3UserKey: str(row.createdByN3UserKey),
+  };
+}
+
+/**
+ * Reservation list — filtering, sorting AND pagination all run INSIDE the
+ * database.
+ *
+ * Why a database routine rather than "read everything then sort in Node":
+ *  - the complete tenant-scoped filtered set is what gets sorted, but it is
+ *    never shipped into the application process; only the requested page
+ *    crosses the wire;
+ *  - guest-name / mobile filtering matches ANY linked guest (primary or not)
+ *    over the complete tenant result, before sorting and paging;
+ *  - the sort key is a strict allow-list checked here AND again in SQL; the
+ *    routine uses fixed CASE expressions, never dynamic/interpolated SQL;
+ *  - ordering ties are broken deterministically by `created_at DESC, id DESC`
+ *    so a row can never appear on two pages or vanish between them.
+ *
+ * `tenantId` always comes from the authenticated server session — never from
+ * the browser — and the routine is executable only by the service role.
+ */
 export async function listReservations(input: {
   tenantId: string;
   bookingReference?: string;
@@ -325,122 +478,47 @@ export async function listReservations(input: {
   bookingSource?: string;
   limit?: number;
   offset?: number;
+  sortKey?: ReservationSortKey;
+  sortDir?: SortDirection;
 }): Promise<{ items: ReservationSummary[]; total: number }> {
   const sb = await admin();
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const offset = Math.max(input.offset ?? 0, 0);
+  const sortKey = input.sortKey ?? "createdAt";
+  const sortDir = input.sortDir ?? "desc";
 
-  // Guest search resolves ALL matching reservation IDs first (across the
-  // full authenticated-tenant dataset, matching primary OR non-primary
-  // guests), then reservation pagination is applied to that filtered set.
-  // Never page reservations first and filter guests inside the page.
-  let restrictIds: string[] | null = null;
-  const guestNeedle = input.guestName?.trim() ?? "";
-  const mobileNeedle = input.guestMobile?.trim() ?? "";
-  if (guestNeedle || mobileNeedle) {
-    let gq = sb.from("hotel_guests").select("id").eq("tenant_id", input.tenantId);
-    if (guestNeedle) gq = gq.ilike("full_name", `%${guestNeedle.replace(/[%_]/g, "")}%`);
-    if (mobileNeedle) gq = gq.ilike("mobile", `%${mobileNeedle.replace(/[%_]/g, "")}%`);
-    const g = await gq;
-    if (g.error) throw new ReservationReadError(`guest search failed: ${g.error.message}`);
-    const guestIds = ((g.data ?? []) as Array<{ id: string }>).map((r) => r.id);
-    if (guestIds.length === 0) return { items: [], total: 0 };
-    const link = await sb
-      .from("hotel_reservation_guests")
-      .select("reservation_id")
-      .eq("tenant_id", input.tenantId)
-      .in("guest_id", guestIds);
-    if (link.error) throw new ReservationReadError(`guest link failed: ${link.error.message}`);
-    restrictIds = Array.from(
-      new Set(
-        ((link.data ?? []) as Array<{ reservation_id: string }>).map((r) => r.reservation_id),
-      ),
-    );
-    if (restrictIds.length === 0) return { items: [], total: 0 };
-  }
+  // Defence in depth: the session-derived tenant must be a real uuid, and the
+  // sort parameters must survive the allow-list a second time even though the
+  // route already validated them.
+  if (typeof input.tenantId !== "string" || input.tenantId.trim() === "")
+    throw new ReservationReadError("invalid tenant");
+  if (!isReservationSortKey(sortKey)) throw new ReservationReadError("invalid sort key");
+  if (!isSortDirection(sortDir)) throw new ReservationReadError("invalid sort direction");
 
-  let q = sb
-    .from("hotel_reservations")
-    .select(
-      "id, booking_reference, booking_source, status, arrival_date, departure_date, created_at, created_by_n3_user_key",
-      { count: "exact" },
-    )
-    .eq("tenant_id", input.tenantId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false });
+  const clean = (v: string | undefined): string | null => {
+    const s = (v ?? "").trim();
+    return s === "" ? null : s;
+  };
 
-  if (restrictIds) q = q.in("id", restrictIds);
-  if (input.bookingReference)
-    q = q.ilike("booking_reference", `%${input.bookingReference.replace(/[%_]/g, "")}%`);
-  if (input.status) q = q.eq("status", input.status);
-  if (input.bookingSource) q = q.eq("booking_source", input.bookingSource);
-  if (input.arrivalFrom) q = q.gte("arrival_date", input.arrivalFrom);
-  if (input.arrivalTo) q = q.lte("arrival_date", input.arrivalTo);
-
-  q = q.range(offset, offset + limit - 1);
-  const res = await q;
+  const res = await sb.rpc("hotelhub_list_reservations", {
+    p_tenant_id: input.tenantId,
+    p_booking_reference: clean(input.bookingReference),
+    p_guest_name: clean(input.guestName),
+    p_guest_mobile: clean(input.guestMobile),
+    p_status: clean(input.status),
+    p_booking_source: clean(input.bookingSource),
+    p_arrival_from: clean(input.arrivalFrom),
+    p_arrival_to: clean(input.arrivalTo),
+    p_sort_key: sortKey,
+    p_sort_dir: sortDir,
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (res.error) throw new ReservationReadError(`reservations list failed: ${res.error.message}`);
-  const rows = (res.data ?? []) as Array<{
-    id: string;
-    booking_reference: string;
-    booking_source: string;
-    status: string;
-    arrival_date: string;
-    departure_date: string;
-    created_at: string;
-    created_by_n3_user_key: string;
-  }>;
-  const ids = rows.map((r) => r.id);
-  const primaries = new Map<string, string>();
-  const roomCounts = new Map<string, number>();
-  const guestCounts = new Map<string, number>();
 
-  if (ids.length > 0) {
-    const rgRes = await sb
-      .from("hotel_reservation_guests")
-      .select("reservation_id, is_primary, guest_id, hotel_guests(full_name)")
-      .eq("tenant_id", input.tenantId)
-      .in("reservation_id", ids);
-    if (rgRes.error)
-      throw new ReservationReadError(`reservation guests failed: ${rgRes.error.message}`);
-    for (const g of (rgRes.data ?? []) as Array<{
-      reservation_id: string;
-      is_primary: boolean;
-      hotel_guests?: { full_name?: string } | Array<{ full_name?: string }>;
-    }>) {
-      guestCounts.set(g.reservation_id, (guestCounts.get(g.reservation_id) ?? 0) + 1);
-      if (g.is_primary) {
-        const nested = Array.isArray(g.hotel_guests) ? g.hotel_guests[0] : g.hotel_guests;
-        primaries.set(g.reservation_id, nested?.full_name ?? "");
-      }
-    }
-    const rrRes = await sb
-      .from("hotel_reservation_rooms")
-      .select("reservation_id")
-      .eq("tenant_id", input.tenantId)
-      .in("reservation_id", ids);
-    if (rrRes.error)
-      throw new ReservationReadError(`reservation rooms failed: ${rrRes.error.message}`);
-    for (const r of (rrRes.data ?? []) as Array<{ reservation_id: string }>) {
-      roomCounts.set(r.reservation_id, (roomCounts.get(r.reservation_id) ?? 0) + 1);
-    }
-  }
-
-  const items = rows.map((r) => ({
-    id: r.id,
-    bookingReference: r.booking_reference,
-    primaryGuestName: primaries.get(r.id) ?? null,
-    bookingSource: r.booking_source,
-    status: r.status,
-    arrivalDate: r.arrival_date,
-    departureDate: r.departure_date,
-    roomCount: roomCounts.get(r.id) ?? 0,
-    guestCount: guestCounts.get(r.id) ?? 0,
-    createdAt: r.created_at,
-    createdByN3UserKey: r.created_by_n3_user_key,
-  }));
-
-  return { items, total: (res.count as number) ?? items.length };
+  const payload = (res.data ?? null) as { items?: unknown; total?: unknown } | null;
+  const rawItems = Array.isArray(payload?.items) ? (payload!.items as ListRpcRow[]) : [];
+  return { items: rawItems.map(toReservationSummary), total: num(payload?.total) };
 }
 
 /** Mask an identity number for display; keep the last 4 chars only. */

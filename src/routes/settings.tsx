@@ -3,7 +3,7 @@
 // usage counts, add/edit dialogs, and a deactivation confirmation.
 // Immutable `source_code` is only shown as contextual metadata; it is
 // derived once at creation time and can never be changed.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -50,7 +50,11 @@ import {
 } from "@/lib/reservations-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import {
+  DisplaySizePanel,
+  ExceptionApprovalPanel,
   GuestControlsPanel,
+  HousekeepingPanel,
+  HousekeepingRetentionPanel,
   N3IntegrationPanel,
   PropertyPanel,
   useHotelSettings,
@@ -119,12 +123,14 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "n3" | "sources";
+type SettingsTab = "property" | "guests" | "operations" | "system" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
-  { id: "n3", label: "N3 Integration" },
+  { id: "operations", label: "Operations" },
+  { id: "system", label: "System" },
+  { id: "n3", label: "N3 Integrations" },
   { id: "sources", label: "Booking Sources" },
 ];
 
@@ -190,13 +196,110 @@ function SettingsWorkspace() {
         <PropertyPanel settings={settings} onChange={setSettings} />
       ) : tab === "guests" ? (
         <GuestControlsPanel settings={settings} onChange={setSettings} />
+      ) : tab === "operations" ? (
+        <OperationsScreen settings={settings} onChange={setSettings} />
+      ) : tab === "system" ? (
+        <SystemScreen settings={settings} onChange={setSettings} />
       ) : (
-        <N3IntegrationPanel
-          settings={settings}
-          onChange={setSettings}
-          onN3Unauthorized={() => void session.refetch()}
-        />
+        <div className="space-y-6">
+          <N3IntegrationConsoles />
+          <N3IntegrationPanel
+            settings={settings}
+            onChange={setSettings}
+            onN3Unauthorized={() => void session.refetch()}
+          />
+        </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Entry points to the existing read-only N3 consoles. Routes, permissions and
+ * direct URLs are unchanged — these are links, not new surfaces.
+ */
+function N3IntegrationConsoles() {
+  const cards = [
+    {
+      to: "/verification" as const,
+      title: "N3 Verification Console",
+      body: "Run the read-only N3 connectivity and mapping probes.",
+    },
+    {
+      to: "/settings/n3-financial-verification" as const,
+      title: "N3 Financial Verification",
+      body: "Read-only financial verification console for deposits and receipts.",
+    },
+  ];
+  return (
+    <section aria-label="N3 consoles" className="grid gap-3 sm:grid-cols-2">
+      {cards.map((c) => (
+        <Link
+          key={c.to}
+          to={c.to}
+          className="rounded-xl border bg-white p-5 shadow-sm transition-colors hover:bg-muted/40"
+          style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}
+        >
+          <span className="block text-sm font-semibold" style={{ color: NAVY }}>
+            {c.title}
+          </span>
+          <span className="mt-1 block text-sm text-muted-foreground">{c.body}</span>
+        </Link>
+      ))}
+    </section>
+  );
+}
+
+function SystemScreen({
+  settings,
+  onChange,
+}: {
+  settings: Parameters<typeof HousekeepingPanel>[0]["settings"];
+  onChange: Parameters<typeof HousekeepingPanel>[0]["onChange"];
+}) {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+          System
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          How HotelHub runs day to day for your property.
+        </p>
+      </header>
+      <section aria-label="Application display size">
+        <DisplaySizePanel settings={settings} onChange={onChange} />
+      </section>
+      <section aria-label="Housekeeping workflow">
+        <HousekeepingPanel settings={settings} onChange={onChange} />
+      </section>
+      <section aria-label="Housekeeping history retention">
+        <HousekeepingRetentionPanel />
+      </section>
+    </div>
+  );
+}
+
+function OperationsScreen({
+  settings,
+  onChange,
+}: {
+  settings: Parameters<typeof ExceptionApprovalPanel>[0]["settings"];
+  onChange: Parameters<typeof ExceptionApprovalPanel>[0]["onChange"];
+}) {
+  return (
+    <div className="space-y-6">
+      <header>
+        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+          Operations
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          How front-desk exceptions are authorised for your property.
+        </p>
+      </header>
+      <section aria-label="Reservation exception approvals">
+        <ExceptionApprovalPanel settings={settings} onChange={onChange} />
+      </section>
     </div>
   );
 }

@@ -5,6 +5,25 @@
  */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
+
 // ---------- Session mock ----------
 type SessionState = { data: Record<string, unknown>; cleared: number };
 const sessionState: SessionState = { data: {}, cleared: 0 };
@@ -485,36 +504,34 @@ describe("GET /api/hotel/reservations", () => {
   });
   it("owner: tenant-scoped list", async () => {
     await seedAuthenticated("owner");
-    supabaseEnqueue("hotel_reservations", {
-      data: [
-        {
-          id: "res-1",
-          booking_reference: "BK260720001",
-          booking_source: "walk_in",
-          status: "confirmed",
-          arrival_date: "2027-07-20",
-          departure_date: "2027-07-22",
-          created_at: "2027-07-20T00:00:00Z",
-          created_by_n3_user_key: "user-1",
+    // The list is served by the tenant-scoped `hotelhub_list_reservations`
+    // database routine: filtering, sorting and paging all happen in SQL.
+    const seen: Array<Record<string, unknown>> = [];
+    setRpcHandler(async (args: unknown[]) => {
+      seen.push((args[1] ?? {}) as Record<string, unknown>);
+      return {
+        data: {
+          items: [
+            {
+              id: "res-1",
+              bookingReference: "BK260720001",
+              primaryGuestName: "John",
+              primaryGuestMobile: null,
+              bookingSource: "walk_in",
+              status: "confirmed",
+              arrivalDate: "2027-07-20",
+              departureDate: "2027-07-22",
+              roomCount: 1,
+              roomLabels: ["101"],
+              guestCount: 1,
+              createdAt: "2027-07-20T00:00:00Z",
+              createdByN3UserKey: "user-1",
+            },
+          ],
+          total: 1,
         },
-      ],
-      error: null,
-      count: 1,
-    });
-    supabaseEnqueue("hotel_reservation_guests", {
-      data: [
-        {
-          reservation_id: "res-1",
-          is_primary: true,
-          guest_id: "g1",
-          hotel_guests: { full_name: "John" },
-        },
-      ],
-      error: null,
-    });
-    supabaseEnqueue("hotel_reservation_rooms", {
-      data: [{ reservation_id: "res-1" }],
-      error: null,
+        error: null,
+      };
     });
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
@@ -525,6 +542,8 @@ describe("GET /api/hotel/reservations", () => {
     expect(body.items).toHaveLength(1);
     expect(body.items[0].primaryGuestName).toBe("John");
     expect(body.items[0].roomCount).toBe(1);
+    // Tenant scoping comes from the server session, never the request.
+    expect(seen[0]!["p_tenant_id"]).toBe("tenant-uuid-1");
   });
 });
 

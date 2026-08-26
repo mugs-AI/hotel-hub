@@ -205,6 +205,136 @@ export type Database = {
           },
         ]
       }
+      hotel_housekeeping_events: {
+        Row: {
+          action: string
+          actor_n3_user_key: string
+          created_at: string
+          dnd_after: boolean | null
+          dnd_before: boolean | null
+          hotel_room_id: string
+          id: string
+          note: string | null
+          previous_condition: string | null
+          resulting_condition: string | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_n3_user_key: string
+          created_at?: string
+          dnd_after?: boolean | null
+          dnd_before?: boolean | null
+          hotel_room_id: string
+          id?: string
+          note?: string | null
+          previous_condition?: string | null
+          resulting_condition?: string | null
+          source?: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_n3_user_key?: string
+          created_at?: string
+          dnd_after?: boolean | null
+          dnd_before?: boolean | null
+          hotel_room_id?: string
+          id?: string
+          note?: string | null
+          previous_condition?: string | null
+          resulting_condition?: string | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_housekeeping_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_housekeeping_events_tenant_room_fkey"
+            columns: ["tenant_id", "hotel_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      hotel_housekeeping_handoffs: {
+        Row: {
+          actor_n3_user_key: string
+          attempts: number
+          created_at: string
+          hotel_room_id: string
+          id: string
+          last_error: string | null
+          operation_request_id: string | null
+          reservation_id: string | null
+          resolved_at: string | null
+          source: string
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          actor_n3_user_key: string
+          attempts?: number
+          created_at?: string
+          hotel_room_id: string
+          id?: string
+          last_error?: string | null
+          operation_request_id?: string | null
+          reservation_id?: string | null
+          resolved_at?: string | null
+          source?: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          actor_n3_user_key?: string
+          attempts?: number
+          created_at?: string
+          hotel_room_id?: string
+          id?: string
+          last_error?: string | null
+          operation_request_id?: string | null
+          reservation_id?: string | null
+          resolved_at?: string | null
+          source?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_housekeeping_handoffs_hotel_room_id_fkey"
+            columns: ["hotel_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_housekeeping_handoffs_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_housekeeping_handoffs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_mutation_requests: {
         Row: {
           client_request_id: string
@@ -669,6 +799,75 @@ export type Database = {
           },
         ]
       }
+      hotel_room_housekeeping: {
+        Row: {
+          condition: string
+          created_at: string
+          dnd_active: boolean
+          dnd_set_at: string | null
+          dnd_set_by_n3_user_key: string | null
+          hotel_room_id: string
+          id: string
+          initialized_at: string
+          initialized_by_n3_user_key: string
+          last_action: string | null
+          last_actor_n3_user_key: string | null
+          last_transition_at: string | null
+          note: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          condition: string
+          created_at?: string
+          dnd_active?: boolean
+          dnd_set_at?: string | null
+          dnd_set_by_n3_user_key?: string | null
+          hotel_room_id: string
+          id?: string
+          initialized_at?: string
+          initialized_by_n3_user_key: string
+          last_action?: string | null
+          last_actor_n3_user_key?: string | null
+          last_transition_at?: string | null
+          note?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          condition?: string
+          created_at?: string
+          dnd_active?: boolean
+          dnd_set_at?: string | null
+          dnd_set_by_n3_user_key?: string | null
+          hotel_room_id?: string
+          id?: string
+          initialized_at?: string
+          initialized_by_n3_user_key?: string
+          last_action?: string | null
+          last_actor_n3_user_key?: string | null
+          last_transition_at?: string | null
+          note?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_room_housekeeping_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_room_housekeeping_tenant_room_fkey"
+            columns: ["tenant_id", "hotel_room_id"]
+            isOneToOne: true
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       hotel_rooms: {
         Row: {
           base_rate: number
@@ -733,6 +932,9 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in: boolean
           created_at: string
           currency: string
+          display_size: number
+          exception_approval_mode: string
+          housekeeping_mode: string
           id: string
           n3_walk_in_customer_code: string | null
           n3_walk_in_customer_id: string | null
@@ -748,6 +950,9 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          display_size?: number
+          exception_approval_mode?: string
+          housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
@@ -763,6 +968,9 @@ export type Database = {
           allow_owner_primary_guest_change_after_check_in?: boolean
           created_at?: string
           currency?: string
+          display_size?: number
+          exception_approval_mode?: string
+          housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
@@ -976,6 +1184,152 @@ export type Database = {
           out_state: string
         }[]
       }
+      hotelhub_direct_operation_v2: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_idempotency_key: string
+          p_operation_type: string
+          p_payload: Json
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_handoff_id: string
+          out_old_room_id: string
+          out_request_id: string
+          out_state: string
+        }[]
+      }
+      hotelhub_hk_cancel_handoff: {
+        Args: { p_handoff_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      hotelhub_hk_enqueue_handoff: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_hotel_room_id: string
+          p_operation_request_id?: string
+          p_reservation_id?: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_handoff_id: string
+        }[]
+      }
+      hotelhub_hk_fail_handoff: {
+        Args: { p_error: string; p_handoff_id: string; p_tenant_id: string }
+        Returns: undefined
+      }
+      hotelhub_hk_initialize_room: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_condition: string
+          p_hotel_room_id: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_condition: string
+          out_created: boolean
+          out_dnd: boolean
+        }[]
+      }
+      hotelhub_hk_list_pending_handoffs: {
+        Args: { p_limit?: number; p_tenant_id: string }
+        Returns: {
+          out_actor_n3_user_key: string
+          out_attempts: number
+          out_hotel_room_id: string
+          out_id: string
+          out_reservation_id: string
+          out_source: string
+        }[]
+      }
+      hotelhub_hk_readiness_blocker_locked: {
+        Args: { p_room_ids: string[]; p_tenant_id: string }
+        Returns: string
+      }
+      hotelhub_hk_set_dnd: {
+        Args: {
+          p_active: boolean
+          p_actor_n3_user_key: string
+          p_hotel_room_id: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_condition: string
+          out_dnd: boolean
+        }[]
+      }
+      hotelhub_hk_transition: {
+        Args: {
+          p_action: string
+          p_actor_n3_user_key: string
+          p_hotel_room_id: string
+          p_note?: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_condition: string
+          out_dnd: boolean
+          out_previous: string
+        }[]
+      }
+      hotelhub_hk_vacate_room: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_hotel_room_id: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_applied: boolean
+          out_condition: string
+          out_previous: string
+        }[]
+      }
+      hotelhub_hk_vacate_room_v2: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_handoff_id?: string
+          p_hotel_room_id: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          out_applied: boolean
+          out_condition: string
+          out_created: boolean
+          out_previous: string
+        }[]
+      }
+      hotelhub_housekeeping_history_preview_30d: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          out_count: number
+          out_cutoff: string
+        }[]
+      }
+      hotelhub_list_reservations: {
+        Args: {
+          p_arrival_from?: string
+          p_arrival_to?: string
+          p_booking_reference?: string
+          p_booking_source?: string
+          p_guest_mobile?: string
+          p_guest_name?: string
+          p_limit?: number
+          p_offset?: number
+          p_sort_dir?: string
+          p_sort_key?: string
+          p_status?: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       hotelhub_property_now: { Args: { p_tenant_id: string }; Returns: string }
       hotelhub_provision_owner: {
         Args: { p_n3_tenant_key: string; p_n3_user_key: string }
@@ -984,6 +1338,13 @@ export type Database = {
           out_n3_user_key: string
           out_role: Database["public"]["Enums"]["hotel_role"]
           out_tenant_id: string
+        }[]
+      }
+      hotelhub_purge_housekeeping_history_30d: {
+        Args: { p_actor_n3_user_key: string; p_tenant_id: string }
+        Returns: {
+          out_cutoff: string
+          out_deleted: number
         }[]
       }
       hotelhub_request_operation: {

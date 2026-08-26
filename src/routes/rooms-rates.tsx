@@ -90,7 +90,9 @@ function RoomsRatesPage() {
         {!authed ? null : !canView ? (
           <NoAccess />
         ) : (
-          <RoomsRatesInner canSetup={canSetup} onN3Unauthorized={() => session.refetch()} />
+          <>
+            <RoomsRatesInner canSetup={canSetup} onN3Unauthorized={() => session.refetch()} />
+          </>
         )}
       </div>
     </AppShell>

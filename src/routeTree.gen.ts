@@ -13,6 +13,7 @@ import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
+import { Route as HousekeepingRouteImport } from './routes/housekeeping'
 import { Route as DeparturesRouteImport } from './routes/departures'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
@@ -32,6 +33,7 @@ import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/setting
 import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
 import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
 import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
+import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/housekeeping'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
@@ -44,6 +46,7 @@ import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$prob
 import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
 import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
+import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
 import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel/booking-sources.$id'
 import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
 import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
@@ -51,6 +54,7 @@ import { Route as ApiHotelReservationsIdGuestAssignmentsRouteImport } from './ro
 import { Route as ApiHotelReservationsIdDepositsRouteImport } from './routes/api/hotel/reservations.$id.deposits'
 import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './routes/api/hotel/reservations.$id.checkout-preview'
 import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
+import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
 import { Route as ApiHotelReservationsIdDepositsPreviewRouteImport } from './routes/api/hotel/reservations.$id.deposits.preview'
 import { Route as ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport } from './routes/api/hotel/reservations.$id.operations.$requestId.decision'
 import { Route as ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport } from './routes/api/hotel/reservations.$id.deposits.$depositId.reconcile'
@@ -73,6 +77,11 @@ const RoomsRatesRoute = RoomsRatesRouteImport.update({
 const LaunchErrorRoute = LaunchErrorRouteImport.update({
   id: '/launch-error',
   path: '/launch-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HousekeepingRoute = HousekeepingRouteImport.update({
+  id: '/housekeeping',
+  path: '/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeparturesRoute = DeparturesRouteImport.update({
@@ -173,6 +182,11 @@ const ApiHotelReservationCalendarRoute =
     path: '/api/hotel/reservation-calendar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHotelHousekeepingRoute = ApiHotelHousekeepingRouteImport.update({
+  id: '/api/hotel/housekeeping',
+  path: '/api/hotel/housekeeping',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   id: '/api/hotel/departures',
   path: '/api/hotel/departures',
@@ -233,6 +247,12 @@ const ApiHotelReservationsIdRoute = ApiHotelReservationsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiHotelReservationsRoute,
 } as any)
+const ApiHotelHousekeepingPurgeRoute =
+  ApiHotelHousekeepingPurgeRouteImport.update({
+    id: '/purge',
+    path: '/purge',
+    getParentRoute: () => ApiHotelHousekeepingRoute,
+  } as any)
 const ApiHotelBookingSourcesIdRoute =
   ApiHotelBookingSourcesIdRouteImport.update({
     id: '/$id',
@@ -275,6 +295,12 @@ const ApiHotelReservationsIdCheckInRoute =
     path: '/check-in',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
+const ApiHotelHousekeepingRoomsRoomIdRoute =
+  ApiHotelHousekeepingRoomsRoomIdRouteImport.update({
+    id: '/rooms/$roomId',
+    path: '/rooms/$roomId',
+    getParentRoute: () => ApiHotelHousekeepingRoute,
+  } as any)
 const ApiHotelReservationsIdDepositsPreviewRoute =
   ApiHotelReservationsIdDepositsPreviewRouteImport.update({
     id: '/preview',
@@ -297,6 +323,7 @@ const ApiHotelReservationsIdDepositsDepositIdReconcileRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/departures': typeof DeparturesRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -312,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -325,12 +353,14 @@ export interface FileRoutesByFullPath {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
@@ -344,6 +374,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/departures': typeof DeparturesRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -359,6 +390,7 @@ export interface FileRoutesByTo {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -372,12 +404,14 @@ export interface FileRoutesByTo {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
@@ -392,6 +426,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/departures': typeof DeparturesRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
@@ -407,6 +442,7 @@ export interface FileRoutesById {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -420,12 +456,14 @@ export interface FileRoutesById {
   '/reservations/$id_/edit': typeof ReservationsIdEditRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
@@ -441,6 +479,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/departures'
+    | '/housekeeping'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -456,6 +495,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/housekeeping'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -469,12 +509,14 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
@@ -488,6 +530,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/departures'
+    | '/housekeeping'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -503,6 +546,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/housekeeping'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -516,12 +560,14 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
     | '/api/n3/stocks/all'
     | '/api/n3/probe'
+    | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
@@ -535,6 +581,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/departures'
+    | '/housekeeping'
     | '/launch-error'
     | '/rooms-rates'
     | '/settings'
@@ -550,6 +597,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/housekeeping'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -563,12 +611,14 @@ export interface FileRouteTypes {
     | '/reservations/$id_/edit'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
@@ -583,6 +633,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DeparturesRoute: typeof DeparturesRoute
+  HousekeepingRoute: typeof HousekeepingRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
   SettingsRoute: typeof SettingsRoute
@@ -598,6 +649,7 @@ export interface RootRouteChildren {
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
+  ApiHotelHousekeepingRoute: typeof ApiHotelHousekeepingRouteWithChildren
   ApiHotelReservationCalendarRoute: typeof ApiHotelReservationCalendarRoute
   ApiHotelReservationsRoute: typeof ApiHotelReservationsRouteWithChildren
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
@@ -642,6 +694,13 @@ declare module '@tanstack/react-router' {
       path: '/launch-error'
       fullPath: '/launch-error'
       preLoaderRoute: typeof LaunchErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/housekeeping': {
+      id: '/housekeeping'
+      path: '/housekeeping'
+      fullPath: '/housekeeping'
+      preLoaderRoute: typeof HousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/departures': {
@@ -777,6 +836,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel/housekeeping': {
+      id: '/api/hotel/housekeeping'
+      path: '/api/hotel/housekeeping'
+      fullPath: '/api/hotel/housekeeping'
+      preLoaderRoute: typeof ApiHotelHousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/departures': {
       id: '/api/hotel/departures'
       path: '/api/hotel/departures'
@@ -861,6 +927,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdRouteImport
       parentRoute: typeof ApiHotelReservationsRoute
     }
+    '/api/hotel/housekeeping/purge': {
+      id: '/api/hotel/housekeeping/purge'
+      path: '/purge'
+      fullPath: '/api/hotel/housekeeping/purge'
+      preLoaderRoute: typeof ApiHotelHousekeepingPurgeRouteImport
+      parentRoute: typeof ApiHotelHousekeepingRoute
+    }
     '/api/hotel/booking-sources/$id': {
       id: '/api/hotel/booking-sources/$id'
       path: '/$id'
@@ -910,6 +983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdCheckInRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
+    '/api/hotel/housekeeping/rooms/$roomId': {
+      id: '/api/hotel/housekeeping/rooms/$roomId'
+      path: '/rooms/$roomId'
+      fullPath: '/api/hotel/housekeeping/rooms/$roomId'
+      preLoaderRoute: typeof ApiHotelHousekeepingRoomsRoomIdRouteImport
+      parentRoute: typeof ApiHotelHousekeepingRoute
+    }
     '/api/hotel/reservations/$id/deposits/preview': {
       id: '/api/hotel/reservations/$id/deposits/preview'
       path: '/preview'
@@ -947,6 +1027,19 @@ const ApiHotelBookingSourcesRouteWithChildren =
   ApiHotelBookingSourcesRoute._addFileChildren(
     ApiHotelBookingSourcesRouteChildren,
   )
+
+interface ApiHotelHousekeepingRouteChildren {
+  ApiHotelHousekeepingPurgeRoute: typeof ApiHotelHousekeepingPurgeRoute
+  ApiHotelHousekeepingRoomsRoomIdRoute: typeof ApiHotelHousekeepingRoomsRoomIdRoute
+}
+
+const ApiHotelHousekeepingRouteChildren: ApiHotelHousekeepingRouteChildren = {
+  ApiHotelHousekeepingPurgeRoute: ApiHotelHousekeepingPurgeRoute,
+  ApiHotelHousekeepingRoomsRoomIdRoute: ApiHotelHousekeepingRoomsRoomIdRoute,
+}
+
+const ApiHotelHousekeepingRouteWithChildren =
+  ApiHotelHousekeepingRoute._addFileChildren(ApiHotelHousekeepingRouteChildren)
 
 interface ApiHotelReservationsIdDepositsRouteChildren {
   ApiHotelReservationsIdDepositsPreviewRoute: typeof ApiHotelReservationsIdDepositsPreviewRoute
@@ -1059,6 +1152,7 @@ const ApiN3StocksRouteWithChildren = ApiN3StocksRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DeparturesRoute: DeparturesRoute,
+  HousekeepingRoute: HousekeepingRoute,
   LaunchErrorRoute: LaunchErrorRoute,
   RoomsRatesRoute: RoomsRatesRoute,
   SettingsRoute: SettingsRoute,
@@ -1074,6 +1168,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
+  ApiHotelHousekeepingRoute: ApiHotelHousekeepingRouteWithChildren,
   ApiHotelReservationCalendarRoute: ApiHotelReservationCalendarRoute,
   ApiHotelReservationsRoute: ApiHotelReservationsRouteWithChildren,
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,

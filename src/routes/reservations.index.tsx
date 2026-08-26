@@ -7,6 +7,7 @@ import {
   EMPTY_FILTERS,
   formatCreatedAt,
   formatIsoDate,
+  formatRoomLabelsList,
   friendlyError,
   type ListFilters,
 } from "@/lib/reservations-ui";
@@ -16,7 +17,18 @@ import {
   useBookingSources,
   useReservationList,
 } from "@/lib/reservations-client";
-import { CalendarClock, Filter, Plus, RefreshCw, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CalendarClock,
+  Filter,
+  Plus,
+  RefreshCw,
+  Search,
+  X,
+} from "lucide-react";
+import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -31,9 +43,33 @@ type ListSearch = {
   status: string;
   arrivalFrom: string;
   arrivalTo: string;
+  sortKey: string;
+  sortDir: "asc" | "desc";
   limit: number;
   offset: number;
 };
+
+const SORTABLE_KEYS = [
+  "bookingReference",
+  "primaryGuestName",
+  "arrivalDate",
+  "departureDate",
+  "roomNo",
+  "guestCount",
+  "bookingSource",
+  "status",
+  "createdAt",
+] as const;
+type SortKey = (typeof SORTABLE_KEYS)[number];
+
+function sortKeyOf(v: unknown): SortKey {
+  return typeof v === "string" && (SORTABLE_KEYS as readonly string[]).includes(v)
+    ? (v as SortKey)
+    : "createdAt";
+}
+function sortDirOf(v: unknown): "asc" | "desc" {
+  return v === "asc" ? "asc" : "desc";
+}
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
@@ -52,6 +88,8 @@ export const Route = createFileRoute("/reservations/")({
     status: str(raw.status),
     arrivalFrom: str(raw.arrivalFrom),
     arrivalTo: str(raw.arrivalTo),
+    sortKey: sortKeyOf(raw.sortKey),
+    sortDir: sortDirOf(raw.sortDir),
     limit: int(raw.limit, 25),
     offset: int(raw.offset, 0),
   }),
@@ -95,7 +133,7 @@ function Header({ canCreate }: { canCreate: boolean }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            className="inline-block rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
             style={{ backgroundColor: GOLD, color: NAVY }}
           >
             Front Desk
@@ -167,7 +205,13 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
     filters.arrivalTo,
   ]);
 
-  const query = useReservationList(filters, { limit, offset });
+  const sortKey = sortKeyOf(search.sortKey);
+  const sortDir = sortDirOf(search.sortDir);
+  const query = useReservationList(
+    filters,
+    { limit, offset },
+    { sort: { key: sortKey, dir: sortDir } },
+  );
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
   const rows = query.data?.items ?? [];
@@ -181,6 +225,19 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   function setPage(page: number) {
     const clamped = Math.min(totalPages, Math.max(1, page));
     navigate({ search: (prev: ListSearch) => ({ ...prev, offset: (clamped - 1) * limit }) });
+  }
+  function setSort(key: SortKey) {
+    navigate({
+      search: (prev: ListSearch) => ({
+        ...prev,
+        sortKey: key,
+        // First click on a new column sorts ascending; clicking the active
+        // column flips direction. Sorting always restarts at page 1 and the
+        // server re-sorts the complete filtered set.
+        sortDir: prev.sortKey === key && prev.sortDir === "asc" ? "desc" : "asc",
+        offset: 0,
+      }),
+    });
   }
   function setLimit(l: number) {
     navigate({ search: (prev: ListSearch) => ({ ...prev, limit: l, offset: 0 }) });
@@ -212,6 +269,10 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
         onRetry={() => query.refetch()}
         canCreate={canCreate}
         sourceLabel={(code) => tenantSourceLabel(sources, code)}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={setSort}
+        propertyDate={query.data?.propertyDate ?? null}
       />
     </>
   );
@@ -221,7 +282,7 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
   return (
     <nav
       aria-label="Reservations view"
-      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-xs shadow-sm"
+      className="inline-flex overflow-hidden rounded-md border border-input bg-white text-sm shadow-sm"
     >
       <Link
         to="/reservations"
@@ -233,6 +294,8 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
           status: "",
           arrivalFrom: "",
           arrivalTo: "",
+          sortKey: "createdAt",
+          sortDir: "desc" as const,
           limit: 25,
           offset: 0,
         }}
@@ -376,14 +439,14 @@ function FiltersCard({
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+            className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
           >
             <X className="h-3.5 w-3.5" aria-hidden />
             Clear filters
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-white"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white"
             style={{ backgroundColor: NAVY }}
           >
             <Search className="h-3.5 w-3.5" aria-hidden />
@@ -397,7 +460,7 @@ function FiltersCard({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-xs">
+    <label className="block text-sm">
       <span className="mb-1 block font-medium" style={{ color: NAVY }}>
         {label}
       </span>
@@ -414,11 +477,13 @@ function ResultsCard(props: {
     id: string;
     bookingReference: string;
     primaryGuestName: string | null;
+    primaryGuestMobile: string | null;
     bookingSource: string;
     status: string;
     arrivalDate: string;
     departureDate: string;
     roomCount: number;
+    roomLabels: string[];
     guestCount: number;
     createdAt: string;
   }>;
@@ -431,6 +496,10 @@ function ResultsCard(props: {
   onRetry: () => void;
   canCreate: boolean;
   sourceLabel: (code: string) => string;
+  sortKey: SortKey;
+  sortDir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  propertyDate: string | null;
 }) {
   const {
     loading,
@@ -446,7 +515,12 @@ function ResultsCard(props: {
     onRetry,
     canCreate,
     sourceLabel,
+    sortKey,
+    sortDir,
+    onSort,
+    propertyDate,
   } = props;
+  const [contact, setContact] = useState<GuestContactInfo | null>(null);
 
   const from = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const to = Math.min(total, currentPage * limit);
@@ -461,7 +535,7 @@ function ResultsCard(props: {
           <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
             Reservations
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {loading
               ? "Loading…"
               : total === 0
@@ -470,10 +544,10 @@ function ResultsCard(props: {
             {refreshing ? " · refreshing…" : ""}
           </p>
         </div>
-        <label className="text-xs">
+        <label className="text-sm">
           <span className="mr-2 text-muted-foreground">Rows per page</span>
           <select
-            className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+            className="rounded-md border border-input bg-background px-2 py-1 text-sm"
             value={limit}
             onChange={(e) => onLimit(Number(e.target.value))}
           >
@@ -495,7 +569,7 @@ function ResultsCard(props: {
           <span>{friendlyError(error, "Unable to load reservations right now.")}</span>
           <button
             onClick={onRetry}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-2 py-1 text-xs font-medium"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-2 py-1 text-sm font-medium"
             style={{ color: NAVY }}
           >
             <RefreshCw className="h-3 w-3" aria-hidden />
@@ -507,16 +581,29 @@ function ResultsCard(props: {
       <div className="mt-4 overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase" style={{ color: NAVY }}>
-              <th className="py-2 pr-4">Booking</th>
-              <th className="py-2 pr-4">Primary guest</th>
-              <th className="py-2 pr-4">Arrival</th>
-              <th className="py-2 pr-4">Departure</th>
-              <th className="py-2 pr-4">Rooms</th>
-              <th className="py-2 pr-4">Guests</th>
-              <th className="py-2 pr-4">Source</th>
-              <th className="py-2 pr-4">Status</th>
-              <th className="py-2 pr-4">Created</th>
+            <tr className="text-left text-sm uppercase" style={{ color: NAVY }}>
+              {(
+                [
+                  ["bookingReference", "Booking"],
+                  ["primaryGuestName", "Primary guest"],
+                  ["arrivalDate", "Arrival"],
+                  ["departureDate", "Departure"],
+                  ["roomNo", "Room no."],
+                  ["guestCount", "Guests"],
+                  ["bookingSource", "Source"],
+                  ["status", "Status"],
+                  ["createdAt", "Created"],
+                ] as Array<[SortKey, string]>
+              ).map(([key, label]) => (
+                <SortHeader
+                  key={key}
+                  columnKey={key}
+                  label={label}
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={onSort}
+                />
+              ))}
               <th className="py-2 pr-4"></th>
             </tr>
           </thead>
@@ -535,7 +622,7 @@ function ResultsCard(props: {
                   <CalendarClock className="mx-auto mb-2 h-5 w-5" aria-hidden />
                   <p>No reservations match your filters.</p>
                   {canCreate ? (
-                    <p className="mt-1 text-xs">
+                    <p className="mt-1 text-sm">
                       <Link to="/reservations/new" className="underline" style={{ color: NAVY }}>
                         Create the first reservation
                       </Link>
@@ -546,7 +633,7 @@ function ResultsCard(props: {
             ) : (
               rows.map((r) => (
                 <tr key={r.id} className="border-t border-border/60 hover:bg-muted/30">
-                  <td className="py-2 pr-4 font-mono text-xs">
+                  <td className="py-2 pr-4 font-mono text-sm">
                     <Link
                       to="/reservations/$id"
                       params={{ id: r.id }}
@@ -556,28 +643,54 @@ function ResultsCard(props: {
                       {r.bookingReference}
                     </Link>
                   </td>
-                  <td className="py-2 pr-4">{r.primaryGuestName ?? "—"}</td>
-                  <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.arrivalDate)}</td>
-                  <td className="py-2 pr-4 tabular-nums">{formatIsoDate(r.departureDate)}</td>
-                  <td className="py-2 pr-4 text-center">{r.roomCount}</td>
+                  <td className="py-2 pr-4">
+                    {r.primaryGuestName ? (
+                      <SheetTrigger
+                        label={`Guest contact for ${r.primaryGuestName}`}
+                        onOpen={() =>
+                          setContact({
+                            guestName: r.primaryGuestName,
+                            mobile: r.primaryGuestMobile,
+                            bookingReference: r.bookingReference,
+                          })
+                        }
+                      >
+                        {r.primaryGuestName}
+                      </SheetTrigger>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    <TodayDate iso={r.arrivalDate} propertyDate={propertyDate} kind="arrival" />
+                  </td>
+                  <td className="py-2 pr-4 tabular-nums">
+                    <TodayDate iso={r.departureDate} propertyDate={propertyDate} kind="departure" />
+                  </td>
+                  <td className="py-2 pr-4 text-sm" title={r.roomLabels.join(", ")}>
+                    {formatRoomLabelsList(r.roomLabels)}
+                    {r.roomCount > 0 ? (
+                      <span className="ml-1 text-muted-foreground">({r.roomCount})</span>
+                    ) : null}
+                  </td>
                   <td className="py-2 pr-4 text-center">{r.guestCount}</td>
                   <td className="py-2 pr-4">{sourceLabel(r.bookingSource)}</td>
                   <td className="py-2 pr-4">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      className="rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
                       style={{ backgroundColor: `${TEAL}22`, color: TEAL }}
                     >
                       {r.status}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-xs text-muted-foreground">
+                  <td className="py-2 pr-4 text-sm text-muted-foreground">
                     {formatCreatedAt(r.createdAt)}
                   </td>
                   <td className="py-2 pr-4">
                     <Link
                       to="/reservations/$id"
                       params={{ id: r.id }}
-                      className="text-xs font-medium underline"
+                      className="text-sm font-medium underline"
                       style={{ color: TEAL }}
                     >
                       View
@@ -590,8 +703,10 @@ function ResultsCard(props: {
         </table>
       </div>
 
+      <GuestContactSheet info={contact} onClose={() => setContact(null)} />
+
       {total > 0 ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
           <p className="text-muted-foreground">
             Page {currentPage} of {totalPages}
           </p>
@@ -614,5 +729,74 @@ function ResultsCard(props: {
         </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Sortable column header. Every data column is sortable server-side; the
+ * action column is not. The active column exposes aria-sort so screen readers
+ * announce the current order.
+ */
+function SortHeader({
+  columnKey,
+  label,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  columnKey: SortKey;
+  label: string;
+  activeKey: SortKey;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+}) {
+  const active = activeKey === columnKey;
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th
+      className="py-2 pr-4"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(columnKey)}
+        className="inline-flex items-center gap-1 rounded uppercase hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ color: NAVY, fontWeight: active ? 700 : 600 }}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3" aria-hidden />
+      </button>
+    </th>
+  );
+}
+
+/**
+ * Renders a stay date and marks it when it equals the authoritative
+ * property-local date returned by the server. The workstation clock is never
+ * used for this decision.
+ */
+function TodayDate({
+  iso,
+  propertyDate,
+  kind,
+}: {
+  iso: string;
+  propertyDate: string | null;
+  kind: "arrival" | "departure";
+}) {
+  const isToday = propertyDate !== null && iso === propertyDate;
+  if (!isToday) return <>{formatIsoDate(iso)}</>;
+  const color = kind === "arrival" ? TEAL : GOLD;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold"
+      style={{ backgroundColor: `${color}22`, color: NAVY }}
+      title={kind === "arrival" ? "Arriving today" : "Departing today"}
+    >
+      {formatIsoDate(iso)}
+      <span className="text-sm uppercase tracking-wide" style={{ color }}>
+        Today
+      </span>
+    </span>
   );
 }

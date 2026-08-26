@@ -7,6 +7,7 @@
 // provisioning — those identifiers are not secrets, unlike the N3 token.
 import { createFileRoute } from "@tanstack/react-router";
 import { readRequestContext } from "@/lib/session-context.server";
+import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 
 export type SessionMeResponse =
   | {
@@ -28,6 +29,18 @@ export type SessionMeResponse =
       };
       role: import("@/lib/rbac").HotelRole | null;
       roleStatus: "assigned" | "role_unassigned";
+      /**
+       * Safe diagnostic code for HOW the effective role was decided (never
+       * raw N3 data, never another user's details). The role-unassigned UI
+       * needs it so a revoked ex-Owner is not told to provision Owner again.
+       */
+      roleReason: import("@/lib/n3-owner").EffectiveRoleReason | null;
+      /** Which housekeeping workflow this property runs (P1 mode authority). */
+      housekeepingMode: "simple" | "dedicated";
+      /** SME approval policy for reservation exceptions. */
+      exceptionApprovalMode: "owner_approval" | "direct";
+      /** Property-wide application display size level (7 | 8 | 9). */
+      displaySize: 7 | 8 | 9;
     };
 
 export async function handleSessionMe(): Promise<Response> {
@@ -38,6 +51,20 @@ export async function handleSessionMe(): Promise<Response> {
     return Response.json(body, { headers: { "cache-control": "no-store" } });
   }
   const s = ctx.session;
+  // Read-only: never creates a settings row as a side effect of loading.
+  let housekeepingMode: "simple" | "dedicated" = "simple";
+  let exceptionApprovalMode: "owner_approval" | "direct" = "owner_approval";
+  let displaySize: 7 | 8 | 9 = 7;
+  try {
+    const settings = s.tenantId ? await getHotelSettingsReadOnly(s.tenantId) : null;
+    housekeepingMode = settings?.housekeepingMode ?? "simple";
+    exceptionApprovalMode = settings?.exceptionApprovalMode ?? "owner_approval";
+    displaySize = settings?.displaySize ?? 7;
+  } catch {
+    housekeepingMode = "simple";
+    exceptionApprovalMode = "owner_approval";
+    displaySize = 7;
+  }
   const body: SessionMeResponse = {
     authenticated: true,
     tenant: {
@@ -53,6 +80,10 @@ export async function handleSessionMe(): Promise<Response> {
     },
     role: ctx.role,
     roleStatus: ctx.roleStatus,
+    roleReason: ctx.roleReason,
+    housekeepingMode,
+    exceptionApprovalMode,
+    displaySize,
   };
   return Response.json(body, { headers: { "cache-control": "no-store" } });
 }

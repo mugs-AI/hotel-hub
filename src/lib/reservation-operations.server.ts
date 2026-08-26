@@ -69,7 +69,60 @@ export const OPERATION_ERROR_CODES = new Set([
   "correction_reason_too_long",
   "duplicate_guest",
   "guest_assignment_failed",
+  // WP1 — housekeeping check-in gate. A room whose condition is unknown or
+  // not Ready must never receive a guest.
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  // Concrete housekeeping conditions. Same rule, more specific refusal so
+  // staff are told what actually has to happen next.
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
+  "dnd_active",
+  // P1 correction — readiness of the room a guest is being moved INTO, or
+  // brought into early. Same rule, stated from the destination's side.
+  "destination_housekeeping_not_initialized",
+  "destination_room_not_ready",
+  "destination_room_dirty",
+  "destination_room_cleaning",
+  "destination_room_inspected",
+  "destination_dnd_active",
+  "operation_read_failed",
+  // Correction 7 — an unresolved vacated-room handoff blocks physical
+  // check-in, and an unreadable readiness state refuses rather than guesses.
+  "handoff_pending",
+  "readiness_read_failed",
 ]);
+
+/** Housekeeping refusals — 409 conditions, never server faults. */
+export const HOUSEKEEPING_BLOCKER_CODES: ReadonlySet<string> = new Set([
+  "housekeeping_not_initialized",
+  "room_not_ready",
+  "room_dirty",
+  "room_cleaning",
+  "room_inspected",
+  "dnd_active",
+]);
+
+/** Restate a room-readiness blocker from the destination room's point of view. */
+export function destinationBlockerCode(blocker: string): string {
+  switch (blocker) {
+    case "housekeeping_not_initialized":
+      return "destination_housekeeping_not_initialized";
+    case "room_not_ready":
+      return "destination_room_not_ready";
+    case "room_dirty":
+      return "destination_room_dirty";
+    case "room_cleaning":
+      return "destination_room_cleaning";
+    case "room_inspected":
+      return "destination_room_inspected";
+    case "dnd_active":
+      return "destination_dnd_active";
+    default:
+      return blocker;
+  }
+}
 
 export class OperationError extends Error {
   code: string;
@@ -324,6 +377,12 @@ export type OperationRequestDTO = {
   state: OperationState;
   /** Sanitised, display-safe summary of the requested change. */
   summary: string;
+  /**
+   * room_change ONLY: the validated destination hotel room id taken from the
+   * stored operation payload. Never the raw payload, never guessed — a
+   * malformed or absent value is null.
+   */
+  destinationHotelRoomId: string | null;
   requestedByLabel: string | null;
   requestedAt: string;
   decidedByLabel: string | null;
@@ -349,6 +408,20 @@ const TYPE_LABELS: Record<OperationType, string> = {
 
 export function operationTypeLabel(t: string): string {
   return (TYPE_LABELS as Record<string, string>)[t] ?? t.replace(/_/g, " ");
+}
+
+/**
+ * Extract the one structured, display-safe field the browser needs from a
+ * stored operation payload: the room_change destination. Everything else in
+ * the payload stays server-side.
+ */
+export function destinationHotelRoomIdOf(
+  type: string,
+  payload: Record<string, unknown> | null | undefined,
+): string | null {
+  if (type !== "room_change") return null;
+  const raw = (payload ?? {})["to_hotel_room_id"];
+  return isUuid(raw) ? (raw as string) : null;
 }
 
 /** Build a short, non-sensitive description of a pending request. */
@@ -405,6 +478,7 @@ export async function listOperationRequests(
     operationType: r.operation_type,
     state: r.state,
     summary: summarizeOperation(r.operation_type, r.payload ?? {}),
+    destinationHotelRoomId: destinationHotelRoomIdOf(r.operation_type, r.payload ?? {}),
     requestedByLabel: labels.get(r.requested_by_n3_user_key) ?? null,
     requestedAt: r.requested_at,
     decidedByLabel: r.decided_by_n3_user_key
@@ -446,6 +520,138 @@ export async function listReservationTimeline(
 // Writes (all atomic via SECURITY DEFINER RPCs)
 // ---------------------------------------------------------------------------
 
+/**
+ * WP1 housekeeping check-in gate.
+ *
+ * Correction 7 — this is no longer a second, weaker copy of the readiness
+ * rules. It resolves the reservation's allocated rooms and then defers to the
+ * ONE server-authoritative gate (`roomReadinessBlocker`), so standard
+ * check-in, early check-in approval and room-change destinations enforce
+ * exactly the same conditions, Do Not Disturb and pending-handoff rules.
+ *
+ * Fails CLOSED: unknown condition, or unreadable pending-handoff state, both
+ * refuse the check-in rather than assume a clean room.
+ */
+export async function housekeepingCheckInBlocker(
+  tenantId: string,
+  reservationId: string,
+): Promise<string | null> {
+  const sb = await admin();
+  const res = await sb
+    .from("hotel_reservation_rooms")
+    .select("hotel_room_id")
+    .eq("tenant_id", tenantId)
+    .eq("reservation_id", reservationId)
+    .neq("allocation_status", "released");
+  if (res.error) throw new OperationError("operation_read_failed");
+  const roomIds = ((res.data ?? []) as any[]).map((r) => r.hotel_room_id as string);
+  if (roomIds.length === 0) return null;
+
+  const { roomReadinessBlocker, HousekeepingError } = await import("./housekeeping-store.server");
+  try {
+    return await roomReadinessBlocker(tenantId, roomIds);
+  } catch (err) {
+    if (err instanceof HousekeepingError) {
+      throw new OperationError(
+        err.code === "readiness_read_failed" ? "readiness_read_failed" : "operation_read_failed",
+      );
+    }
+    throw new OperationError("readiness_read_failed");
+  }
+}
+
+/** Minimal read used by the WP1 vacated-room handoff. */
+/**
+ * WP1 Correction 5 — authoritative reads must be able to say "I could not
+ * read this". A `null` that means both "absent" and "database error" lets a
+ * guest-safety gate fail OPEN, so every safety-critical caller uses the
+ * three-way outcome below instead.
+ */
+export type ReadOutcome<T> =
+  | { status: "ok"; value: T }
+  | { status: "missing" }
+  | { status: "error" };
+
+export type HandoffOperationDetail = {
+  operationType: string;
+  state: string;
+  payload: Record<string, unknown>;
+};
+
+export async function readOperationRequestForHandoffOutcome(
+  tenantId: string,
+  requestId: string,
+): Promise<ReadOutcome<HandoffOperationDetail>> {
+  const sb = await admin();
+  let res: any;
+  try {
+    res = await sb
+      .from("hotel_reservation_operation_requests")
+      .select("operation_type, state, payload")
+      .eq("tenant_id", tenantId)
+      .eq("id", requestId)
+      .maybeSingle();
+  } catch {
+    return { status: "error" };
+  }
+  if (res?.error) return { status: "error" };
+  if (!res?.data) return { status: "missing" };
+  const row = res.data as any;
+  return {
+    status: "ok",
+    value: {
+      operationType: row.operation_type,
+      state: row.state,
+      payload: (row.payload ?? {}) as Record<string, unknown>,
+    },
+  };
+}
+
+export async function readOperationRequestForHandoff(
+  tenantId: string,
+  requestId: string,
+): Promise<HandoffOperationDetail | null> {
+  const out = await readOperationRequestForHandoffOutcome(tenantId, requestId);
+  return out.status === "ok" ? out.value : null;
+}
+
+/**
+ * Which physical room a reservation-room row currently points at, with the
+ * read failure distinguishable from a genuinely absent row.
+ */
+export async function resolveReservationRoomHotelRoomId(
+  tenantId: string,
+  reservationRoomId: string,
+): Promise<ReadOutcome<string | null>> {
+  const sb = await admin();
+  let res: any;
+  try {
+    res = await sb
+      .from("hotel_reservation_rooms")
+      .select("hotel_room_id")
+      .eq("tenant_id", tenantId)
+      .eq("id", reservationRoomId)
+      .maybeSingle();
+  } catch {
+    return { status: "error" };
+  }
+  if (res?.error) return { status: "error" };
+  if (!res?.data) return { status: "missing" };
+  return {
+    status: "ok",
+    value: (res.data as { hotel_room_id: string | null }).hotel_room_id ?? null,
+  };
+}
+
+/** Legacy convenience wrapper — never use for a guest-safety gate. */
+export async function getReservationRoomHotelRoomId(
+  tenantId: string,
+  reservationRoomId: string,
+): Promise<string | null> {
+  const out = await resolveReservationRoomHotelRoomId(tenantId, reservationRoomId);
+  return out.status === "ok" ? out.value : null;
+}
+
 export async function checkInReservation(input: {
   tenantId: string;
   reservationId: string;
@@ -453,6 +659,11 @@ export async function checkInReservation(input: {
   expectedUpdatedAt: string | null;
   clientRequestId?: string | null;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
+  // Housekeeping gate runs BEFORE the check-in RPC so a blocked attempt never
+  // half-applies: nothing is written when a room is not verified clean.
+  const blocker = await housekeepingCheckInBlocker(input.tenantId, input.reservationId);
+  if (blocker) throw new OperationError(blocker);
+
   const sb = await admin();
   const res = await sb.rpc("hotelhub_check_in_reservation", {
     p_tenant_id: input.tenantId,
@@ -495,6 +706,49 @@ export async function requestOperation(input: {
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("operation_request_failed");
   return { requestId: row.out_request_id, state: row.out_state };
+}
+
+/**
+ * Atomic DIRECT execution.
+ *
+ * Wraps request + approve/apply in ONE PostgreSQL transaction that reuses the
+ * SAME authoritative engines, so every validation, concurrency, availability,
+ * capacity and tenant gate applies unchanged. If application fails, the whole
+ * transaction rolls back: no stranded pending request, no partial mutation,
+ * no partial timeline or audit row. Replaying the same idempotency key returns
+ * the same applied result without duplicating anything.
+ */
+export async function applyDirectOperation(input: {
+  tenantId: string;
+  reservationId: string;
+  actorN3UserKey: string;
+  operationType: OperationType;
+  payload: OperationPayload;
+  idempotencyKey: string;
+}): Promise<{
+  requestId: string;
+  state: OperationState;
+  handoffId: string | null;
+  oldRoomId: string | null;
+}> {
+  const sb = await admin();
+  const res = await sb.rpc("hotelhub_direct_operation_v2", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_actor_n3_user_key: input.actorN3UserKey,
+    p_operation_type: input.operationType,
+    p_payload: input.payload,
+    p_idempotency_key: input.idempotencyKey,
+  });
+  if (res.error) throw mapRpcError(res.error.message, "operation_request_failed");
+  const row = Array.isArray(res.data) ? res.data[0] : res.data;
+  if (!row) throw new OperationError("operation_request_failed");
+  return {
+    requestId: row.out_request_id,
+    state: row.out_state,
+    handoffId: (row.out_handoff_id as string | null) ?? null,
+    oldRoomId: (row.out_old_room_id as string | null) ?? null,
+  };
 }
 
 export async function decideOperation(input: {

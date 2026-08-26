@@ -69,9 +69,12 @@ export const EMPTY_FILTERS: ListFilters = {
  * is never passed from the browser — the server derives it from the
  * authenticated session.
  */
+export type ReservationSort = { key: string; dir: "asc" | "desc" } | null;
+
 export function buildListQuery(
   filters: ListFilters,
   page: { limit: number; offset: number },
+  sort?: ReservationSort,
 ): URLSearchParams {
   const p = new URLSearchParams();
   if (filters.bookingReference.trim()) p.set("bookingReference", filters.bookingReference.trim());
@@ -81,6 +84,10 @@ export function buildListQuery(
   if (filters.status) p.set("status", filters.status);
   if (filters.arrivalFrom) p.set("arrivalFrom", filters.arrivalFrom);
   if (filters.arrivalTo) p.set("arrivalTo", filters.arrivalTo);
+  if (sort && sort.key) {
+    p.set("sortKey", sort.key);
+    p.set("sortDir", sort.dir);
+  }
   p.set("limit", String(page.limit));
   p.set("offset", String(page.offset));
   return p;
@@ -252,6 +259,26 @@ export function roomLabel(
   const sn = (n3StockName ?? "").trim();
   if (sn) return sn;
   return (roomNumber ?? "").trim();
+}
+
+// ---------- Reservation list room labels ----------
+/** Max number of individual room labels shown before truncating with "+N more". */
+export const ROOM_LABELS_LIST_MAX = 3;
+
+/**
+ * Concise, privacy-safe room label list for the reservations list view.
+ * Input must already be resolved human labels (never raw UUIDs). Truncates
+ * gracefully for multi-room reservations.
+ */
+export function formatRoomLabelsList(
+  labels: readonly string[],
+  max: number = ROOM_LABELS_LIST_MAX,
+): string {
+  const clean = labels.map((l) => (l ?? "").trim()).filter(Boolean);
+  if (clean.length === 0) return "—";
+  if (clean.length <= max) return clean.join(", ");
+  const shown = clean.slice(0, max).join(", ");
+  return `${shown} +${clean.length - max} more`;
 }
 
 /** Natural comparator for mixed alpha-numeric strings ("2" < "10", "A2" < "A10"). */

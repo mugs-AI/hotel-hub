@@ -13,6 +13,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
+
 const sessionState: { data: Record<string, unknown> } = { data: {} };
 function resetSession(initial: Record<string, unknown> = {}) {
   sessionState.data = { ...initial };
@@ -350,10 +369,7 @@ describe("Correction A / Defect 4 — safe DB errors", () => {
   });
   it("reservation list 500 reservations_list_failed on DB error (no SQL leak)", async () => {
     await seed("owner");
-    enqueue("hotel_reservations", {
-      data: null,
-      error: { message: 'ERROR: syntax at "SELECT"' },
-    });
+    rpcHandler = async () => ({ data: null, error: { message: 'ERROR: syntax at "SELECT"' } });
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
       request: new Request("http://x.test/api/hotel/reservations"),
@@ -369,53 +385,41 @@ describe("Correction A / Defect 4 — safe DB errors", () => {
 // Defect 1 — global guest search before pagination, filtered total
 // =========================================================================
 describe("Correction A / Defect 1 — global guest search", () => {
-  it("guest search resolves all matching reservation IDs BEFORE reservation query and returns filtered total", async () => {
+  // The list is now produced by ONE tenant-scoped database routine
+  // (`hotelhub_list_reservations`) that filters over the complete tenant
+  // result — including linked non-primary guests — then sorts, then pages.
+  // These tests assert that contract at the handler boundary.
+  const rpcCalls: Array<{ name: string; params: Record<string, unknown> }> = [];
+  function stubList(items: unknown[], total: number) {
+    rpcCalls.length = 0;
+    rpcHandler = async (args: unknown[]) => {
+      rpcCalls.push({
+        name: args[0] as string,
+        params: (args[1] ?? {}) as Record<string, unknown>,
+      });
+      return { data: { items, total }, error: null };
+    };
+  }
+  const row = (id: string, ref: string, guest: string | null) => ({
+    id,
+    bookingReference: ref,
+    primaryGuestName: guest,
+    primaryGuestMobile: null,
+    bookingSource: "walk_in",
+    status: "confirmed",
+    arrivalDate: "2027-07-20",
+    departureDate: "2027-07-22",
+    roomCount: 1,
+    roomLabels: ["101"],
+    guestCount: 1,
+    createdAt: "2027-07-20T00:00:00Z",
+    createdByN3UserKey: "user-1",
+  });
+
+  it("guest filter is applied to the complete filtered result, not to the page", async () => {
     await seed("owner");
-    // Guest search returns two guest IDs (some may be non-primary).
-    enqueue("hotel_guests", {
-      data: [{ id: "g-1" }, { id: "g-2" }],
-      error: null,
-    });
-    // Link resolution — 3 reservation IDs match, well beyond the first
-    // reservation page limit.
-    enqueue("hotel_reservation_guests", {
-      data: [{ reservation_id: "res-A" }, { reservation_id: "res-B" }, { reservation_id: "res-C" }],
-      error: null,
-    });
-    // Reservations page: server returns just the filtered subset with the
-    // true filtered total = 3.
-    enqueue("hotel_reservations", {
-      data: [
-        {
-          id: "res-A",
-          booking_reference: "BK-A",
-          booking_source: "walk_in",
-          status: "confirmed",
-          arrival_date: "2027-07-20",
-          departure_date: "2027-07-22",
-          created_at: "2027-07-20T00:00:00Z",
-          created_by_n3_user_key: "user-1",
-        },
-      ],
-      error: null,
-      count: 3,
-    });
-    // Per-reservation guest join (non-primary guest attached to res-A).
-    enqueue("hotel_reservation_guests", {
-      data: [
-        {
-          reservation_id: "res-A",
-          is_primary: false,
-          guest_id: "g-2",
-          hotel_guests: { full_name: "Jane Match" },
-        },
-      ],
-      error: null,
-    });
-    enqueue("hotel_reservation_rooms", {
-      data: [{ reservation_id: "res-A" }],
-      error: null,
-    });
+    // The routine matched 3 reservations tenant-wide and returned page 1.
+    stubList([row("res-A", "BK-A", "Jane Match")], 3);
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
       request: new Request("http://x.test/api/hotel/reservations?guestName=jane&limit=1&offset=0"),
@@ -424,29 +428,18 @@ describe("Correction A / Defect 1 — global guest search", () => {
     const body = await res.json();
     expect(body.total).toBe(3); // filtered total, not the tenant total
     expect(body.items).toHaveLength(1);
-
-    // Prove ordering: guest search happened BEFORE the reservation list
-    // query, and the reservation query was restricted to the resolved IDs.
-    const tables = calls.map((c) => c.table);
-    const guestIdx = tables.indexOf("hotel_guests");
-    const reservationIdx = tables.indexOf("hotel_reservations");
-    expect(guestIdx).toBeGreaterThanOrEqual(0);
-    expect(reservationIdx).toBeGreaterThan(guestIdx);
-    const reservationCall = calls[reservationIdx];
-    // The `.in("id", restrictIds)` filter must appear on the reservation query.
-    expect(
-      reservationCall.filters.some(
-        (f) =>
-          f.op === "in" &&
-          f.column === "id" &&
-          Array.isArray(f.value) &&
-          (f.value as string[]).sort().join(",") === "res-A,res-B,res-C",
-      ),
-    ).toBe(true);
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]!.name).toBe("hotelhub_list_reservations");
+    expect(rpcCalls[0]!.params["p_guest_name"]).toBe("jane");
+    expect(rpcCalls[0]!.params["p_limit"]).toBe(1);
+    expect(rpcCalls[0]!.params["p_offset"]).toBe(0);
+    // No unbounded Node-side read of the tenant's reservations.
+    expect(calls.some((c) => c.table === "hotel_reservations")).toBe(false);
   });
+
   it("guest search with zero matches returns empty items and total=0", async () => {
     await seed("owner");
-    enqueue("hotel_guests", { data: [], error: null });
+    stubList([], 0);
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
     const res = await handleListReservations({
       request: new Request("http://x.test/api/hotel/reservations?guestName=nobody"),
@@ -456,20 +449,55 @@ describe("Correction A / Defect 1 — global guest search", () => {
     expect(body.items).toEqual([]);
     expect(body.total).toBe(0);
   });
-  it("guest search is scoped to the authenticated tenant", async () => {
+
+  it("the list routine is always called with the session-derived tenant", async () => {
     await seed("owner");
-    enqueue("hotel_guests", { data: [], error: null });
+    stubList([], 0);
     const { handleListReservations } = await import("@/routes/api/hotel/reservations");
+    // A browser-supplied tenant must never be honoured.
     await handleListReservations({
-      request: new Request("http://x.test/api/hotel/reservations?guestName=jane"),
-    });
-    // The very first call for `hotel_guests` must include eq tenant_id filter.
-    const guestCall = calls.find((c) => c.table === "hotel_guests")!;
-    expect(
-      guestCall.filters.some(
-        (f) => f.op === "eq" && f.column === "tenant_id" && f.value === "tenant-uuid-1",
+      request: new Request(
+        "http://x.test/api/hotel/reservations?guestName=jane&tenantId=someone-else",
       ),
-    ).toBe(true);
+    });
+    expect(rpcCalls[0]!.params["p_tenant_id"]).toBe("tenant-uuid-1");
+  });
+
+  it("rejects a sort key that is not on the allow-list", async () => {
+    await seed("owner");
+    stubList([], 0);
+    const { handleListReservations } = await import("@/routes/api/hotel/reservations");
+    const res = await handleListReservations({
+      request: new Request(
+        "http://x.test/api/hotel/reservations?sortKey=created_at);drop%20table&sortDir=asc",
+      ),
+    });
+    expect(res.status).toBe(400);
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  it("passes an allow-listed sort key and direction straight through", async () => {
+    await seed("owner");
+    stubList([row("res-A", "BK-A", "Jane")], 1);
+    const { handleListReservations } = await import("@/routes/api/hotel/reservations");
+    const res = await handleListReservations({
+      request: new Request("http://x.test/api/hotel/reservations?sortKey=arrivalDate&sortDir=asc"),
+    });
+    expect(res.status).toBe(200);
+    expect(rpcCalls[0]!.params["p_sort_key"]).toBe("arrivalDate");
+    expect(rpcCalls[0]!.params["p_sort_dir"]).toBe("asc");
+  });
+
+  it("returns only the approved list DTO fields", async () => {
+    await seed("owner");
+    stubList([{ ...row("res-A", "BK-A", "Jane"), secret_internal: "leak" }], 1);
+    const { handleListReservations } = await import("@/routes/api/hotel/reservations");
+    const res = await handleListReservations({
+      request: new Request("http://x.test/api/hotel/reservations"),
+    });
+    const body = await res.json();
+    expect(Object.keys(body.items[0])).not.toContain("secret_internal");
+    expect(body.items[0].bookingReference).toBe("BK-A");
   });
 });
 

@@ -7,6 +7,25 @@
  * forward migration text only.
  */
 import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
+
+// N3 ownership authority has its own dedicated suite. Here it is stubbed to
+// pass the LOCAL assignment through, so these handler tests keep their
+// original scope (permissions, validation, N3 gateway behaviour) instead of
+// also asserting the /api/Users ownership read.
+vi.mock("@/lib/n3-owner.server", () => ({
+  resolveEffectiveRole: async (input: {
+    localRole: { role: string; isActive: boolean } | null;
+  }) => {
+    const active = input.localRole?.isActive === true;
+    return {
+      role: active ? input.localRole!.role : null,
+      reason: active ? "n3_owner" : "n3_no_local_role",
+      matchedBy: active ? "id" : null,
+      ownerAuthorityFailedClosed: false,
+      fromCache: false,
+    };
+  },
+}));
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -515,11 +534,13 @@ describe("P1-RES-ASSIGN-01 — forward migration", () => {
     .sort()
     .map((f) => readFileSync(join(dir, f), "utf8"))
     .join("\n");
-  const latest = readdirSync(dir)
+  // Pin to the assignment migration itself rather than "whatever is last":
+  // later work packages add their own migrations after it.
+  const assignmentFile = readdirSync(dir)
     .sort()
-    .slice(-1)
-    .map((f) => readFileSync(join(dir, f), "utf8"))
-    .join("\n");
+    .filter((f) => readFileSync(join(dir, f), "utf8").includes("v_assigned_alloc"))
+    .slice(-1)[0]!;
+  const latest = readFileSync(join(dir, assignmentFile), "utf8");
 
   it("creates reservation rooms before guests and stores the resolved room id", async () => {
     const roomsAt = latest.indexOf("INSERT INTO public.hotel_reservation_rooms");
@@ -554,7 +575,9 @@ describe("P1-RES-ASSIGN-01 — forward migration", () => {
 
   it("never edits an already-applied migration to add assignment support", () => {
     const files = readdirSync(dir).sort();
-    const older = files.slice(0, -1).map((f) => readFileSync(join(dir, f), "utf8"));
+    const older = files
+      .slice(0, files.indexOf(assignmentFile))
+      .map((f) => readFileSync(join(dir, f), "utf8"));
     expect(older.some((t) => t.includes("assigned_hotel_room_id"))).toBe(false);
   });
 });

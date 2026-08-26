@@ -4,6 +4,8 @@ import { getHotelSession, type HotelSessionData } from "./session.server";
 import { lookupRole } from "./tenant-store.server";
 import { authorize, type Permission, type AuthzDecision } from "./rbac";
 import { logAudit } from "./audit.server";
+import { resolveEffectiveRole } from "./n3-owner.server";
+import type { EffectiveRoleReason } from "./n3-owner";
 
 export type RequestContext =
   | {
@@ -11,6 +13,8 @@ export type RequestContext =
       session: HotelSessionData;
       role: import("./rbac").HotelRole | null;
       roleStatus: "assigned" | "role_unassigned";
+      /** Safe diagnostic code for how the effective role was decided. */
+      roleReason: EffectiveRoleReason | null;
     }
   | { authenticated: false };
 
@@ -38,12 +42,45 @@ export async function readRequestContext(): Promise<RequestContext> {
     }
   }
   const roleLookup = await lookupRole(data.tenantId, data.n3UserKey);
-  if (roleLookup.status === "assigned" && roleLookup.isActive) {
+  const localRole =
+    roleLookup.status === "assigned"
+      ? { role: roleLookup.role, isActive: roleLookup.isActive }
+      : null;
+
+  // N3 is the SOLE identity authority. The local row is an assignment, never
+  // proof of ownership: the current `isOwner` flag on the authenticated N3
+  // user decides Owner authority; a revocation is enforced no later than the
+  // bounded 60s server-only decision cache expires for that token.
+
+  const effective = await resolveEffectiveRole({
+    token: data.n3Token,
+    tenantId: data.tenantId,
+    identity: {
+      n3UserKey: data.n3UserKey,
+      email: data.userEmail ?? null,
+      userName: data.userName ?? null,
+    },
+    localRole,
+  });
+
+  // Diagnostic-only audit, written once per fresh resolution (never per cache
+  // hit) and carrying reason codes only — no PII, no upstream payload.
+  if (!effective.fromCache && localRole?.role === "owner" && effective.role !== "owner") {
+    await logAudit({
+      tenantId: data.tenantId,
+      n3UserKey: data.n3UserKey,
+      eventType: "access.owner_revoked",
+      detail: { reason: effective.reason, matchedBy: effective.matchedBy },
+    });
+  }
+
+  if (effective.role) {
     return {
       authenticated: true,
       session: data as HotelSessionData,
-      role: roleLookup.role,
+      role: effective.role,
       roleStatus: "assigned",
+      roleReason: effective.reason,
     };
   }
   return {
@@ -51,6 +88,7 @@ export async function readRequestContext(): Promise<RequestContext> {
     session: data as HotelSessionData,
     role: null,
     roleStatus: "role_unassigned",
+    roleReason: effective.reason,
   };
 }
 
@@ -66,6 +104,7 @@ export async function requirePermission(
         session: {} as HotelSessionData,
         role: null,
         roleStatus: "role_unassigned",
+        roleReason: null,
       },
       decision,
     };
