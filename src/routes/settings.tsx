@@ -123,16 +123,31 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "operations" | "system" | "n3" | "sources";
+type SettingsTab =
+  | "property"
+  | "guests"
+  | "operations"
+  | "system"
+  | "users"
+  | "n3"
+  | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
   { id: "operations", label: "Operations" },
   { id: "system", label: "System" },
+  { id: "users", label: "User Control" },
   { id: "n3", label: "N3 Integrations" },
   { id: "sources", label: "Booking Sources" },
 ];
+
+/** User Control is strictly gated on the `roles:manage` permission. */
+export function visibleSettingsTabs(
+  role: Parameters<typeof hasPermission>[0],
+): Array<{ id: SettingsTab; label: string }> {
+  return TABS.filter((t) => (t.id === "users" ? hasPermission(role, "roles:manage") : true));
+}
 
 function SettingsWorkspace() {
   const [tab, setTab] = useState<SettingsTab>("property");
