@@ -63,6 +63,27 @@ export async function readRequestContext(): Promise<RequestContext> {
     localRole,
   });
 
+  // HH-AUTH-03A — an authority failure means N3 could not positively confirm
+  // this account is still a live, active member. The stale HotelHub session
+  // must not survive it: audit a reason-code-only event (no PII, no token, no
+  // upstream body) and clear the encrypted session server-side.
+  const AUTHORITY_FAILURE_REASONS = new Set<EffectiveRoleReason>([
+    "n3_users_unavailable",
+    "n3_users_malformed",
+    "n3_user_not_matched",
+    "n3_user_inactive",
+  ]);
+  if (AUTHORITY_FAILURE_REASONS.has(effective.reason)) {
+    await logAudit({
+      tenantId: data.tenantId,
+      n3UserKey: data.n3UserKey,
+      eventType: "session.destroyed",
+      detail: { reason: effective.reason, matchedBy: effective.matchedBy },
+    });
+    await session.clear();
+    return { authenticated: false };
+  }
+
   // Diagnostic-only audit, written once per fresh resolution (never per cache
   // hit) and carrying reason codes only — no PII, no upstream payload.
   if (!effective.fromCache && localRole?.role === "owner" && effective.role !== "owner") {
@@ -83,6 +104,8 @@ export async function readRequestContext(): Promise<RequestContext> {
       roleReason: effective.reason,
     };
   }
+  // Only n3_no_local_role / n3_owner_revoked reach here: the N3 account is
+  // verified active, so keep the role-not-assigned experience.
   return {
     authenticated: true,
     session: data as HotelSessionData,
