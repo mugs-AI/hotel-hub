@@ -58,7 +58,7 @@ const { visibleSettingsTabs } = await import("@/routes/settings");
 const clientMod = await import("@/lib/user-control-client");
 
 function post(body: unknown, origin = "https://hotel.example"): Request {
-  return new Request(`${origin}/api/hotel/user-control`, {
+  return new Request("https://hotel.example/api/hotel/user-control", {
     method: "POST",
     headers: { origin, host: "hotel.example", "content-type": "application/json" },
     body: JSON.stringify(body),
