@@ -29,6 +29,7 @@ import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
 import { Route as ApiN3FinancialVerificationRouteImport } from './routes/api/n3/financial-verification'
 import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
 import { Route as ApiHotelWalkInCustomerRouteImport } from './routes/api/hotel/walk-in-customer'
+import { Route as ApiHotelUserControlRouteImport } from './routes/api/hotel/user-control'
 import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/settings'
 import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
 import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
@@ -159,6 +160,11 @@ const ApiN3CustomersRoute = ApiN3CustomersRouteImport.update({
 const ApiHotelWalkInCustomerRoute = ApiHotelWalkInCustomerRouteImport.update({
   id: '/api/hotel/walk-in-customer',
   path: '/api/hotel/walk-in-customer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelUserControlRoute = ApiHotelUserControlRouteImport.update({
+  id: '/api/hotel/user-control',
+  path: '/api/hotel/user-control',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHotelSettingsRoute = ApiHotelSettingsRouteImport.update({
@@ -344,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
+  '/api/hotel/user-control': typeof ApiHotelUserControlRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
@@ -395,6 +402,7 @@ export interface FileRoutesByTo {
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
+  '/api/hotel/user-control': typeof ApiHotelUserControlRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
@@ -447,6 +455,7 @@ export interface FileRoutesById {
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
   '/api/hotel/settings': typeof ApiHotelSettingsRoute
+  '/api/hotel/user-control': typeof ApiHotelUserControlRoute
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
@@ -500,6 +509,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
+    | '/api/hotel/user-control'
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
@@ -551,6 +561,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
+    | '/api/hotel/user-control'
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
@@ -602,6 +613,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
     | '/api/hotel/settings'
+    | '/api/hotel/user-control'
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
@@ -654,6 +666,7 @@ export interface RootRouteChildren {
   ApiHotelReservationsRoute: typeof ApiHotelReservationsRouteWithChildren
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
   ApiHotelSettingsRoute: typeof ApiHotelSettingsRoute
+  ApiHotelUserControlRoute: typeof ApiHotelUserControlRoute
   ApiHotelWalkInCustomerRoute: typeof ApiHotelWalkInCustomerRoute
   ApiN3CustomersRoute: typeof ApiN3CustomersRouteWithChildren
   ApiN3FinancialVerificationRoute: typeof ApiN3FinancialVerificationRoute
@@ -806,6 +819,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hotel/walk-in-customer'
       fullPath: '/api/hotel/walk-in-customer'
       preLoaderRoute: typeof ApiHotelWalkInCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/user-control': {
+      id: '/api/hotel/user-control'
+      path: '/api/hotel/user-control'
+      fullPath: '/api/hotel/user-control'
+      preLoaderRoute: typeof ApiHotelUserControlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/settings': {
@@ -1173,6 +1193,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelReservationsRoute: ApiHotelReservationsRouteWithChildren,
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,
   ApiHotelSettingsRoute: ApiHotelSettingsRoute,
+  ApiHotelUserControlRoute: ApiHotelUserControlRoute,
   ApiHotelWalkInCustomerRoute: ApiHotelWalkInCustomerRoute,
   ApiN3CustomersRoute: ApiN3CustomersRouteWithChildren,
   ApiN3FinancialVerificationRoute: ApiN3FinancialVerificationRoute,
