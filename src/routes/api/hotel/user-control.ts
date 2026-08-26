@@ -30,12 +30,13 @@ export async function handleListUserControl(): Promise<Response> {
   if (result.status === "upstream_unavailable") return deny(503, "n3_users_unavailable");
   if (result.status === "upstream_malformed") return deny(502, "n3_users_malformed");
   if (result.status === "store_unavailable") return deny(503, "user_control_unavailable");
+  // Strict immutable-ID mismatch: no user directory is returned.
+  if (result.status === "owner_check_failed") return deny(403, "owner_check_failed");
 
   return Response.json(
     {
       rows: result.rows,
       skippedWithoutIdentifier: result.skippedWithoutIdentifier,
-      actorKeyAlignsWithN3Id: result.actorKeyAlignsWithN3Id,
     },
     { headers: { "cache-control": "no-store" } },
   );

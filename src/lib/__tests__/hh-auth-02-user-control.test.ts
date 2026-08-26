@@ -147,7 +147,6 @@ describe("listing", () => {
     expect(res.rows[0]!.isCurrentN3Owner).toBe(true);
     expect(res.rows[0]!.manageable).toBe(false);
     expect(res.rows[0]!.access).toBe("owner");
-    expect(res.actorKeyAlignsWithN3Id).toBe(true);
     // recognition fields are present, the key is the immutable identifier
     expect(res.rows[1]!.email).toBe("ADMIN@MUGS.COM.MY");
   });

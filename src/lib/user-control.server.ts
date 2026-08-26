@@ -12,11 +12,12 @@
 //    `isOwner` user with a FRESH, uncached `/api/Users` read — a stale local
 //    owner row can never authorise a write;
 //  - `owner` is never written to `hotel_user_roles` by this module.
-import { decideEffectiveRole, type N3UserRecord, type N3UsersRead } from "./n3-owner";
+import type { N3UserRecord, N3UsersRead } from "./n3-owner";
 import { invalidateOwnershipCacheForUser, readN3Users } from "./n3-owner.server";
 import {
   accessTransition,
   buildUserControlRows,
+  matchCurrentN3OwnerByImmutableId,
   statusForAssignmentRejection,
   validateAssignment,
   type AccessChoice,
@@ -32,14 +33,8 @@ export type UserControlListResult =
       status: "ok";
       rows: UserControlRow[];
       skippedWithoutIdentifier: number;
-      /**
-       * True when the authenticated actor's own session key is byte-equal to
-       * the immutable identifier N3 reports for them. When false, grants are
-       * still keyed by the N3 identifier but the UI warns that the launch
-       * identity may not line up. Never exposes either value.
-       */
-      actorKeyAlignsWithN3Id: boolean;
     }
+  | { status: "owner_check_failed" }
   | { status: "upstream_unavailable" }
   | { status: "upstream_malformed" }
   | { status: "store_unavailable" };
@@ -75,6 +70,13 @@ export async function listUserControl(
   if (read.status === "unavailable") return { status: "upstream_unavailable" };
   if (read.status === "malformed") return { status: "upstream_malformed" };
 
+  // STRICT immutable-ID gate, reusing the same fresh read: the actor's own
+  // session key must uniquely and exactly equal a current `/api/Users` id
+  // that is active and `isOwner`. Email / user name never qualify, so a
+  // same-email different-ID actor never sees the user directory.
+  const owner = matchCurrentN3OwnerByImmutableId(read.users, input.actorN3UserKey);
+  if (!owner.ok) return { status: "owner_check_failed" };
+
   let localRoles: LocalRoleRow[];
   try {
     localRoles = await (deps.readLocal ?? readLocalRoles)(input.tenantId);
@@ -83,39 +85,34 @@ export async function listUserControl(
   }
 
   const built = buildUserControlRows({ users: read.users, localRoles });
-  const actorKeyAlignsWithN3Id = built.rows.some((r) => r.n3UserKey === input.actorN3UserKey);
 
   return {
     status: "ok",
     rows: built.rows,
     skippedWithoutIdentifier: built.skippedWithoutIdentifier,
-    actorKeyAlignsWithN3Id,
   };
 }
 
 /**
  * Fresh, UNCACHED confirmation that the actor is the current N3 Owner.
- * Fails closed on every unavailable / malformed / unmatched / inactive /
- * non-owner outcome. A local `owner` row is deliberately NOT passed in, so it
- * cannot influence the answer.
+ *
+ * HH-AUTH-02 correction: this uses the STRICT immutable-ID matcher, not the
+ * general effective-role resolver. Email / user name fallbacks can never
+ * authorise User Control. Fails closed on every unavailable / malformed /
+ * ambiguous / unmatched / inactive / non-owner outcome. Local rows are never
+ * consulted.
  */
 export async function confirmActorIsCurrentN3Owner(
   input: {
     token: string;
-    identity: { n3UserKey: string; email: string | null; userName: string | null };
+    identity: { n3UserKey: string; email?: string | null; userName?: string | null };
   },
   deps: UserControlDeps = {},
 ): Promise<{ ok: true; users: N3UserRecord[] } | { ok: false; code: "owner_check_failed" }> {
   const read = await (deps.readUsers ?? readN3Users)(input.token);
   if (read.status !== "ok") return { ok: false, code: "owner_check_failed" };
-  const decision = decideEffectiveRole({
-    read,
-    identity: input.identity,
-    localRole: null,
-  });
-  if (decision.role !== "owner" || decision.reason !== "n3_owner") {
-    return { ok: false, code: "owner_check_failed" };
-  }
+  const owner = matchCurrentN3OwnerByImmutableId(read.users, input.identity.n3UserKey);
+  if (!owner.ok) return { ok: false, code: "owner_check_failed" };
   return { ok: true, users: read.users };
 }
 

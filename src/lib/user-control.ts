@@ -206,3 +206,32 @@ export function accessTransition(
 ): { from: AccessChoice; to: AccessChoice; changed: boolean } {
   return { from: previous, to: next, changed: previous !== next };
 }
+
+/**
+ * HH-AUTH-02 correction — STRICT immutable-ID owner match for User Control.
+ *
+ * Unlike the general effective-role resolver (`matchN3User`), this matcher
+ * NEVER falls back to email or user name: a management actor is only
+ * recognised when the server session's `n3UserKey` is a unique, normalized,
+ * exact match of the immutable `/api/Users` id, and that record is active and
+ * `isOwner`. Every other outcome fails closed.
+ */
+export type StrictOwnerMatch =
+  | { ok: true; user: N3UserRecord }
+  | { ok: false; code: "owner_check_failed" };
+
+export function matchCurrentN3OwnerByImmutableId(
+  users: readonly N3UserRecord[],
+  sessionN3UserKey: unknown,
+): StrictOwnerMatch {
+  const key =
+    typeof sessionN3UserKey === "string" && sessionN3UserKey.trim().length <= MAX_KEY_LENGTH
+      ? normalizeIdentity(sessionN3UserKey)
+      : null;
+  if (!key) return { ok: false, code: "owner_check_failed" };
+  const matches = users.filter((u) => normalizeIdentity(u.id) === key);
+  if (matches.length !== 1) return { ok: false, code: "owner_check_failed" };
+  const user = matches[0]!;
+  if (!user.isActive || !user.isOwner) return { ok: false, code: "owner_check_failed" };
+  return { ok: true, user };
+}
