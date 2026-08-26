@@ -203,6 +203,8 @@ function SettingsWorkspace() {
 
       {tab === "sources" ? (
         <BookingSourcesScreen />
+      ) : tab === "users" ? (
+        <UserControlPanel />
       ) : error ? (
         <p className="text-sm" style={{ color: "#C2413B" }}>
           {friendlyError(error, "Unable to load property settings.")}
