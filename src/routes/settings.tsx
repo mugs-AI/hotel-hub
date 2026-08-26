@@ -59,6 +59,7 @@ import {
   PropertyPanel,
   useHotelSettings,
 } from "@/components/PropertySettingsPanels";
+import { UserControlPanel } from "@/components/UserControlPanel";
 import { cn } from "@/lib/utils";
 
 const NAVY = "#102A43";
