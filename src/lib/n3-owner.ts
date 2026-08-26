@@ -37,8 +37,8 @@ export type EffectiveRoleReason =
 export type EffectiveRoleDecision = {
   role: HotelRole | null;
   reason: EffectiveRoleReason;
-  /** How the authenticated user was matched in the N3 user list. */
-  matchedBy: "id" | "email" | "userName" | null;
+  /** How the authenticated user was matched — immutable N3 id only. */
+  matchedBy: "id" | null;
   /** True when N3 could not be consulted, so Owner authority failed closed. */
   ownerAuthorityFailedClosed: boolean;
 };
