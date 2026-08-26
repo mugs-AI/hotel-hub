@@ -12,11 +12,12 @@
 //    `isOwner` user with a FRESH, uncached `/api/Users` read — a stale local
 //    owner row can never authorise a write;
 //  - `owner` is never written to `hotel_user_roles` by this module.
-import { decideEffectiveRole, type N3UserRecord, type N3UsersRead } from "./n3-owner";
+import type { N3UserRecord, N3UsersRead } from "./n3-owner";
 import { invalidateOwnershipCacheForUser, readN3Users } from "./n3-owner.server";
 import {
   accessTransition,
   buildUserControlRows,
+  matchCurrentN3OwnerByImmutableId,
   statusForAssignmentRejection,
   validateAssignment,
   type AccessChoice,
@@ -32,14 +33,8 @@ export type UserControlListResult =
       status: "ok";
       rows: UserControlRow[];
       skippedWithoutIdentifier: number;
-      /**
-       * True when the authenticated actor's own session key is byte-equal to
-       * the immutable identifier N3 reports for them. When false, grants are
-       * still keyed by the N3 identifier but the UI warns that the launch
-       * identity may not line up. Never exposes either value.
-       */
-      actorKeyAlignsWithN3Id: boolean;
     }
+  | { status: "owner_check_failed" }
   | { status: "upstream_unavailable" }
   | { status: "upstream_malformed" }
   | { status: "store_unavailable" };
