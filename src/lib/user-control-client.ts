@@ -88,41 +88,38 @@ export function useUserControl(enabled: boolean) {
     if (enabled) void refresh();
   }, [enabled, refresh]);
 
-  const setAccess = useCallback(
-    async (n3UserKey: string, access: AccessChoice) => {
-      setSavingKey(n3UserKey);
-      setSavedKey(null);
-      setRowErrors((p) => {
-        const next = { ...p };
-        delete next[n3UserKey];
-        return next;
+  const setAccess = useCallback(async (n3UserKey: string, access: AccessChoice) => {
+    setSavingKey(n3UserKey);
+    setSavedKey(null);
+    setRowErrors((p) => {
+      const next = { ...p };
+      delete next[n3UserKey];
+      return next;
+    });
+    try {
+      await callJson("/api/hotel/user-control", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targetN3UserKey: n3UserKey, access }),
       });
-      try {
-        await callJson("/api/hotel/user-control", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ targetN3UserKey: n3UserKey, access }),
-        });
-        if (!alive.current) return;
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                rows: prev.rows.map((r) => (r.n3UserKey === n3UserKey ? { ...r, access } : r)),
-              }
-            : prev,
-        );
-        setSavedKey(n3UserKey);
-      } catch (err) {
-        if (alive.current) {
-          setRowErrors((p) => ({ ...p, [n3UserKey]: (err as Error).message }));
-        }
-      } finally {
-        if (alive.current) setSavingKey(null);
+      if (!alive.current) return;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              rows: prev.rows.map((r) => (r.n3UserKey === n3UserKey ? { ...r, access } : r)),
+            }
+          : prev,
+      );
+      setSavedKey(n3UserKey);
+    } catch (err) {
+      if (alive.current) {
+        setRowErrors((p) => ({ ...p, [n3UserKey]: (err as Error).message }));
       }
-    },
-    [],
-  );
+    } finally {
+      if (alive.current) setSavingKey(null);
+    }
+  }, []);
 
   return { data, errorCode, isLoading, savingKey, savedKey, rowErrors, refresh, setAccess };
 }

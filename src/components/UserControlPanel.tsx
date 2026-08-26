@@ -31,16 +31,8 @@ export function accessLabel(access: UserControlRow["access"]): string {
 }
 
 export function UserControlPanel() {
-  const {
-    data,
-    errorCode,
-    isLoading,
-    savingKey,
-    savedKey,
-    rowErrors,
-    refresh,
-    setAccess,
-  } = useUserControl(true);
+  const { data, errorCode, isLoading, savingKey, savedKey, rowErrors, refresh, setAccess } =
+    useUserControl(true);
 
   return (
     <section
@@ -109,8 +101,8 @@ export function UserControlPanel() {
             {!data.actorKeyAlignsWithN3Id ? (
               <p className="mb-3 flex items-start gap-2 text-sm text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
-                Your launch identity does not line up with the identifier N3 reports for you.
-                Access saved here may not apply until that is resolved.
+                Your launch identity does not line up with the identifier N3 reports for you. Access
+                saved here may not apply until that is resolved.
               </p>
             ) : null}
 

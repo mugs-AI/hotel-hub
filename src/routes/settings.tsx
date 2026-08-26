@@ -124,14 +124,7 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab =
-  | "property"
-  | "guests"
-  | "operations"
-  | "system"
-  | "users"
-  | "n3"
-  | "sources";
+type SettingsTab = "property" | "guests" | "operations" | "system" | "users" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },

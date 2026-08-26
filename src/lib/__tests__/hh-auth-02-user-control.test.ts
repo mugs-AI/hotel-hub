@@ -90,9 +90,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: () => roleTable() },
 }));
 
-const { applyUserAccess, confirmActorIsCurrentN3Owner, listUserControl } = await import(
-  "@/lib/user-control.server"
-);
+const { applyUserAccess, confirmActorIsCurrentN3Owner, listUserControl } =
+  await import("@/lib/user-control.server");
 const { invalidateOwnershipCacheForUser, resolveEffectiveRole, __resetOwnershipCache } =
   await import("@/lib/n3-owner.server");
 
@@ -292,10 +291,7 @@ describe("assignment", () => {
       ["u-admin", null, "invalid_role", 400],
     ];
     for (const [target, access, code, status] of cases) {
-      const res = await applyUserAccess(
-        { ...base, targetN3UserKey: target, access },
-        deps(),
-      );
+      const res = await applyUserAccess({ ...base, targetN3UserKey: target, access }, deps());
       expect(res).toMatchObject({ ok: false, code, status });
     }
     // self-modification, using the owner's own key as an ordinary actor
@@ -381,7 +377,9 @@ describe("assignment", () => {
 describe("permission boundary", () => {
   it("only owner holds roles:manage", () => {
     for (const role of ["front_desk", "housekeeper"] as const) {
-      expect(authorize({ hasSession: true, tenantId: TENANT, role }, "roles:manage").ok).toBe(false);
+      expect(authorize({ hasSession: true, tenantId: TENANT, role }, "roles:manage").ok).toBe(
+        false,
+      );
     }
     expect(authorize({ hasSession: true, tenantId: TENANT, role: null }, "roles:manage").ok).toBe(
       false,
@@ -389,9 +387,9 @@ describe("permission boundary", () => {
     expect(authorize({ hasSession: false, tenantId: null, role: null }, "roles:manage").ok).toBe(
       false,
     );
-    expect(authorize({ hasSession: true, tenantId: TENANT, role: "owner" }, "roles:manage").ok).toBe(
-      true,
-    );
+    expect(
+      authorize({ hasSession: true, tenantId: TENANT, role: "owner" }, "roles:manage").ok,
+    ).toBe(true);
   });
 
   it("confirmActorIsCurrentN3Owner ignores local rows entirely", async () => {

@@ -34,7 +34,12 @@ vi.mock("@/lib/session-context.server", () => ({
 
 // -------- domain mock --------
 const domain = vi.hoisted(() => ({
-  list: { status: "ok", rows: [], skippedWithoutIdentifier: 0, actorKeyAlignsWithN3Id: true } as any,
+  list: {
+    status: "ok",
+    rows: [],
+    skippedWithoutIdentifier: 0,
+    actorKeyAlignsWithN3Id: true,
+  } as any,
   apply: { ok: true, n3UserKey: "u-admin", from: "none", to: "front_desk", changed: true } as any,
   listArgs: [] as any[],
   applyArgs: [] as any[],
@@ -50,9 +55,8 @@ vi.mock("@/lib/user-control.server", () => ({
   },
 }));
 
-const { handleAssignUserControl, handleListUserControl } = await import(
-  "@/routes/api/hotel/user-control"
-);
+const { handleAssignUserControl, handleListUserControl } =
+  await import("@/routes/api/hotel/user-control");
 const { UserControlPanel, accessLabel } = await import("@/components/UserControlPanel");
 const { visibleSettingsTabs } = await import("@/routes/settings");
 const clientMod = await import("@/lib/user-control-client");
@@ -280,7 +284,7 @@ describe("Settings surface", () => {
     expect(populated).toContain("Housekeeper");
     expect(populated).toContain('aria-checked="true"');
     // save-in-progress disables that row's controls
-    expect(populated).toContain("disabled=\"\"");
+    expect(populated).toContain('disabled=""');
     expect(populated).toContain('aria-live="polite"');
 
     const rowFailure = renderPanel({

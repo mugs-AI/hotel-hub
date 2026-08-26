@@ -121,7 +121,11 @@ export async function confirmActorIsCurrentN3Owner(
 
 export type ApplyAccessResult =
   | { ok: true; n3UserKey: string; from: AccessChoice; to: AccessChoice; changed: boolean }
-  | { ok: false; status: number; code: AssignmentRejection | "owner_check_failed" | "store_unavailable" };
+  | {
+      ok: false;
+      status: number;
+      code: AssignmentRejection | "owner_check_failed" | "store_unavailable";
+    };
 
 /**
  * Apply one grant / change / revocation.
@@ -153,7 +157,11 @@ export async function applyUserAccess(
     actorN3UserKey: input.actorN3UserKey,
   });
   if (!validated.ok) {
-    return { ok: false, status: statusForAssignmentRejection(validated.code), code: validated.code };
+    return {
+      ok: false,
+      status: statusForAssignmentRejection(validated.code),
+      code: validated.code,
+    };
   }
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
