@@ -101,7 +101,7 @@ describe("P0 — N3 is the sole ownership authority", () => {
     }
   });
 
-  it("matches by email case-insensitively when no stable id is present", () => {
+  it("REFUSES an email-only row: authorization requires the immutable N3 id", () => {
     expect(normalizeIdentity("  Owner@Hotel.TEST ")).toBe("owner@hotel.test");
     const d = decideEffectiveRole({
       read: {
@@ -113,8 +113,9 @@ describe("P0 — N3 is the sole ownership authority", () => {
       identity: IDENTITY,
       localRole: { role: "owner", isActive: true },
     });
-    expect(d.matchedBy).toBe("email");
-    expect(d.role).toBe("owner");
+    expect(d.matchedBy).toBeNull();
+    expect(d.reason).toBe("n3_user_not_matched");
+    expect(d.role).toBeNull();
   });
 
   it("reads PascalCase and camelCase N3 user payloads, and rejects junk", () => {
