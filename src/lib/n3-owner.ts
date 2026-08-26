@@ -184,41 +184,29 @@ export type SessionIdentity = {
   userName: string | null;
 };
 
-export type N3UserMatch = { user: N3UserRecord; matchedBy: "id" | "email" | "userName" };
+export type N3UserMatch = { user: N3UserRecord; matchedBy: "id" };
 
 /**
- * Deterministic match. Stable id first; normalized email, then userName, only
- * as a fallback. A fallback that matches more than one user is REJECTED —
- * ambiguity must never grant authority.
+ * HH-AUTH-03A — immutable-ID-only match.
+ *
+ * The authenticated session key MUST equal a UserDto immutable id after
+ * normalization, and exactly one user may match. Email and userName remain
+ * display data only: they never grant nor preserve authorization, so a
+ * re-created N3 account that reuses an email cannot inherit access.
  */
 export function matchN3User(
   users: readonly N3UserRecord[],
   identity: SessionIdentity,
 ): N3UserMatch | null {
   const key = normalizeIdentity(identity.n3UserKey);
-  if (key) {
-    const byId = users.filter((u) => normalizeIdentity(u.id) === key);
-    if (byId.length === 1) return { user: byId[0]!, matchedBy: "id" };
-    if (byId.length > 1) return null;
-  }
-  const email = normalizeIdentity(identity.email);
-  if (email) {
-    const byEmail = users.filter((u) => normalizeIdentity(u.email) === email);
-    if (byEmail.length === 1) return { user: byEmail[0]!, matchedBy: "email" };
-    if (byEmail.length > 1) return null;
-  }
-  const name = normalizeIdentity(identity.userName);
-  if (name) {
-    const byName = users.filter(
-      (u) => normalizeIdentity(u.userName) === name || normalizeIdentity(u.email) === name,
-    );
-    if (byName.length === 1) return { user: byName[0]!, matchedBy: "userName" };
-  }
+  if (!key) return null;
+  const byId = users.filter((u) => normalizeIdentity(u.id) === key);
+  if (byId.length === 1) return { user: byId[0]!, matchedBy: "id" };
   return null;
 }
 
-/** An active local assignment is only ever preserved for these roles. */
-function preservedLocalRole(
+/** An active local assignment is only ever honoured for these roles. */
+function operationalLocalRole(
   local: { role: HotelRole; isActive: boolean } | null,
 ): HotelRole | null {
   if (!local || !local.isActive) return null;
@@ -228,24 +216,24 @@ function preservedLocalRole(
 /**
  * The effective HotelHub role for this request.
  *
- * Rules (deny-by-default, fail closed for Owner):
- *  - matched + active + isOwner === true  -> owner (no local row required);
- *  - matched + active + isOwner !== true  -> preserved local front_desk /
- *    housekeeper only; a stale local OWNER row becomes role_unassigned;
- *  - inactive / unmatched / malformed / unavailable -> never owner; a
- *    preserved local non-owner assignment still applies so day-to-day work
- *    continues, but Owner authority always fails closed.
+ * Rules (deny-by-default, FAIL CLOSED for every authority failure):
+ *  - matched by immutable id + active + isOwner === true -> owner (no local
+ *    row required);
+ *  - matched by immutable id + active + isOwner !== true -> only an active
+ *    explicit local front_desk / housekeeper; a stale local OWNER row becomes
+ *    role_unassigned;
+ *  - unavailable / malformed / unmatched / inactive -> role is ALWAYS null. A
+ *    local row is an assignment, never proof that the N3 account still exists
+ *    or is active, so it is never preserved for these outcomes.
  */
 export function decideEffectiveRole(input: {
   read: N3UsersRead;
   identity: SessionIdentity;
   localRole: { role: HotelRole; isActive: boolean } | null;
 }): EffectiveRoleDecision {
-  const fallback = preservedLocalRole(input.localRole);
-
   if (input.read.status !== "ok") {
     return {
-      role: fallback,
+      role: null,
       reason: input.read.status === "malformed" ? "n3_users_malformed" : "n3_users_unavailable",
       matchedBy: null,
       ownerAuthorityFailedClosed: true,
@@ -255,7 +243,7 @@ export function decideEffectiveRole(input: {
   const match = matchN3User(input.read.users, input.identity);
   if (!match) {
     return {
-      role: fallback,
+      role: null,
       reason: "n3_user_not_matched",
       matchedBy: null,
       ownerAuthorityFailedClosed: true,
@@ -263,7 +251,7 @@ export function decideEffectiveRole(input: {
   }
   if (!match.user.isActive) {
     return {
-      role: fallback,
+      role: null,
       reason: "n3_user_inactive",
       matchedBy: match.matchedBy,
       ownerAuthorityFailedClosed: true,
@@ -277,9 +265,10 @@ export function decideEffectiveRole(input: {
       ownerAuthorityFailedClosed: false,
     };
   }
+  const operational = operationalLocalRole(input.localRole);
   return {
-    role: fallback,
-    reason: fallback
+    role: operational,
+    reason: operational
       ? "n3_non_owner_local_role"
       : input.localRole?.role === "owner"
         ? "n3_owner_revoked"
@@ -288,3 +277,4 @@ export function decideEffectiveRole(input: {
     ownerAuthorityFailedClosed: false,
   };
 }
+
