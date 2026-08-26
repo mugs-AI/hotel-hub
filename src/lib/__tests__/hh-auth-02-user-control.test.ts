@@ -119,6 +119,8 @@ const readOk = async (): Promise<N3UsersRead> => ({
   users: [OWNER, ADMIN, CLEANER, RETIRED],
 });
 
+const SECRET_TOKEN = "n3-secret-token-value";
+
 const ownerIdentity = { n3UserKey: "u-owner", email: "owner@mugs.com.my", userName: "Theng" };
 
 function deps(read: () => Promise<N3UsersRead> = readOk) {
@@ -136,7 +138,7 @@ beforeEach(() => {
 describe("listing", () => {
   it("the current N3 Owner can list the tenant's active N3 users", async () => {
     const res = await listUserControl(
-      { token: "t", tenantId: TENANT, actorN3UserKey: "u-owner" },
+      { token: SECRET_TOKEN, tenantId: TENANT, actorN3UserKey: "u-owner" },
       deps(),
     );
     expect(res.status).toBe("ok");
@@ -153,16 +155,16 @@ describe("listing", () => {
 
   it("is fail-closed and safe when /api/Users is unavailable or malformed", async () => {
     const un = await listUserControl(
-      { token: "t", tenantId: TENANT, actorN3UserKey: "u-owner" },
+      { token: SECRET_TOKEN, tenantId: TENANT, actorN3UserKey: "u-owner" },
       deps(async () => ({ status: "unavailable" })),
     );
     expect(un.status).toBe("upstream_unavailable");
     const mal = await listUserControl(
-      { token: "t", tenantId: TENANT, actorN3UserKey: "u-owner" },
+      { token: SECRET_TOKEN, tenantId: TENANT, actorN3UserKey: "u-owner" },
       deps(async () => ({ status: "malformed" })),
     );
     expect(mal.status).toBe("upstream_malformed");
-    expect(JSON.stringify(un) + JSON.stringify(mal)).not.toContain("t");
+    expect(JSON.stringify(un) + JSON.stringify(mal)).not.toContain(SECRET_TOKEN);
   });
 
   it("only reads local rows for the caller's own tenant", async () => {
@@ -173,7 +175,7 @@ describe("listing", () => {
       is_active: true,
     });
     const res = await listUserControl(
-      { token: "t", tenantId: TENANT, actorN3UserKey: "u-owner" },
+      { token: SECRET_TOKEN, tenantId: TENANT, actorN3UserKey: "u-owner" },
       deps(),
     );
     if (res.status !== "ok") throw new Error("expected ok");
@@ -211,7 +213,7 @@ describe("assignment", () => {
     tenantId: TENANT,
     actorN3UserKey: "u-owner",
     actorIdentity: ownerIdentity,
-    token: "t",
+    token: SECRET_TOKEN,
   };
 
   it("grants Front Desk, changes to Housekeeper, then revokes to No access", async () => {
@@ -244,7 +246,7 @@ describe("assignment", () => {
     ]);
     const dump = JSON.stringify(auditEvents);
     expect(dump).not.toContain("MUGS.COM.MY");
-    expect(dump).not.toContain('"t"');
+    expect(dump).not.toContain(SECRET_TOKEN);
     expect(auditEvents[0]!.detail).toEqual({
       target: "u-admin",
       from: "none",
@@ -394,7 +396,7 @@ describe("permission boundary", () => {
 
   it("confirmActorIsCurrentN3Owner ignores local rows entirely", async () => {
     const nonOwner = await confirmActorIsCurrentN3Owner(
-      { token: "t", identity: { n3UserKey: "u-admin", email: null, userName: null } },
+      { token: SECRET_TOKEN, identity: { n3UserKey: "u-admin", email: null, userName: null } },
       deps(),
     );
     expect(nonOwner).toEqual({ ok: false, code: "owner_check_failed" });
@@ -407,7 +409,7 @@ describe("cache invalidation", () => {
     const identity = { n3UserKey: "u-admin", email: null, userName: null };
 
     const first = await resolveEffectiveRole({
-      token: "t",
+      token: SECRET_TOKEN,
       tenantId: TENANT,
       identity,
       localRole: null,
@@ -420,7 +422,7 @@ describe("cache invalidation", () => {
         tenantId: TENANT,
         actorN3UserKey: "u-owner",
         actorIdentity: ownerIdentity,
-        token: "t",
+        token: SECRET_TOKEN,
         targetN3UserKey: "u-admin",
         access: "front_desk",
       },
@@ -428,7 +430,7 @@ describe("cache invalidation", () => {
     );
 
     const after = await resolveEffectiveRole({
-      token: "t",
+      token: SECRET_TOKEN,
       tenantId: TENANT,
       identity,
       localRole: { role: "front_desk", isActive: true },
@@ -441,7 +443,7 @@ describe("cache invalidation", () => {
   it("invalidation is scoped to the exact tenant + user", async () => {
     const read = async (): Promise<N3UsersRead> => ({ status: "ok", users: [OWNER, ADMIN] });
     await resolveEffectiveRole({
-      token: "t",
+      token: SECRET_TOKEN,
       tenantId: TENANT,
       identity: { n3UserKey: "u-admin", email: null, userName: null },
       localRole: null,
