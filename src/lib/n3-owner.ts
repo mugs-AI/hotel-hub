@@ -277,4 +277,3 @@ export function decideEffectiveRole(input: {
     ownerAuthorityFailedClosed: false,
   };
 }
-
