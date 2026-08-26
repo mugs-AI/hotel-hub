@@ -59,6 +59,7 @@ import {
   PropertyPanel,
   useHotelSettings,
 } from "@/components/PropertySettingsPanels";
+import { UserControlPanel } from "@/components/UserControlPanel";
 import { cn } from "@/lib/utils";
 
 const NAVY = "#102A43";
@@ -123,16 +124,24 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "operations" | "system" | "n3" | "sources";
+type SettingsTab = "property" | "guests" | "operations" | "system" | "users" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
   { id: "operations", label: "Operations" },
   { id: "system", label: "System" },
+  { id: "users", label: "User Control" },
   { id: "n3", label: "N3 Integrations" },
   { id: "sources", label: "Booking Sources" },
 ];
+
+/** User Control is strictly gated on the `roles:manage` permission. */
+export function visibleSettingsTabs(
+  role: Parameters<typeof hasPermission>[0],
+): Array<{ id: SettingsTab; label: string }> {
+  return TABS.filter((t) => (t.id === "users" ? hasPermission(role, "roles:manage") : true));
+}
 
 function SettingsWorkspace() {
   const [tab, setTab] = useState<SettingsTab>("property");
@@ -166,7 +175,9 @@ function SettingsWorkspace() {
         className="flex flex-wrap gap-1 rounded-lg border bg-white p-1 shadow-sm"
         style={{ borderColor: `${NAVY}1F` }}
       >
-        {TABS.map((t) => (
+        {visibleSettingsTabs(
+          session.data && session.data.authenticated !== false ? session.data.role : null,
+        ).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -186,6 +197,8 @@ function SettingsWorkspace() {
 
       {tab === "sources" ? (
         <BookingSourcesScreen />
+      ) : tab === "users" ? (
+        <UserControlPanel />
       ) : error ? (
         <p className="text-sm" style={{ color: "#C2413B" }}>
           {friendlyError(error, "Unable to load property settings.")}
