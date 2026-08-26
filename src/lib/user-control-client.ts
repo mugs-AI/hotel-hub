@@ -6,7 +6,6 @@ import type { AccessChoice, UserControlRow } from "./user-control";
 export type UserControlListDTO = {
   rows: UserControlRow[];
   skippedWithoutIdentifier: number;
-  actorKeyAlignsWithN3Id: boolean;
 };
 
 /** Stable, safe, user-facing text for every code this API can return. */

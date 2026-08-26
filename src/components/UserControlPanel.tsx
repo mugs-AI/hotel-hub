@@ -98,13 +98,6 @@ export function UserControlPanel() {
                 stable identifier for them.
               </p>
             ) : null}
-            {!data.actorKeyAlignsWithN3Id ? (
-              <p className="mb-3 flex items-start gap-2 text-sm text-muted-foreground">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
-                Your launch identity does not line up with the identifier N3 reports for you. Access
-                saved here may not apply until that is resolved.
-              </p>
-            ) : null}
 
             <ul className="divide-y rounded-lg border" style={{ borderColor: `${NAVY}1A` }}>
               {data.rows.map((row) => (
