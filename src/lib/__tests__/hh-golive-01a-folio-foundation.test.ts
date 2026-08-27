@@ -95,7 +95,8 @@ describe("folio money — integer cents only, fail closed", () => {
     expect(roundingAdjustmentCents(1003, "none")).toBe(0);
     expect(roundingAdjustmentCents(1003, "nearest_5_cents")).toBe(2);
     expect(roundingAdjustmentCents(1002, "nearest_5_cents")).toBe(-2);
-    expect(roundingAdjustmentCents(1004, "nearest_10_cents")).toBe(6);
+    expect(roundingAdjustmentCents(1004, "nearest_10_cents")).toBe(-4);
+    expect(roundingAdjustmentCents(1006, "nearest_10_cents")).toBe(4);
     expect(formatCents(-12345)).toBe("-MYR 123.45");
   });
 });
