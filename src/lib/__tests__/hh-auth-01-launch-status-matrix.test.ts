@@ -10,15 +10,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // -------- session mock --------
 const sessionState = { data: {} as Record<string, unknown>, updates: 0, cleared: 0 };
-vi.mock("@/lib/n3-token-validation.server", () => ({
-  // HH-AUTH-04: these suites exercise behavior AFTER N3 accepted the token
-  // through the permission-neutral endpoint. Dedicated HH-AUTH-04 suites
-  // cover the failure branches of this module.
-  validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
-  invalidateNeutralValidation: () => {},
-  validateN3TokenNeutral: async () => ({ status: "accepted" }),
-  __resetNeutralValidationCache: () => {},
-}));
 
 vi.mock("@/lib/session.server", () => ({
   getHotelSession: async () => ({
@@ -76,6 +67,7 @@ vi.mock("@/lib/n3-gateway.server", () => ({
 }));
 
 import { performN3Launch, SAFE_LAUNCH_ERROR_CODES, LAUNCH_ERROR_HEADER } from "@/lib/launch.server";
+import { N3_NEUTRAL_VALIDATION_PATH } from "@/lib/n3-token-validation";
 
 function b64url(obj: unknown): string {
   return Buffer.from(JSON.stringify(obj))
@@ -87,21 +79,21 @@ function b64url(obj: unknown): string {
 function token(claims: Record<string, unknown>): string {
   return `${b64url({ alg: "none", typ: "JWT" })}.${b64url(claims)}.sig`;
 }
-const VALID = () => token({ sub: "u-1", email: "staff@hotel.test", exp: 4102444800 });
+const VALID = () =>
+  token({
+    sub: "u-1",
+    tenantId: "n3-tenant",
+    tenantCode: "HOTEL",
+    email: "staff@hotel.test",
+    userName: "staff",
+    exp: 4102444800,
+  });
 const EXPIRED = () => token({ sub: "u-1", exp: 1000 });
 
-const BASIC_INFO_OK = {
+// Permission-neutral verifier response (UserData_GetValue_GET envelope).
+const NEUTRAL_OK = {
   status: 200,
-  body: {
-    code: "0000",
-    data: {
-      tenantId: "n3-tenant",
-      tenantCode: "HOTEL",
-      companyName: "Boutique Hotel",
-      email: "staff@hotel.test",
-      userName: "staff",
-    },
-  },
+  body: { success: true, code: "0000", data: null },
 };
 
 beforeEach(() => {
@@ -133,7 +125,7 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
     expect(sessionState.cleared).toBeGreaterThan(0);
   });
 
-  it("BasicInfo 401 -> n3_rejected", async () => {
+  it("neutral validation 401 -> n3_rejected", async () => {
     gatewayQueue.push({ status: 401, body: { message: "upstream-secret-detail" } });
     const res = await performN3Launch(VALID(), "/", "root");
     expect(code(res)).toBe("n3_rejected");
@@ -141,7 +133,7 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
     expect(sessionState.updates).toBe(0);
   });
 
-  it("BasicInfo 403 -> n3_access_denied, no session, no upsert, no /api/Users", async () => {
+  it("neutral validation 403 -> n3_access_denied, no session, no upsert, no /api/Users", async () => {
     gatewayQueue.push({ status: 403, body: { message: "upstream-secret-detail" } });
     const res = await performN3Launch(VALID(), "/", "root");
     expect(code(res)).toBe("n3_access_denied");
@@ -150,7 +142,9 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
     expect(sessionState.data).toEqual({});
     expect(sessionState.cleared).toBeGreaterThan(0);
     expect(upsertCalls).toEqual([]);
-    expect(gatewayPaths).toEqual(["/api/companyprofile/BasicInfo"]);
+    expect(gatewayPaths).toEqual([N3_NEUTRAL_VALIDATION_PATH]);
+    // Company Profile is never on the launch critical path.
+    expect(gatewayPaths.join(" ")).not.toContain("companyprofile");
 
     const body = await res.text();
     expect(body).not.toContain("upstream-secret-detail");
@@ -158,10 +152,14 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
 
     const failures = auditEvents.filter((e) => e.eventType === "session.launch.failure");
     expect(failures).toHaveLength(1);
-    expect(failures[0]!.detail).toEqual({ source: "root", stage: "basicinfo", status: 403 });
+    expect(failures[0]!.detail).toEqual({
+      source: "root",
+      stage: "neutral_validation",
+      reason: "forbidden",
+    });
   });
 
-  it("BasicInfo 5xx and transport failure both -> n3_unavailable, never n3_access_denied", async () => {
+  it("neutral validation 5xx and transport failure both -> n3_unavailable, never n3_access_denied", async () => {
     gatewayQueue.push({ status: 500, body: {} });
     const five = await performN3Launch(VALID(), "/", "root");
     expect(code(five)).toBe("n3_unavailable");
@@ -179,22 +177,22 @@ describe("HH-AUTH-01 — BasicInfo status matrix", () => {
     const failures = auditEvents.filter((e) => e.eventType === "session.launch.failure");
     expect(failures.at(-1)!.detail).toEqual({
       source: "root",
-      stage: "basicinfo",
-      reason: "transport_failure",
+      stage: "neutral_validation",
+      reason: "unavailable",
     });
     expect(JSON.stringify(auditEvents)).not.toContain("network down");
     expect(JSON.stringify(auditEvents)).not.toContain(VALID());
   });
 
-  it("malformed BasicInfo envelope stays fail-closed as n3_unavailable", async () => {
-    gatewayQueue.push({ status: 200, body: { code: "9999", data: null } });
+  it("unsuccessful neutral envelope stays fail-closed as n3_unavailable", async () => {
+    gatewayQueue.push({ status: 200, body: { success: false, code: "9999", data: null } });
     const res = await performN3Launch(VALID(), "/", "root");
     expect(code(res)).toBe("n3_unavailable");
     expect(sessionState.updates).toBe(0);
   });
 
-  it("BasicInfo success opens a session and reaches identity upsert", async () => {
-    gatewayQueue.push(BASIC_INFO_OK);
+  it("neutral acceptance opens a session and reaches identity upsert", async () => {
+    gatewayQueue.push(NEUTRAL_OK);
     const res = await performN3Launch(VALID(), "/dashboard", "root");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/dashboard");
