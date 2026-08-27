@@ -120,7 +120,9 @@ export type ValidatedIdentity = {
 export type IdentityExtraction =
   | { status: "ok"; identity: ValidatedIdentity }
   | { status: "missing_user" }
-  | { status: "missing_tenant" };
+  | { status: "ambiguous_user" }
+  | { status: "missing_tenant" }
+  | { status: "ambiguous_tenant" };
 
 function claimString(claims: Record<string, unknown>, key: string): string | null {
   const v = claims[key];
@@ -129,25 +131,38 @@ function claimString(claims: Record<string, unknown>, key: string): string | nul
   return null;
 }
 
+type ClaimResolution =
+  | { status: "none" }
+  | { status: "ok"; value: string }
+  | { status: "ambiguous" };
+
 /**
- * Collect the distinct values for a set of claim keys. More than one distinct
- * value means the token is ambiguous about that identity, which fails closed.
+ * Resolve one identity from a set of recognized claim keys. More than one
+ * distinct normalized value means the token contradicts itself about that
+ * identity, which fails closed rather than picking a winner.
  */
-function uniqueClaim(claims: Record<string, unknown>, keys: readonly string[]): string | null {
+function resolveClaim(claims: Record<string, unknown>, keys: readonly string[]): ClaimResolution {
   const seen = new Set<string>();
-  let last: string | null = null;
+  let first: string | null = null;
   for (const k of keys) {
     const v = claimString(claims, k);
-    if (v) {
+    if (!v) continue;
+    if (!seen.has(v.toLowerCase())) {
       seen.add(v.toLowerCase());
-      last = v;
+      if (first === null) first = v;
     }
   }
-  if (seen.size !== 1) return null;
-  return last;
+  if (seen.size === 0) return { status: "none" };
+  if (seen.size > 1) return { status: "ambiguous" };
+  return { status: "ok", value: first as string };
 }
 
+/**
+ * Recognized immutable user-ID claims. `sub` is preferred, but only when
+ * every other present recognized claim agrees with it.
+ */
 const USER_ID_CLAIMS = [
+  "sub",
   "userId",
   "UserId",
   "userid",
@@ -175,16 +190,27 @@ const TENANT_CODE_CLAIMS = ["tenantCode", "TenantCode", "tenant_code", "dbCode",
  * accepted through the permission-neutral endpoint. Claims are never trusted
  * before that acceptance.
  *
- * `sub` wins for the user key. Email / userName are display data only and can
- * never stand in for a missing immutable id.
+ * `sub` wins for the user key, but only when it does not conflict with any
+ * other recognized immutable user-ID claim — a conflict fails closed. Email /
+ * userName are display data only and can never stand in for an immutable id.
  */
 export function extractValidatedIdentity(claims: Record<string, unknown>): IdentityExtraction {
   const c = claims && typeof claims === "object" ? claims : {};
-  const n3UserKey = claimString(c, "sub") ?? uniqueClaim(c, USER_ID_CLAIMS);
-  if (!n3UserKey) return { status: "missing_user" };
-  const tenantCode = uniqueClaim(c, TENANT_CODE_CLAIMS);
-  const n3TenantKey = uniqueClaim(c, TENANT_ID_CLAIMS) ?? tenantCode;
+
+  const user = resolveClaim(c, USER_ID_CLAIMS);
+  if (user.status === "ambiguous") return { status: "ambiguous_user" };
+  if (user.status === "none") return { status: "missing_user" };
+  const n3UserKey = claimString(c, "sub") ?? user.value;
+
+  const codeResolution = resolveClaim(c, TENANT_CODE_CLAIMS);
+  if (codeResolution.status === "ambiguous") return { status: "ambiguous_tenant" };
+  const tenantCode = codeResolution.status === "ok" ? codeResolution.value : null;
+
+  const tenant = resolveClaim(c, TENANT_ID_CLAIMS);
+  if (tenant.status === "ambiguous") return { status: "ambiguous_tenant" };
+  const n3TenantKey = tenant.status === "ok" ? tenant.value : tenantCode;
   if (!n3TenantKey) return { status: "missing_tenant" };
+
   const email = claimString(c, "email") ?? claimString(c, "Email");
   const userName =
     claimString(c, "name") ?? claimString(c, "unique_name") ?? claimString(c, "preferred_username");
@@ -193,3 +219,4 @@ export function extractValidatedIdentity(claims: Record<string, unknown>): Ident
     identity: { n3UserKey, n3TenantKey, email, userName, tenantCode },
   };
 }
+
