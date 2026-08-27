@@ -5,10 +5,7 @@
 // 2. Identity extraction fails closed when recognized immutable user-ID or
 //    tenant-ID claims contradict each other. Email / username never authorize.
 import { describe, expect, it } from "vitest";
-import {
-  extractValidatedIdentity,
-  interpretNeutralValidation,
-} from "@/lib/n3-token-validation";
+import { extractValidatedIdentity, interpretNeutralValidation } from "@/lib/n3-token-validation";
 
 const baseTenant = { tenantId: "tenant-1" };
 

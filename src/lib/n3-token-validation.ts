@@ -101,7 +101,6 @@ export function interpretNeutralValidation(status: number, body: unknown): Neutr
   return envelopeConfirmsSuccess(body) ? { status: "accepted" } : { status: "malformed" };
 }
 
-
 // ---- Validated identity ---------------------------------------------------
 
 export type ValidatedIdentity = {
@@ -219,4 +218,3 @@ export function extractValidatedIdentity(claims: Record<string, unknown>): Ident
     identity: { n3UserKey, n3TenantKey, email, userName, tenantCode },
   };
 }
-
