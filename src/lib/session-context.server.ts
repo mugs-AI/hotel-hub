@@ -41,6 +41,25 @@ export async function readRequestContext(): Promise<RequestContext> {
       return { authenticated: false };
     }
   }
+  // HH-AUTH-04 — permission-neutral token validation is the authoritative
+  // liveness check for every protected request, cached server-side for at
+  // most 60s. 401/403, malformed/unsuccessful envelope, 5xx, network failure
+  // and timeout all fail closed and destroy the HotelHub session. It never
+  // requires Company Profile / Users / accounting permissions, so ordinary
+  // assigned staff pass it.
+  const neutral = await validateN3TokenNeutralCached(data.n3Token);
+  if (neutral.status !== "accepted") {
+    await logAudit({
+      tenantId: data.tenantId,
+      n3UserKey: data.n3UserKey,
+      eventType: "session.destroyed",
+      detail: { reason: "n3_token_validation_failed", status: neutral.status },
+    });
+    invalidateNeutralValidation(data.n3Token);
+    await session.clear();
+    return { authenticated: false };
+  }
+
   const roleLookup = await lookupRole(data.tenantId, data.n3UserKey);
   const localRole =
     roleLookup.status === "assigned"
@@ -61,7 +80,9 @@ export async function readRequestContext(): Promise<RequestContext> {
       userName: data.userName ?? null,
     },
     localRole,
+    neutralValidated: true,
   });
+
 
   // HH-AUTH-03A — an authority failure means N3 could not positively confirm
   // this account is still a live, active member. The stale HotelHub session
