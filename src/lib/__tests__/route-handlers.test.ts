@@ -143,6 +143,9 @@ afterEach(() => {
 
 // ---------- Convenience seed helpers ----------
 function seedTenantUpsert(overrides: Partial<Record<string, unknown>> = {}) {
+  // HH-AUTH-04: launches carry no company name, so the upsert first reads any
+  // previously stored Owner-sourced tenant values.
+  supabaseEnqueue("hotel_tenants", { data: null, error: null });
   supabaseEnqueue("hotel_tenants", {
     data: {
       id: "tenant-uuid-1",
