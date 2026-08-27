@@ -87,86 +87,73 @@ export async function performN3Launch(
       return failure(401, "N3 token expired", "session_expired");
     }
 
-    // A thrown network/timeout error at THIS call means N3 could not be
-    // reached — classify it as `n3_unavailable`, not as the generic
-    // `launch_failed` used for later local (session/db/upsert) failures.
-    // Only safe reason codes are audited: never the raw error, the token,
-    // or any upstream body.
-    let probe: Awaited<ReturnType<typeof callN3Path>>;
-    try {
-      probe = await callN3Path(token, "/api/companyprofile/BasicInfo");
-    } catch {
+    // PERMISSION-NEUTRAL VALIDATION (HH-AUTH-04).
+    // `UserData_GetValue_GET` is the caller's own user-scoped store: any
+    // authenticated N3 user of the tenant may call it, so it proves the
+    // bearer token without requiring Company Profile / Users administration
+    // / Customers / Stock / accounting permissions. Its business body is
+    // discarded — only the acceptance verdict is used. Only safe reason
+    // codes are audited: never the raw error, the token, or any upstream
+    // body.
+    const validation = await validateN3TokenNeutral(token);
+    if (validation.status === "rejected") {
       await clearSessionBestEffort();
       await logAudit({
         eventType: "session.launch.failure",
-        detail: { source, stage: "basicinfo", reason: "transport_failure" },
-      });
-      return failure(502, "N3 verification failed", "n3_unavailable");
-    }
-    if (probe.status === 401) {
-      await clearSessionBestEffort();
-      await logAudit({
-        eventType: "session.launch.failure",
-        detail: { source, stage: "basicinfo", status: 401 },
+        detail: { source, stage: "neutral_validation", reason: "rejected" },
       });
       return failure(401, "N3 rejected the launch token", "n3_rejected");
     }
-    // N3 accepted the token but denies this account access to the app.
-    // Fail closed WITHOUT creating a session and WITHOUT continuing to
-    // tenant/user upsert or /api/Users.
-    if (probe.status === 403) {
+    if (validation.status === "forbidden") {
+      // N3 refuses this account entirely. Fail closed WITHOUT creating a
+      // session and WITHOUT continuing to tenant/user upsert or /api/Users.
       await clearSessionBestEffort();
       await logAudit({
         eventType: "session.launch.failure",
-        detail: { source, stage: "basicinfo", status: 403 },
+        detail: { source, stage: "neutral_validation", reason: "forbidden" },
       });
       return failure(403, "N3 denied access to HotelHub", "n3_access_denied");
     }
+    if (validation.status !== "accepted") {
+      await clearSessionBestEffort();
+      await logAudit({
+        eventType: "session.launch.failure",
+        detail: { source, stage: "neutral_validation", reason: validation.status },
+      });
+      return failure(502, "N3 verification failed", "n3_unavailable");
+    }
 
-    if (probe.status < 200 || probe.status >= 300) {
+    // Claims are trusted ONLY now that N3 accepted this exact bearer token.
+    // Authorization identity is the immutable `sub` plus the tenant id;
+    // email / userName remain display data and can never authorize.
+    const extracted = extractValidatedIdentity(claims);
+    if (extracted.status !== "ok") {
       await clearSessionBestEffort();
       await logAudit({
         eventType: "session.launch.failure",
-        detail: { source, stage: "basicinfo", status: probe.status },
+        detail: {
+          source,
+          stage: "identity",
+          reason:
+            extracted.status === "missing_user" ? "missing_n3_user_key" : "missing_n3_tenant_key",
+        },
       });
-      return failure(502, "N3 verification failed", "n3_unavailable");
+      return failure(
+        502,
+        extracted.status === "missing_user"
+          ? "N3 user identity not available"
+          : "N3 tenant identity not available",
+        "identity_unavailable",
+      );
     }
-    const envelope = (probe.body ?? {}) as { code?: string; data?: unknown };
-    if (envelope.code && envelope.code !== "0000") {
-      await clearSessionBestEffort();
-      await logAudit({
-        eventType: "session.launch.failure",
-        detail: { source, stage: "basicinfo", code: envelope.code },
-      });
-      return failure(502, "N3 verification failed", "n3_unavailable");
-    }
-    const info = normalizeBasicInfo(envelope.data, claims);
-    if (!info.n3TenantKey) {
-      await clearSessionBestEffort();
-      await logAudit({
-        eventType: "session.launch.failure",
-        detail: { source, stage: "identity", reason: "missing_n3_tenant_key" },
-      });
-      return failure(502, "N3 tenant identity not available", "identity_unavailable");
-    }
-    // Prefer immutable JWT `sub` for the user key; email/username fallback
-    // is retained (documented as unresolved in README) but never used for
-    // authorization state beyond first-Owner identification.
-    const n3UserKey =
-      (typeof claims.sub === "string" && claims.sub) || info.userEmail || info.userName;
-    if (!n3UserKey) {
-      await clearSessionBestEffort();
-      await logAudit({
-        eventType: "session.launch.failure",
-        detail: { source, stage: "identity", reason: "missing_n3_user_key" },
-      });
-      return failure(502, "N3 user identity not available", "identity_unavailable");
-    }
+    const info = extracted.identity;
+    const n3UserKey = info.n3UserKey;
 
     const tenant = await upsertTenant({
       n3TenantKey: info.n3TenantKey,
       tenantCode: info.tenantCode,
-      companyName: info.companyName,
+      // Company name comes from Owner-only BasicInfo; never overwritten here.
+      companyName: null,
     });
 
     // Keep a tenant-scoped, human-readable label for this staff member so
@@ -175,8 +162,9 @@ export async function performN3Launch(
       tenantId: tenant.id,
       n3UserKey,
       displayName: info.userName ?? null,
-      email: info.userEmail ?? null,
+      email: info.email ?? null,
     });
+
 
     const session = await getHotelSession();
     await session.update({
