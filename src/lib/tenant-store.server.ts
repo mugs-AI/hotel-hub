@@ -14,23 +14,44 @@ export type RoleLookup =
   | { status: "assigned"; role: HotelRole; isActive: boolean }
   | { status: "role_unassigned" };
 
+/**
+ * Upsert the tenant row keyed by the immutable N3 tenant key.
+ *
+ * HH-AUTH-04: a permission-neutral staff launch cannot read Company Profile,
+ * so `tenantCode` / `companyName` may be unknown. Null display values NEVER
+ * overwrite values a previous (Owner) launch already stored.
+ */
 export async function upsertTenant(input: {
   n3TenantKey: string;
   tenantCode: string | null;
   companyName: string | null;
 }): Promise<TenantRecord> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  let tenantCode = input.tenantCode;
+  let companyName = input.companyName;
+  if (tenantCode === null || companyName === null) {
+    const { data: existing } = await supabaseAdmin
+      .from("hotel_tenants")
+      .select("tenant_code, company_name")
+      .eq("n3_tenant_key", input.n3TenantKey)
+      .maybeSingle();
+    if (existing) {
+      tenantCode = tenantCode ?? existing.tenant_code;
+      companyName = companyName ?? existing.company_name;
+    }
+  }
   const { data, error } = await supabaseAdmin
     .from("hotel_tenants")
     .upsert(
       {
         n3_tenant_key: input.n3TenantKey,
-        tenant_code: input.tenantCode,
-        company_name: input.companyName,
+        tenant_code: tenantCode,
+        company_name: companyName,
       },
       { onConflict: "n3_tenant_key" },
     )
     .select("id, n3_tenant_key, tenant_code, company_name")
+
     .single();
   if (error || !data) {
     throw new Error(`Failed to upsert tenant: ${error?.message ?? "unknown"}`);

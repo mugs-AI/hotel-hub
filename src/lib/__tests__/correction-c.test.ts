@@ -9,6 +9,15 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 // pass the LOCAL assignment through, so these handler tests keep their
 // original scope (permissions, validation, N3 gateway behaviour) instead of
 // also asserting the /api/Users ownership read.
+
+vi.mock("@/lib/n3-token-validation.server", async (importOriginal) => ({
+  // HH-AUTH-04: protected-request suites run AFTER N3 accepted the token
+  // neutrally; the launch tests below still drive the real verifier.
+  ...(await importOriginal<Record<string, unknown>>()),
+  validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
+  invalidateNeutralValidation: () => {},
+}));
+
 vi.mock("@/lib/n3-owner.server", () => ({
   resolveEffectiveRole: async (input: {
     localRole: { role: string; isActive: boolean } | null;

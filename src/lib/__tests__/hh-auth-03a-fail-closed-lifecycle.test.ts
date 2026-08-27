@@ -23,6 +23,16 @@ type Effective = {
 const effectiveState: { next: Effective } = {
   next: { role: null, reason: "n3_users_unavailable", matchedBy: null, fromCache: false },
 };
+vi.mock("@/lib/n3-token-validation.server", () => ({
+  // HH-AUTH-04: these suites exercise behavior AFTER N3 accepted the token
+  // through the permission-neutral endpoint. Dedicated HH-AUTH-04 suites
+  // cover the failure branches of this module.
+  validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
+  invalidateNeutralValidation: () => {},
+  validateN3TokenNeutral: async () => ({ status: "accepted" }),
+  __resetNeutralValidationCache: () => {},
+}));
+
 vi.mock("@/lib/n3-owner.server", () => ({
   resolveEffectiveRole: async () => ({
     ...effectiveState.next,

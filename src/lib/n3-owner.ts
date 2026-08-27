@@ -32,6 +32,8 @@ export type EffectiveRoleReason =
   | "n3_user_inactive"
   | "n3_user_not_matched"
   | "n3_users_unavailable"
+  | "n3_users_forbidden_local_staff"
+  | "n3_users_forbidden"
   | "n3_users_malformed";
 
 export type EffectiveRoleDecision = {
@@ -43,9 +45,18 @@ export type EffectiveRoleDecision = {
   ownerAuthorityFailedClosed: boolean;
 };
 
-/** Outcome of reading `/api/Users`. Raw upstream bodies never leave the server. */
+/**
+ * Outcome of reading `/api/Users`. Raw upstream bodies never leave the server.
+ *
+ * HH-AUTH-04: `forbidden` (upstream 401/403 on the DIRECTORY endpoint) is
+ * distinct from `unavailable`. A front-desk / housekeeping token legitimately
+ * lacks Users-administration permission; that must not erase an explicit
+ * immutable-ID staff assignment once the permission-neutral token validation
+ * has already succeeded. It can never grant Owner.
+ */
 export type N3UsersRead =
   | { status: "ok"; users: N3UserRecord[] }
+  | { status: "forbidden" }
   | { status: "unavailable" }
   | { status: "malformed" };
 
@@ -225,12 +236,27 @@ function operationalLocalRole(
  *  - unavailable / malformed / unmatched / inactive -> role is ALWAYS null. A
  *    local row is an assignment, never proof that the N3 account still exists
  *    or is active, so it is never preserved for these outcomes.
+ *  - HH-AUTH-04: directory `forbidden` (401/403 on `/api/Users` only) after a
+ *    SUCCESSFUL permission-neutral token validation keeps an explicit active
+ *    front_desk / housekeeper assignment, and nothing else. Owner is never
+ *    granted this way; without such an assignment it still fails closed.
  */
 export function decideEffectiveRole(input: {
   read: N3UsersRead;
   identity: SessionIdentity;
   localRole: { role: HotelRole; isActive: boolean } | null;
+  /** True only when N3 already accepted this bearer token neutrally. */
+  neutralValidated?: boolean;
 }): EffectiveRoleDecision {
+  if (input.read.status === "forbidden") {
+    const staff = input.neutralValidated === true ? operationalLocalRole(input.localRole) : null;
+    return {
+      role: staff,
+      reason: staff ? "n3_users_forbidden_local_staff" : "n3_users_forbidden",
+      matchedBy: null,
+      ownerAuthorityFailedClosed: true,
+    };
+  }
   if (input.read.status !== "ok") {
     return {
       role: null,

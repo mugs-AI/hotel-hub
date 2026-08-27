@@ -67,7 +67,11 @@ export async function listUserControl(
 ): Promise<UserControlListResult> {
   // Always a FRESH read: this screen is the Owner's source of truth.
   const read = await (deps.readUsers ?? readN3Users)(input.token);
-  if (read.status === "unavailable") return { status: "upstream_unavailable" };
+  if (read.status === "unavailable" || read.status === "forbidden") {
+    // A directory read the caller is not permitted to make is never a
+    // reason to widen authority: User Control stays Owner-only.
+    return { status: "upstream_unavailable" };
+  }
   if (read.status === "malformed") return { status: "upstream_malformed" };
 
   // STRICT immutable-ID gate, reusing the same fresh read: the actor's own
