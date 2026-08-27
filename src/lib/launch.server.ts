@@ -127,24 +127,28 @@ export async function performN3Launch(
     // email / userName remain display data and can never authorize.
     const extracted = extractValidatedIdentity(claims);
     if (extracted.status !== "ok") {
+      const userProblem =
+        extracted.status === "missing_user" || extracted.status === "ambiguous_user";
+      const reason =
+        extracted.status === "missing_user"
+          ? "missing_n3_user_key"
+          : extracted.status === "ambiguous_user"
+            ? "ambiguous_n3_user_key"
+            : extracted.status === "ambiguous_tenant"
+              ? "ambiguous_n3_tenant_key"
+              : "missing_n3_tenant_key";
       await clearSessionBestEffort();
       await logAudit({
         eventType: "session.launch.failure",
-        detail: {
-          source,
-          stage: "identity",
-          reason:
-            extracted.status === "missing_user" ? "missing_n3_user_key" : "missing_n3_tenant_key",
-        },
+        detail: { source, stage: "identity", reason },
       });
       return failure(
         502,
-        extracted.status === "missing_user"
-          ? "N3 user identity not available"
-          : "N3 tenant identity not available",
+        userProblem ? "N3 user identity not available" : "N3 tenant identity not available",
         "identity_unavailable",
       );
     }
+
     const info = extracted.identity;
     const n3UserKey = info.n3UserKey;
 
