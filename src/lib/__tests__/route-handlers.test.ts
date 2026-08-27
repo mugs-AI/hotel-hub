@@ -14,14 +14,12 @@ import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 // pass the LOCAL assignment through, so these handler tests keep their
 // original scope (permissions, validation, N3 gateway behaviour) instead of
 // also asserting the /api/Users ownership read.
-vi.mock("@/lib/n3-token-validation.server", () => ({
-  // HH-AUTH-04: these suites exercise behavior AFTER N3 accepted the token
-  // through the permission-neutral endpoint. Dedicated HH-AUTH-04 suites
-  // cover the failure branches of this module.
+vi.mock("@/lib/n3-token-validation.server", async (importOriginal) => ({
+  // HH-AUTH-04: protected-request suites run AFTER N3 accepted the token
+  // neutrally; launch suites in this file drive the real verifier.
+  ...(await importOriginal<Record<string, unknown>>()),
   validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
   invalidateNeutralValidation: () => {},
-  validateN3TokenNeutral: async () => ({ status: "accepted" }),
-  __resetNeutralValidationCache: () => {},
 }));
 
 vi.mock("@/lib/n3-owner.server", () => ({
@@ -162,6 +160,27 @@ function seedRole(role: "owner" | "front_desk" | "housekeeper" | null) {
     error: null,
   });
 }
+function seedNeutralOK() {
+  fetchEnqueue({ status: 200, body: { success: true, code: "0000", data: null } });
+}
+// HH-AUTH-04: identity is read from claims that N3 accepted.
+const LAUNCH_TOKEN =
+  "eyJhbGciOiJub25lIn0." +
+  Buffer.from(
+    JSON.stringify({
+      sub: "user-1",
+      tenantId: "n3-tenant-1",
+      tenantCode: "T-001",
+      email: "u@example.test",
+      name: "User One",
+      exp: 4102444800,
+    }),
+  )
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "") +
+  ".sig";
 function seedBasicInfoOK() {
   fetchEnqueue({
     status: 200,
@@ -195,11 +214,11 @@ async function seedAuthenticated(role: "owner" | "front_desk" | "housekeeper" | 
 
 // ===================== performN3Launch =====================
 describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", () => {
-  it("verifies via BasicInfo, opens a session, redirects clean, does not echo the token", async () => {
-    seedBasicInfoOK();
+  it("verifies via the permission-neutral endpoint, opens a session, redirects clean", async () => {
+    seedNeutralOK();
     seedTenantUpsert();
     const { performN3Launch } = await import("@/lib/launch.server");
-    const res = await performN3Launch("eyJraWQiOiJ4In0.eyJzdWIiOiJ1c2VyLTEifQ.sig", "/");
+    const res = await performN3Launch(LAUNCH_TOKEN, "/");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/");
     const body = await res.text();
@@ -210,7 +229,9 @@ describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", (
     expect((lastUpdate as { n3Token: string }).n3Token).toContain("eyJ");
     expect(sessionState.updated).toHaveLength(1);
     expect(auditEvents.some((e) => e.eventType === "session.launch.success")).toBe(true);
-    expect(fetchCalls[0].url).toContain("/api/companyprofile/BasicInfo");
+    expect(fetchCalls[0].url).toContain("/api/UserData");
+    // Company Profile is never required to launch.
+    expect(fetchCalls.map((c) => c.url).join(" ")).not.toContain("companyprofile");
   });
 
   it("returns 401 when N3 rejects the token, does not open a session", async () => {
@@ -223,12 +244,12 @@ describe("performN3Launch (shared handler for /?token= and /api/auth/launch)", (
   });
 
   it("preserves unrelated query params on the clean redirect target", async () => {
-    seedBasicInfoOK();
+    seedNeutralOK();
     seedTenantUpsert();
     const { performN3Launch, stripTokenFromUrl } = await import("@/lib/launch.server");
     const clean = stripTokenFromUrl(new URL("http://x.test/?token=abc&next=welcome&lang=en"));
     expect(clean).toBe("/?next=welcome&lang=en");
-    const res = await performN3Launch("eyJ.a.b", clean);
+    const res = await performN3Launch(LAUNCH_TOKEN, clean);
     expect(res.headers.get("location")).toBe("/?next=welcome&lang=en");
   });
 });
