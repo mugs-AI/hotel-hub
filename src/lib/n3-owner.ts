@@ -32,6 +32,8 @@ export type EffectiveRoleReason =
   | "n3_user_inactive"
   | "n3_user_not_matched"
   | "n3_users_unavailable"
+  | "n3_users_forbidden_local_staff"
+  | "n3_users_forbidden"
   | "n3_users_malformed";
 
 export type EffectiveRoleDecision = {
