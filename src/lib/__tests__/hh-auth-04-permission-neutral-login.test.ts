@@ -287,3 +287,72 @@ describe("HH-AUTH-04 — neutral validation is authoritative and fails closed", 
     expect(dump).not.toContain("upstream-secret-detail");
   });
 });
+
+describe("HH-AUTH-04 audit correction — envelope and claim ambiguity fail closed", () => {
+  it.each([
+    ["bare 200 object", { status: 200, body: {} } as const],
+    ["null body", { status: 200, body: null } as const],
+    ["array body", { status: 200, body: [] } as const],
+    ["unrelated payload", { status: 200, body: { value: "probe" } } as const],
+    ["204 no body", { status: 204, body: null } as const],
+    ["unsuccessful envelope", { status: 200, body: { code: "1001" } } as const],
+    ["contradictory envelope", { status: 200, body: { code: "0000", success: false } } as const],
+  ])("a 2xx without an explicitly successful envelope denies launch: %s", async (_l, result) => {
+    neutralResult = result;
+    localRoleState = { status: "assigned", role: "front_desk", isActive: true };
+    const res = await performN3Launch(STAFF_TOKEN(), "/", "root");
+    expect(res.headers.get(LAUNCH_ERROR_HEADER)).toBe("n3_unavailable");
+    expect(sessionState.updates).toBe(0);
+    expect(upsertCalls).toEqual([]);
+  });
+
+  it("an explicitly successful envelope still launches", async () => {
+    neutralResult = { status: 200, body: { code: "0000", success: true, data: null } };
+    localRoleState = { status: "assigned", role: "front_desk", isActive: true };
+    const res = await performN3Launch(STAFF_TOKEN(), "/", "root");
+    expect(res.status).toBe(302);
+    expect(sessionState.updates).toBe(1);
+  });
+
+  it("a matching sub plus alternate immutable ID launches", async () => {
+    localRoleState = { status: "assigned", role: "front_desk", isActive: true };
+    const res = await performN3Launch(
+      token({
+        sub: "u-staff",
+        userId: "u-staff",
+        tenantId: "n3-tenant",
+        exp: 4102444800,
+      }),
+      "/",
+      "root",
+    );
+    expect(res.status).toBe(302);
+    expect(sessionState.updates).toBe(1);
+  });
+
+  it("conflicting user-ID claims deny before any upsert or session", async () => {
+    localRoleState = { status: "assigned", role: "front_desk", isActive: true };
+    const res = await performN3Launch(
+      token({ sub: "u-staff", userId: "u-other", tenantId: "n3-tenant", exp: 4102444800 }),
+      "/",
+      "root",
+    );
+    expect(res.headers.get(LAUNCH_ERROR_HEADER)).toBe("identity_unavailable");
+    expect(upsertCalls).toEqual([]);
+    expect(sessionState.updates).toBe(0);
+    expect(JSON.stringify(auditEvents)).toContain("ambiguous_n3_user_key");
+  });
+
+  it("conflicting tenant-ID claims deny before any upsert or session", async () => {
+    localRoleState = { status: "assigned", role: "front_desk", isActive: true };
+    const res = await performN3Launch(
+      token({ sub: "u-staff", tenantId: "n3-tenant", companyId: "other-tenant", exp: 4102444800 }),
+      "/",
+      "root",
+    );
+    expect(res.headers.get(LAUNCH_ERROR_HEADER)).toBe("identity_unavailable");
+    expect(upsertCalls).toEqual([]);
+    expect(sessionState.updates).toBe(0);
+    expect(JSON.stringify(auditEvents)).toContain("ambiguous_n3_tenant_key");
+  });
+});
