@@ -10,6 +10,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // -------- session mock --------
 const sessionState = { data: {} as Record<string, unknown>, updates: 0, cleared: 0 };
+vi.mock("@/lib/n3-token-validation.server", () => ({
+  // HH-AUTH-04: these suites exercise behavior AFTER N3 accepted the token
+  // through the permission-neutral endpoint. Dedicated HH-AUTH-04 suites
+  // cover the failure branches of this module.
+  validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
+  invalidateNeutralValidation: () => {},
+  validateN3TokenNeutral: async () => ({ status: "accepted" }),
+  __resetNeutralValidationCache: () => {},
+}));
+
 vi.mock("@/lib/session.server", () => ({
   getHotelSession: async () => ({
     get data() {
