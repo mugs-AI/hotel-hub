@@ -45,11 +45,21 @@ export type EffectiveRoleDecision = {
   ownerAuthorityFailedClosed: boolean;
 };
 
-/** Outcome of reading `/api/Users`. Raw upstream bodies never leave the server. */
+/**
+ * Outcome of reading `/api/Users`. Raw upstream bodies never leave the server.
+ *
+ * HH-AUTH-04: `forbidden` (upstream 401/403 on the DIRECTORY endpoint) is
+ * distinct from `unavailable`. A front-desk / housekeeping token legitimately
+ * lacks Users-administration permission; that must not erase an explicit
+ * immutable-ID staff assignment once the permission-neutral token validation
+ * has already succeeded. It can never grant Owner.
+ */
 export type N3UsersRead =
   | { status: "ok"; users: N3UserRecord[] }
+  | { status: "forbidden" }
   | { status: "unavailable" }
   | { status: "malformed" };
+
 
 export function normalizeIdentity(value: unknown): string | null {
   if (typeof value !== "string") return null;
