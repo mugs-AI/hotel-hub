@@ -191,6 +191,9 @@ const CLAIMS_TOKEN = `${b64url({ alg: "none" })}.${b64url({
 
   it("successful claims launch: verifies, upserts, opens session, token-free redirect", async () => {
     fetchEnqueue({ status: 200, body: { success: true, code: "0000", data: null } });
+    // Staff launches carry no company name, so the tenant upsert first reads
+    // any previously stored Owner-sourced values.
+    supabaseEnqueue("hotel_tenants", { data: null, error: null });
     supabaseEnqueue("hotel_tenants", {
       data: {
         id: "tenant-uuid-1",
