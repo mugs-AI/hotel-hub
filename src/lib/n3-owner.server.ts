@@ -107,6 +107,10 @@ export async function readN3Users(token: string): Promise<N3UsersRead> {
     const res = await callN3Path(token, N3_USERS_PATH, {
       timeoutMs: OWNERSHIP_UPSTREAM_TIMEOUT_MS,
     });
+    // HH-AUTH-04: a directory-permission refusal is distinguishable from an
+    // outage. It never grants authority; it only avoids erasing an explicit
+    // staff assignment (see `decideEffectiveRole`).
+    if (res.status === 401 || res.status === 403) return { status: "forbidden" };
     if (res.status < 200 || res.status >= 300) return { status: "unavailable" };
     return extractN3Users(res.body);
   } catch {
@@ -126,6 +130,8 @@ export async function resolveEffectiveRole(input: {
   tenantId: string;
   identity: SessionIdentity;
   localRole: { role: HotelRole; isActive: boolean } | null;
+  /** True only when N3 already accepted this bearer token neutrally. */
+  neutralValidated?: boolean;
   /** Test seam: inject the upstream read instead of calling N3. */
   readUsers?: (token: string) => Promise<N3UsersRead>;
   now?: number;
@@ -159,6 +165,7 @@ export async function resolveEffectiveRole(input: {
       read,
       identity: input.identity,
       localRole: input.localRole,
+      neutralValidated: input.neutralValidated === true,
     });
     writeCache(key, decision, now);
     return decision;
