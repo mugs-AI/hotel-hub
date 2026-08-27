@@ -18,15 +18,6 @@ function resetSession(initial: Record<string, unknown> = {}) {
   sessionState.updated = [];
   sessionState.cleared = 0;
 }
-vi.mock("@/lib/n3-token-validation.server", () => ({
-  // HH-AUTH-04: these suites exercise behavior AFTER N3 accepted the token
-  // through the permission-neutral endpoint. Dedicated HH-AUTH-04 suites
-  // cover the failure branches of this module.
-  validateN3TokenNeutralCached: async () => ({ status: "accepted", fromCache: false }),
-  invalidateNeutralValidation: () => {},
-  validateN3TokenNeutral: async () => ({ status: "accepted" }),
-  __resetNeutralValidationCache: () => {},
-}));
 
 vi.mock("@/lib/session.server", () => ({
   getHotelSession: async () => ({
@@ -177,23 +168,29 @@ describe("start.ts N3-only identity", () => {
 
 // ================ Task 3 — token-free redirect on failure ================
 describe("handleRootLaunchRequest (root token safety)", () => {
+// HH-AUTH-04: authorization identity now comes from JWT claims that N3 has
+// accepted through the permission-neutral endpoint.
+function b64url(o: unknown): string {
+  return Buffer.from(JSON.stringify(o))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+const CLAIMS_TOKEN = `${b64url({ alg: "none" })}.${b64url({
+  sub: "u-1",
+  tenantId: "n3-tenant-1",
+  tenantCode: "T-001",
+  email: "LKS.MUGS@GMAIL.COM",
+  name: "LKS",
+  exp: 4102444800,
+})}.SIGNATURESIGNATURESIGNATURE`;
+
   const RAW_TOKEN =
     "eyJhbGciOiJIUzI1NiJ9.SUPER-SECRET-PAYLOAD-DO-NOT-LEAK.SIGNATURESIGNATURESIGNATURE";
 
-  it("successful array-email launch: verifies, upserts, opens session, token-free redirect", async () => {
-    fetchEnqueue({
-      status: 200,
-      body: {
-        code: "0000",
-        data: {
-          TenantId: "n3-tenant-1",
-          TenantCode: "T-001",
-          CompanyName: "Test Hotel",
-          Email: ["LKS.MUGS@GMAIL.COM", "LKS.MUGS@GMAIL.COM"],
-          UserName: "LKS",
-        },
-      },
-    });
+  it("successful claims launch: verifies, upserts, opens session, token-free redirect", async () => {
+    fetchEnqueue({ status: 200, body: { success: true, code: "0000", data: null } });
     supabaseEnqueue("hotel_tenants", {
       data: {
         id: "tenant-uuid-1",
@@ -205,16 +202,16 @@ describe("handleRootLaunchRequest (root token safety)", () => {
     });
     const { handleRootLaunchRequest } = await import("@/lib/launch.server");
     const res = await handleRootLaunchRequest(
-      new Request(`http://x.test/?token=${encodeURIComponent(RAW_TOKEN)}`),
+      new Request(`http://x.test/?token=${encodeURIComponent(CLAIMS_TOKEN)}`),
     );
     expect(res).not.toBeNull();
     expect(res!.status).toBe(302);
     const loc = res!.headers.get("location") ?? "";
     expect(loc).toBe("/");
-    expect(loc).not.toContain(RAW_TOKEN);
+    expect(loc).not.toContain(CLAIMS_TOKEN);
     const body = await res!.text();
     expect(body).toBe("");
-    expect(body).not.toContain(RAW_TOKEN);
+    expect(body).not.toContain(CLAIMS_TOKEN);
     expect(sessionState.updated).toHaveLength(1);
     const stored = sessionState.updated[0] as { userEmail: string };
     expect(stored.userEmail).toBe("LKS.MUGS@GMAIL.COM");
