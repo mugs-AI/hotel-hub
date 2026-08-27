@@ -74,7 +74,6 @@ export async function listUserControl(
   }
   if (read.status === "malformed") return { status: "upstream_malformed" };
 
-
   // STRICT immutable-ID gate, reusing the same fresh read: the actor's own
   // session key must uniquely and exactly equal a current `/api/Users` id
   // that is active and `isOwner`. Email / user name never qualify, so a

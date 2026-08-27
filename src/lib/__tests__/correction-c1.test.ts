@@ -168,23 +168,23 @@ describe("start.ts N3-only identity", () => {
 
 // ================ Task 3 — token-free redirect on failure ================
 describe("handleRootLaunchRequest (root token safety)", () => {
-// HH-AUTH-04: authorization identity now comes from JWT claims that N3 has
-// accepted through the permission-neutral endpoint.
-function b64url(o: unknown): string {
-  return Buffer.from(JSON.stringify(o))
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-const CLAIMS_TOKEN = `${b64url({ alg: "none" })}.${b64url({
-  sub: "u-1",
-  tenantId: "n3-tenant-1",
-  tenantCode: "T-001",
-  email: "LKS.MUGS@GMAIL.COM",
-  name: "LKS",
-  exp: 4102444800,
-})}.SIGNATURESIGNATURESIGNATURE`;
+  // HH-AUTH-04: authorization identity now comes from JWT claims that N3 has
+  // accepted through the permission-neutral endpoint.
+  function b64url(o: unknown): string {
+    return Buffer.from(JSON.stringify(o))
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+  const CLAIMS_TOKEN = `${b64url({ alg: "none" })}.${b64url({
+    sub: "u-1",
+    tenantId: "n3-tenant-1",
+    tenantCode: "T-001",
+    email: "LKS.MUGS@GMAIL.COM",
+    name: "LKS",
+    exp: 4102444800,
+  })}.SIGNATURESIGNATURESIGNATURE`;
 
   const RAW_TOKEN =
     "eyJhbGciOiJIUzI1NiJ9.SUPER-SECRET-PAYLOAD-DO-NOT-LEAK.SIGNATURESIGNATURESIGNATURE";

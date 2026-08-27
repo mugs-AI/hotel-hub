@@ -21,7 +21,6 @@ import { extractValidatedIdentity } from "./n3-token-validation";
 import { upsertTenant, upsertUserDirectory } from "./tenant-store.server";
 import { logAudit } from "./audit.server";
 
-
 export type LaunchSource = "path_a" | "root" | "path_b_dev";
 
 /** Allowlisted, user-safe launch-error codes surfaced in the URL. */

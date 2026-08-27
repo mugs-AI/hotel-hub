@@ -87,7 +87,6 @@ export async function readRequestContext(): Promise<RequestContext> {
     neutralValidated: true,
   });
 
-
   // HH-AUTH-03A — an authority failure means N3 could not positively confirm
   // this account is still a live, active member. The stale HotelHub session
   // must not survive it: audit a reason-code-only event (no PII, no token, no

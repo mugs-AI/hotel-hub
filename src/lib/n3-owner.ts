@@ -60,7 +60,6 @@ export type N3UsersRead =
   | { status: "unavailable" }
   | { status: "malformed" };
 
-
 export function normalizeIdentity(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const t = value.trim().toLowerCase();
@@ -266,7 +265,6 @@ export function decideEffectiveRole(input: {
       ownerAuthorityFailedClosed: true,
     };
   }
-
 
   const match = matchN3User(input.read.users, input.identity);
   if (!match) {
