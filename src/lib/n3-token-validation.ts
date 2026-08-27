@@ -42,24 +42,44 @@ export type NeutralValidationStatus =
 
 export type NeutralValidation = { status: NeutralValidationStatus };
 
-function envelopeIsSuccessful(body: unknown): boolean | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+/**
+ * Positive-confirmation reading of the official N3 `ApiResponseMessage`
+ * envelope. Returns true ONLY when the payload explicitly confirms success.
+ * Anything else (bare object, null, array, no body, unrelated payload,
+ * contradictory markers) is not a confirmation.
+ */
+function envelopeConfirmsSuccess(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   const b = body as Record<string, unknown>;
-  const code = b.code ?? b.Code;
-  const success = b.success ?? b.Success;
-  let sawEnvelope = false;
-  if (typeof code === "string" && code.trim() !== "") {
-    sawEnvelope = true;
-    if (code.trim() !== "0000") return false;
-  } else if (typeof code === "number") {
-    sawEnvelope = true;
-    if (code !== 0) return false;
+  const rawCode = b.code ?? b.Code;
+  const rawSuccess = b.success ?? b.Success;
+
+  let codeSeen = false;
+  let codeOk = false;
+  if (typeof rawCode === "string" && rawCode.trim() !== "") {
+    codeSeen = true;
+    codeOk = rawCode.trim() === "0000";
+  } else if (typeof rawCode === "number") {
+    codeSeen = true;
+    codeOk = rawCode === 0;
+  } else if (rawCode !== undefined && rawCode !== null) {
+    // Present but of an unrecognized shape — not a confirmation.
+    return false;
   }
-  if (typeof success === "boolean") {
-    sawEnvelope = true;
-    if (!success) return false;
+
+  let successSeen = false;
+  let successOk = false;
+  if (typeof rawSuccess === "boolean") {
+    successSeen = true;
+    successOk = rawSuccess;
+  } else if (rawSuccess !== undefined && rawSuccess !== null) {
+    return false;
   }
-  return sawEnvelope ? true : null;
+
+  if (!codeSeen && !successSeen) return false;
+  if (codeSeen && !codeOk) return false;
+  if (successSeen && !successOk) return false;
+  return true;
 }
 
 /**
@@ -68,19 +88,19 @@ function envelopeIsSuccessful(body: unknown): boolean | null {
  * Rules:
  *  - 401 => rejected, 403 => forbidden (both deny; never a session);
  *  - any other non-2xx (including 5xx) => unavailable;
- *  - 2xx with an N3 envelope that is not success ("0000" / success:true)
- *    => malformed (unsuccessful envelope, fail closed);
- *  - 2xx without envelope markers => accepted (N3 served the authenticated
- *    request; the body itself is irrelevant and is discarded).
+ *  - 2xx WITHOUT an explicitly successful N3 envelope => malformed
+ *    (bare object, null, array, 204/no body, unrelated payload,
+ *    unsuccessful or contradictory envelope all fail closed);
+ *  - 2xx with an explicitly successful envelope => accepted. The business
+ *    body itself is irrelevant and is discarded.
  */
 export function interpretNeutralValidation(status: number, body: unknown): NeutralValidation {
   if (status === 401) return { status: "rejected" };
   if (status === 403) return { status: "forbidden" };
   if (status < 200 || status >= 300) return { status: "unavailable" };
-  const ok = envelopeIsSuccessful(body);
-  if (ok === false) return { status: "malformed" };
-  return { status: "accepted" };
+  return envelopeConfirmsSuccess(body) ? { status: "accepted" } : { status: "malformed" };
 }
+
 
 // ---- Validated identity ---------------------------------------------------
 
