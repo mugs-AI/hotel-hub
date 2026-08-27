@@ -164,8 +164,6 @@ export async function performN3Launch(
       displayName: info.userName ?? null,
       email: info.email ?? null,
     });
-
-
     const session = await getHotelSession();
     await session.update({
       n3Token: token,
@@ -174,7 +172,8 @@ export async function performN3Launch(
       tenantCode: tenant.tenantCode,
       companyName: tenant.companyName,
       n3UserKey,
-      userEmail: info.userEmail,
+      userEmail: info.email,
+
       userName: info.userName,
       tenantId: tenant.id,
       createdAt: Date.now(),
