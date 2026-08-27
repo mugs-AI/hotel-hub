@@ -42,24 +42,44 @@ export type NeutralValidationStatus =
 
 export type NeutralValidation = { status: NeutralValidationStatus };
 
-function envelopeIsSuccessful(body: unknown): boolean | null {
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+/**
+ * Positive-confirmation reading of the official N3 `ApiResponseMessage`
+ * envelope. Returns true ONLY when the payload explicitly confirms success.
+ * Anything else (bare object, null, array, no body, unrelated payload,
+ * contradictory markers) is not a confirmation.
+ */
+function envelopeConfirmsSuccess(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   const b = body as Record<string, unknown>;
-  const code = b.code ?? b.Code;
-  const success = b.success ?? b.Success;
-  let sawEnvelope = false;
-  if (typeof code === "string" && code.trim() !== "") {
-    sawEnvelope = true;
-    if (code.trim() !== "0000") return false;
-  } else if (typeof code === "number") {
-    sawEnvelope = true;
-    if (code !== 0) return false;
+  const rawCode = b.code ?? b.Code;
+  const rawSuccess = b.success ?? b.Success;
+
+  let codeSeen = false;
+  let codeOk = false;
+  if (typeof rawCode === "string" && rawCode.trim() !== "") {
+    codeSeen = true;
+    codeOk = rawCode.trim() === "0000";
+  } else if (typeof rawCode === "number") {
+    codeSeen = true;
+    codeOk = rawCode === 0;
+  } else if (rawCode !== undefined && rawCode !== null) {
+    // Present but of an unrecognized shape — not a confirmation.
+    return false;
   }
-  if (typeof success === "boolean") {
-    sawEnvelope = true;
-    if (!success) return false;
+
+  let successSeen = false;
+  let successOk = false;
+  if (typeof rawSuccess === "boolean") {
+    successSeen = true;
+    successOk = rawSuccess;
+  } else if (rawSuccess !== undefined && rawSuccess !== null) {
+    return false;
   }
-  return sawEnvelope ? true : null;
+
+  if (!codeSeen && !successSeen) return false;
+  if (codeSeen && !codeOk) return false;
+  if (successSeen && !successOk) return false;
+  return true;
 }
 
 /**
@@ -68,18 +88,17 @@ function envelopeIsSuccessful(body: unknown): boolean | null {
  * Rules:
  *  - 401 => rejected, 403 => forbidden (both deny; never a session);
  *  - any other non-2xx (including 5xx) => unavailable;
- *  - 2xx with an N3 envelope that is not success ("0000" / success:true)
- *    => malformed (unsuccessful envelope, fail closed);
- *  - 2xx without envelope markers => accepted (N3 served the authenticated
- *    request; the body itself is irrelevant and is discarded).
+ *  - 2xx WITHOUT an explicitly successful N3 envelope => malformed
+ *    (bare object, null, array, 204/no body, unrelated payload,
+ *    unsuccessful or contradictory envelope all fail closed);
+ *  - 2xx with an explicitly successful envelope => accepted. The business
+ *    body itself is irrelevant and is discarded.
  */
 export function interpretNeutralValidation(status: number, body: unknown): NeutralValidation {
   if (status === 401) return { status: "rejected" };
   if (status === 403) return { status: "forbidden" };
   if (status < 200 || status >= 300) return { status: "unavailable" };
-  const ok = envelopeIsSuccessful(body);
-  if (ok === false) return { status: "malformed" };
-  return { status: "accepted" };
+  return envelopeConfirmsSuccess(body) ? { status: "accepted" } : { status: "malformed" };
 }
 
 // ---- Validated identity ---------------------------------------------------
@@ -100,7 +119,9 @@ export type ValidatedIdentity = {
 export type IdentityExtraction =
   | { status: "ok"; identity: ValidatedIdentity }
   | { status: "missing_user" }
-  | { status: "missing_tenant" };
+  | { status: "ambiguous_user" }
+  | { status: "missing_tenant" }
+  | { status: "ambiguous_tenant" };
 
 function claimString(claims: Record<string, unknown>, key: string): string | null {
   const v = claims[key];
@@ -109,25 +130,38 @@ function claimString(claims: Record<string, unknown>, key: string): string | nul
   return null;
 }
 
+type ClaimResolution =
+  | { status: "none" }
+  | { status: "ok"; value: string }
+  | { status: "ambiguous" };
+
 /**
- * Collect the distinct values for a set of claim keys. More than one distinct
- * value means the token is ambiguous about that identity, which fails closed.
+ * Resolve one identity from a set of recognized claim keys. More than one
+ * distinct normalized value means the token contradicts itself about that
+ * identity, which fails closed rather than picking a winner.
  */
-function uniqueClaim(claims: Record<string, unknown>, keys: readonly string[]): string | null {
+function resolveClaim(claims: Record<string, unknown>, keys: readonly string[]): ClaimResolution {
   const seen = new Set<string>();
-  let last: string | null = null;
+  let first: string | null = null;
   for (const k of keys) {
     const v = claimString(claims, k);
-    if (v) {
+    if (!v) continue;
+    if (!seen.has(v.toLowerCase())) {
       seen.add(v.toLowerCase());
-      last = v;
+      if (first === null) first = v;
     }
   }
-  if (seen.size !== 1) return null;
-  return last;
+  if (seen.size === 0) return { status: "none" };
+  if (seen.size > 1) return { status: "ambiguous" };
+  return { status: "ok", value: first as string };
 }
 
+/**
+ * Recognized immutable user-ID claims. `sub` is preferred, but only when
+ * every other present recognized claim agrees with it.
+ */
 const USER_ID_CLAIMS = [
+  "sub",
   "userId",
   "UserId",
   "userid",
@@ -155,16 +189,27 @@ const TENANT_CODE_CLAIMS = ["tenantCode", "TenantCode", "tenant_code", "dbCode",
  * accepted through the permission-neutral endpoint. Claims are never trusted
  * before that acceptance.
  *
- * `sub` wins for the user key. Email / userName are display data only and can
- * never stand in for a missing immutable id.
+ * `sub` wins for the user key, but only when it does not conflict with any
+ * other recognized immutable user-ID claim — a conflict fails closed. Email /
+ * userName are display data only and can never stand in for an immutable id.
  */
 export function extractValidatedIdentity(claims: Record<string, unknown>): IdentityExtraction {
   const c = claims && typeof claims === "object" ? claims : {};
-  const n3UserKey = claimString(c, "sub") ?? uniqueClaim(c, USER_ID_CLAIMS);
-  if (!n3UserKey) return { status: "missing_user" };
-  const tenantCode = uniqueClaim(c, TENANT_CODE_CLAIMS);
-  const n3TenantKey = uniqueClaim(c, TENANT_ID_CLAIMS) ?? tenantCode;
+
+  const user = resolveClaim(c, USER_ID_CLAIMS);
+  if (user.status === "ambiguous") return { status: "ambiguous_user" };
+  if (user.status === "none") return { status: "missing_user" };
+  const n3UserKey = claimString(c, "sub") ?? user.value;
+
+  const codeResolution = resolveClaim(c, TENANT_CODE_CLAIMS);
+  if (codeResolution.status === "ambiguous") return { status: "ambiguous_tenant" };
+  const tenantCode = codeResolution.status === "ok" ? codeResolution.value : null;
+
+  const tenant = resolveClaim(c, TENANT_ID_CLAIMS);
+  if (tenant.status === "ambiguous") return { status: "ambiguous_tenant" };
+  const n3TenantKey = tenant.status === "ok" ? tenant.value : tenantCode;
   if (!n3TenantKey) return { status: "missing_tenant" };
+
   const email = claimString(c, "email") ?? claimString(c, "Email");
   const userName =
     claimString(c, "name") ?? claimString(c, "unique_name") ?? claimString(c, "preferred_username");
