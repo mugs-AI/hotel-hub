@@ -1,19 +1,26 @@
 // Shared N3 launch handler. Consumes an N3 launch token server-side,
-// verifies it against N3 BasicInfo, upserts the tenant, opens the
-// encrypted HttpOnly session cookie, and returns a 302 redirect to a
-// clean URL. Never returns the token to the browser or writes it to
-// any client-visible surface (address bar after redirect, response body,
-// logs).
+// verifies it against N3 through the PERMISSION-NEUTRAL endpoint
+// (`UserData_GetValue_GET`), upserts the tenant, opens the encrypted
+// HttpOnly session cookie, and returns a 302 redirect to a clean URL. Never
+// returns the token to the browser or writes it to any client-visible
+// surface (address bar after redirect, response body, logs).
+//
+// HH-AUTH-04: `GET /api/companyprofile/BasicInfo` is NO LONGER part of the
+// launch critical path. It requires the N3 "Company Profile" permission,
+// which ordinary front-desk / housekeeping staff do not have, so it returned
+// 403 and blocked legitimately assigned staff. BasicInfo is now optional and
+// Owner-only display data, read from Settings/verification screens.
 //
 // Fail-closed: any verification/identity/exception failure clears the
 // pre-existing HotelHub session cookie so a rejected re-launch cannot
 // leave the old session intact.
 import { getHotelSession } from "./session.server";
-import { callN3Path } from "./n3-gateway.server";
-import { normalizeBasicInfo } from "./n3-basicinfo";
 import { decodeJwtClaims } from "./jwt-claims.server";
+import { validateN3TokenNeutral } from "./n3-token-validation.server";
+import { extractValidatedIdentity } from "./n3-token-validation";
 import { upsertTenant, upsertUserDirectory } from "./tenant-store.server";
 import { logAudit } from "./audit.server";
+
 
 export type LaunchSource = "path_a" | "root" | "path_b_dev";
 
