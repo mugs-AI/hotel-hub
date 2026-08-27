@@ -5,6 +5,10 @@ import { lookupRole } from "./tenant-store.server";
 import { authorize, type Permission, type AuthzDecision } from "./rbac";
 import { logAudit } from "./audit.server";
 import { resolveEffectiveRole } from "./n3-owner.server";
+import {
+  validateN3TokenNeutralCached,
+  invalidateNeutralValidation,
+} from "./n3-token-validation.server";
 import type { EffectiveRoleReason } from "./n3-owner";
 
 export type RequestContext =
