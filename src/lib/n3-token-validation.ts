@@ -7,7 +7,7 @@
 // had explicitly assigned them a role.
 //
 // Official contract used instead (platform-v1 OpenAPI, fetched from
-// https://openapi.account.qne.cloud/doc/platform-v1.json):
+// the official N3 platform-v1 OpenAPI document):
 //   operationId: UserData_GetValue_GET
 //   GET /api/UserData?keys=<key>
 //   security: [{ Bearer: [] }]  (global security requirement)
