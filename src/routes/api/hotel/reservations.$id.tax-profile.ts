@@ -8,6 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { addTourismTaxEvidence, setGuestTaxClass } from "@/lib/folio-store.server";
+import { validateEvidenceBody, validateTaxProfileBody } from "@/lib/folio-input";
 import {
   folioDeny,
   folioFailure,
@@ -30,11 +31,13 @@ export async function handleSetTaxProfile({
   if (!isUuid(id)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
+    const checked = validateTaxProfileBody(body);
+    if (!checked.ok) return folioDeny(400, checked.code);
     const profile = await setGuestTaxClass({
       tenantId: actor.tenantId,
       reservationId: id,
-      guestTaxClass: body.guestTaxClass,
-      evidenceNote: body.evidenceNote,
+      guestTaxClass: checked.value.guestTaxClass,
+      evidenceNote: checked.value.evidenceNote,
       actorKey: actor.actorKey,
     });
     await logAudit({
@@ -63,15 +66,17 @@ export async function handleAddTourismTaxEvidence({
   if (!isUuid(id)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
+    const checked = validateEvidenceBody(body);
+    if (!checked.ok) return folioDeny(400, checked.code);
     const row = await addTourismTaxEvidence({
       tenantId: actor.tenantId,
       reservationId: id,
-      sourceLabel: body.sourceLabel,
-      reference: body.reference,
-      collectedOn: body.collectedOn,
-      amountCents: body.amountCents,
-      note: body.note,
-      clientRequestId: body.clientRequestId,
+      sourceLabel: checked.value.sourceLabel,
+      reference: checked.value.reference,
+      collectedOn: checked.value.collectedOn,
+      amountCents: checked.value.amountCents,
+      note: checked.value.note,
+      clientRequestId: checked.value.clientRequestId,
       actorKey: actor.actorKey,
     });
     await logAudit({
