@@ -45,7 +45,7 @@ function reservation(): CheckoutReservationEvidence {
         children: 0,
       },
     ],
-    guests: [{ guestId: "ffffffff-ffff-4fff-8fff-ffffffffffff", isPrimary: true, roomId: null }],
+    guests: [{ guestId: "ffffffff-ffff-4fff-8fff-ffffffffffff", isPrimary: true, reservationRoomId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }],
   } as CheckoutReservationEvidence;
 }
 
