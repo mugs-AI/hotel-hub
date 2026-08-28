@@ -10,12 +10,12 @@ import {
   operationFingerprint,
 } from "@/lib/folio-operations";
 import {
-  validateAddAddonLine,
-  validateAddOwnerAdjustment,
-  validateReverseFolioLine,
-  validateSetGuestTaxClass,
-  validateTourismTaxEvidence,
-  validateUpdateQuantity,
+  validateAddonLineBody,
+  validateAdjustmentBody,
+  validateEvidenceBody,
+  validateQuantityBody,
+  validateReverseBody,
+  validateTaxProfileBody,
 } from "@/lib/folio-input";
 
 const read = (p: string) => readFileSync(resolve(process.cwd(), p), "utf8");
@@ -29,23 +29,23 @@ describe("operation-scoped idempotency", () => {
   };
 
   it("fingerprints the operation and its target, not just the request id", () => {
-    const a = operationFingerprint("folio.add_line", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_line", target, { catalogueId: "c1", quantity: 2 });
-    const c = operationFingerprint("folio.adjust", target, { catalogueId: "c1", quantity: 1 });
+    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
+    const b = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 2 });
+    const c = operationFingerprint("folio.adjustment", target, { catalogueId: "c1", quantity: 1 });
     expect(a).not.toBe(b);
     expect(a).not.toBe(c);
   });
 
   it("is stable across key ordering so a genuine retry replays", () => {
-    const a = operationFingerprint("folio.add_line", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_line", target, { quantity: 1, catalogueId: "c1" });
+    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
+    const b = operationFingerprint("folio.add_addon", target, { quantity: 1, catalogueId: "c1" });
     expect(a).toBe(b);
   });
 
   it("changes when the target folio or reservation changes", () => {
-    const a = operationFingerprint("folio.add_line", target, { x: 1 });
+    const a = operationFingerprint("folio.add_addon", target, { x: 1 });
     const b = operationFingerprint(
-      "folio.add_line",
+      "folio.add_addon",
       { ...target, folioId: "f2" },
       { x: 1 },
     );
@@ -53,25 +53,51 @@ describe("operation-scoped idempotency", () => {
   });
 
   it("replays an identical request and refuses a conflicting reuse", () => {
-    const fp = operationFingerprint("folio.add_line", target, { quantity: 1 });
-    expect(decideClaim(null, fp).kind).toBe("new");
-    expect(decideClaim({ fingerprint: fp, resultId: "line-1" }, fp)).toEqual({
-      kind: "replay",
-      resultId: "line-1",
-    });
-    expect(decideClaim({ fingerprint: "other", resultId: "line-1" }, fp).kind).toBe("conflict");
+    const fp = operationFingerprint("folio.add_addon", target, { quantity: 1 });
+    const incoming = {
+      operation: "folio.add_addon" as const,
+      folioId: "f1",
+      lineId: null,
+      fingerprint: fp,
+    };
+    expect(decideClaim(null, incoming).kind).toBe("new");
+    expect(
+      decideClaim(
+        {
+          operation: "folio.add_addon",
+          folioId: "f1",
+          targetLineId: null,
+          requestFingerprint: fp,
+          resultLineId: "line-1",
+        },
+        incoming,
+      ),
+    ).toEqual({ kind: "replay", resultLineId: "line-1" });
+    expect(
+      decideClaim(
+        {
+          operation: "folio.add_addon",
+          folioId: "f1",
+          targetLineId: null,
+          requestFingerprint: "other",
+          resultLineId: "line-1",
+        },
+        incoming,
+      ).kind,
+    ).toBe("conflict");
   });
 
   it("enumerates every folio operation that must be idempotent", () => {
-    expect(FOLIO_OPERATIONS).toContain("folio.add_line");
-    expect(FOLIO_OPERATIONS).toContain("folio.reverse_line");
-    expect(FOLIO_OPERATIONS).toContain("folio.adjust");
+    expect(FOLIO_OPERATIONS).toContain("folio.add_addon");
+    expect(FOLIO_OPERATIONS).toContain("folio.reverse");
+    expect(FOLIO_OPERATIONS).toContain("folio.adjustment");
+    expect(FOLIO_OPERATIONS).toContain("folio.tourism_tax_evidence");
   });
 });
 
 describe("API boundary validation", () => {
   it("rejects an unknown tax class instead of silently taxing", () => {
-    const r = validateAddOwnerAdjustment({
+    const r = validateAdjustmentBody({
       lineType: "discount",
       description: "Discount",
       amountCents: -100,
@@ -83,7 +109,7 @@ describe("API boundary validation", () => {
   });
 
   it("rejects unknown fields rather than dropping them", () => {
-    const r = validateAddAddonLine({
+    const r = validateAddonLineBody({
       catalogueId: "9f1d5f7a-1e2b-4c3d-8e4f-0a1b2c3d4e5f",
       quantity: 1,
       clientRequestId: "req-1",
@@ -93,33 +119,33 @@ describe("API boundary validation", () => {
   });
 
   it("requires a reason on a reversal", () => {
-    expect(validateReverseFolioLine({ clientRequestId: "req-1" }).ok).toBe(false);
-    expect(validateReverseFolioLine({ reason: "ab", clientRequestId: "req-1" }).ok).toBe(false);
+    expect(validateReverseBody({ clientRequestId: "req-1" }).ok).toBe(false);
+    expect(validateReverseBody({ reason: "ab", clientRequestId: "req-1" }).ok).toBe(false);
     expect(
-      validateReverseFolioLine({ reason: "wrong room", clientRequestId: "req-1" }).ok,
+      validateReverseBody({ reason: "wrong room", clientRequestId: "req-1" }).ok,
     ).toBe(true);
   });
 
   it("accepts only whole, in-range quantities", () => {
-    expect(validateUpdateQuantity({ quantity: 0 }).ok).toBe(false);
-    expect(validateUpdateQuantity({ quantity: 1.5 }).ok).toBe(false);
-    expect(validateUpdateQuantity({ quantity: 3 }).ok).toBe(true);
+    expect(validateQuantityBody({ quantity: 0 }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 1.5 }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 3 }).ok).toBe(true);
   });
 
   it("accepts only the declared guest tax classes", () => {
-    expect(validateSetGuestTaxClass({ guestTaxClass: "definitely_not" }).ok).toBe(false);
+    expect(validateTaxProfileBody({ guestTaxClass: "definitely_not" }).ok).toBe(false);
   });
 
   it("validates Tourism Tax evidence shape", () => {
     expect(
-      validateTourismTaxEvidence({
+      validateEvidenceBody({
         sourceLabel: "A",
         amountCents: 1000,
         clientRequestId: "req-1",
       }).ok,
     ).toBe(false);
     expect(
-      validateTourismTaxEvidence({
+      validateEvidenceBody({
         sourceLabel: "Agoda",
         amountCents: 1000,
         collectedOn: "31-12-2026",
@@ -127,7 +153,7 @@ describe("API boundary validation", () => {
       }).ok,
     ).toBe(false);
     expect(
-      validateTourismTaxEvidence({
+      validateEvidenceBody({
         sourceLabel: "Agoda",
         amountCents: 1000,
         collectedOn: "2026-12-31",
