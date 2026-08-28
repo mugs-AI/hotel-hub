@@ -1495,29 +1495,10 @@ export async function buildFolioView(
 ): Promise<FolioViewDTO> {
   const db = await resolveDb(sb);
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
-  const folio = await ensureFolio(
-    input.tenantId,
-    input.reservationId,
-    reservation.currency,
-    db,
-  );
-  const { unmappedRoomLabels } = await syncRoomNights(
-    {
-      tenantId: input.tenantId,
-      reservationId: input.reservationId,
-      folioId: folio.id,
-      actorKey: input.actorKey,
-    },
-    db,
-  );
-
-  const [{ lines, rows }, settings, taxProfile, evidence, catalogue] = await Promise.all([
-    readFolioLines(input.tenantId, folio.id, db),
-    readFinancialSettings(input.tenantId, db),
-    readTaxProfile(input.tenantId, input.reservationId, db),
-    listTourismTaxEvidence(input.tenantId, input.reservationId, db),
-    listAddonItems(input.tenantId, {}, db),
-  ]);
+  // READ-ONLY. A GET never creates a folio and never snapshots a room night:
+  // room-night snapshots are written by the check-in workflow and by the
+  // explicit `refreshFolioRoomNights` endpoint.
+  const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
 
   const { byRoomId, rooms } = await readReservationRooms(
     input.tenantId,
@@ -1525,7 +1506,25 @@ export async function buildFolioView(
     db,
   );
   const roomLabelByReservationRoom = new Map<string, string>();
-  for (const r of rooms) roomLabelByReservationRoom.set(r.id, roomLabelOf(byRoomId.get(r.hotel_room_id)));
+  const unmappedRoomLabels: string[] = [];
+  for (const r of rooms) {
+    const hotelRoom = byRoomId.get(r.hotel_room_id);
+    const label = roomLabelOf(hotelRoom);
+    roomLabelByReservationRoom.set(r.id, label);
+    if (!hotelRoom?.n3_stock_id) unmappedRoomLabels.push(label);
+  }
+
+  const [linesResult, settings, taxProfile, evidence, catalogue] = await Promise.all([
+    folio
+      ? readFolioLines(input.tenantId, folio.id, db)
+      : Promise.resolve({ rows: [] as LineRow[], lines: [] as StoredFolioLine[] }),
+    readFinancialSettings(input.tenantId, db),
+    readTaxProfile(input.tenantId, input.reservationId, db),
+    listTourismTaxEvidence(input.tenantId, input.reservationId, db),
+    listAddonItems(input.tenantId, {}, db),
+  ]);
+  const { lines, rows } = linesResult;
+
 
   const decorated: StoredFolioLine[] = lines.map((l) => ({
     ...l,
