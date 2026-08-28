@@ -116,6 +116,21 @@ function makeDeps(over: DepsOverride = {}): CheckoutPreviewDeps {
       walkInCustomerId: WALK_IN,
     }),
     loadReservation: async () => reservationEvidence(),
+    // Authoritative prepared folio (HH-GOLIVE-01A): the single balance source.
+    loadPreparedFolio: async () => ({
+      prepared: true,
+      grandTotalCents: 45000,
+      totals: {
+        charges: 450,
+        serviceCharge: 0,
+        serviceTax: 0,
+        tourismTax: 0,
+        localLevy: 0,
+        rounding: 0,
+        grandTotal: 450,
+      },
+      blockers: [],
+    }),
     hasHistoryGap: async () => false,
     loadDeposits: async () => [],
     getReceiptById: async (): Promise<N3ReadOutcome> => ({
@@ -140,7 +155,7 @@ describe("5D3.2 buildCheckoutPreview — clean stay", () => {
   it("calculates a room-only folio with a proven zero deposit total", async () => {
     const dto = await run(makeDeps());
     expect(dto.folio.calculationStatus).toBe("calculated");
-    expect(dto.folio.roomChargeTotal).toBe(450);
+    expect(dto.folio.preparedTotal).toBe(450);
     expect(dto.deposits.verifiedTotal).toBe(0);
     expect(dto.summary.estimatedBalance).toBe(450);
     expect(dto.summary.excessDeposit).toBe(0);
@@ -156,7 +171,7 @@ describe("5D3.2 buildCheckoutPreview — clean stay", () => {
           reservationEvidence({ expectedCheckOutAt: "2026-08-04T14:00:00.000Z" }),
       }),
     );
-    expect(early.folio.roomChargeTotal).toBe(450);
+    expect(early.folio.preparedTotal).toBe(450);
   });
 
   it("exposes no raw N3 body or token anywhere in the DTO", async () => {
@@ -226,7 +241,7 @@ describe("5D3.2 currency evidence", () => {
       makeDeps({ loadReservation: async () => reservationEvidence({ currency: "SGD" }) }),
     );
     expect(codes(dto)).toContain("reservation_currency_mismatch");
-    expect(dto.folio.roomChargeTotal).toBeNull();
+    expect(dto.folio.preparedTotal).toBeNull();
     expect(dto.summary.estimatedBalance).toBeNull();
     expect(dto.summary.excessDeposit).toBeNull();
     expect(dto.readiness.calculationComplete).toBe(false);
@@ -320,7 +335,7 @@ describe("5D3.2 assignment + capacity evidence", () => {
       }),
     );
     expect(codes(dto)).toContain("room_allocation_not_occupied");
-    expect(dto.folio.roomChargeTotal).toBeNull();
+    expect(dto.folio.preparedTotal).toBeNull();
   });
 
   it("blocks the preview total when an assignment is invalid", async () => {
@@ -358,7 +373,7 @@ describe("5D3.2 historical evidence", () => {
     );
     expect(args).toEqual([TENANT, RES]);
     expect(codes(dto)).toContain("historical_charge_evidence_incomplete");
-    expect(dto.folio.roomChargeTotal).toBeNull();
+    expect(dto.folio.preparedTotal).toBeNull();
     expect(dto.summary.estimatedBalance).toBeNull();
     expect(dto.summary.excessDeposit).toBeNull();
   });
