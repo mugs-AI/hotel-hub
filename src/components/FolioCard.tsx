@@ -197,7 +197,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                             const next = Number(e.target.value);
                             if (next === l.quantity) return;
                             setQuantity.mutate(
-                              { lineId: l.id, quantity: next },
+                              { lineId: l.id, quantity: next, clientRequestId: makeRequestId() },
                               {
                                 onError: (err) => toast.error(folioErrorMessage(err)),
                               },
