@@ -311,7 +311,7 @@ function TaxSettingsForm({
         style={{ backgroundColor: NAVY }}
         onClick={() =>
           onSave({
-            serviceTax: { registered: serviceTax },
+            serviceTaxRegistered: serviceTax,
             serviceCharge: { enabled: serviceCharge },
             tourismTax: { enabled: tourismTax },
           })
