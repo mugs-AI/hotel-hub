@@ -24,17 +24,34 @@ describe("operation-scoped idempotency", () => {
     lineId: null as string | null,
   };
 
-  it("fingerprints the operation and its target, not just the request id", () => {
-    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 2 });
-    const c = operationFingerprint("folio.adjustment", target, { catalogueId: "c1", quantity: 1 });
+  it("fingerprints the operation and its target, not just the request id", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
+    const b = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 2,
+    });
+    const c = await operationFingerprint("folio.adjustment", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
     expect(a).not.toBe(b);
     expect(a).not.toBe(c);
+    // SHA-256 hex, computed server-side.
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("is stable across key ordering so a genuine retry replays", () => {
-    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_addon", target, { quantity: 1, catalogueId: "c1" });
+  it("is stable across key ordering so a genuine retry replays", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
+    const b = await operationFingerprint("folio.add_addon", target, {
+      quantity: 1,
+      catalogueId: "c1",
+    });
     expect(a).toBe(b);
   });
 
