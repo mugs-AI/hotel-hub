@@ -103,7 +103,7 @@ describe("API boundary validation", () => {
       amountCents: -100,
       taxClass: "not_a_class",
       reason: "goodwill",
-      clientRequestId: "req-1",
+      clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
     });
     expect(r.ok).toBe(false);
   });
@@ -112,17 +112,17 @@ describe("API boundary validation", () => {
     const r = validateAddonLineBody({
       catalogueId: "9f1d5f7a-1e2b-4c3d-8e4f-0a1b2c3d4e5f",
       quantity: 1,
-      clientRequestId: "req-1",
+      clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
       sneakyTotalOverride: 0,
     });
     expect(r.ok).toBe(false);
   });
 
   it("requires a reason on a reversal", () => {
-    expect(validateReverseBody({ clientRequestId: "req-1" }).ok).toBe(false);
-    expect(validateReverseBody({ reason: "ab", clientRequestId: "req-1" }).ok).toBe(false);
+    expect(validateReverseBody({ clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok).toBe(false);
+    expect(validateReverseBody({ reason: "ab", clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok).toBe(false);
     expect(
-      validateReverseBody({ reason: "wrong room", clientRequestId: "req-1" }).ok,
+      validateReverseBody({ reason: "wrong room", clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok,
     ).toBe(true);
   });
 
@@ -141,7 +141,7 @@ describe("API boundary validation", () => {
       validateEvidenceBody({
         sourceLabel: "A",
         amountCents: 1000,
-        clientRequestId: "req-1",
+        clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
       }).ok,
     ).toBe(false);
     expect(
@@ -149,7 +149,7 @@ describe("API boundary validation", () => {
         sourceLabel: "Agoda",
         amountCents: 1000,
         collectedOn: "31-12-2026",
-        clientRequestId: "req-1",
+        clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
       }).ok,
     ).toBe(false);
     expect(
@@ -157,7 +157,7 @@ describe("API boundary validation", () => {
         sourceLabel: "Agoda",
         amountCents: 1000,
         collectedOn: "2026-12-31",
-        clientRequestId: "req-1",
+        clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
       }).ok,
     ).toBe(true);
   });
