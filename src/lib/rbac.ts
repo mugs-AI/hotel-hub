@@ -71,6 +71,8 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
 
   // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
   // excluded: the preview exposes room rates and deposit money.
+  "hotel:checkout:view": new Set(["owner", "front_desk"]),
+
   // HH-GOLIVE-01A. Front desk prepares the folio (adds catalogue items,
   // classifies the guest for Tourism Tax); every money-changing act
   // (discount, manual adjustment, price override, reversal) and the whole
@@ -82,7 +84,7 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:folio:tax_class": new Set(["owner", "front_desk"]),
   "hotel:charges:manage": new Set(["owner"]),
 
-  "hotel:checkout:view_": new Set([]) as unknown as ReadonlySet<HotelRole>,
+
 
 
   // WP1 Housekeeping. Everyone operational sees and works the board — that is
