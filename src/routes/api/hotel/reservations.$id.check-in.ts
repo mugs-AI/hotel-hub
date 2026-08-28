@@ -65,6 +65,7 @@ export async function handleCheckIn({
     // nights. A failure here never blocks the guest: the folio can always be
     // refreshed explicitly from the reservation workspace.
     let folioNightsSnapshotted: number | null = null;
+    let folioWarning: "folio_needs_preparation" | null = null;
     try {
       const { refreshFolioRoomNights } = await import("@/lib/folio-store.server");
       const refreshed = await refreshFolioRoomNights({
@@ -75,15 +76,21 @@ export async function handleCheckIn({
       folioNightsSnapshotted = refreshed.inserted;
     } catch {
       folioNightsSnapshotted = null;
+      // Deterministic, safe warning: the guest is checked in, but the folio
+      // must be prepared explicitly before checkout can be settled.
+      folioWarning = "folio_needs_preparation";
     }
 
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.reservation.check_in",
-      detail: { reservationId: id, folioNightsSnapshotted },
+      detail: { reservationId: id, folioNightsSnapshotted, folioWarning },
     });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+    return Response.json(
+      { ...result, folioWarning },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (err) {
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
