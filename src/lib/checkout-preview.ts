@@ -103,6 +103,8 @@ const BLOCKER_MESSAGES: Record<string, string> = {
     "N3 deposit verification is temporarily unavailable, so deposits are not counted.",
   posting_not_enabled: "N3 CashMemo posting is not enabled in this milestone.",
   matching_not_enabled: "Deposit matching and balance collection are not enabled.",
+  folio_not_prepared:
+    "The guest folio has not been prepared yet. Prepare the folio to get an authoritative balance.",
 };
 
 export function blocker(code: string, severity: BlockerSeverity = "blocking"): Blocker {
