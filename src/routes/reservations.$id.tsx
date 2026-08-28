@@ -16,6 +16,7 @@ import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
+import { FolioCard } from "@/components/FolioCard";
 import {
   PendingApprovalsCard,
   ReservationActionsCard,
@@ -395,6 +396,8 @@ function Detail({
           </a>
         </div>
       </section>
+
+      <FolioCard reservationId={data.id} canView={hasPermission(role, "hotel:folio:view")} />
 
       <DepositsCard
         reservationId={data.id}
