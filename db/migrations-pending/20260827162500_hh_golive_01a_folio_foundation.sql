@@ -10,17 +10,41 @@
 -- NO policies (Data API locked); all access happens through the server-only
 -- service-role client behind the N3 session + RBAC guards.
 --
--- Rollback, in this exact order:
---   1. drop function public.hotelhub_reverse_folio_line(uuid,uuid,uuid,text,uuid,text,text);
---   2. drop the seven tables, children first:
+-- Rollback manifest — every object this migration creates, in this exact
+-- dependency-safe order:
+--   1. drop trigger if exists hotel_folio_lines_room_night_immutable
+--        on public.hotel_folio_lines;
+--   2. drop the functions:
+--        drop function if exists public.hotelhub_add_tourism_tax_evidence(
+--          uuid, uuid, text, text, date, integer, text, uuid, text, text);
+--        drop function if exists public.hotelhub_update_folio_line_quantity(
+--          uuid, uuid, uuid, integer, integer, integer, integer, integer, uuid, text, text);
+--        drop function if exists public.hotelhub_add_folio_line(
+--          uuid, uuid, text, public.hotel_folio_line_type, uuid, public.hotel_tax_class,
+--          text, integer, integer, integer, integer, integer, jsonb, text, uuid, text, text);
+--        drop function if exists public.hotelhub_reverse_folio_line(
+--          uuid, uuid, uuid, text, uuid, text, text);
+--        drop function if exists public.hotelhub_claim_folio_operation(
+--          uuid, text, uuid, uuid, uuid, uuid, text, text);
+--        drop function if exists public.hotelhub_release_folio_operation(
+--          uuid, text, uuid);
+--        drop function if exists public.hotelhub_folio_room_night_immutable();
+--   3. drop the seven tables, children first:
 --        hotel_folio_operations, hotel_tourism_tax_evidence,
 --        hotel_reservation_tax_profile, hotel_folio_lines, hotel_folios,
 --        hotel_financial_settings, hotel_addon_catalogue;
---   3. drop the five enum types: hotel_guest_tax_class,
+--      (their indexes — hotel_folio_operations_key_uidx,
+--       hotel_folio_operations_target_idx, hotel_tourism_tax_evidence_res_idx,
+--       hotel_folio_lines_folio_idx, hotel_folio_lines_room_night_uidx,
+--       hotel_folio_lines_reverses_uidx, hotel_folios_tenant_reservation_uidx,
+--       hotel_addon_catalogue_tenant_name_uidx,
+--       hotel_addon_catalogue_tenant_active_idx — drop with their tables);
+--   4. drop the five enum types: hotel_guest_tax_class,
 --        hotel_folio_line_status, hotel_folio_line_type, hotel_tax_class,
 --        hotel_addon_category.
 -- RLS stays enabled with no policies on every table above; rollback never
 -- relaxes access on any pre-existing object.
+
 
 -- ---------------------------------------------------------------- enums
 
@@ -378,6 +402,9 @@ create table if not exists public.hotel_folio_operations (
   -- SHA-256 hex of the canonical operation input (server-computed).
   request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
   result_line_id uuid,
+  -- Non-line results (Tourism Tax evidence) resolve their original row here,
+  -- so an exact replay returns the stored evidence, never a null id.
+  result_evidence_id uuid,
   actor_n3_user_key text not null,
   created_at timestamptz not null default now(),
   constraint hotel_folio_operations_tenant_res_fkey
@@ -391,19 +418,124 @@ create table if not exists public.hotel_folio_operations (
     references public.hotel_folio_lines (tenant_id, id) on delete cascade,
   constraint hotel_folio_operations_tenant_result_fkey
     foreign key (tenant_id, result_line_id)
-    references public.hotel_folio_lines (tenant_id, id) on delete cascade
+    references public.hotel_folio_lines (tenant_id, id) on delete cascade,
+  constraint hotel_folio_operations_tenant_evidence_fkey
+    foreign key (tenant_id, result_evidence_id)
+    references public.hotel_tourism_tax_evidence (tenant_id, id) on delete cascade
 );
 
+-- EXACTLY ONE operation-key unique index. It is both the idempotency
+-- authority and the serialization point used by the race-safe claim
+-- (INSERT ... ON CONFLICT DO NOTHING) below.
 create unique index if not exists hotel_folio_operations_key_uidx
   on public.hotel_folio_operations (tenant_id, operation, client_request_id);
 
-create unique index if not exists hotel_folio_operations_key_uidx
-  on public.hotel_folio_operations (tenant_id, operation, client_request_id);
 create index if not exists hotel_folio_operations_target_idx
   on public.hotel_folio_operations (tenant_id, reservation_id, created_at);
 
 grant all on public.hotel_folio_operations to service_role;
 alter table public.hotel_folio_operations enable row level security;
+
+-- ------------------- F.1 race-safe operation claim (one transaction only)
+--
+-- A claim must be safe under exact concurrency. `select ... for update`
+-- followed by `insert` is NOT: two transactions can both observe no row and
+-- the loser then receives a raw unique-violation instead of a safe replay.
+--
+-- The claim below is therefore an atomic INSERT ... ON CONFLICT DO NOTHING:
+--   * winner  -> the insert returns its id, kind = 'new';
+--   * loser   -> the insert blocks on the unique index until the winner
+--                commits or aborts, then returns no row. It re-reads the row
+--                FOR UPDATE and either replays the winner's stored result or
+--                reports idempotency_conflict. If the winner aborted, the row
+--                is gone and the loop retries the insert.
+-- No caller ever sees a raw database constraint error on the duplicate path.
+--
+-- Callers MUST claim only after the target scope is locked, and MUST release
+-- (delete) their own fresh claim on any deterministic validation failure, so
+-- an empty claim can never commit and later replay as a false success.
+
+create or replace function public.hotelhub_claim_folio_operation(
+  p_tenant_id uuid,
+  p_operation text,
+  p_reservation_id uuid,
+  p_folio_id uuid,
+  p_target_line_id uuid,
+  p_client_request_id uuid,
+  p_request_fingerprint text,
+  p_actor_n3_user_key text
+) returns jsonb
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_claim public.hotel_folio_operations%rowtype;
+  v_new_id uuid;
+  v_attempt integer := 0;
+begin
+  loop
+    v_attempt := v_attempt + 1;
+
+    insert into public.hotel_folio_operations (
+      tenant_id, operation, reservation_id, folio_id, target_line_id,
+      client_request_id, request_fingerprint, actor_n3_user_key
+    ) values (
+      p_tenant_id, p_operation, p_reservation_id, p_folio_id, p_target_line_id,
+      p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+    )
+    on conflict (tenant_id, operation, client_request_id) do nothing
+    returning id into v_new_id;
+
+    if v_new_id is not null then
+      return jsonb_build_object(
+        'ok', true, 'replay', false, 'claimed', true,
+        'lineId', null, 'evidenceId', null
+      );
+    end if;
+
+    select * into v_claim
+    from public.hotel_folio_operations
+    where tenant_id = p_tenant_id
+      and operation = p_operation
+      and client_request_id = p_client_request_id
+    for update;
+
+    if found then
+      if v_claim.request_fingerprint is distinct from p_request_fingerprint
+         or v_claim.reservation_id is distinct from p_reservation_id
+         or v_claim.folio_id is distinct from p_folio_id
+         or v_claim.target_line_id is distinct from p_target_line_id then
+        return jsonb_build_object('ok', false, 'code', 'idempotency_conflict');
+      end if;
+      return jsonb_build_object(
+        'ok', true, 'replay', true, 'claimed', false,
+        'lineId', v_claim.result_line_id, 'evidenceId', v_claim.result_evidence_id
+      );
+    end if;
+
+    -- The conflicting writer aborted: its row never became visible. Retry.
+    if v_attempt >= 3 then
+      return jsonb_build_object('ok', false, 'code', 'operation_claim_failed');
+    end if;
+  end loop;
+end;
+$$;
+
+-- Release a claim this transaction just created, used on every deterministic
+-- validation failure discovered after the claim.
+create or replace function public.hotelhub_release_folio_operation(
+  p_tenant_id uuid,
+  p_operation text,
+  p_client_request_id uuid
+) returns void
+language sql
+set search_path = public
+as $$
+  delete from public.hotel_folio_operations
+   where tenant_id = p_tenant_id
+     and operation = p_operation
+     and client_request_id = p_client_request_id;
+$$;
 
 -- ------------------------------- G. atomic, same-folio reversal (one txn)
 --
@@ -411,8 +543,10 @@ alter table public.hotel_folio_operations enable row level security;
 -- insert and the status update would leave a folio that is silently double
 -- counted. This function proves the full immutable scope
 -- (tenant + reservation + that reservation's folio + line) under a row lock,
--- writes the mirrored reversal, marks the original reversed, and records the
--- operation claim — all inside the caller's single transaction.
+-- claims the operation AFTER that lock (so a concurrent exact retry replays
+-- the original reversal instead of seeing already_reversed), writes the
+-- mirrored reversal, marks the original reversed, and records the result —
+-- all inside the caller's single transaction.
 
 create or replace function public.hotelhub_reverse_folio_line(
   p_tenant_id uuid,
@@ -430,9 +564,10 @@ as $$
 declare
   v_folio_id uuid;
   v_reason text := btrim(coalesce(p_reason, ''));
-  v_claim public.hotel_folio_operations%rowtype;
+  v_claim jsonb;
   v_line public.hotel_folio_lines%rowtype;
   v_reversal public.hotel_folio_lines%rowtype;
+  v_code text;
 begin
   if length(v_reason) < 3 or length(v_reason) > 240 then
     return jsonb_build_object('ok', false, 'code', 'reason_required');
@@ -448,24 +583,8 @@ begin
     return jsonb_build_object('ok', false, 'code', 'folio_not_found');
   end if;
 
-  -- Operation-scoped idempotency claim.
-  select * into v_claim
-  from public.hotel_folio_operations
-  where tenant_id = p_tenant_id
-    and operation = 'folio.reverse'
-    and client_request_id = p_client_request_id
-  for update;
-
-  if found then
-    if v_claim.request_fingerprint is distinct from p_request_fingerprint
-       or v_claim.target_line_id is distinct from p_line_id
-       or v_claim.folio_id is distinct from v_folio_id then
-      return jsonb_build_object('ok', false, 'code', 'idempotency_conflict');
-    end if;
-    return jsonb_build_object('ok', true, 'replay', true, 'lineId', v_claim.result_line_id);
-  end if;
-
-  -- Full immutable scope proof: tenant + folio + line, locked.
+  -- Full immutable scope proof: tenant + folio + line, locked. A concurrent
+  -- exact retry blocks HERE until the first writer commits.
   select * into v_line
   from public.hotel_folio_lines
   where tenant_id = p_tenant_id and folio_id = v_folio_id and id = p_line_id
@@ -474,20 +593,41 @@ begin
   if not found then
     return jsonb_build_object('ok', false, 'code', 'line_not_found');
   end if;
+
+  -- Re-check / take the operation claim AFTER serialization, and BEFORE any
+  -- already_reversed decision.
+  v_claim := public.hotelhub_claim_folio_operation(
+    p_tenant_id, 'folio.reverse', p_reservation_id, v_folio_id, p_line_id,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+  if (v_claim->>'ok')::boolean is not true then
+    return v_claim;
+  end if;
+  if (v_claim->>'replay')::boolean then
+    return jsonb_build_object('ok', true, 'replay', true,
+                              'lineId', v_claim->>'lineId');
+  end if;
+
+  v_code := null;
   if v_line.line_type = 'room_night' then
-    return jsonb_build_object('ok', false, 'code', 'room_night_not_reversible');
-  end if;
-  if v_line.line_type = 'reversal' then
-    return jsonb_build_object('ok', false, 'code', 'line_not_reversible');
-  end if;
-  if v_line.status = 'reversed' then
-    return jsonb_build_object('ok', false, 'code', 'already_reversed');
-  end if;
-  if exists (
+    v_code := 'room_night_not_reversible';
+  elsif v_line.line_type = 'reversal' then
+    v_code := 'line_not_reversible';
+  elsif v_line.status = 'reversed' then
+    v_code := 'already_reversed';
+  elsif exists (
     select 1 from public.hotel_folio_lines
     where tenant_id = p_tenant_id and reverses_line_id = p_line_id
   ) then
-    return jsonb_build_object('ok', false, 'code', 'already_reversed');
+    v_code := 'already_reversed';
+  end if;
+
+  if v_code is not null then
+    -- Never leave a committed empty claim that could later replay as success.
+    perform public.hotelhub_release_folio_operation(
+      p_tenant_id, 'folio.reverse', p_client_request_id
+    );
+    return jsonb_build_object('ok', false, 'code', v_code);
   end if;
 
   insert into public.hotel_folio_lines (
@@ -506,13 +646,11 @@ begin
      set status = 'reversed', updated_at = now()
    where tenant_id = p_tenant_id and folio_id = v_folio_id and id = v_line.id;
 
-  insert into public.hotel_folio_operations (
-    tenant_id, operation, reservation_id, folio_id, target_line_id,
-    client_request_id, request_fingerprint, result_line_id, actor_n3_user_key
-  ) values (
-    p_tenant_id, 'folio.reverse', p_reservation_id, v_folio_id, v_line.id,
-    p_client_request_id, p_request_fingerprint, v_reversal.id, p_actor_n3_user_key
-  );
+  update public.hotel_folio_operations
+     set result_line_id = v_reversal.id
+   where tenant_id = p_tenant_id
+     and operation = 'folio.reverse'
+     and client_request_id = p_client_request_id;
 
   return jsonb_build_object('ok', true, 'replay', false, 'lineId', v_reversal.id);
 end;
@@ -527,59 +665,16 @@ grant execute on function public.hotelhub_reverse_folio_line(
 
 -- ------------- H. atomic add-on / adjustment / quantity / evidence writes
 --
--- Every financial mutation below is ONE statement inside ONE transaction:
--- the operation claim, the scope proof and the write cannot be interleaved.
--- Two concurrent identical requests therefore cannot both insert a line —
--- the loser blocks on the operations unique index and returns the replay.
+-- Every financial mutation below is ONE call inside ONE transaction: the
+-- scope lock, the race-safe operation claim and the write cannot be
+-- interleaved. Two concurrent identical requests cannot both insert a line —
+-- the loser serializes on the operations unique index and replays the stored
+-- result. Deterministic validation failures release their own claim, so no
+-- empty claim can ever commit.
 --
 -- Money is computed by the audited pure TypeScript rules and passed in; the
 -- database re-proves the arithmetic so a bad caller cannot write a folio line
 -- whose parts do not add up.
-
-create or replace function public.hotelhub_claim_folio_operation(
-  p_tenant_id uuid,
-  p_operation text,
-  p_reservation_id uuid,
-  p_folio_id uuid,
-  p_target_line_id uuid,
-  p_client_request_id uuid,
-  p_request_fingerprint text,
-  p_actor_n3_user_key text
-) returns jsonb
-language plpgsql
-set search_path = public
-as $$
-declare
-  v_claim public.hotel_folio_operations%rowtype;
-begin
-  select * into v_claim
-  from public.hotel_folio_operations
-  where tenant_id = p_tenant_id
-    and operation = p_operation
-    and client_request_id = p_client_request_id
-  for update;
-
-  if found then
-    if v_claim.request_fingerprint is distinct from p_request_fingerprint
-       or v_claim.folio_id is distinct from p_folio_id
-       or v_claim.target_line_id is distinct from p_target_line_id
-       or v_claim.reservation_id is distinct from p_reservation_id then
-      return jsonb_build_object('ok', false, 'code', 'idempotency_conflict');
-    end if;
-    return jsonb_build_object('ok', true, 'replay', true, 'lineId', v_claim.result_line_id);
-  end if;
-
-  insert into public.hotel_folio_operations (
-    tenant_id, operation, reservation_id, folio_id, target_line_id,
-    client_request_id, request_fingerprint, actor_n3_user_key
-  ) values (
-    p_tenant_id, p_operation, p_reservation_id, p_folio_id, p_target_line_id,
-    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
-  );
-
-  return jsonb_build_object('ok', true, 'replay', false, 'lineId', null);
-end;
-$$;
 
 create or replace function public.hotelhub_add_folio_line(
   p_tenant_id uuid,
@@ -609,6 +704,7 @@ declare
   v_claim jsonb;
   v_line public.hotel_folio_lines%rowtype;
 begin
+  -- All deterministic validation happens BEFORE any claim is taken.
   if p_operation not in ('folio.add_addon', 'folio.adjustment') then
     return jsonb_build_object('ok', false, 'code', 'operation_not_supported');
   end if;
@@ -644,7 +740,8 @@ begin
     return v_claim;
   end if;
   if (v_claim->>'replay')::boolean then
-    return v_claim;
+    return jsonb_build_object('ok', true, 'replay', true,
+                              'lineId', v_claim->>'lineId');
   end if;
 
   insert into public.hotel_folio_lines (
@@ -669,6 +766,11 @@ begin
 end;
 $$;
 
+-- Quantity edit ordering, in this exact order:
+--   folio lock -> line lock (serialization) -> claim re-check -> state and
+--   version decisions -> update. An exact successful retry therefore replays
+--   the original result even though the row version has advanced, and every
+--   invalid/conflicting attempt releases its claim and writes nothing.
 create or replace function public.hotelhub_update_folio_line_quantity(
   p_tenant_id uuid,
   p_reservation_id uuid,
@@ -690,6 +792,7 @@ declare
   v_folio_id uuid;
   v_claim jsonb;
   v_line public.hotel_folio_lines%rowtype;
+  v_code text;
 begin
   if p_quantity is null or p_quantity < 1 or p_quantity > 9999 then
     return jsonb_build_object('ok', false, 'code', 'quantity_invalid');
@@ -704,17 +807,6 @@ begin
     return jsonb_build_object('ok', false, 'code', 'folio_not_found');
   end if;
 
-  v_claim := public.hotelhub_claim_folio_operation(
-    p_tenant_id, 'folio.update_quantity', p_reservation_id, v_folio_id, p_line_id,
-    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
-  );
-  if (v_claim->>'ok')::boolean is not true then
-    return v_claim;
-  end if;
-  if (v_claim->>'replay')::boolean then
-    return jsonb_build_object('ok', true, 'replay', true, 'lineId', p_line_id);
-  end if;
-
   select * into v_line
   from public.hotel_folio_lines
   where tenant_id = p_tenant_id and folio_id = v_folio_id and id = p_line_id
@@ -723,18 +815,39 @@ begin
   if not found then
     return jsonb_build_object('ok', false, 'code', 'line_not_found');
   end if;
+
+  v_claim := public.hotelhub_claim_folio_operation(
+    p_tenant_id, 'folio.update_quantity', p_reservation_id, v_folio_id, p_line_id,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+  if (v_claim->>'ok')::boolean is not true then
+    return v_claim;
+  end if;
+  if (v_claim->>'replay')::boolean then
+    -- Exact retry: the original write already happened. Report it as such
+    -- even though v_line.version has advanced past p_expected_version.
+    return jsonb_build_object('ok', true, 'replay', true,
+                              'lineId', coalesce(v_claim->>'lineId', p_line_id::text),
+                              'version', v_line.version);
+  end if;
+
+  v_code := null;
   if v_line.line_type = 'room_night' then
-    return jsonb_build_object('ok', false, 'code', 'room_night_not_editable');
-  end if;
-  if v_line.status <> 'draft' then
-    return jsonb_build_object('ok', false, 'code', 'line_not_editable');
-  end if;
-  if v_line.version is distinct from p_expected_version then
-    return jsonb_build_object('ok', false, 'code', 'version_conflict');
-  end if;
-  if p_subtotal_cents is distinct from (p_quantity * v_line.unit_price_cents)
+    v_code := 'room_night_not_editable';
+  elsif v_line.status <> 'draft' then
+    v_code := 'line_not_editable';
+  elsif v_line.version is distinct from p_expected_version then
+    v_code := 'version_conflict';
+  elsif p_subtotal_cents is distinct from (p_quantity * v_line.unit_price_cents)
      or p_total_cents is distinct from (p_subtotal_cents + coalesce(p_tax_cents, 0)) then
-    return jsonb_build_object('ok', false, 'code', 'amount_mismatch');
+    v_code := 'amount_mismatch';
+  end if;
+
+  if v_code is not null then
+    perform public.hotelhub_release_folio_operation(
+      p_tenant_id, 'folio.update_quantity', p_client_request_id
+    );
+    return jsonb_build_object('ok', false, 'code', v_code);
   end if;
 
   update public.hotel_folio_lines
@@ -795,7 +908,9 @@ begin
     return v_claim;
   end if;
   if (v_claim->>'replay')::boolean then
-    return jsonb_build_object('ok', true, 'replay', true, 'evidenceId', null);
+    -- Resolve the ORIGINAL stored evidence row, never a null id.
+    return jsonb_build_object('ok', true, 'replay', true,
+                              'evidenceId', v_claim->>'evidenceId');
   end if;
 
   insert into public.hotel_tourism_tax_evidence (
@@ -806,12 +921,21 @@ begin
     p_amount_cents, p_note, p_actor_n3_user_key, p_client_request_id
   ) returning id into v_id;
 
+  update public.hotel_folio_operations
+     set result_evidence_id = v_id
+   where tenant_id = p_tenant_id
+     and operation = 'folio.tourism_tax_evidence'
+     and client_request_id = p_client_request_id;
+
   return jsonb_build_object('ok', true, 'replay', false, 'evidenceId', v_id);
 end;
 $$;
 
 revoke all on function public.hotelhub_claim_folio_operation(
   uuid, text, uuid, uuid, uuid, uuid, text, text
+) from public, anon, authenticated;
+revoke all on function public.hotelhub_release_folio_operation(
+  uuid, text, uuid
 ) from public, anon, authenticated;
 revoke all on function public.hotelhub_add_folio_line(
   uuid, uuid, text, public.hotel_folio_line_type, uuid, public.hotel_tax_class,
