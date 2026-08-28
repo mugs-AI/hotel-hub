@@ -603,9 +603,7 @@ function TaxSettingsForm({
                   variant="outline"
                   size="sm"
                   disabled={disabled}
-                  onClick={() =>
-                    setRates({ ...rates, [c]: bpToPercentText(SUGGESTED_BP[c]) })
-                  }
+                  onClick={() => setRates({ ...rates, [c]: bpToPercentText(SUGGESTED_BP[c]) })}
                 >
                   Use suggested {SUGGESTED_BP[c] / 100}%
                 </Button>

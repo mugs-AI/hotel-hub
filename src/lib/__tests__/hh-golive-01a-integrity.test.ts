@@ -4,11 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  FOLIO_OPERATIONS,
-  decideClaim,
-  operationFingerprint,
-} from "@/lib/folio-operations";
+import { FOLIO_OPERATIONS, decideClaim, operationFingerprint } from "@/lib/folio-operations";
 import {
   validateAddonLineBody,
   validateAdjustmentBody,
@@ -44,11 +40,7 @@ describe("operation-scoped idempotency", () => {
 
   it("changes when the target folio or reservation changes", () => {
     const a = operationFingerprint("folio.add_addon", target, { x: 1 });
-    const b = operationFingerprint(
-      "folio.add_addon",
-      { ...target, folioId: "f2" },
-      { x: 1 },
-    );
+    const b = operationFingerprint("folio.add_addon", { ...target, folioId: "f2" }, { x: 1 });
     expect(a).not.toBe(b);
   });
 
@@ -119,10 +111,18 @@ describe("API boundary validation", () => {
   });
 
   it("requires a reason on a reversal", () => {
-    expect(validateReverseBody({ clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok).toBe(false);
-    expect(validateReverseBody({ reason: "ab", clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok).toBe(false);
     expect(
-      validateReverseBody({ reason: "wrong room", clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok,
+      validateReverseBody({ clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" }).ok,
+    ).toBe(false);
+    expect(
+      validateReverseBody({ reason: "ab", clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7" })
+        .ok,
+    ).toBe(false);
+    expect(
+      validateReverseBody({
+        reason: "wrong room",
+        clientRequestId: "3f6b1e4a-9c2d-4a11-8f3e-71b0c9d4e2a7",
+      }).ok,
     ).toBe(true);
   });
 
@@ -226,7 +226,7 @@ describe("completed operational UI", () => {
 
   it("provides a printable guest folio that never states it is an invoice", () => {
     const print = read("src/routes/reservations.$id_.folio-print.tsx");
-    expect(print).toContain("createFileRoute(\"/reservations/$id_/folio-print\")");
+    expect(print).toContain('createFileRoute("/reservations/$id_/folio-print")');
     expect(print).toContain("not a tax invoice");
   });
 

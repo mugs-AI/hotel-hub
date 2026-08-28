@@ -34,13 +34,7 @@ import { makeRequestId } from "@/lib/idempotency";
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 
-export function FolioCard({
-  reservationId,
-  canView,
-}: {
-  reservationId: string;
-  canView: boolean;
-}) {
+export function FolioCard({ reservationId, canView }: { reservationId: string; canView: boolean }) {
   const q = useReservationFolio(reservationId, canView);
   const [open, setOpen] = useState(false);
   const addItem = useAddFolioItem(reservationId);

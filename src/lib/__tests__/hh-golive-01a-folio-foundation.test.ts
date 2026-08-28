@@ -141,12 +141,24 @@ describe("add-on catalogue — unmapped items are unusable", () => {
       expect(ok.value.displayName).toBe("Laundry");
       expect(mappingStatus(ok.value)).toBe("incomplete");
     }
-    expect(validateAddonInput({ category: "nope", taxClass: "non_taxable", displayName: "x", defaultUnitPriceCents: 0 })).toEqual({
+    expect(
+      validateAddonInput({
+        category: "nope",
+        taxClass: "non_taxable",
+        displayName: "x",
+        defaultUnitPriceCents: 0,
+      }),
+    ).toEqual({
       ok: false,
       code: "invalid_category",
     });
     expect(
-      validateAddonInput({ category: "other", taxClass: "non_taxable", displayName: "x", defaultUnitPriceCents: 1.5 }),
+      validateAddonInput({
+        category: "other",
+        taxClass: "non_taxable",
+        displayName: "x",
+        defaultUnitPriceCents: 1.5,
+      }),
     ).toEqual({ ok: false, code: "invalid_unit_price" });
   });
 });
@@ -208,7 +220,9 @@ describe("financial settings — nothing is assumed", () => {
     });
     expect(validateSettingsPatch({})).toEqual({ ok: false, code: "no_valid_fields" });
     expect(
-      validateSettingsPatch({ localLevy: { effectiveFrom: "2026-05-01", effectiveTo: "2026-04-01" } }),
+      validateSettingsPatch({
+        localLevy: { effectiveFrom: "2026-05-01", effectiveTo: "2026-04-01" },
+      }),
     ).toEqual({ ok: false, code: "invalid_localLevy_effective_date" });
   });
 
@@ -278,7 +292,13 @@ describe("correction is reversal-only", () => {
     const net = netByTaxClass([
       line({ id: "a", subtotalCents: 10000 }),
       line({ id: "b", subtotalCents: 5000, status: "reversed" }),
-      line({ id: "c", subtotalCents: -2000, lineType: "reversal", reversesLineId: "a", reason: "x" }),
+      line({
+        id: "c",
+        subtotalCents: -2000,
+        lineType: "reversal",
+        reversesLineId: "a",
+        reason: "x",
+      }),
     ]);
     expect(net.get("accommodation")).toBe(8000);
   });
@@ -341,7 +361,11 @@ describe("tourism tax", () => {
       propertyDate: "2026-09-01",
     });
     expect(r.chargeCents).toBe(0);
-    expect(r.blockers.some((b) => b.code === "tourism_tax_guest_class_unknown" && b.severity === "blocking")).toBe(true);
+    expect(
+      r.blockers.some(
+        (b) => b.code === "tourism_tax_guest_class_unknown" && b.severity === "blocking",
+      ),
+    ).toBe(true);
   });
 
   it("credits an amount already collected by a platform, without going negative", () => {
@@ -419,15 +443,17 @@ describe("authoritative folio computation", () => {
     expect(r.totals.grandTotalCents).toBe(49520);
     expect(r.calculationComplete).toBe(true);
     // Same input, same output.
-    expect(computeFolio({
-      currency: "MYR",
-      settings: s,
-      lines: roomNights,
-      guestTaxClass: "foreign_tourist",
-      occupiedRoomNights: 2,
-      tourismTaxCollectedCents: 0,
-      propertyDate: "2026-09-03",
-    }).totals).toEqual(r.totals);
+    expect(
+      computeFolio({
+        currency: "MYR",
+        settings: s,
+        lines: roomNights,
+        guestTaxClass: "foreign_tourist",
+        occupiedRoomNights: 2,
+        tourismTaxCollectedCents: 0,
+        propertyDate: "2026-09-03",
+      }).totals,
+    ).toEqual(r.totals);
   });
 
   it("blocks when a registered property has an unmapped rate", () => {
@@ -465,7 +491,11 @@ describe("authoritative folio computation", () => {
     });
     expect(r.totals.roundingCents).toBe(2);
     expect(r.totals.grandTotalCents).toBe(10005);
-    for (const code of ["rounding_account_unmapped", "room_stock_unmapped", "addon_mapping_incomplete"]) {
+    for (const code of [
+      "rounding_account_unmapped",
+      "room_stock_unmapped",
+      "addon_mapping_incomplete",
+    ]) {
       expect(r.blockers.some((b) => b.code === code && b.severity === "blocking")).toBe(true);
     }
     expect(r.calculationComplete).toBe(false);
@@ -516,7 +546,9 @@ describe("staged migration contract", () => {
   it("is staged, additive and never executed against live data", () => {
     expect(sql).not.toBe("");
     expect(sql).toMatch(/NOT EXECUTED/);
-    expect(sql).not.toMatch(/\b(drop\s+table|alter\s+table\s+\w+\s+drop|delete\s+from|truncate)\b/i);
+    expect(sql).not.toMatch(
+      /\b(drop\s+table|alter\s+table\s+\w+\s+drop|delete\s+from|truncate)\b/i,
+    );
     // No data seeding at migration top level. Inserts INSIDE the atomic
     // reversal function are the reversal write itself, not seeded data.
     const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, "");
@@ -541,7 +573,9 @@ describe("staged migration contract", () => {
   });
 
   it("enforces one folio per reservation and one night per room per date", () => {
-    expect(sql).toMatch(/hotel_folios_tenant_reservation_uidx[\s\S]*?\(tenant_id, reservation_id\)/);
+    expect(sql).toMatch(
+      /hotel_folios_tenant_reservation_uidx[\s\S]*?\(tenant_id, reservation_id\)/,
+    );
     expect(sql).toMatch(/hotel_folio_lines_room_night_uidx/);
     expect(sql).toMatch(/hotel_folio_lines_request_uidx/);
     expect(sql).toMatch(/hotel_folio_lines_reversal_link_chk/);
