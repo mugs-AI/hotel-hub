@@ -62,12 +62,51 @@ function useInvalidateFolio(reservationId: string) {
   return () => qc.invalidateQueries({ queryKey: folioKey(sessionKey, reservationId) });
 }
 
+/** Explicit folio preparation: creates the folio and snapshots room nights. */
+export function useRefreshFolio(reservationId: string) {
+  const invalidate = useInvalidateFolio(reservationId);
+  return useMutation<unknown, FolioApiError, void>({
+    mutationFn: () =>
+      folioFetch(`/api/hotel/reservations/${reservationId}/folio/refresh`, { method: "POST" }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
+export function useAddTourismTaxEvidence(reservationId: string) {
+  const invalidate = useInvalidateFolio(reservationId);
+  return useMutation<
+    unknown,
+    FolioApiError,
+    {
+      sourceLabel: string;
+      reference?: string | null;
+      collectedOn?: string | null;
+      amountCents: number;
+      note?: string | null;
+      clientRequestId: string;
+    }
+  >({
+    mutationFn: (input) =>
+      folioFetch(`/api/hotel/reservations/${reservationId}/tax-profile`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => void invalidate(),
+  });
+}
+
 export function useAddFolioItem(reservationId: string) {
   const invalidate = useInvalidateFolio(reservationId);
   return useMutation<
     unknown,
     FolioApiError,
-    { catalogueId: string; quantity: number; clientRequestId: string }
+    {
+      catalogueId: string;
+      quantity: number;
+      clientRequestId: string;
+      unitPriceCents?: number;
+      reason?: string;
+    }
   >({
     mutationFn: (input) =>
       folioFetch(`/api/hotel/reservations/${reservationId}/folio/lines`, {
@@ -241,6 +280,16 @@ export function folioErrorMessage(err: unknown, fallback = "Something went wrong
     invalid_amount: "Enter a valid amount.",
     invalid_guest_tax_class: "Choose a valid guest classification.",
     display_name_exists: "An item with that name already exists.",
+    idempotency_conflict:
+      "This request id was already used for a different change. Reload and try again.",
+    line_not_reversible: "A reversal cannot itself be reversed.",
+    reversal_not_atomic:
+      "Reversals are temporarily unavailable because the database function is not installed.",
+    folio_not_found: "Prepare the folio first.",
+    unknown_field: "That request contained a field this action does not accept.",
+    invalid_tax_class: "Choose a valid tax treatment.",
+    invalid_source_label: "Give the collecting party a name of 2 to 60 characters.",
+    invalid_collected_on: "Enter the collection date as YYYY-MM-DD.",
   };
   return map[code] ?? fallback;
 }
