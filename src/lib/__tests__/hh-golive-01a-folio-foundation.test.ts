@@ -546,12 +546,14 @@ describe("staged migration contract", () => {
   it("is staged, additive and never executed against live data", () => {
     expect(sql).not.toBe("");
     expect(sql).toMatch(/NOT EXECUTED/);
-    expect(sql).not.toMatch(
+    // No data seeding and nothing destructive at migration top level. The
+    // inserts/deletes INSIDE the function bodies are the audited financial
+    // writes and the release of a caller's own operation claim, not seeded
+    // data and not schema destruction.
+    const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, "");
+    expect(topLevel).not.toMatch(
       /\b(drop\s+table|alter\s+table\s+\w+\s+drop|delete\s+from|truncate)\b/i,
     );
-    // No data seeding at migration top level. Inserts INSIDE the atomic
-    // reversal function are the reversal write itself, not seeded data.
-    const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, "");
     expect(topLevel).not.toMatch(/\binsert\s+into\b/i);
   });
 
