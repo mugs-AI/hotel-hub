@@ -9,11 +9,7 @@
 //     server session context; request input is never trusted for tenancy.
 //   * All money is integer cents server-side. Display numbers only ever
 //     appear at the DTO boundary.
-import {
-  centsToAmount,
-  parseCents,
-  type RoundingMode,
-} from "./folio-money";
+import { centsToAmount, parseCents, type RoundingMode } from "./folio-money";
 import {
   canReverseLine,
   computeFolio,
@@ -42,11 +38,7 @@ import {
   type FinancialSettings,
 } from "./financial-settings";
 import { folioReadinessProjection } from "./folio-readiness";
-import {
-  decideClaim,
-  operationFingerprint,
-  type FolioOperation,
-} from "./folio-operations";
+import { decideClaim, operationFingerprint, type FolioOperation } from "./folio-operations";
 import { propertyTodayIso } from "./checkout-preview";
 import type {
   FolioCatalogueOptionDTO,
@@ -79,7 +71,6 @@ export interface FolioDb {
   /** Required for the atomic reversal transaction. */
   rpc?(fn: string, args: Record<string, unknown>): PromiseLike<OneRes<unknown>>;
 }
-
 
 async function liveDb(): Promise<FolioDb> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -905,8 +896,6 @@ async function readScopedLine(
   return res.data ?? null;
 }
 
-
-
 function toStoredLine(row: LineRow, actorLabels: Map<string, string>): StoredFolioLine {
   return {
     id: row.id,
@@ -936,9 +925,11 @@ async function readActorLabels(
   const unique = Array.from(new Set(keys.filter(Boolean)));
   if (unique.length === 0) return out;
   const res = await db
-    .from<{ n3_user_key: string; display_name: string | null; email: string | null }>(
-      "hotel_user_directory",
-    )
+    .from<{
+      n3_user_key: string;
+      display_name: string | null;
+      email: string | null;
+    }>("hotel_user_directory")
     .select("n3_user_key, display_name, email")
     .eq("tenant_id", tenantId)
     .in("n3_user_key", unique);
@@ -1487,9 +1478,7 @@ export async function reverseFolioLine(
     p_request_fingerprint: fingerprint,
   });
   if (res.error) throw new FolioError("folio_write_failed", 500);
-  const payload = res.data as
-    | { ok?: boolean; code?: string; lineId?: string | null }
-    | null;
+  const payload = res.data as { ok?: boolean; code?: string; lineId?: string | null } | null;
   if (!payload || typeof payload !== "object" || payload.ok !== true) {
     const code = typeof payload?.code === "string" ? payload.code : "folio_write_failed";
     throw new FolioError(code, folioErrorStatus(code));
@@ -1499,7 +1488,6 @@ export async function reverseFolioLine(
   if (!row) throw new FolioError("folio_read_failed", 500);
   return { reversal: toStoredLine(row, new Map()) };
 }
-
 
 // -------------------------------------------------------------- folio view
 
@@ -1527,11 +1515,7 @@ export async function buildFolioView(
   // explicit `refreshFolioRoomNights` endpoint.
   const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
 
-  const { byRoomId, rooms } = await readReservationRooms(
-    input.tenantId,
-    input.reservationId,
-    db,
-  );
+  const { byRoomId, rooms } = await readReservationRooms(input.tenantId, input.reservationId, db);
   const roomLabelByReservationRoom = new Map<string, string>();
   const unmappedRoomLabels: string[] = [];
   for (const r of rooms) {
@@ -1551,7 +1535,6 @@ export async function buildFolioView(
     listAddonItems(input.tenantId, {}, db),
   ]);
   const { lines, rows } = linesResult;
-
 
   const decorated: StoredFolioLine[] = lines.map((l) => ({
     ...l,
@@ -1603,8 +1586,7 @@ export async function buildFolioView(
     reversesLineId: l.reversesLineId,
     actorLabel: l.actorLabel,
     createdAt: l.createdAt,
-    canEditQuantity:
-      input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
+    canEditQuantity: input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
     canReverse:
       input.capability.canAdjust &&
       l.lineType !== "room_night" &&

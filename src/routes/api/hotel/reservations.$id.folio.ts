@@ -9,11 +9,7 @@ import { isUuid } from "@/lib/reservations-store.server";
 import { buildFolioView } from "@/lib/folio-store.server";
 import { folioDeny, folioFailure, folioJson, requireFolioActor } from "@/lib/folio-api.server";
 
-export async function handleReadFolio({
-  params,
-}: {
-  params: { id?: string };
-}): Promise<Response> {
+export async function handleReadFolio({ params }: { params: { id?: string } }): Promise<Response> {
   const gate = await requireFolioActor("hotel:folio:view");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

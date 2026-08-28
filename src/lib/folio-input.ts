@@ -243,6 +243,13 @@ export function validateEvidenceBody(body: unknown): Checked<EvidenceBody> {
   }
   return {
     ok: true,
-    value: { sourceLabel, reference, collectedOn, amountCents: amount, note, clientRequestId: b.clientRequestId },
+    value: {
+      sourceLabel,
+      reference,
+      collectedOn,
+      amountCents: amount,
+      note,
+      clientRequestId: b.clientRequestId,
+    },
   };
 }

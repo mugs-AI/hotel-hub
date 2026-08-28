@@ -98,7 +98,12 @@ export type ClaimDecision =
  *  fingerprint is a conflict, never a replay and never a second write. */
 export function decideClaim(
   existing: ClaimRecord | null,
-  incoming: { operation: FolioOperation; folioId: string | null; lineId: string | null; fingerprint: string },
+  incoming: {
+    operation: FolioOperation;
+    folioId: string | null;
+    lineId: string | null;
+    fingerprint: string;
+  },
 ): ClaimDecision {
   if (!existing) return { kind: "new" };
   if (
