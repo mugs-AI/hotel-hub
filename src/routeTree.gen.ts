@@ -54,6 +54,7 @@ import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel
 import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
 import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
 import { Route as ApiHotelReservationsIdGuestAssignmentsRouteImport } from './routes/api/hotel/reservations.$id.guest-assignments'
+import { Route as ApiHotelReservationsIdFolioRouteImport } from './routes/api/hotel/reservations.$id.folio'
 import { Route as ApiHotelReservationsIdDepositsRouteImport } from './routes/api/hotel/reservations.$id.deposits'
 import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './routes/api/hotel/reservations.$id.checkout-preview'
 import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
@@ -297,6 +298,12 @@ const ApiHotelReservationsIdGuestAssignmentsRoute =
     path: '/guest-assignments',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
+const ApiHotelReservationsIdFolioRoute =
+  ApiHotelReservationsIdFolioRouteImport.update({
+    id: '/folio',
+    path: '/folio',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
+  } as any)
 const ApiHotelReservationsIdDepositsRoute =
   ApiHotelReservationsIdDepositsRouteImport.update({
     id: '/deposits',
@@ -394,6 +401,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
+  '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRoute
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
@@ -449,6 +457,7 @@ export interface FileRoutesByTo {
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
+  '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRoute
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
@@ -505,6 +514,7 @@ export interface FileRoutesById {
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
   '/api/hotel/reservations/$id/deposits': typeof ApiHotelReservationsIdDepositsRouteWithChildren
+  '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRoute
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
@@ -562,6 +572,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
+    | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/timeline'
@@ -617,6 +628,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
+    | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/timeline'
@@ -672,6 +684,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
     | '/api/hotel/reservations/$id/deposits'
+    | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/timeline'
@@ -1036,6 +1049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdGuestAssignmentsRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
+    '/api/hotel/reservations/$id/folio': {
+      id: '/api/hotel/reservations/$id/folio'
+      path: '/folio'
+      fullPath: '/api/hotel/reservations/$id/folio'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
+    }
     '/api/hotel/reservations/$id/deposits': {
       id: '/api/hotel/reservations/$id/deposits'
       path: '/deposits'
@@ -1159,6 +1179,7 @@ interface ApiHotelReservationsIdRouteChildren {
   ApiHotelReservationsIdCheckInRoute: typeof ApiHotelReservationsIdCheckInRoute
   ApiHotelReservationsIdCheckoutPreviewRoute: typeof ApiHotelReservationsIdCheckoutPreviewRoute
   ApiHotelReservationsIdDepositsRoute: typeof ApiHotelReservationsIdDepositsRouteWithChildren
+  ApiHotelReservationsIdFolioRoute: typeof ApiHotelReservationsIdFolioRoute
   ApiHotelReservationsIdGuestAssignmentsRoute: typeof ApiHotelReservationsIdGuestAssignmentsRoute
   ApiHotelReservationsIdOperationsRoute: typeof ApiHotelReservationsIdOperationsRouteWithChildren
   ApiHotelReservationsIdTimelineRoute: typeof ApiHotelReservationsIdTimelineRoute
@@ -1171,6 +1192,7 @@ const ApiHotelReservationsIdRouteChildren: ApiHotelReservationsIdRouteChildren =
       ApiHotelReservationsIdCheckoutPreviewRoute,
     ApiHotelReservationsIdDepositsRoute:
       ApiHotelReservationsIdDepositsRouteWithChildren,
+    ApiHotelReservationsIdFolioRoute: ApiHotelReservationsIdFolioRoute,
     ApiHotelReservationsIdGuestAssignmentsRoute:
       ApiHotelReservationsIdGuestAssignmentsRoute,
     ApiHotelReservationsIdOperationsRoute:
