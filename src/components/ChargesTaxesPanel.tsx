@@ -269,7 +269,7 @@ function TaxSettingsForm({
 
   useEffect(() => {
     if (!settings) return;
-    setServiceTax(settings.serviceTax.registered);
+    setServiceTax(settings.serviceTaxRegistered);
     setServiceCharge(settings.serviceCharge.enabled);
     setTourismTax(settings.tourismTax.enabled);
   }, [settings]);
