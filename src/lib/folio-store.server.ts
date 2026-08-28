@@ -1105,6 +1105,33 @@ export async function syncRoomNights(
 }
 
 /**
+ * Explicit, idempotent folio initialisation / refresh.
+ *
+ * This is the ONLY caller-visible way to create the folio and snapshot room
+ * nights, so reading a folio can never mutate one. Re-running it is safe:
+ * `planMissingRoomNights` only ever adds the (reservationRoom, stayDate)
+ * pairs that do not exist yet, and existing snapshots are never rewritten.
+ */
+export async function refreshFolioRoomNights(
+  input: { tenantId: string; reservationId: string; actorKey: string },
+  sb?: FolioDb,
+): Promise<{ folioId: string; inserted: number; unmappedRoomLabels: string[] }> {
+  const db = await resolveDb(sb);
+  const reservation = await readReservation(input.tenantId, input.reservationId, db);
+  const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
+  const result = await syncRoomNights(
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      actorKey: input.actorKey,
+    },
+    db,
+  );
+  return { folioId: folio.id, ...result };
+}
+
+/**
  * Add one catalogue add-on to the reservation's authoritative folio.
  *
  * Scope proof: tenant + route reservation + that reservation's folio.
