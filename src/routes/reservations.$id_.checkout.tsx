@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { FolioCard } from "@/components/FolioCard";
 import { useCheckoutPreview, checkoutErrorMessage, formatMoney } from "@/lib/checkout-client";
 
 export const Route = createFileRoute("/reservations/$id_/checkout")({
@@ -119,6 +120,10 @@ function CheckoutPreviewPage() {
                 Room charge total: {formatMoney(d.folio.roomChargeTotal, d.reservation.currency)}
               </p>
             </section>
+
+            {/* Authoritative prepared folio: extras, Malaysian taxes and levies.
+                The room-charge table above stays as the N3 posting projection. */}
+            <FolioCard reservationId={id} canView />
 
             <section className="rounded-lg border border-border bg-card p-5">
               <h2 className="text-base font-semibold">Verified deposits (N3, read-only)</h2>
