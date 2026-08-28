@@ -24,6 +24,12 @@ export type Permission =
   | "hotel:operations:request" // raise an operation request needing approval
   | "hotel:operations:approve" // approve / reject an operation request
   | "hotel:checkout:view" // read the departures board and the read-only checkout preview
+  // HH-GOLIVE-01A — authoritative folio, add-on catalogue and tax readiness
+  | "hotel:folio:view" // read the prepared folio for a reservation
+  | "hotel:folio:add_item" // add a catalogue add-on / change its quantity
+  | "hotel:folio:adjust" // discount, manual adjustment, price override, reversal
+  | "hotel:folio:tax_class" // classify the guest for Tourism Tax purposes
+  | "hotel:charges:manage" // manage the add-on catalogue, tax config and evidence
   // WP1 — Housekeeping & Room Turnaround
   | "hotel:housekeeping:view" // see the room turnaround board
   | "hotel:housekeeping:update" // move a room through the cleaning lifecycle
