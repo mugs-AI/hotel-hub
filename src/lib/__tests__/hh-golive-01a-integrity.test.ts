@@ -38,14 +38,14 @@ describe("operation-scoped idempotency", () => {
     expect(a).toBe(b);
   });
 
-  it("changes when the target folio or reservation changes", () => {
-    const a = operationFingerprint("folio.add_addon", target, { x: 1 });
-    const b = operationFingerprint("folio.add_addon", { ...target, folioId: "f2" }, { x: 1 });
+  it("changes when the target folio or reservation changes", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, { x: 1 });
+    const b = await operationFingerprint("folio.add_addon", { ...target, folioId: "f2" }, { x: 1 });
     expect(a).not.toBe(b);
   });
 
-  it("replays an identical request and refuses a conflicting reuse", () => {
-    const fp = operationFingerprint("folio.add_addon", target, { quantity: 1 });
+  it("replays an identical request and refuses a conflicting reuse", async () => {
+    const fp = await operationFingerprint("folio.add_addon", target, { quantity: 1 });
     const incoming = {
       operation: "folio.add_addon" as const,
       folioId: "f1",
