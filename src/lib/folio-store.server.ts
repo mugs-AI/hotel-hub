@@ -102,10 +102,24 @@ export class FolioError extends Error {
 }
 
 export function folioErrorStatus(code: string): number {
-  if (code === "reservation_not_found" || code === "line_not_found" || code === "item_not_found") {
+  if (
+    code === "reservation_not_found" ||
+    code === "line_not_found" ||
+    code === "item_not_found" ||
+    code === "folio_not_found"
+  ) {
     return 404;
   }
-  if (code === "display_name_exists" || code === "already_reversed") return 409;
+  if (
+    code === "display_name_exists" ||
+    code === "already_reversed" ||
+    code === "idempotency_conflict" ||
+    code === "line_not_reversible" ||
+    code === "room_night_not_reversible"
+  ) {
+    return 409;
+  }
+  if (code === "reversal_not_atomic") return 500;
   if (code.endsWith("_failed")) return 500;
   return 400;
 }
