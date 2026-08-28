@@ -38,7 +38,7 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = {
   displayName: "",
-  category: "food_and_beverage",
+  category: "minibar",
   taxClass: "food_and_beverage",
   defaultUnitPrice: "",
 };
