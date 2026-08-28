@@ -8,7 +8,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { patchFinancialSettings, readFinancialSettings } from "@/lib/folio-store.server";
 import { folioReadinessProjection } from "@/lib/folio-readiness";
-import { folioFailure, folioJson, readJsonBody, requireFolioActor } from "@/lib/folio-api.server";
+import {
+  folioFailure,
+  folioJson,
+  folioSameOriginGuard,
+  readJsonBody,
+  requireFolioActor,
+} from "@/lib/folio-api.server";
 
 export async function handleReadChargeSettings(): Promise<Response> {
   const gate = await requireFolioActor("hotel:folio:view");
