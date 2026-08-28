@@ -41,6 +41,11 @@ import {
   type FinancialSettings,
 } from "./financial-settings";
 import { folioReadinessProjection } from "./folio-readiness";
+import {
+  decideClaim,
+  operationFingerprint,
+  type FolioOperation,
+} from "./folio-operations";
 import { propertyTodayIso } from "./checkout-preview";
 import type {
   FolioCatalogueOptionDTO,
