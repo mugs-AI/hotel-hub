@@ -10,7 +10,17 @@
 -- NO policies (Data API locked); all access happens through the server-only
 -- service-role client behind the N3 session + RBAC guards.
 --
--- Rollback: drop the five tables then the five enum types, in that order.
+-- Rollback, in this exact order:
+--   1. drop function public.hotelhub_reverse_folio_line(uuid,uuid,uuid,text,uuid,text);
+--   2. drop the seven tables, children first:
+--        hotel_folio_operations, hotel_tourism_tax_evidence,
+--        hotel_reservation_tax_profile, hotel_folio_lines, hotel_folios,
+--        hotel_financial_settings, hotel_addon_catalogue;
+--   3. drop the five enum types: hotel_guest_tax_class,
+--        hotel_folio_line_status, hotel_folio_line_type, hotel_tax_class,
+--        hotel_addon_category.
+-- RLS stays enabled with no policies on every table above; rollback never
+-- relaxes access on any pre-existing object.
 
 -- ---------------------------------------------------------------- enums
 
