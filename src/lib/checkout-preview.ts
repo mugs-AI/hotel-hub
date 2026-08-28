@@ -8,6 +8,7 @@
 // voids or deletes an N3 document, and nothing changes reservation, room or
 // housekeeping state.
 
+import type { FolioTotalsDTO } from "./folio-view";
 import {
   centsToAmount,
   estimatedBalanceCents,
@@ -733,8 +734,6 @@ export function buildSummary(
     n3Outstanding: null,
   };
 }
-
-import type { FolioTotalsDTO } from "./folio-view";
 
 // ---------------------------------------------------------------- DTOs
 
