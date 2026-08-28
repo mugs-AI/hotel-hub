@@ -48,6 +48,7 @@ import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
 import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
 import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
+import { Route as ApiHotelChargesCatalogueRouteImport } from './routes/api/hotel/charges.catalogue'
 import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel/booking-sources.$id'
 import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
 import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
@@ -259,6 +260,12 @@ const ApiHotelHousekeepingPurgeRoute =
     path: '/purge',
     getParentRoute: () => ApiHotelHousekeepingRoute,
   } as any)
+const ApiHotelChargesCatalogueRoute =
+  ApiHotelChargesCatalogueRouteImport.update({
+    id: '/api/hotel/charges/catalogue',
+    path: '/api/hotel/charges/catalogue',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHotelBookingSourcesIdRoute =
   ApiHotelBookingSourcesIdRouteImport.update({
     id: '/$id',
@@ -360,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
@@ -412,6 +420,7 @@ export interface FileRoutesByTo {
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
@@ -465,6 +474,7 @@ export interface FileRoutesById {
   '/reservations/$id_/edit': typeof ReservationsIdEditRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
+  '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/charges/catalogue'
     | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
@@ -571,6 +582,7 @@ export interface FileRouteTypes {
     | '/reservations/$id/edit'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/charges/catalogue'
     | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
@@ -623,6 +635,7 @@ export interface FileRouteTypes {
     | '/reservations/$id_/edit'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
+    | '/api/hotel/charges/catalogue'
     | '/api/hotel/housekeeping/purge'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
@@ -675,6 +688,7 @@ export interface RootRouteChildren {
   ReservationsIdCheckoutRoute: typeof ReservationsIdCheckoutRoute
   ReservationsIdEditRoute: typeof ReservationsIdEditRoute
   ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
+  ApiHotelChargesCatalogueRoute: typeof ApiHotelChargesCatalogueRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
 }
@@ -954,6 +968,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelHousekeepingPurgeRouteImport
       parentRoute: typeof ApiHotelHousekeepingRoute
     }
+    '/api/hotel/charges/catalogue': {
+      id: '/api/hotel/charges/catalogue'
+      path: '/api/hotel/charges/catalogue'
+      fullPath: '/api/hotel/charges/catalogue'
+      preLoaderRoute: typeof ApiHotelChargesCatalogueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/booking-sources/$id': {
       id: '/api/hotel/booking-sources/$id'
       path: '/$id'
@@ -1202,6 +1223,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReservationsIdCheckoutRoute: ReservationsIdCheckoutRoute,
   ReservationsIdEditRoute: ReservationsIdEditRoute,
   ReservationsIdPrintRoute: ReservationsIdPrintRoute,
+  ApiHotelChargesCatalogueRoute: ApiHotelChargesCatalogueRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
 }
