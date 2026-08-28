@@ -71,7 +71,19 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
 
   // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
   // excluded: the preview exposes room rates and deposit money.
-  "hotel:checkout:view": new Set(["owner", "front_desk"]),
+  // HH-GOLIVE-01A. Front desk prepares the folio (adds catalogue items,
+  // classifies the guest for Tourism Tax); every money-changing act
+  // (discount, manual adjustment, price override, reversal) and the whole
+  // catalogue / tax configuration stay Owner-only. Housekeeper sees none of
+  // it: the folio exposes rates, taxes and guest money.
+  "hotel:folio:view": new Set(["owner", "front_desk"]),
+  "hotel:folio:add_item": new Set(["owner", "front_desk"]),
+  "hotel:folio:adjust": new Set(["owner"]),
+  "hotel:folio:tax_class": new Set(["owner", "front_desk"]),
+  "hotel:charges:manage": new Set(["owner"]),
+
+  "hotel:checkout:view_": new Set([]) as unknown as ReadonlySet<HotelRole>,
+
 
   // WP1 Housekeeping. Everyone operational sees and works the board — that is
   // the point of ONE engine, TWO experiences. Do Not Disturb is a capability
