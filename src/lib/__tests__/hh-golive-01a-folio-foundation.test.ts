@@ -517,7 +517,10 @@ describe("staged migration contract", () => {
     expect(sql).not.toBe("");
     expect(sql).toMatch(/NOT EXECUTED/);
     expect(sql).not.toMatch(/\b(drop\s+table|alter\s+table\s+\w+\s+drop|delete\s+from|truncate)\b/i);
-    expect(sql).not.toMatch(/\binsert\s+into\b/i);
+    // No data seeding at migration top level. Inserts INSIDE the atomic
+    // reversal function are the reversal write itself, not seeded data.
+    const topLevel = sql.replace(/\$\$[\s\S]*?\$\$/g, "");
+    expect(topLevel).not.toMatch(/\binsert\s+into\b/i);
   });
 
   it("creates every new table with RLS enabled and service-role grants", () => {
