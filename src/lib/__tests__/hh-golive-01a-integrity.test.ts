@@ -143,10 +143,14 @@ describe("API boundary validation", () => {
     ).toBe(true);
   });
 
-  it("accepts only whole, in-range quantities", () => {
-    expect(validateQuantityBody({ quantity: 0 }).ok).toBe(false);
-    expect(validateQuantityBody({ quantity: 1.5 }).ok).toBe(false);
-    expect(validateQuantityBody({ quantity: 3 }).ok).toBe(true);
+  it("accepts only whole, in-range quantities and demands an operation key", () => {
+    const req = "11111111-1111-4111-8111-111111111111";
+    expect(validateQuantityBody({ quantity: 0, clientRequestId: req }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 1.5, clientRequestId: req }).ok).toBe(false);
+    // A quantity edit is a financial mutation: without an operation key it
+    // cannot be replay-protected, so it must be refused.
+    expect(validateQuantityBody({ quantity: 3 }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 3, clientRequestId: req }).ok).toBe(true);
   });
 
   it("accepts only the declared guest tax classes", () => {

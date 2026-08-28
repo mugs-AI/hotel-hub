@@ -749,10 +749,11 @@ describe("5D3.2 UI + documentation contracts", () => {
     );
   });
 
-  it("keeps the room-only scope and the exact excess-deposit label", () => {
-    expect(checkoutPage).toMatch(/room charges only/i);
+  it("shows one authoritative prepared balance and the excess-deposit label", () => {
+    expect(checkoutPage).toMatch(/Room-night evidence/i);
     expect(checkoutPage).toMatch(/Excess deposit \/ credit requiring review/);
-    expect(checkoutPage).toMatch(/Estimated balance due/);
+    expect(checkoutPage).toMatch(/Prepared folio total/);
+    expect(checkoutPage).not.toMatch(/roomChargeTotal/);
   });
 
   it("renders every blocker, not just the first", () => {
