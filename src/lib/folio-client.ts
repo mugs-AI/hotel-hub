@@ -119,11 +119,17 @@ export function useAddFolioItem(reservationId: string) {
 
 export function useUpdateFolioQuantity(reservationId: string) {
   const invalidate = useInvalidateFolio(reservationId);
-  return useMutation<unknown, FolioApiError, { lineId: string; quantity: number }>({
-    mutationFn: ({ lineId, quantity }) =>
+  return useMutation<
+    unknown,
+    FolioApiError,
+    // A quantity edit is a financial mutation: it carries its own operation
+    // key so a retried request can never apply twice.
+    { lineId: string; quantity: number; clientRequestId: string }
+  >({
+    mutationFn: ({ lineId, quantity, clientRequestId }) =>
       folioFetch(`/api/hotel/reservations/${reservationId}/folio/lines/${lineId}`, {
         method: "PATCH",
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, clientRequestId }),
       }),
     onSuccess: () => void invalidate(),
   });
