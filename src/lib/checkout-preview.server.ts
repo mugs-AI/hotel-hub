@@ -731,6 +731,42 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
     };
   },
 
+  async loadPreparedFolio(tenantId, reservationId, timezone) {
+    const { buildFolioView } = await import("./folio-store.server");
+    const dto = await buildFolioView({
+      tenantId,
+      reservationId,
+      actorKey: "system:checkout-preview",
+      timezone,
+      // Read-only projection: the preview never grants a mutation capability.
+      capability: {
+        canAddItem: false,
+        canAdjust: false,
+        canSetTaxClass: false,
+        canManageCharges: false,
+      },
+    });
+    const prepared = dto.lines.length > 0;
+    const grandTotalCents = dto.readiness.calculationComplete
+      ? toCents(dto.totals.grandTotal)
+      : null;
+    const blockers: Blocker[] = [];
+    if (!prepared) blockers.push(blocker("folio_not_prepared"));
+    for (const b of dto.blockers) {
+      blockers.push({
+        code: b.code,
+        severity: b.severity === "blocking" ? "blocking" : "warning",
+        message: b.message,
+      });
+    }
+    return {
+      prepared,
+      grandTotalCents,
+      totals: grandTotalCents === null ? null : dto.totals,
+      blockers,
+    };
+  },
+
   async getReceiptById(token, receiptId) {
     const { n3Receipts, isRealN3Id } = await import("./n3-receipts.server");
     if (!isRealN3Id(receiptId)) {
