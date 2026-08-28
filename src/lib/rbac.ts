@@ -84,9 +84,6 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:folio:tax_class": new Set(["owner", "front_desk"]),
   "hotel:charges:manage": new Set(["owner"]),
 
-
-
-
   // WP1 Housekeeping. Everyone operational sees and works the board — that is
   // the point of ONE engine, TWO experiences. Do Not Disturb is a capability
   // every operational role may hold: a housekeeper standing at the door is the
