@@ -61,11 +61,27 @@ export async function handleCheckIn({
       clientRequestId: typeof clientRequestId === "string" ? clientRequestId : null,
     });
 
+    // The check-in workflow — not a folio read — is what snapshots room
+    // nights. A failure here never blocks the guest: the folio can always be
+    // refreshed explicitly from the reservation workspace.
+    let folioNightsSnapshotted: number | null = null;
+    try {
+      const { refreshFolioRoomNights } = await import("@/lib/folio-store.server");
+      const refreshed = await refreshFolioRoomNights({
+        tenantId: ctx.session.tenantId!,
+        reservationId: id,
+        actorKey: ctx.session.n3UserKey,
+      });
+      folioNightsSnapshotted = refreshed.inserted;
+    } catch {
+      folioNightsSnapshotted = null;
+    }
+
     await logAudit({
       tenantId: ctx.session.tenantId,
       n3UserKey: ctx.session.n3UserKey,
       eventType: "hotel.reservation.check_in",
-      detail: { reservationId: id },
+      detail: { reservationId: id, folioNightsSnapshotted },
     });
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch (err) {

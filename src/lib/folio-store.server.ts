@@ -9,11 +9,7 @@
 //     server session context; request input is never trusted for tenancy.
 //   * All money is integer cents server-side. Display numbers only ever
 //     appear at the DTO boundary.
-import {
-  centsToAmount,
-  parseCents,
-  type RoundingMode,
-} from "./folio-money";
+import { centsToAmount, parseCents, type RoundingMode } from "./folio-money";
 import {
   canReverseLine,
   computeFolio,
@@ -27,6 +23,7 @@ import {
   type StoredFolioLine,
 } from "./folio";
 import {
+  isTaxClass,
   isUsableAddon,
   mappingStatus,
   validateAddonInput,
@@ -41,6 +38,7 @@ import {
   type FinancialSettings,
 } from "./financial-settings";
 import { folioReadinessProjection } from "./folio-readiness";
+import { decideClaim, operationFingerprint, type FolioOperation } from "./folio-operations";
 import { propertyTodayIso } from "./checkout-preview";
 import type {
   FolioCatalogueOptionDTO,
@@ -70,6 +68,8 @@ export interface FolioQuery<T> extends PromiseLike<ListRes<T>> {
 
 export interface FolioDb {
   from<T>(table: string): FolioQuery<T>;
+  /** Required for the atomic reversal transaction. */
+  rpc?(fn: string, args: Record<string, unknown>): PromiseLike<OneRes<unknown>>;
 }
 
 async function liveDb(): Promise<FolioDb> {
@@ -93,10 +93,24 @@ export class FolioError extends Error {
 }
 
 export function folioErrorStatus(code: string): number {
-  if (code === "reservation_not_found" || code === "line_not_found" || code === "item_not_found") {
+  if (
+    code === "reservation_not_found" ||
+    code === "line_not_found" ||
+    code === "item_not_found" ||
+    code === "folio_not_found"
+  ) {
     return 404;
   }
-  if (code === "display_name_exists" || code === "already_reversed") return 409;
+  if (
+    code === "display_name_exists" ||
+    code === "already_reversed" ||
+    code === "idempotency_conflict" ||
+    code === "line_not_reversible" ||
+    code === "room_night_not_reversible"
+  ) {
+    return 409;
+  }
+  if (code === "reversal_not_atomic") return 500;
   if (code.endsWith("_failed")) return 500;
   return 400;
 }
@@ -750,6 +764,138 @@ export async function ensureFolio(
   return inserted.data;
 }
 
+/**
+ * The authoritative folio for THIS reservation — read only, never created.
+ * Every line mutation proves its scope against the id returned here, so a
+ * line belonging to another reservation of the same tenant can never be
+ * reached through this reservation's route.
+ */
+export async function readFolioForReservation(
+  tenantId: string,
+  reservationId: string,
+  db: FolioDb,
+): Promise<FolioRow | null> {
+  const res = await db
+    .from<FolioRow>("hotel_folios")
+    .select("id, currency, status")
+    .eq("tenant_id", tenantId)
+    .eq("reservation_id", reservationId)
+    .maybeSingle();
+  if (res.error) throw new FolioError("folio_read_failed", 500);
+  return res.data ?? null;
+}
+
+// ------------------------------------------ operation-scoped idempotency
+
+type OperationRow = {
+  id: string;
+  operation: string;
+  folio_id: string | null;
+  target_line_id: string | null;
+  request_fingerprint: string;
+  result_line_id: string | null;
+};
+
+const OPERATION_COLS =
+  "id, operation, folio_id, target_line_id, request_fingerprint, result_line_id";
+
+/**
+ * Claim an operation key. Returns the replayed line id when the SAME
+ * operation, target and payload is retried; throws `idempotency_conflict`
+ * when the same client request id is reused for anything else.
+ */
+async function claimFolioOperation(
+  db: FolioDb,
+  input: {
+    tenantId: string;
+    operation: FolioOperation;
+    reservationId: string;
+    folioId: string | null;
+    lineId: string | null;
+    clientRequestId: string;
+    fingerprint: string;
+    actorKey: string;
+  },
+): Promise<{ replayLineId: string | null } | null> {
+  const existing = await db
+    .from<OperationRow>("hotel_folio_operations")
+    .select(OPERATION_COLS)
+    .eq("tenant_id", input.tenantId)
+    .eq("operation", input.operation)
+    .eq("client_request_id", input.clientRequestId)
+    .maybeSingle();
+  if (existing.error) throw new FolioError("folio_read_failed", 500);
+
+  const decision = decideClaim(
+    existing.data
+      ? {
+          operation: existing.data.operation,
+          folioId: existing.data.folio_id,
+          targetLineId: existing.data.target_line_id,
+          requestFingerprint: existing.data.request_fingerprint,
+          resultLineId: existing.data.result_line_id,
+        }
+      : null,
+    {
+      operation: input.operation,
+      folioId: input.folioId,
+      lineId: input.lineId,
+      fingerprint: input.fingerprint,
+    },
+  );
+  if (decision.kind === "conflict") throw new FolioError("idempotency_conflict", 409);
+  if (decision.kind === "replay") return { replayLineId: decision.resultLineId };
+  return null;
+}
+
+async function recordFolioOperation(
+  db: FolioDb,
+  input: {
+    tenantId: string;
+    operation: FolioOperation;
+    reservationId: string;
+    folioId: string | null;
+    lineId: string | null;
+    clientRequestId: string;
+    fingerprint: string;
+    resultLineId: string | null;
+    actorKey: string;
+  },
+): Promise<void> {
+  const res = await db.from<OperationRow>("hotel_folio_operations").insert({
+    tenant_id: input.tenantId,
+    operation: input.operation,
+    reservation_id: input.reservationId,
+    folio_id: input.folioId,
+    target_line_id: input.lineId,
+    client_request_id: input.clientRequestId,
+    request_fingerprint: input.fingerprint,
+    result_line_id: input.resultLineId,
+    actor_n3_user_key: input.actorKey,
+  });
+  // A concurrent identical claim is not an error: the unique index is the
+  // authority and the stored result is the same line.
+  if (res.error && !isDuplicate(res.error)) throw new FolioError("folio_write_failed", 500);
+}
+
+/** Read one line, proving tenant + folio + line in a single query. */
+async function readScopedLine(
+  db: FolioDb,
+  tenantId: string,
+  folioId: string,
+  lineId: string,
+): Promise<LineRow | null> {
+  const res = await db
+    .from<LineRow>("hotel_folio_lines")
+    .select(LINE_COLS)
+    .eq("tenant_id", tenantId)
+    .eq("folio_id", folioId)
+    .eq("id", lineId)
+    .maybeSingle();
+  if (res.error) throw new FolioError("folio_read_failed", 500);
+  return res.data ?? null;
+}
+
 function toStoredLine(row: LineRow, actorLabels: Map<string, string>): StoredFolioLine {
   return {
     id: row.id,
@@ -779,9 +925,11 @@ async function readActorLabels(
   const unique = Array.from(new Set(keys.filter(Boolean)));
   if (unique.length === 0) return out;
   const res = await db
-    .from<{ n3_user_key: string; display_name: string | null; email: string | null }>(
-      "hotel_user_directory",
-    )
+    .from<{
+      n3_user_key: string;
+      display_name: string | null;
+      email: string | null;
+    }>("hotel_user_directory")
     .select("n3_user_key, display_name, email")
     .eq("tenant_id", tenantId)
     .in("n3_user_key", unique);
@@ -947,6 +1095,40 @@ export async function syncRoomNights(
   return { inserted: res.data?.length ?? 0, unmappedRoomLabels };
 }
 
+/**
+ * Explicit, idempotent folio initialisation / refresh.
+ *
+ * This is the ONLY caller-visible way to create the folio and snapshot room
+ * nights, so reading a folio can never mutate one. Re-running it is safe:
+ * `planMissingRoomNights` only ever adds the (reservationRoom, stayDate)
+ * pairs that do not exist yet, and existing snapshots are never rewritten.
+ */
+export async function refreshFolioRoomNights(
+  input: { tenantId: string; reservationId: string; actorKey: string },
+  sb?: FolioDb,
+): Promise<{ folioId: string; inserted: number; unmappedRoomLabels: string[] }> {
+  const db = await resolveDb(sb);
+  const reservation = await readReservation(input.tenantId, input.reservationId, db);
+  const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
+  const result = await syncRoomNights(
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      actorKey: input.actorKey,
+    },
+    db,
+  );
+  return { folioId: folio.id, ...result };
+}
+
+/**
+ * Add one catalogue add-on to the reservation's authoritative folio.
+ *
+ * Scope proof: tenant + route reservation + that reservation's folio.
+ * Idempotency: operation- and target-specific (see `folio-operations`), so a
+ * reused client request id can only ever replay the identical add-on.
+ */
 export async function addAddonLine(
   input: {
     tenantId: string;
@@ -980,21 +1162,40 @@ export async function addAddonLine(
 
   const db = await resolveDb(sb);
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
-  const folio = await ensureFolio(
-    input.tenantId,
-    input.reservationId,
-    reservation.currency,
-    db,
-  );
+  const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
 
-  const replayed = await db
-    .from<LineRow>("hotel_folio_lines")
-    .select(LINE_COLS)
-    .eq("tenant_id", input.tenantId)
-    .eq("client_request_id", input.clientRequestId)
-    .maybeSingle();
-  if (replayed.error) throw new FolioError("folio_read_failed", 500);
-  if (replayed.data) return toStoredLine(replayed.data, new Map());
+  const fingerprint = operationFingerprint(
+    "folio.add_addon",
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      lineId: null,
+    },
+    {
+      catalogueId: input.catalogueId,
+      quantity,
+      unitPriceCents: input.unitPriceCents ?? null,
+      reason: typeof input.reason === "string" ? input.reason.trim() : null,
+    },
+  );
+  const claim = await claimFolioOperation(db, {
+    tenantId: input.tenantId,
+    operation: "folio.add_addon",
+    reservationId: input.reservationId,
+    folioId: folio.id,
+    lineId: null,
+    clientRequestId: input.clientRequestId,
+    fingerprint,
+    actorKey: input.actorKey,
+  });
+  if (claim) {
+    const replay = claim.replayLineId
+      ? await readScopedLine(db, input.tenantId, folio.id, claim.replayLineId)
+      : null;
+    if (replay) return toStoredLine(replay, new Map());
+    throw new FolioError("idempotency_conflict", 409);
+  }
 
   const item = await getAddonItem(input.tenantId, input.catalogueId, db);
   if (!item) throw new FolioError("item_not_found", 404);
@@ -1053,18 +1254,19 @@ export async function addAddonLine(
     })
     .select(LINE_COLS)
     .single();
-  if (inserted.error || !inserted.data) {
-    if (isDuplicate(inserted.error)) {
-      const replay = await db
-        .from<LineRow>("hotel_folio_lines")
-        .select(LINE_COLS)
-        .eq("tenant_id", input.tenantId)
-        .eq("client_request_id", input.clientRequestId)
-        .maybeSingle();
-      if (replay.data) return toStoredLine(replay.data, new Map());
-    }
-    throw new FolioError("folio_write_failed", 500);
-  }
+  if (inserted.error || !inserted.data) throw new FolioError("folio_write_failed", 500);
+
+  await recordFolioOperation(db, {
+    tenantId: input.tenantId,
+    operation: "folio.add_addon",
+    reservationId: input.reservationId,
+    folioId: folio.id,
+    lineId: null,
+    clientRequestId: input.clientRequestId,
+    fingerprint,
+    resultLineId: inserted.data.id,
+    actorKey: input.actorKey,
+  });
   return toStoredLine(inserted.data, new Map());
 }
 
@@ -1088,15 +1290,11 @@ export async function updateAddonQuantity(
     throw new FolioError("invalid_quantity", 400);
   }
   const db = await resolveDb(sb);
-  const current = await db
-    .from<LineRow>("hotel_folio_lines")
-    .select(LINE_COLS)
-    .eq("tenant_id", input.tenantId)
-    .eq("id", input.lineId)
-    .maybeSingle();
-  if (current.error) throw new FolioError("folio_read_failed", 500);
-  if (!current.data) throw new FolioError("line_not_found", 404);
-  const row = current.data;
+  // Full immutable scope: the line must belong to THIS reservation's folio.
+  const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
+  if (!folio) throw new FolioError("line_not_found", 404);
+  const row = await readScopedLine(db, input.tenantId, folio.id, input.lineId);
+  if (!row) throw new FolioError("line_not_found", 404);
   if (row.line_type !== "add_on") throw new FolioError("line_not_editable", 400);
   if (row.status !== "draft") throw new FolioError("line_not_editable", 400);
 
@@ -1113,7 +1311,9 @@ export async function updateAddonQuantity(
       updated_at: new Date().toISOString(),
     })
     .eq("tenant_id", input.tenantId)
+    .eq("folio_id", folio.id)
     .eq("id", input.lineId)
+    .eq("status", "draft")
     .select(LINE_COLS)
     .single();
   if (updated.error || !updated.data) throw new FolioError("folio_write_failed", 500);
@@ -1151,8 +1351,9 @@ export async function addOwnerAdjustment(
   if (input.lineType === "discount" && amount > 0) throw new FolioError("invalid_amount", 400);
   const reason = typeof input.reason === "string" ? input.reason.trim() : "";
   if (reason.length < 3 || reason.length > 240) throw new FolioError("reason_required", 400);
+  // A tax class is an enum, never free text.
   const taxClass = input.taxClass === undefined || input.taxClass === null ? null : input.taxClass;
-  if (taxClass !== null && typeof taxClass !== "string") {
+  if (taxClass !== null && !isTaxClass(taxClass)) {
     throw new FolioError("invalid_tax_class", 400);
   }
 
@@ -1160,14 +1361,33 @@ export async function addOwnerAdjustment(
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
   const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
 
-  const replayed = await db
-    .from<LineRow>("hotel_folio_lines")
-    .select(LINE_COLS)
-    .eq("tenant_id", input.tenantId)
-    .eq("client_request_id", input.clientRequestId)
-    .maybeSingle();
-  if (replayed.error) throw new FolioError("folio_read_failed", 500);
-  if (replayed.data) return toStoredLine(replayed.data, new Map());
+  const fingerprint = operationFingerprint(
+    "folio.adjustment",
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      lineId: null,
+    },
+    { lineType: input.lineType, description, amountCents: amount, taxClass, reason },
+  );
+  const claim = await claimFolioOperation(db, {
+    tenantId: input.tenantId,
+    operation: "folio.adjustment",
+    reservationId: input.reservationId,
+    folioId: folio.id,
+    lineId: null,
+    clientRequestId: input.clientRequestId,
+    fingerprint,
+    actorKey: input.actorKey,
+  });
+  if (claim) {
+    const replay = claim.replayLineId
+      ? await readScopedLine(db, input.tenantId, folio.id, claim.replayLineId)
+      : null;
+    if (replay) return toStoredLine(replay, new Map());
+    throw new FolioError("idempotency_conflict", 409);
+  }
 
   const inserted = await db
     .from<LineRow>("hotel_folio_lines")
@@ -1189,12 +1409,27 @@ export async function addOwnerAdjustment(
     .select(LINE_COLS)
     .single();
   if (inserted.error || !inserted.data) throw new FolioError("folio_write_failed", 500);
+
+  await recordFolioOperation(db, {
+    tenantId: input.tenantId,
+    operation: "folio.adjustment",
+    reservationId: input.reservationId,
+    folioId: folio.id,
+    lineId: null,
+    clientRequestId: input.clientRequestId,
+    fingerprint,
+    resultLineId: inserted.data.id,
+    actorKey: input.actorKey,
+  });
   return toStoredLine(inserted.data, new Map());
 }
 
 /**
- * Corrections are reversal-only: the original line is marked reversed and a
- * mirrored reversal line is written. Nothing is ever deleted or rewritten.
+ * Corrections are reversal-only, and the reversal is ATOMIC: the mirrored
+ * negative line, the `reversed` status on the original and the idempotency
+ * claim are written by one transactional database function
+ * (`hotelhub_reverse_folio_line`). There is no two-statement path — a crash
+ * can never leave a folio that is counted twice.
  */
 export async function reverseFolioLine(
   input: {
@@ -1210,91 +1445,48 @@ export async function reverseFolioLine(
   if (typeof input.clientRequestId !== "string" || !UUID_RE.test(input.clientRequestId)) {
     throw new FolioError("invalid_client_request_id", 400);
   }
-  const reason = typeof input.reason === "string" ? input.reason : "";
+  const reason = typeof input.reason === "string" ? input.reason.trim() : "";
+  if (reason.length < 3 || reason.length > 240) throw new FolioError("reason_required", 400);
+
   const db = await resolveDb(sb);
+  if (typeof db.rpc !== "function") {
+    // Fail closed: a non-transactional fallback would be exactly the defect
+    // this correction removes.
+    throw new FolioError("reversal_not_atomic", 500);
+  }
+  const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
+  if (!folio) throw new FolioError("line_not_found", 404);
 
-  const replayed = await db
-    .from<LineRow>("hotel_folio_lines")
-    .select(LINE_COLS)
-    .eq("tenant_id", input.tenantId)
-    .eq("client_request_id", input.clientRequestId)
-    .maybeSingle();
-  if (replayed.error) throw new FolioError("folio_read_failed", 500);
-  if (replayed.data) return { reversal: toStoredLine(replayed.data, new Map()) };
-
-  const current = await db
-    .from<LineRow>("hotel_folio_lines")
-    .select(LINE_COLS)
-    .eq("tenant_id", input.tenantId)
-    .eq("id", input.lineId)
-    .maybeSingle();
-  if (current.error) throw new FolioError("folio_read_failed", 500);
-  const row = current.data;
-
-  const existingReversal = row
-    ? await db
-        .from<LineRow>("hotel_folio_lines")
-        .select("id")
-        .eq("tenant_id", input.tenantId)
-        .eq("reverses_line_id", input.lineId)
-        .maybeSingle()
-    : { data: null, error: null };
-  if (existingReversal.error) throw new FolioError("folio_read_failed", 500);
-
-  const check = canReverseLine(
-    row
-      ? { status: row.status as FolioLineStatus, lineType: row.line_type as FolioLineType }
-      : null,
-    reason,
-    Boolean(existingReversal.data),
+  const fingerprint = operationFingerprint(
+    "folio.reverse",
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      lineId: input.lineId,
+    },
+    { reason },
   );
-  if (!check.ok) {
-    throw new FolioError(check.code, check.code === "line_not_found" ? 404 : 409);
+
+  const res = await db.rpc("hotelhub_reverse_folio_line", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_line_id: input.lineId,
+    p_reason: reason,
+    p_client_request_id: input.clientRequestId,
+    p_actor_n3_user_key: input.actorKey,
+    p_request_fingerprint: fingerprint,
+  });
+  if (res.error) throw new FolioError("folio_write_failed", 500);
+  const payload = res.data as { ok?: boolean; code?: string; lineId?: string | null } | null;
+  if (!payload || typeof payload !== "object" || payload.ok !== true) {
+    const code = typeof payload?.code === "string" ? payload.code : "folio_write_failed";
+    throw new FolioError(code, folioErrorStatus(code));
   }
-  const original = row!;
-
-  const inserted = await db
-    .from<LineRow>("hotel_folio_lines")
-    .insert({
-      tenant_id: input.tenantId,
-      folio_id: (
-        await ensureFolio(
-          input.tenantId,
-          input.reservationId,
-          (await readReservation(input.tenantId, input.reservationId, db)).currency,
-          db,
-        )
-      ).id,
-      line_type: "reversal",
-      status: "committed",
-      tax_class: original.tax_class,
-      description_snapshot: `Reversal — ${original.description_snapshot}`.slice(0, 160),
-      quantity: 1,
-      unit_price_cents: -Number(original.subtotal_cents),
-      subtotal_cents: -Number(original.subtotal_cents),
-      tax_snapshot: { source: "reversal", reversesLineId: original.id },
-      reason: reason.trim(),
-      reverses_line_id: original.id,
-      actor_n3_user_key: input.actorKey,
-      client_request_id: input.clientRequestId,
-    })
-    .select(LINE_COLS)
-    .single();
-  if (inserted.error || !inserted.data) {
-    if (isDuplicate(inserted.error)) throw new FolioError("already_reversed", 409);
-    throw new FolioError("folio_write_failed", 500);
-  }
-
-  const marked = await db
-    .from<LineRow>("hotel_folio_lines")
-    .update({ status: "reversed", updated_at: new Date().toISOString() })
-    .eq("tenant_id", input.tenantId)
-    .eq("id", original.id)
-    .select("id")
-    .maybeSingle();
-  if (marked.error) throw new FolioError("folio_write_failed", 500);
-
-  return { reversal: toStoredLine(inserted.data, new Map()) };
+  const reversalId = typeof payload.lineId === "string" ? payload.lineId : null;
+  const row = reversalId ? await readScopedLine(db, input.tenantId, folio.id, reversalId) : null;
+  if (!row) throw new FolioError("folio_read_failed", 500);
+  return { reversal: toStoredLine(row, new Map()) };
 }
 
 // -------------------------------------------------------------- folio view
@@ -1318,37 +1510,31 @@ export async function buildFolioView(
 ): Promise<FolioViewDTO> {
   const db = await resolveDb(sb);
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
-  const folio = await ensureFolio(
-    input.tenantId,
-    input.reservationId,
-    reservation.currency,
-    db,
-  );
-  const { unmappedRoomLabels } = await syncRoomNights(
-    {
-      tenantId: input.tenantId,
-      reservationId: input.reservationId,
-      folioId: folio.id,
-      actorKey: input.actorKey,
-    },
-    db,
-  );
+  // READ-ONLY. A GET never creates a folio and never snapshots a room night:
+  // room-night snapshots are written by the check-in workflow and by the
+  // explicit `refreshFolioRoomNights` endpoint.
+  const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
 
-  const [{ lines, rows }, settings, taxProfile, evidence, catalogue] = await Promise.all([
-    readFolioLines(input.tenantId, folio.id, db),
+  const { byRoomId, rooms } = await readReservationRooms(input.tenantId, input.reservationId, db);
+  const roomLabelByReservationRoom = new Map<string, string>();
+  const unmappedRoomLabels: string[] = [];
+  for (const r of rooms) {
+    const hotelRoom = byRoomId.get(r.hotel_room_id);
+    const label = roomLabelOf(hotelRoom);
+    roomLabelByReservationRoom.set(r.id, label);
+    if (!hotelRoom?.n3_stock_id) unmappedRoomLabels.push(label);
+  }
+
+  const [linesResult, settings, taxProfile, evidence, catalogue] = await Promise.all([
+    folio
+      ? readFolioLines(input.tenantId, folio.id, db)
+      : Promise.resolve({ rows: [] as LineRow[], lines: [] as StoredFolioLine[] }),
     readFinancialSettings(input.tenantId, db),
     readTaxProfile(input.tenantId, input.reservationId, db),
     listTourismTaxEvidence(input.tenantId, input.reservationId, db),
     listAddonItems(input.tenantId, {}, db),
   ]);
-
-  const { byRoomId, rooms } = await readReservationRooms(
-    input.tenantId,
-    input.reservationId,
-    db,
-  );
-  const roomLabelByReservationRoom = new Map<string, string>();
-  for (const r of rooms) roomLabelByReservationRoom.set(r.id, roomLabelOf(byRoomId.get(r.hotel_room_id)));
+  const { lines, rows } = linesResult;
 
   const decorated: StoredFolioLine[] = lines.map((l) => ({
     ...l,
@@ -1400,8 +1586,7 @@ export async function buildFolioView(
     reversesLineId: l.reversesLineId,
     actorLabel: l.actorLabel,
     createdAt: l.createdAt,
-    canEditQuantity:
-      input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
+    canEditQuantity: input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
     canReverse:
       input.capability.canAdjust &&
       l.lineType !== "room_night" &&

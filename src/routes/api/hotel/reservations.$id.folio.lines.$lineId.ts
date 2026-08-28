@@ -5,6 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { updateAddonQuantity } from "@/lib/folio-store.server";
+import { validateQuantityBody } from "@/lib/folio-input";
 import {
   folioDeny,
   folioFailure,
@@ -28,11 +29,13 @@ export async function handleUpdateFolioLine({
   if (!isUuid(id) || !isUuid(lineId)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
+    const checked = validateQuantityBody(body);
+    if (!checked.ok) return folioDeny(400, checked.code);
     const line = await updateAddonQuantity({
       tenantId: actor.tenantId,
       reservationId: id,
       lineId,
-      quantity: body.quantity,
+      quantity: checked.value.quantity,
       actorKey: actor.actorKey,
     });
     await logAudit({

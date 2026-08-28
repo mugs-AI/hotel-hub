@@ -6,6 +6,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { addAddonLine } from "@/lib/folio-store.server";
+import { validateAddonLineBody } from "@/lib/folio-input";
 import {
   folioDeny,
   folioFailure,
@@ -28,14 +29,17 @@ export async function handleAddFolioLine({
   if (!isUuid(id)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
+    // Enums, ranges and unknown fields are settled at the boundary.
+    const checked = validateAddonLineBody(body);
+    if (!checked.ok) return folioDeny(400, checked.code);
     const line = await addAddonLine({
       tenantId: actor.tenantId,
       reservationId: id,
-      catalogueId: body.catalogueId,
-      quantity: body.quantity,
-      unitPriceCents: body.unitPriceCents,
-      reason: body.reason,
-      clientRequestId: body.clientRequestId,
+      catalogueId: checked.value.catalogueId,
+      quantity: checked.value.quantity,
+      unitPriceCents: checked.value.unitPriceCents,
+      reason: checked.value.reason,
+      clientRequestId: checked.value.clientRequestId,
       actorKey: actor.actorKey,
       canOverridePrice: actor.can("hotel:folio:adjust"),
     });

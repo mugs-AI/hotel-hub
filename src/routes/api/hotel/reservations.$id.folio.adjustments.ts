@@ -7,6 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { addOwnerAdjustment } from "@/lib/folio-store.server";
+import { validateAdjustmentBody } from "@/lib/folio-input";
 import {
   folioDeny,
   folioFailure,
@@ -29,15 +30,17 @@ export async function handleAddFolioAdjustment({
   if (!isUuid(id)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
+    const checked = validateAdjustmentBody(body);
+    if (!checked.ok) return folioDeny(400, checked.code);
     const line = await addOwnerAdjustment({
       tenantId: actor.tenantId,
       reservationId: id,
-      lineType: body.lineType,
-      description: body.description,
-      amountCents: body.amountCents,
-      taxClass: body.taxClass,
-      reason: body.reason,
-      clientRequestId: body.clientRequestId,
+      lineType: checked.value.lineType,
+      description: checked.value.description,
+      amountCents: checked.value.amountCents,
+      taxClass: checked.value.taxClass,
+      reason: checked.value.reason,
+      clientRequestId: checked.value.clientRequestId,
       actorKey: actor.actorKey,
     });
     await logAudit({

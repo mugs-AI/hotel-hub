@@ -29,7 +29,11 @@ export type TaxMapping = {
   n3TaxCodeSnapshot: string | null;
 };
 
-export type TaxableClass = "accommodation" | "food_and_beverage" | "parking" | "other_taxable_service";
+export type TaxableClass =
+  | "accommodation"
+  | "food_and_beverage"
+  | "parking"
+  | "other_taxable_service";
 
 export type FinancialSettings = {
   tenantId: string;
@@ -243,7 +247,8 @@ export function validateSettingsPatch(input: unknown): PatchValidation {
     if (!isObj(input.exempt)) return { ok: false, code: "invalid_exempt_mapping" };
     const id = idOrNull(input.exempt.n3TaxCodeId);
     const snap = idOrNull(input.exempt.n3TaxCodeSnapshot);
-    if (id === undefined || snap === undefined) return { ok: false, code: "invalid_exempt_mapping" };
+    if (id === undefined || snap === undefined)
+      return { ok: false, code: "invalid_exempt_mapping" };
     patch.exempt = { n3TaxCodeId: id, n3TaxCodeSnapshot: snap };
   }
 
@@ -307,7 +312,10 @@ export function validateSettingsPatch(input: unknown): PatchValidation {
       typeof out.centsPerRoomNight === "number" &&
       out.centsPerRoomNight === 0
     ) {
-      return { ok: false, code: `${key === "tourismTax" ? "tourism_tax" : "local_levy"}_amount_required` };
+      return {
+        ok: false,
+        code: `${key === "tourismTax" ? "tourism_tax" : "local_levy"}_amount_required`,
+      };
     }
     const from = out.effectiveFrom as string | null | undefined;
     const to = out.effectiveTo as string | null | undefined;

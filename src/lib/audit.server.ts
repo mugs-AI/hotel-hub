@@ -77,6 +77,7 @@ export type AuditEventType =
   | "hotel.charges.catalogue_updated"
   | "hotel.charges.settings_updated"
   | "hotel.folio.viewed"
+  | "hotel.folio.refreshed"
   | "hotel.folio.item_added"
   | "hotel.folio.quantity_updated"
   | "hotel.folio.adjusted"

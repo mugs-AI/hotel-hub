@@ -3,6 +3,7 @@
 // The card is explicit that this is PREPARATION ONLY: nothing here posts to
 // N3, creates a CashMemo, matches a deposit or issues a refund.
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,8 @@ import {
   folioErrorMessage,
   useAddFolioAdjustment,
   useAddFolioItem,
+  useAddTourismTaxEvidence,
+  useRefreshFolio,
   useReservationFolio,
   useReverseFolioLine,
   useSetGuestTaxClass,
@@ -31,13 +34,7 @@ import { makeRequestId } from "@/lib/idempotency";
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 
-export function FolioCard({
-  reservationId,
-  canView,
-}: {
-  reservationId: string;
-  canView: boolean;
-}) {
+export function FolioCard({ reservationId, canView }: { reservationId: string; canView: boolean }) {
   const q = useReservationFolio(reservationId, canView);
   const [open, setOpen] = useState(false);
   const addItem = useAddFolioItem(reservationId);
@@ -45,6 +42,12 @@ export function FolioCard({
   const reverse = useReverseFolioLine(reservationId);
   const adjust = useAddFolioAdjustment(reservationId);
   const setTaxClass = useSetGuestTaxClass(reservationId);
+  const refresh = useRefreshFolio(reservationId);
+  const addEvidence = useAddTourismTaxEvidence(reservationId);
+  const [evidenceLabel, setEvidenceLabel] = useState("");
+  const [evidenceAmount, setEvidenceAmount] = useState("");
+  const [evidenceReference, setEvidenceReference] = useState("");
+  const [evidenceDate, setEvidenceDate] = useState("");
   const [reverseTarget, setReverseTarget] = useState<FolioLineDTO | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [discountOpen, setDiscountOpen] = useState(false);
@@ -85,14 +88,24 @@ export function FolioCard({
                 ? "…"
                 : "—"}
           </p>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-1 text-sm font-medium underline underline-offset-2"
-            style={{ color: TEAL }}
-          >
-            {open ? "Hide details" : "Details"}
-          </button>
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="text-sm font-medium underline underline-offset-2"
+              style={{ color: TEAL }}
+            >
+              {open ? "Hide details" : "Details"}
+            </button>
+            <Link
+              to="/reservations/$id/folio-print"
+              params={{ id: reservationId }}
+              className="text-sm font-medium underline underline-offset-2"
+              style={{ color: NAVY }}
+            >
+              Print folio
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -119,6 +132,28 @@ export function FolioCard({
                 </li>
               ))}
             </ul>
+          ) : null}
+
+          {dto.capability.canAddItem ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={refresh.isPending}
+                onClick={() =>
+                  refresh.mutate(undefined, {
+                    onSuccess: () => toast.success("Folio prepared from the reservation."),
+                    onError: (err) => toast.error(folioErrorMessage(err)),
+                  })
+                }
+              >
+                {refresh.isPending ? "Preparing…" : "Prepare / refresh room nights"}
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Viewing a folio never changes it. Room nights are snapshotted at check-in, or here.
+              </span>
+            </div>
           ) : null}
 
           <div className="overflow-x-auto">
@@ -272,6 +307,108 @@ export function FolioCard({
                   </option>
                 ))}
               </select>
+            </div>
+          ) : null}
+
+          {dto.capability.canManageCharges ? (
+            <div className="rounded-lg border p-3" style={{ borderColor: `${NAVY}1F` }}>
+              <p className="text-sm font-semibold" style={{ color: NAVY }}>
+                Tourism Tax already collected by an OTA / DPSP
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Record manual evidence so the guest is credited instead of charged twice. Only the
+                collecting party, a reference and the amount are stored — never card or bank data.
+              </p>
+
+              {dto.tourismTaxEvidence.length > 0 ? (
+                <ul className="mt-3 space-y-1 text-sm">
+                  {dto.tourismTaxEvidence.map((e) => (
+                    <li
+                      key={e.id}
+                      className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-1"
+                    >
+                      <span>{e.sourceLabel}</span>
+                      <span className="font-mono">{e.reference ?? "—"}</span>
+                      <span>{e.collectedOn ?? "—"}</span>
+                      <span>{formatFolioMoney(e.amount, dto.reservation.currency)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">No evidence recorded.</p>
+              )}
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                <div>
+                  <Label htmlFor="ttx-source">Collected by</Label>
+                  <Input
+                    id="ttx-source"
+                    value={evidenceLabel}
+                    onChange={(e) => setEvidenceLabel(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ttx-ref">Reference</Label>
+                  <Input
+                    id="ttx-ref"
+                    value={evidenceReference}
+                    onChange={(e) => setEvidenceReference(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ttx-date">Collected on</Label>
+                  <Input
+                    id="ttx-date"
+                    type="date"
+                    value={evidenceDate}
+                    onChange={(e) => setEvidenceDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ttx-amount">Amount</Label>
+                  <Input
+                    id="ttx-amount"
+                    inputMode="decimal"
+                    value={evidenceAmount}
+                    onChange={(e) => setEvidenceAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                disabled={addEvidence.isPending}
+                onClick={() => {
+                  const amount = Number(evidenceAmount);
+                  if (!Number.isFinite(amount) || amount < 0) {
+                    toast.error("Enter the amount that was already collected.");
+                    return;
+                  }
+                  addEvidence.mutate(
+                    {
+                      sourceLabel: evidenceLabel.trim(),
+                      reference: evidenceReference.trim() || null,
+                      collectedOn: evidenceDate || null,
+                      amountCents: Math.round(amount * 100),
+                      clientRequestId: makeRequestId(),
+                    },
+                    {
+                      onSuccess: () => {
+                        setEvidenceLabel("");
+                        setEvidenceAmount("");
+                        setEvidenceReference("");
+                        setEvidenceDate("");
+                        toast.success("Tourism Tax evidence recorded.");
+                      },
+                      onError: (err) => toast.error(folioErrorMessage(err)),
+                    },
+                  );
+                }}
+              >
+                Record evidence
+              </Button>
             </div>
           ) : null}
 

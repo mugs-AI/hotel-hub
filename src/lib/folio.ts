@@ -21,11 +21,7 @@ import {
   sumCents,
 } from "./folio-money";
 import { isTaxableClass, type TaxClass } from "./charges-catalogue";
-import {
-  isEffectiveOn,
-  resolveServiceTaxRate,
-  type FinancialSettings,
-} from "./financial-settings";
+import { isEffectiveOn, resolveServiceTaxRate, type FinancialSettings } from "./financial-settings";
 
 export type FolioLineType =
   | "room_night"
@@ -224,7 +220,8 @@ export type TourismTaxInput = {
 };
 
 export function assessTourismTax(input: TourismTaxInput): TourismTaxAssessment {
-  const { settings, guestTaxClass, occupiedRoomNights, alreadyCollectedCents, propertyDate } = input;
+  const { settings, guestTaxClass, occupiedRoomNights, alreadyCollectedCents, propertyDate } =
+    input;
   const blockers: FolioBlocker[] = [];
   const cfg = settings.tourismTax;
   const empty = (): TourismTaxAssessment => ({
@@ -257,7 +254,8 @@ export function assessTourismTax(input: TourismTaxInput): TourismTaxAssessment {
     blockers.push({
       code: "tourism_tax_amount_invalid",
       severity: "blocking",
-      message: "Tourism Tax amount could not be calculated. Check the configured amount per room-night.",
+      message:
+        "Tourism Tax amount could not be calculated. Check the configured amount per room-night.",
     });
     return empty();
   }
@@ -267,7 +265,8 @@ export function assessTourismTax(input: TourismTaxInput): TourismTaxAssessment {
     blockers.push({
       code: "tourism_tax_collected_by_platform",
       severity: "advisory",
-      message: "Tourism Tax was already collected by the booking platform, so it is not charged again here.",
+      message:
+        "Tourism Tax was already collected by the booking platform, so it is not charged again here.",
     });
   }
   return {
@@ -322,9 +321,7 @@ export function computeFolio(input: FolioComputationInput): FolioComputation {
   const derived: DerivedLine[] = [];
   const { settings } = input;
 
-  const charges = sumCents(
-    input.lines.filter(isEffectiveLine).map((l) => l.subtotalCents),
-  );
+  const charges = sumCents(input.lines.filter(isEffectiveLine).map((l) => l.subtotalCents));
   if (charges === null) {
     return {
       derived,
@@ -355,7 +352,8 @@ export function computeFolio(input: FolioComputationInput): FolioComputation {
     const base = sumCents(
       [...net.entries()].filter(([cls]) => isTaxableClass(cls)).map(([, v]) => v),
     );
-    const amount = base === null ? null : applyBasisPoints(Math.max(0, base), settings.serviceCharge.percentBp);
+    const amount =
+      base === null ? null : applyBasisPoints(Math.max(0, base), settings.serviceCharge.percentBp);
     if (amount === null) {
       blockers.push({
         code: "service_charge_invalid",
@@ -457,7 +455,8 @@ export function computeFolio(input: FolioComputationInput): FolioComputation {
       blockers.push({
         code: "local_levy_invalid",
         severity: "blocking",
-        message: "The local levy could not be calculated. Check the configured amount per room-night.",
+        message:
+          "The local levy could not be calculated. Check the configured amount per room-night.",
       });
     } else {
       localLevy = amount;

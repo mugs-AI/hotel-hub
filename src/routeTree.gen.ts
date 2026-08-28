@@ -22,6 +22,7 @@ import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
 import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
 import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
+import { Route as ReservationsIdFolioPrintRouteImport } from './routes/reservations.$id_.folio-print'
 import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$id_.edit'
 import { Route as ReservationsIdCheckoutRouteImport } from './routes/reservations.$id_.checkout'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
@@ -61,6 +62,7 @@ import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './rou
 import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
 import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
 import { Route as ApiHotelChargesCatalogueItemIdRouteImport } from './routes/api/hotel/charges.catalogue.$itemId'
+import { Route as ApiHotelReservationsIdFolioRefreshRouteImport } from './routes/api/hotel/reservations.$id.folio.refresh'
 import { Route as ApiHotelReservationsIdFolioLinesRouteImport } from './routes/api/hotel/reservations.$id.folio.lines'
 import { Route as ApiHotelReservationsIdFolioAdjustmentsRouteImport } from './routes/api/hotel/reservations.$id.folio.adjustments'
 import { Route as ApiHotelReservationsIdDepositsPreviewRouteImport } from './routes/api/hotel/reservations.$id.deposits.preview'
@@ -135,6 +137,12 @@ const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
   path: '/reservations/$id/print',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReservationsIdFolioPrintRoute =
+  ReservationsIdFolioPrintRouteImport.update({
+    id: '/reservations/$id_/folio-print',
+    path: '/reservations/$id/folio-print',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ReservationsIdEditRoute = ReservationsIdEditRouteImport.update({
   id: '/reservations/$id_/edit',
   path: '/reservations/$id/edit',
@@ -345,6 +353,12 @@ const ApiHotelChargesCatalogueItemIdRoute =
     path: '/$itemId',
     getParentRoute: () => ApiHotelChargesCatalogueRoute,
   } as any)
+const ApiHotelReservationsIdFolioRefreshRoute =
+  ApiHotelReservationsIdFolioRefreshRouteImport.update({
+    id: '/refresh',
+    path: '/refresh',
+    getParentRoute: () => ApiHotelReservationsIdFolioRoute,
+  } as any)
 const ApiHotelReservationsIdFolioLinesRoute =
   ApiHotelReservationsIdFolioLinesRouteImport.update({
     id: '/lines',
@@ -420,6 +434,7 @@ export interface FileRoutesByFullPath {
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
+  '/reservations/$id/folio-print': typeof ReservationsIdFolioPrintRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRouteWithChildren
@@ -444,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
+  '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -481,6 +497,7 @@ export interface FileRoutesByTo {
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id/edit': typeof ReservationsIdEditRoute
+  '/reservations/$id/folio-print': typeof ReservationsIdFolioPrintRoute
   '/reservations/$id/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRouteWithChildren
@@ -505,6 +522,7 @@ export interface FileRoutesByTo {
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
+  '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -543,6 +561,7 @@ export interface FileRoutesById {
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id_/checkout': typeof ReservationsIdCheckoutRoute
   '/reservations/$id_/edit': typeof ReservationsIdEditRoute
+  '/reservations/$id_/folio-print': typeof ReservationsIdFolioPrintRoute
   '/reservations/$id_/print': typeof ReservationsIdPrintRoute
   '/api/hotel/booking-sources/$id': typeof ApiHotelBookingSourcesIdRoute
   '/api/hotel/charges/catalogue': typeof ApiHotelChargesCatalogueRouteWithChildren
@@ -567,6 +586,7 @@ export interface FileRoutesById {
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
+  '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -606,6 +626,7 @@ export interface FileRouteTypes {
     | '/api/session/me'
     | '/reservations/$id/checkout'
     | '/reservations/$id/edit'
+    | '/reservations/$id/folio-print'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/charges/catalogue'
@@ -630,6 +651,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/lines'
+    | '/api/hotel/reservations/$id/folio/refresh'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -667,6 +689,7 @@ export interface FileRouteTypes {
     | '/api/session/me'
     | '/reservations/$id/checkout'
     | '/reservations/$id/edit'
+    | '/reservations/$id/folio-print'
     | '/reservations/$id/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/charges/catalogue'
@@ -691,6 +714,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/lines'
+    | '/api/hotel/reservations/$id/folio/refresh'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -728,6 +752,7 @@ export interface FileRouteTypes {
     | '/api/session/me'
     | '/reservations/$id_/checkout'
     | '/reservations/$id_/edit'
+    | '/reservations/$id_/folio-print'
     | '/reservations/$id_/print'
     | '/api/hotel/booking-sources/$id'
     | '/api/hotel/charges/catalogue'
@@ -752,6 +777,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/lines'
+    | '/api/hotel/reservations/$id/folio/refresh'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -790,6 +816,7 @@ export interface RootRouteChildren {
   ApiSessionMeRoute: typeof ApiSessionMeRoute
   ReservationsIdCheckoutRoute: typeof ReservationsIdCheckoutRoute
   ReservationsIdEditRoute: typeof ReservationsIdEditRoute
+  ReservationsIdFolioPrintRoute: typeof ReservationsIdFolioPrintRoute
   ReservationsIdPrintRoute: typeof ReservationsIdPrintRoute
   ApiHotelChargesCatalogueRoute: typeof ApiHotelChargesCatalogueRouteWithChildren
   ApiHotelChargesSettingsRoute: typeof ApiHotelChargesSettingsRoute
@@ -888,6 +915,13 @@ declare module '@tanstack/react-router' {
       path: '/reservations/$id/print'
       fullPath: '/reservations/$id/print'
       preLoaderRoute: typeof ReservationsIdPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/folio-print': {
+      id: '/reservations/$id_/folio-print'
+      path: '/reservations/$id/folio-print'
+      fullPath: '/reservations/$id/folio-print'
+      preLoaderRoute: typeof ReservationsIdFolioPrintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reservations/$id_/edit': {
@@ -1163,6 +1197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelChargesCatalogueItemIdRouteImport
       parentRoute: typeof ApiHotelChargesCatalogueRoute
     }
+    '/api/hotel/reservations/$id/folio/refresh': {
+      id: '/api/hotel/reservations/$id/folio/refresh'
+      path: '/refresh'
+      fullPath: '/api/hotel/reservations/$id/folio/refresh'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioRefreshRouteImport
+      parentRoute: typeof ApiHotelReservationsIdFolioRoute
+    }
     '/api/hotel/reservations/$id/folio/lines': {
       id: '/api/hotel/reservations/$id/folio/lines'
       path: '/lines'
@@ -1293,6 +1334,7 @@ const ApiHotelReservationsIdFolioLinesRouteWithChildren =
 interface ApiHotelReservationsIdFolioRouteChildren {
   ApiHotelReservationsIdFolioAdjustmentsRoute: typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   ApiHotelReservationsIdFolioLinesRoute: typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
+  ApiHotelReservationsIdFolioRefreshRoute: typeof ApiHotelReservationsIdFolioRefreshRoute
 }
 
 const ApiHotelReservationsIdFolioRouteChildren: ApiHotelReservationsIdFolioRouteChildren =
@@ -1301,6 +1343,8 @@ const ApiHotelReservationsIdFolioRouteChildren: ApiHotelReservationsIdFolioRoute
       ApiHotelReservationsIdFolioAdjustmentsRoute,
     ApiHotelReservationsIdFolioLinesRoute:
       ApiHotelReservationsIdFolioLinesRouteWithChildren,
+    ApiHotelReservationsIdFolioRefreshRoute:
+      ApiHotelReservationsIdFolioRefreshRoute,
   }
 
 const ApiHotelReservationsIdFolioRouteWithChildren =
@@ -1450,6 +1494,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSessionMeRoute: ApiSessionMeRoute,
   ReservationsIdCheckoutRoute: ReservationsIdCheckoutRoute,
   ReservationsIdEditRoute: ReservationsIdEditRoute,
+  ReservationsIdFolioPrintRoute: ReservationsIdFolioPrintRoute,
   ReservationsIdPrintRoute: ReservationsIdPrintRoute,
   ApiHotelChargesCatalogueRoute: ApiHotelChargesCatalogueRouteWithChildren,
   ApiHotelChargesSettingsRoute: ApiHotelChargesSettingsRoute,
