@@ -11,7 +11,7 @@
 -- service-role client behind the N3 session + RBAC guards.
 --
 -- Rollback, in this exact order:
---   1. drop function public.hotelhub_reverse_folio_line(uuid,uuid,uuid,text,uuid,text);
+--   1. drop function public.hotelhub_reverse_folio_line(uuid,uuid,uuid,text,uuid,text,text);
 --   2. drop the seven tables, children first:
 --        hotel_folio_operations, hotel_tourism_tax_evidence,
 --        hotel_reservation_tax_profile, hotel_folio_lines, hotel_folios,
@@ -272,3 +272,157 @@ create unique index if not exists hotel_tourism_tax_evidence_request_uidx
 
 grant all on public.hotel_tourism_tax_evidence to service_role;
 alter table public.hotel_tourism_tax_evidence enable row level security;
+
+-- ------------------- F. operation-scoped idempotency (target + fingerprint)
+--
+-- A client request id alone is NOT a safe idempotency key: the same id could
+-- be replayed against a different operation, a different folio line, or with
+-- a different payload. Every mutating folio operation therefore claims a row
+-- keyed by (tenant, operation, client_request_id) and stores the immutable
+-- target scope plus a fingerprint of the request. A replay with the same
+-- fingerprint returns the original result; a replay with a different
+-- fingerprint is a conflict and is refused.
+
+create table if not exists public.hotel_folio_operations (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.hotel_tenants(id) on delete cascade,
+  operation text not null check (operation in (
+    'folio.add_addon','folio.adjustment','folio.reverse','folio.tourism_tax_evidence'
+  )),
+  reservation_id uuid not null references public.hotel_reservations(id) on delete cascade,
+  folio_id uuid references public.hotel_folios(id) on delete cascade,
+  target_line_id uuid references public.hotel_folio_lines(id) on delete cascade,
+  client_request_id uuid not null,
+  request_fingerprint text not null check (length(request_fingerprint) between 4 and 128),
+  result_line_id uuid references public.hotel_folio_lines(id) on delete set null,
+  actor_n3_user_key text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists hotel_folio_operations_key_uidx
+  on public.hotel_folio_operations (tenant_id, operation, client_request_id);
+create index if not exists hotel_folio_operations_target_idx
+  on public.hotel_folio_operations (tenant_id, reservation_id, created_at);
+
+grant all on public.hotel_folio_operations to service_role;
+alter table public.hotel_folio_operations enable row level security;
+
+-- ------------------------------- G. atomic, same-folio reversal (one txn)
+--
+-- Reversal must never be two independent statements: a crash between the
+-- insert and the status update would leave a folio that is silently double
+-- counted. This function proves the full immutable scope
+-- (tenant + reservation + that reservation's folio + line) under a row lock,
+-- writes the mirrored reversal, marks the original reversed, and records the
+-- operation claim — all inside the caller's single transaction.
+
+create or replace function public.hotelhub_reverse_folio_line(
+  p_tenant_id uuid,
+  p_reservation_id uuid,
+  p_line_id uuid,
+  p_reason text,
+  p_client_request_id uuid,
+  p_actor_n3_user_key text,
+  p_request_fingerprint text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_folio_id uuid;
+  v_reason text := btrim(coalesce(p_reason, ''));
+  v_claim public.hotel_folio_operations%rowtype;
+  v_line public.hotel_folio_lines%rowtype;
+  v_reversal public.hotel_folio_lines%rowtype;
+begin
+  if length(v_reason) < 3 or length(v_reason) > 240 then
+    return jsonb_build_object('ok', false, 'code', 'reason_required');
+  end if;
+
+  -- Authoritative folio for THIS reservation, locked for the transaction.
+  select f.id into v_folio_id
+  from public.hotel_folios f
+  where f.tenant_id = p_tenant_id and f.reservation_id = p_reservation_id
+  for update;
+
+  if v_folio_id is null then
+    return jsonb_build_object('ok', false, 'code', 'folio_not_found');
+  end if;
+
+  -- Operation-scoped idempotency claim.
+  select * into v_claim
+  from public.hotel_folio_operations
+  where tenant_id = p_tenant_id
+    and operation = 'folio.reverse'
+    and client_request_id = p_client_request_id
+  for update;
+
+  if found then
+    if v_claim.request_fingerprint is distinct from p_request_fingerprint
+       or v_claim.target_line_id is distinct from p_line_id
+       or v_claim.folio_id is distinct from v_folio_id then
+      return jsonb_build_object('ok', false, 'code', 'idempotency_conflict');
+    end if;
+    return jsonb_build_object('ok', true, 'replay', true, 'lineId', v_claim.result_line_id);
+  end if;
+
+  -- Full immutable scope proof: tenant + folio + line, locked.
+  select * into v_line
+  from public.hotel_folio_lines
+  where tenant_id = p_tenant_id and folio_id = v_folio_id and id = p_line_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'code', 'line_not_found');
+  end if;
+  if v_line.line_type = 'room_night' then
+    return jsonb_build_object('ok', false, 'code', 'room_night_not_reversible');
+  end if;
+  if v_line.line_type = 'reversal' then
+    return jsonb_build_object('ok', false, 'code', 'line_not_reversible');
+  end if;
+  if v_line.status = 'reversed' then
+    return jsonb_build_object('ok', false, 'code', 'already_reversed');
+  end if;
+  if exists (
+    select 1 from public.hotel_folio_lines
+    where tenant_id = p_tenant_id and reverses_line_id = p_line_id
+  ) then
+    return jsonb_build_object('ok', false, 'code', 'already_reversed');
+  end if;
+
+  insert into public.hotel_folio_lines (
+    tenant_id, folio_id, line_type, status, tax_class, description_snapshot,
+    quantity, unit_price_cents, subtotal_cents, tax_snapshot, reason,
+    reverses_line_id, actor_n3_user_key, client_request_id
+  ) values (
+    p_tenant_id, v_folio_id, 'reversal', 'committed', v_line.tax_class,
+    left('Reversal — ' || v_line.description_snapshot, 160),
+    1, -v_line.subtotal_cents, -v_line.subtotal_cents,
+    jsonb_build_object('source', 'reversal', 'reversesLineId', v_line.id),
+    v_reason, v_line.id, p_actor_n3_user_key, p_client_request_id
+  ) returning * into v_reversal;
+
+  update public.hotel_folio_lines
+     set status = 'reversed', updated_at = now()
+   where tenant_id = p_tenant_id and folio_id = v_folio_id and id = v_line.id;
+
+  insert into public.hotel_folio_operations (
+    tenant_id, operation, reservation_id, folio_id, target_line_id,
+    client_request_id, request_fingerprint, result_line_id, actor_n3_user_key
+  ) values (
+    p_tenant_id, 'folio.reverse', p_reservation_id, v_folio_id, v_line.id,
+    p_client_request_id, p_request_fingerprint, v_reversal.id, p_actor_n3_user_key
+  );
+
+  return jsonb_build_object('ok', true, 'replay', false, 'lineId', v_reversal.id);
+end;
+$$;
+
+revoke all on function public.hotelhub_reverse_folio_line(
+  uuid, uuid, uuid, text, uuid, text, text
+) from public, anon, authenticated;
+grant execute on function public.hotelhub_reverse_folio_line(
+  uuid, uuid, uuid, text, uuid, text, text
+) to service_role;
