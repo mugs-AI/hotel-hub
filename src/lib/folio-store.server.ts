@@ -27,6 +27,7 @@ import {
   type StoredFolioLine,
 } from "./folio";
 import {
+  isTaxClass,
   isUsableAddon,
   mappingStatus,
   validateAddonInput,
