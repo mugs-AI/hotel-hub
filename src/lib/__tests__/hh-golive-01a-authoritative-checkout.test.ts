@@ -7,6 +7,8 @@
  * that the obsolete "additional charges not configured" warning is gone.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   buildCheckoutPreview,
   type CheckoutPreviewDeps,
@@ -161,5 +163,46 @@ describe("authoritative checkout balance", () => {
     expect(dto.readiness.blockers.map((b) => b.code)).not.toContain(
       "additional_charges_and_tax_not_configured",
     );
+  });
+});
+
+describe("printable folio and check-in outcome", () => {
+  const root = resolve(__dirname, "../..");
+  const read = (rel: string) => readFileSync(resolve(root, rel), "utf8");
+
+  it("prints server-derived deposits, prepared total and current balance", () => {
+    const page = read("routes/reservations.$id_.folio-print.tsx");
+    expect(page).toMatch(/useCheckoutPreview/);
+    expect(page).toMatch(/Verified deposits \/ credits/);
+    expect(page).toMatch(/Current balance/);
+    expect(page).toMatch(/Prepared total/);
+    // The print view never computes money.
+    expect(page).not.toMatch(/[a-zA-Z)]\s[-+]\s[a-zA-Z]+Total/);
+  });
+
+  it("keeps a successful check-in successful but exposes a folio warning", () => {
+    const route = read("routes/api/hotel/reservations.$id.check-in.ts");
+    expect(route).toMatch(/folioWarning = "folio_needs_preparation"/);
+    expect(route).toMatch(/\.\.\.result, folioWarning/);
+    expect(route).toMatch(/folioNightsSnapshotted, folioWarning/);
+    const ui = read("components/ReservationOperations.tsx");
+    expect(ui).toMatch(/folio_needs_preparation/);
+  });
+
+  it("guards every folio mutation route with the same-origin check", () => {
+    const routes = [
+      "routes/api/hotel/reservations.$id.folio.lines.ts",
+      "routes/api/hotel/reservations.$id.folio.lines.$lineId.ts",
+      "routes/api/hotel/reservations.$id.folio.lines.$lineId.reverse.ts",
+      "routes/api/hotel/reservations.$id.folio.adjustments.ts",
+      "routes/api/hotel/reservations.$id.folio.refresh.ts",
+      "routes/api/hotel/reservations.$id.tax-profile.ts",
+      "routes/api/hotel/charges.catalogue.ts",
+      "routes/api/hotel/charges.catalogue.$itemId.ts",
+      "routes/api/hotel/charges.settings.ts",
+    ];
+    for (const rel of routes) {
+      expect(read(rel), rel).toMatch(/const origin = folioSameOriginGuard\(request\);/);
+    }
   });
 });
