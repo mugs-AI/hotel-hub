@@ -83,9 +83,13 @@ function CheckoutPreviewPage() {
 
             <section className="rounded-lg border border-border bg-card p-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold">Room folio (room charges only)</h2>
+                <h2 className="text-base font-semibold">Room-night evidence (for N3 posting)</h2>
                 <span className="text-sm text-muted-foreground">
-                  {d.folio.calculationStatus === "calculated" ? "Calculated" : "Blocked"}
+                  {d.folio.calculationStatus === "calculated"
+                    ? "Calculated"
+                    : d.folio.calculationStatus === "not_prepared"
+                      ? "Folio not prepared"
+                      : "Blocked"}
                 </span>
               </div>
               <div className="mt-3 overflow-x-auto">
@@ -101,7 +105,7 @@ function CheckoutPreviewPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {d.folio.lines.map((l) => (
+                    {d.folio.roomNightEvidence.map((l) => (
                       <tr key={l.reservationRoomId} className="border-t border-border">
                         <td className="py-2">{l.roomLabel}</td>
                         <td className="py-2 font-mono text-sm">{l.n3StockCode ?? "unmapped"}</td>
@@ -116,8 +120,8 @@ function CheckoutPreviewPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-right text-base font-semibold">
-                Room charge total: {formatMoney(d.folio.roomChargeTotal, d.reservation.currency)}
+              <p className="mt-3 text-right text-sm text-muted-foreground">
+                Evidence only — the authoritative balance is the prepared folio total below.
               </p>
             </section>
 
@@ -164,7 +168,11 @@ function CheckoutPreviewPage() {
             <section className="rounded-lg border border-border bg-card p-5">
               <h2 className="text-base font-semibold">Estimated settlement</h2>
               <dl className="mt-3 grid grid-cols-2 gap-y-1 text-sm">
-                <dt className="text-muted-foreground">Estimated balance due</dt>
+                <dt className="text-muted-foreground">Prepared folio total</dt>
+                <dd className="text-right text-base font-semibold">
+                  {formatMoney(d.folio.preparedTotal, d.reservation.currency)}
+                </dd>
+                <dt className="text-muted-foreground">Balance due after verified deposits</dt>
                 <dd className="text-right text-base font-semibold">
                   {formatMoney(d.summary.estimatedBalance, d.reservation.currency)}
                 </dd>

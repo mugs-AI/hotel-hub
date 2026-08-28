@@ -37,6 +37,7 @@ import {
   type N3ReadOutcome,
   type SafeVerifiedDepositRow,
 } from "./checkout-preview";
+import type { FolioTotalsDTO } from "./folio-view";
 import { centsToAmount, toCents } from "./checkout-money";
 
 // ---------------------------------------------------------------- typed client
