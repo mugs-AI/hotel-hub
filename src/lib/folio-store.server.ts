@@ -70,7 +70,10 @@ export interface FolioQuery<T> extends PromiseLike<ListRes<T>> {
 
 export interface FolioDb {
   from<T>(table: string): FolioQuery<T>;
+  /** Required for the atomic reversal transaction. */
+  rpc?(fn: string, args: Record<string, unknown>): PromiseLike<OneRes<unknown>>;
 }
+
 
 async function liveDb(): Promise<FolioDb> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
