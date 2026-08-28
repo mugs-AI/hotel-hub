@@ -753,6 +753,140 @@ export async function ensureFolio(
   return inserted.data;
 }
 
+/**
+ * The authoritative folio for THIS reservation — read only, never created.
+ * Every line mutation proves its scope against the id returned here, so a
+ * line belonging to another reservation of the same tenant can never be
+ * reached through this reservation's route.
+ */
+export async function readFolioForReservation(
+  tenantId: string,
+  reservationId: string,
+  db: FolioDb,
+): Promise<FolioRow | null> {
+  const res = await db
+    .from<FolioRow>("hotel_folios")
+    .select("id, currency, status")
+    .eq("tenant_id", tenantId)
+    .eq("reservation_id", reservationId)
+    .maybeSingle();
+  if (res.error) throw new FolioError("folio_read_failed", 500);
+  return res.data ?? null;
+}
+
+// ------------------------------------------ operation-scoped idempotency
+
+type OperationRow = {
+  id: string;
+  operation: string;
+  folio_id: string | null;
+  target_line_id: string | null;
+  request_fingerprint: string;
+  result_line_id: string | null;
+};
+
+const OPERATION_COLS =
+  "id, operation, folio_id, target_line_id, request_fingerprint, result_line_id";
+
+/**
+ * Claim an operation key. Returns the replayed line id when the SAME
+ * operation, target and payload is retried; throws `idempotency_conflict`
+ * when the same client request id is reused for anything else.
+ */
+async function claimFolioOperation(
+  db: FolioDb,
+  input: {
+    tenantId: string;
+    operation: FolioOperation;
+    reservationId: string;
+    folioId: string | null;
+    lineId: string | null;
+    clientRequestId: string;
+    fingerprint: string;
+    actorKey: string;
+  },
+): Promise<{ replayLineId: string | null } | null> {
+  const existing = await db
+    .from<OperationRow>("hotel_folio_operations")
+    .select(OPERATION_COLS)
+    .eq("tenant_id", input.tenantId)
+    .eq("operation", input.operation)
+    .eq("client_request_id", input.clientRequestId)
+    .maybeSingle();
+  if (existing.error) throw new FolioError("folio_read_failed", 500);
+
+  const decision = decideClaim(
+    existing.data
+      ? {
+          operation: existing.data.operation,
+          folioId: existing.data.folio_id,
+          targetLineId: existing.data.target_line_id,
+          requestFingerprint: existing.data.request_fingerprint,
+          resultLineId: existing.data.result_line_id,
+        }
+      : null,
+    {
+      operation: input.operation,
+      folioId: input.folioId,
+      lineId: input.lineId,
+      fingerprint: input.fingerprint,
+    },
+  );
+  if (decision.kind === "conflict") throw new FolioError("idempotency_conflict", 409);
+  if (decision.kind === "replay") return { replayLineId: decision.resultLineId };
+  return null;
+}
+
+async function recordFolioOperation(
+  db: FolioDb,
+  input: {
+    tenantId: string;
+    operation: FolioOperation;
+    reservationId: string;
+    folioId: string | null;
+    lineId: string | null;
+    clientRequestId: string;
+    fingerprint: string;
+    resultLineId: string | null;
+    actorKey: string;
+  },
+): Promise<void> {
+  const res = await db.from<OperationRow>("hotel_folio_operations").insert({
+    tenant_id: input.tenantId,
+    operation: input.operation,
+    reservation_id: input.reservationId,
+    folio_id: input.folioId,
+    target_line_id: input.lineId,
+    client_request_id: input.clientRequestId,
+    request_fingerprint: input.fingerprint,
+    result_line_id: input.resultLineId,
+    actor_n3_user_key: input.actorKey,
+  });
+  // A concurrent identical claim is not an error: the unique index is the
+  // authority and the stored result is the same line.
+  if (res.error && !isDuplicate(res.error)) throw new FolioError("folio_write_failed", 500);
+}
+
+/** Read one line, proving tenant + folio + line in a single query. */
+async function readScopedLine(
+  db: FolioDb,
+  tenantId: string,
+  folioId: string,
+  lineId: string,
+): Promise<LineRow | null> {
+  const res = await db
+    .from<LineRow>("hotel_folio_lines")
+    .select(LINE_COLS)
+    .eq("tenant_id", tenantId)
+    .eq("folio_id", folioId)
+    .eq("id", lineId)
+    .maybeSingle();
+  if (res.error) throw new FolioError("folio_read_failed", 500);
+  return res.data ?? null;
+}
+
+
+
 function toStoredLine(row: LineRow, actorLabels: Map<string, string>): StoredFolioLine {
   return {
     id: row.id,
