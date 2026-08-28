@@ -47,7 +47,13 @@ function reservation(): CheckoutReservationEvidence {
         children: 0,
       },
     ],
-    guests: [{ guestId: "ffffffff-ffff-4fff-8fff-ffffffffffff", isPrimary: true, reservationRoomId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" }],
+    guests: [
+      {
+        guestId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        isPrimary: true,
+        reservationRoomId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      },
+    ],
   } as CheckoutReservationEvidence;
 }
 
@@ -149,9 +155,7 @@ describe("authoritative checkout balance", () => {
           }),
       }),
     );
-    expect(dto.readiness.blockers.map((b) => b.code)).toContain(
-      "service_tax_rate_not_configured",
-    );
+    expect(dto.readiness.blockers.map((b) => b.code)).toContain("service_tax_rate_not_configured");
     expect(dto.folio.preparedTotal).toBeNull();
   });
 

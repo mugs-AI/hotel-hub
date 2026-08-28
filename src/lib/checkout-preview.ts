@@ -115,10 +115,7 @@ export function blocker(code: string, severity: BlockerSeverity = "blocking"): B
 export function standingBlockers(): Blocker[] {
   // HH-GOLIVE-01A: additional charges and Malaysian taxes ARE configured and
   // authoritative now, so that obsolete warning is gone.
-  return [
-    blocker("posting_not_enabled", "warning"),
-    blocker("matching_not_enabled", "warning"),
-  ];
+  return [blocker("posting_not_enabled", "warning"), blocker("matching_not_enabled", "warning")];
 }
 
 // ---------------------------------------------------------------- property date
@@ -730,9 +727,7 @@ export function buildSummary(
     estimatedBalance: centsToAmount(
       estimatedBalanceCents(preparedTotalCents, verifiedDepositTotalCents),
     ),
-    excessDeposit: centsToAmount(
-      excessDepositCents(preparedTotalCents, verifiedDepositTotalCents),
-    ),
+    excessDeposit: centsToAmount(excessDepositCents(preparedTotalCents, verifiedDepositTotalCents)),
     n3Outstanding: null,
   };
 }

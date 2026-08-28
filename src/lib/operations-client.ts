@@ -219,10 +219,10 @@ export function useCheckIn(reservationId: string) {
         updatedAt: string;
         /** Check-in succeeded, but the folio snapshot did not. */
         folioWarning: "folio_needs_preparation" | null;
-      }>(
-        `/api/hotel/reservations/${reservationId}/check-in`,
-        { method: "POST", body: JSON.stringify(input) },
-      ),
+      }>(`/api/hotel/reservations/${reservationId}/check-in`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
     onSuccess: invalidate,
   });
 }

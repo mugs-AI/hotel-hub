@@ -692,7 +692,8 @@ export async function addTourismTaxEvidence(
   if (res.error) throw new FolioError("tourism_tax_evidence_write_failed", 500);
   const payload = res.data as { ok?: boolean; code?: string; evidenceId?: string | null } | null;
   if (!payload || typeof payload !== "object" || payload.ok !== true) {
-    const code = typeof payload?.code === "string" ? payload.code : "tourism_tax_evidence_write_failed";
+    const code =
+      typeof payload?.code === "string" ? payload.code : "tourism_tax_evidence_write_failed";
     throw new FolioError(code, folioErrorStatus(code));
   }
 

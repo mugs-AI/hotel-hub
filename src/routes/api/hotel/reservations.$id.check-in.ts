@@ -87,10 +87,7 @@ export async function handleCheckIn({
       eventType: "hotel.reservation.check_in",
       detail: { reservationId: id, folioNightsSnapshotted, folioWarning },
     });
-    return Response.json(
-      { ...result, folioWarning },
-      { headers: { "cache-control": "no-store" } },
-    );
+    return Response.json({ ...result, folioWarning }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     const code =
       err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
