@@ -70,7 +70,21 @@ export type AuditEventType =
   | "hotel.settings.exception_approval_mode_updated"
   | "hotel.reservation.operation_direct"
   | "hotel.housekeeping.history_purged"
-  | "hotel.housekeeping.history_purge_failed";
+  | "hotel.housekeeping.history_purge_failed"
+  // HH-GOLIVE-01A — folio preparation, add-on catalogue and tax readiness.
+  // Nothing in this domain posts to N3.
+  | "hotel.charges.catalogue_created"
+  | "hotel.charges.catalogue_updated"
+  | "hotel.charges.settings_updated"
+  | "hotel.folio.viewed"
+  | "hotel.folio.item_added"
+  | "hotel.folio.quantity_updated"
+  | "hotel.folio.adjusted"
+  | "hotel.folio.reversed"
+  | "hotel.folio.tax_class_updated"
+  | "hotel.folio.tourism_tax_evidence_added"
+  | "hotel.folio.denied"
+  | "hotel.folio.action_failed";
 
 const SENSITIVE_KEYS = new Set([
   "token",

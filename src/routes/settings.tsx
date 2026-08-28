@@ -59,6 +59,7 @@ import {
   PropertyPanel,
   useHotelSettings,
 } from "@/components/PropertySettingsPanels";
+import { ChargesTaxesPanel } from "@/components/ChargesTaxesPanel";
 import { UserControlPanel } from "@/components/UserControlPanel";
 import { cn } from "@/lib/utils";
 
@@ -124,12 +125,21 @@ function SettingsInner() {
   return <SettingsWorkspace />;
 }
 
-type SettingsTab = "property" | "guests" | "operations" | "system" | "users" | "n3" | "sources";
+type SettingsTab =
+  | "property"
+  | "guests"
+  | "operations"
+  | "charges"
+  | "system"
+  | "users"
+  | "n3"
+  | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
   { id: "operations", label: "Operations" },
+  { id: "charges", label: "Charges & Taxes" },
   { id: "system", label: "System" },
   { id: "users", label: "User Control" },
   { id: "n3", label: "N3 Integrations" },
@@ -140,7 +150,13 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
 export function visibleSettingsTabs(
   role: Parameters<typeof hasPermission>[0],
 ): Array<{ id: SettingsTab; label: string }> {
-  return TABS.filter((t) => (t.id === "users" ? hasPermission(role, "roles:manage") : true));
+  return TABS.filter((t) =>
+    t.id === "users"
+      ? hasPermission(role, "roles:manage")
+      : t.id === "charges"
+        ? hasPermission(role, "hotel:charges:manage")
+        : true,
+  );
 }
 
 function SettingsWorkspace() {
@@ -199,6 +215,8 @@ function SettingsWorkspace() {
         <BookingSourcesScreen />
       ) : tab === "users" ? (
         <UserControlPanel />
+      ) : tab === "charges" ? (
+        <ChargesTaxesPanel />
       ) : error ? (
         <p className="text-sm" style={{ color: "#C2413B" }}>
           {friendlyError(error, "Unable to load property settings.")}
