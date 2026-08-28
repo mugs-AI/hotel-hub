@@ -11,6 +11,7 @@ import { addTourismTaxEvidence, setGuestTaxClass } from "@/lib/folio-store.serve
 import { validateEvidenceBody, validateTaxProfileBody } from "@/lib/folio-input";
 import {
   folioDeny,
+  folioSameOriginGuard,
   folioFailure,
   folioJson,
   readJsonBody,
@@ -24,6 +25,10 @@ export async function handleSetTaxProfile({
   request: Request;
   params: { id?: string };
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:folio:tax_class");
   if ("response" in gate) return gate.response;
   const { actor } = gate;
@@ -59,6 +64,10 @@ export async function handleAddTourismTaxEvidence({
   request: Request;
   params: { id?: string };
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:charges:manage");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

@@ -577,7 +577,10 @@ describe("staged migration contract", () => {
       /hotel_folios_tenant_reservation_uidx[\s\S]*?\(tenant_id, reservation_id\)/,
     );
     expect(sql).toMatch(/hotel_folio_lines_room_night_uidx/);
-    expect(sql).toMatch(/hotel_folio_lines_request_uidx/);
+    // The operations ledger is the ONLY idempotency authority: a bare
+    // client_request_id unique index would contradict it.
+    expect(sql).not.toMatch(/hotel_folio_lines_request_uidx/);
+    expect(sql).toMatch(/hotel_folio_operations/);
     expect(sql).toMatch(/hotel_folio_lines_reversal_link_chk/);
   });
 });

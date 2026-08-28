@@ -9,6 +9,7 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
 import { formatFolioMoney } from "@/lib/folio-view";
+import { useCheckoutPreview } from "@/lib/checkout-client";
 
 export const Route = createFileRoute("/reservations/$id_/folio-print")({
   head: () => ({
@@ -30,13 +31,17 @@ function FolioPrintPage() {
   const companyName =
     data?.authenticated === true ? (data.tenant.companyName ?? data.tenant.tenantCode ?? "") : "";
   const query = useReservationFolio(id, canView);
+  // Deposits and the settlement balance are NEVER computed here: they come
+  // from the server checkout preview, which verifies each deposit in N3.
+  const preview = useCheckoutPreview(canView ? id : undefined);
 
   useEffect(() => {
+    if (preview.isPending) return;
     if (query.data && typeof window !== "undefined") {
       const t = window.setTimeout(() => window.print(), 300);
       return () => window.clearTimeout(t);
     }
-  }, [query.data]);
+  }, [query.data, preview.isPending]);
 
   if (data?.authenticated !== true) return null;
   if (!canView) {
@@ -55,6 +60,7 @@ function FolioPrintPage() {
 
   const dto = query.data;
   const currency = dto.reservation.currency;
+  const settlement = preview.data ?? null;
 
   return (
     <div className="print-root">
@@ -172,6 +178,29 @@ function FolioPrintPage() {
             <dd>{formatFolioMoney(dto.totals.rounding, currency)}</dd>
             <dt className="grand">Prepared total</dt>
             <dd className="grand">{formatFolioMoney(dto.totals.grandTotal, currency)}</dd>
+            {settlement ? (
+              <>
+                <dt>Verified deposits / credits</dt>
+                <dd>
+                  {settlement.deposits.verifiedTotal === null
+                    ? "—"
+                    : formatFolioMoney(settlement.deposits.verifiedTotal, currency)}
+                </dd>
+                <dt className="grand">Current balance</dt>
+                <dd className="grand">
+                  {settlement.summary.estimatedBalance === null
+                    ? "—"
+                    : formatFolioMoney(settlement.summary.estimatedBalance, currency)}
+                </dd>
+                {settlement.summary.excessDeposit !== null &&
+                settlement.summary.excessDeposit > 0 ? (
+                  <>
+                    <dt>Credit to review</dt>
+                    <dd>{formatFolioMoney(settlement.summary.excessDeposit, currency)}</dd>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </dl>
         </div>
 

@@ -37,6 +37,7 @@ import {
   type N3ReadOutcome,
   type SafeVerifiedDepositRow,
 } from "./checkout-preview";
+import type { FolioTotalsDTO } from "./folio-view";
 import { centsToAmount, toCents } from "./checkout-money";
 
 // ---------------------------------------------------------------- typed client
@@ -278,7 +279,26 @@ export type CheckoutPreviewDeps = {
   /** SELECT-only settings read; null when the tenant has no settings row. */
   loadSettings(tenantId: string): Promise<CheckoutSettingsEvidence | null>;
   getReceiptById(token: string, receiptId: string): Promise<N3ReadOutcome>;
+  /**
+   * HH-GOLIVE-01A authoritative folio. Read-only: it never prepares a folio,
+   * so an unprepared reservation reports `prepared: false` instead of being
+   * silently priced from room nights.
+   */
+  loadPreparedFolio(
+    tenantId: string,
+    reservationId: string,
+    timezone: string,
+  ): Promise<PreparedFolioEvidence>;
   now?: Date;
+};
+
+export type PreparedFolioEvidence = {
+  prepared: boolean;
+  /** Authoritative grand total in integer cents; null when not calculable. */
+  grandTotalCents: number | null;
+  totals: FolioTotalsDTO | null;
+  /** Folio-side reasons the prepared total is not settle-ready. */
+  blockers: Blocker[];
 };
 
 export type DepositLite = {
@@ -342,6 +362,8 @@ export async function buildCheckoutPreview(input: {
     historyGap,
   });
 
+  const preparedFolio = await deps.loadPreparedFolio(tenantId, reservationId, settings.timezone);
+
   const depositOutcome = await verifyDeposits({
     tenantId,
     reservationId,
@@ -355,16 +377,26 @@ export async function buildCheckoutPreview(input: {
     ...currencyBlockers,
     ...assignmentBlockers,
     ...folio.blockers,
+    ...preparedFolio.blockers,
     ...depositOutcome.blockers,
     ...standingBlockers(),
   ]);
 
   const hardBlocked = blockers.some((b) => b.severity === "blocking");
-  const roomChargeTotalCents = hardBlocked ? null : folio.roomChargeTotalCents;
+  // ONE authoritative balance: the prepared folio grand total. The room-night
+  // projection below is evidence for the future N3 posting, never a total.
+  const preparedTotalCents = hardBlocked ? null : preparedFolio.grandTotalCents;
   const verifiedTotalCents = hardBlocked ? null : depositOutcome.verifiedTotalCents;
-  const summary = buildSummary(roomChargeTotalCents, verifiedTotalCents);
+  const summary = buildSummary(preparedTotalCents, verifiedTotalCents);
+  const folioStatus: "calculated" | "blocked" | "not_prepared" = hardBlocked
+    ? "blocked"
+    : !preparedFolio.prepared
+      ? "not_prepared"
+      : preparedTotalCents === null
+        ? "blocked"
+        : "calculated";
   const calculationComplete =
-    !hardBlocked && folio.calculationStatus === "calculated" && verifiedTotalCents !== null;
+    !hardBlocked && folioStatus === "calculated" && verifiedTotalCents !== null;
 
   return {
     generatedAt: now.toISOString(),
@@ -381,10 +413,14 @@ export async function buildCheckoutPreview(input: {
       roomLabels: reservation.rooms.map(roomDisplayLabel).sort(),
     },
     folio: {
-      scope: "room_only",
-      calculationStatus: hardBlocked ? "blocked" : folio.calculationStatus,
-      lines: hardBlocked ? folio.lines.map((l) => ({ ...l, lineTotal: null })) : folio.lines,
-      roomChargeTotal: roomChargeTotalCents === null ? null : centsToAmount(roomChargeTotalCents),
+      scope: "authoritative",
+      calculationStatus: folioStatus,
+      prepared: preparedFolio.prepared,
+      roomNightEvidence: hardBlocked
+        ? folio.lines.map((l) => ({ ...l, lineTotal: null }))
+        : folio.lines,
+      totals: preparedTotalCents === null ? null : preparedFolio.totals,
+      preparedTotal: preparedTotalCents === null ? null : centsToAmount(preparedTotalCents),
     },
     deposits: {
       rows: depositOutcome.rows,
@@ -693,6 +729,42 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       timezone: s.timezone,
       currency: s.currency,
       walkInCustomerId: s.walkInCustomer?.n3Id ?? null,
+    };
+  },
+
+  async loadPreparedFolio(tenantId, reservationId, timezone) {
+    const { buildFolioView } = await import("./folio-store.server");
+    const dto = await buildFolioView({
+      tenantId,
+      reservationId,
+      actorKey: "system:checkout-preview",
+      timezone,
+      // Read-only projection: the preview never grants a mutation capability.
+      capability: {
+        canAddItem: false,
+        canAdjust: false,
+        canSetTaxClass: false,
+        canManageCharges: false,
+      },
+    });
+    const prepared = dto.lines.length > 0;
+    const grandTotalCents = dto.readiness.calculationComplete
+      ? toCents(dto.totals.grandTotal)
+      : null;
+    const blockers: Blocker[] = [];
+    if (!prepared) blockers.push(blocker("folio_not_prepared"));
+    for (const b of dto.blockers) {
+      blockers.push({
+        code: b.code,
+        severity: b.severity === "blocking" ? "blocking" : "warning",
+        message: b.message,
+      });
+    }
+    return {
+      prepared,
+      grandTotalCents,
+      totals: grandTotalCents === null ? null : dto.totals,
+      blockers,
     };
   },
 

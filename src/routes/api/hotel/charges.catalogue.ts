@@ -9,7 +9,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { mappingStatus } from "@/lib/charges-catalogue";
 import { createAddonItem, listAddonItems } from "@/lib/folio-store.server";
-import { folioFailure, folioJson, readJsonBody, requireFolioActor } from "@/lib/folio-api.server";
+import {
+  folioFailure,
+  folioJson,
+  folioSameOriginGuard,
+  readJsonBody,
+  requireFolioActor,
+} from "@/lib/folio-api.server";
 
 export async function handleListCatalogue(): Promise<Response> {
   const gate = await requireFolioActor("hotel:folio:view");
@@ -54,6 +60,10 @@ export async function handleCreateCatalogueItem({
 }: {
   request: Request;
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:charges:manage");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

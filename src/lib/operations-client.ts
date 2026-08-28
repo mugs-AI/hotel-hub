@@ -213,10 +213,16 @@ export function useCheckIn(reservationId: string) {
   const invalidate = useInvalidateReservation(reservationId);
   return useMutation({
     mutationFn: (input: { expectedUpdatedAt: string | null; clientRequestId: string }) =>
-      opFetch<{ status: string; checkedInAt: string | null; updatedAt: string }>(
-        `/api/hotel/reservations/${reservationId}/check-in`,
-        { method: "POST", body: JSON.stringify(input) },
-      ),
+      opFetch<{
+        status: string;
+        checkedInAt: string | null;
+        updatedAt: string;
+        /** Check-in succeeded, but the folio snapshot did not. */
+        folioWarning: "folio_needs_preparation" | null;
+      }>(`/api/hotel/reservations/${reservationId}/check-in`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
     onSuccess: invalidate,
   });
 }

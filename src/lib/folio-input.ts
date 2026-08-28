@@ -89,12 +89,21 @@ export function validateAddonLineBody(body: unknown): Checked<AddonLineBody> {
 
 // ----------------------------------------------------------- quantity edit
 
-export function validateQuantityBody(body: unknown): Checked<{ quantity: number }> {
-  const unknown = onlyKnownFields(body, ["quantity"]);
+export function validateQuantityBody(
+  body: unknown,
+): Checked<{ quantity: number; clientRequestId: string }> {
+  const unknown = onlyKnownFields(body, ["quantity", "clientRequestId"]);
   if (unknown) return unknown;
-  const qty = quantity((body as Record<string, unknown>).quantity);
+  const raw = body as Record<string, unknown>;
+  const qty = quantity(raw.quantity);
   if (qty === null) return { ok: false, code: "invalid_quantity" };
-  return { ok: true, value: { quantity: qty } };
+  // A quantity edit is a financial mutation, so it carries its own operation
+  // key: a retried PATCH must never apply twice.
+  const requestId = raw.clientRequestId;
+  if (typeof requestId !== "string" || !UUID_RE.test(requestId)) {
+    return { ok: false, code: "invalid_client_request_id" };
+  }
+  return { ok: true, value: { quantity: qty, clientRequestId: requestId } };
 }
 
 // -------------------------------------------------------------- reversal

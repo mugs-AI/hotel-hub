@@ -8,7 +8,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { patchFinancialSettings, readFinancialSettings } from "@/lib/folio-store.server";
 import { folioReadinessProjection } from "@/lib/folio-readiness";
-import { folioFailure, folioJson, readJsonBody, requireFolioActor } from "@/lib/folio-api.server";
+import {
+  folioFailure,
+  folioJson,
+  folioSameOriginGuard,
+  readJsonBody,
+  requireFolioActor,
+} from "@/lib/folio-api.server";
 
 export async function handleReadChargeSettings(): Promise<Response> {
   const gate = await requireFolioActor("hotel:folio:view");
@@ -32,6 +38,10 @@ export async function handlePatchChargeSettings({
 }: {
   request: Request;
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:charges:manage");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

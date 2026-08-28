@@ -24,28 +24,45 @@ describe("operation-scoped idempotency", () => {
     lineId: null as string | null,
   };
 
-  it("fingerprints the operation and its target, not just the request id", () => {
-    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 2 });
-    const c = operationFingerprint("folio.adjustment", target, { catalogueId: "c1", quantity: 1 });
+  it("fingerprints the operation and its target, not just the request id", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
+    const b = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 2,
+    });
+    const c = await operationFingerprint("folio.adjustment", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
     expect(a).not.toBe(b);
     expect(a).not.toBe(c);
+    // SHA-256 hex, computed server-side.
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("is stable across key ordering so a genuine retry replays", () => {
-    const a = operationFingerprint("folio.add_addon", target, { catalogueId: "c1", quantity: 1 });
-    const b = operationFingerprint("folio.add_addon", target, { quantity: 1, catalogueId: "c1" });
+  it("is stable across key ordering so a genuine retry replays", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, {
+      catalogueId: "c1",
+      quantity: 1,
+    });
+    const b = await operationFingerprint("folio.add_addon", target, {
+      quantity: 1,
+      catalogueId: "c1",
+    });
     expect(a).toBe(b);
   });
 
-  it("changes when the target folio or reservation changes", () => {
-    const a = operationFingerprint("folio.add_addon", target, { x: 1 });
-    const b = operationFingerprint("folio.add_addon", { ...target, folioId: "f2" }, { x: 1 });
+  it("changes when the target folio or reservation changes", async () => {
+    const a = await operationFingerprint("folio.add_addon", target, { x: 1 });
+    const b = await operationFingerprint("folio.add_addon", { ...target, folioId: "f2" }, { x: 1 });
     expect(a).not.toBe(b);
   });
 
-  it("replays an identical request and refuses a conflicting reuse", () => {
-    const fp = operationFingerprint("folio.add_addon", target, { quantity: 1 });
+  it("replays an identical request and refuses a conflicting reuse", async () => {
+    const fp = await operationFingerprint("folio.add_addon", target, { quantity: 1 });
     const incoming = {
       operation: "folio.add_addon" as const,
       folioId: "f1",
@@ -126,10 +143,14 @@ describe("API boundary validation", () => {
     ).toBe(true);
   });
 
-  it("accepts only whole, in-range quantities", () => {
-    expect(validateQuantityBody({ quantity: 0 }).ok).toBe(false);
-    expect(validateQuantityBody({ quantity: 1.5 }).ok).toBe(false);
-    expect(validateQuantityBody({ quantity: 3 }).ok).toBe(true);
+  it("accepts only whole, in-range quantities and demands an operation key", () => {
+    const req = "11111111-1111-4111-8111-111111111111";
+    expect(validateQuantityBody({ quantity: 0, clientRequestId: req }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 1.5, clientRequestId: req }).ok).toBe(false);
+    // A quantity edit is a financial mutation: without an operation key it
+    // cannot be replay-protected, so it must be refused.
+    expect(validateQuantityBody({ quantity: 3 }).ok).toBe(false);
+    expect(validateQuantityBody({ quantity: 3, clientRequestId: req }).ok).toBe(true);
   });
 
   it("accepts only the declared guest tax classes", () => {

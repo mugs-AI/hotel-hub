@@ -2,6 +2,7 @@
 // Pending Approvals ledger and the reservation Timeline.
 // Server enforces every permission; this is only a usability layer.
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   directActionLabel,
   effectiveExceptionMode,
@@ -322,7 +323,18 @@ export function ReservationActionsCard({
                     onClick={() =>
                       checkIn.mutate(
                         { expectedUpdatedAt: updatedAt, clientRequestId: flow.id },
-                        { onSuccess: close },
+                        {
+                          onSuccess: (res) => {
+                            // Check-in stands. The folio simply needs an
+                            // explicit preparation before checkout.
+                            if (res.folioWarning === "folio_needs_preparation") {
+                              toast.warning(
+                                "Checked in. The guest folio was not prepared — open the folio and choose Prepare before checkout.",
+                              );
+                            }
+                            close();
+                          },
+                        },
                       )
                     }
                     className="rounded-md px-3 py-1.5 text-xs font-medium text-white"

@@ -8,6 +8,7 @@
 // voids or deletes an N3 document, and nothing changes reservation, room or
 // housekeeping state.
 
+import type { FolioTotalsDTO } from "./folio-view";
 import {
   centsToAmount,
   estimatedBalanceCents,
@@ -102,6 +103,8 @@ const BLOCKER_MESSAGES: Record<string, string> = {
     "N3 deposit verification is temporarily unavailable, so deposits are not counted.",
   posting_not_enabled: "N3 CashMemo posting is not enabled in this milestone.",
   matching_not_enabled: "Deposit matching and balance collection are not enabled.",
+  folio_not_prepared:
+    "The guest folio has not been prepared yet. Prepare the folio to get an authoritative balance.",
 };
 
 export function blocker(code: string, severity: BlockerSeverity = "blocking"): Blocker {
@@ -110,11 +113,9 @@ export function blocker(code: string, severity: BlockerSeverity = "blocking"): B
 
 /** Milestone-constant readiness warnings that always appear in this run. */
 export function standingBlockers(): Blocker[] {
-  return [
-    blocker("posting_not_enabled", "warning"),
-    blocker("matching_not_enabled", "warning"),
-    blocker("additional_charges_and_tax_not_configured", "warning"),
-  ];
+  // HH-GOLIVE-01A: additional charges and Malaysian taxes ARE configured and
+  // authoritative now, so that obsolete warning is gone.
+  return [blocker("posting_not_enabled", "warning"), blocker("matching_not_enabled", "warning")];
 }
 
 // ---------------------------------------------------------------- property date
@@ -710,20 +711,23 @@ export type CheckoutSummary = {
   n3Outstanding: null;
 };
 
+/**
+ * Settlement is derived server-side from the authoritative prepared folio
+ * total (HH-GOLIVE-01A) and verified N3 deposits. The browser never adds
+ * money.
+ */
 export function buildSummary(
-  roomChargeTotalCents: number | null,
+  preparedTotalCents: number | null,
   verifiedDepositTotalCents: number | null,
 ): CheckoutSummary {
-  if (roomChargeTotalCents === null || verifiedDepositTotalCents === null) {
+  if (preparedTotalCents === null || verifiedDepositTotalCents === null) {
     return { estimatedBalance: null, excessDeposit: null, n3Outstanding: null };
   }
   return {
     estimatedBalance: centsToAmount(
-      estimatedBalanceCents(roomChargeTotalCents, verifiedDepositTotalCents),
+      estimatedBalanceCents(preparedTotalCents, verifiedDepositTotalCents),
     ),
-    excessDeposit: centsToAmount(
-      excessDepositCents(roomChargeTotalCents, verifiedDepositTotalCents),
-    ),
+    excessDeposit: centsToAmount(excessDepositCents(preparedTotalCents, verifiedDepositTotalCents)),
     n3Outstanding: null,
   };
 }
@@ -745,10 +749,15 @@ export type CheckoutPreviewDTO = {
     roomLabels: string[];
   };
   folio: {
-    scope: "room_only";
-    calculationStatus: "calculated" | "blocked";
-    lines: SafeRoomChargeLine[];
-    roomChargeTotal: number | null;
+    /** Single authoritative source of truth: the prepared HH-GOLIVE-01A folio. */
+    scope: "authoritative";
+    calculationStatus: "calculated" | "blocked" | "not_prepared";
+    prepared: boolean;
+    /** Room-night projection used for the N3 posting evidence table only. */
+    roomNightEvidence: SafeRoomChargeLine[];
+    totals: FolioTotalsDTO | null;
+    /** The one balance the front desk settles against. */
+    preparedTotal: number | null;
   };
   deposits: {
     rows: SafeVerifiedDepositRow[];

@@ -6,6 +6,7 @@ import { requirePermission } from "./session-context.server";
 import { getHotelSettingsReadOnly } from "./hotel-store.server";
 import { FolioError, folioErrorStatus } from "./folio-store.server";
 import { hasPermission, type Permission } from "./rbac";
+import { isSameOriginWrite } from "./operations-api.server";
 
 export function folioDeny(status: number, error: string): Response {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -13,6 +14,15 @@ export function folioDeny(status: number, error: string): Response {
 
 export function folioJson(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
+}
+
+/**
+ * Cross-origin write protection. Every mutating folio / charges route calls
+ * this FIRST: a cookie-authenticated session must never be usable by a form
+ * or fetch hosted on another origin.
+ */
+export function folioSameOriginGuard(request: Request): Response | null {
+  return isSameOriginWrite(request) ? null : folioDeny(403, "forbidden");
 }
 
 export function isPlainObject(v: unknown): v is Record<string, unknown> {
