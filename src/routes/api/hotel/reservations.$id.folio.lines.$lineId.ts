@@ -41,6 +41,7 @@ export async function handleUpdateFolioLine({
       reservationId: id,
       lineId,
       quantity: checked.value.quantity,
+      clientRequestId: checked.value.clientRequestId,
       actorKey: actor.actorKey,
     });
     await logAudit({
