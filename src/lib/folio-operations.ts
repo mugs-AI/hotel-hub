@@ -16,6 +16,7 @@ export const FOLIO_OPERATIONS = [
   "folio.add_addon",
   "folio.adjustment",
   "folio.reverse",
+  "folio.update_quantity",
   "folio.tourism_tax_evidence",
 ] as const;
 
@@ -39,17 +40,25 @@ function stable(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Deterministic, non-cryptographic 64-bit-ish digest. Collision-resistant
- *  enough for replay detection, and never used as a security boundary. */
-function digest(input: string): string {
-  let h1 = 0x811c9dc5;
-  let h2 = 0x01000193;
-  for (let i = 0; i < input.length; i += 1) {
-    const c = input.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
-    h2 = Math.imul(h2 + c + i, 0x85ebca6b) >>> 0;
-  }
-  return `${h1.toString(16).padStart(8, "0")}${h2.toString(16).padStart(8, "0")}`;
+/** Hard cap on the canonical input so a hostile body can never make the
+ *  server hash an unbounded string. Bodies are already size-capped at the
+ *  route boundary; this is the second, independent bound. */
+export const CANONICAL_INPUT_LIMIT = 8 * 1024;
+
+/**
+ * SHA-256 hex digest, computed on the SERVER with WebCrypto. A fingerprint
+ * decides whether a retry replays a financial write, so a fast
+ * non-cryptographic hash is not acceptable here: two different bodies that
+ * collide would replay the wrong money.
+ */
+async function sha256Hex(input: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) throw new Error("fingerprint_unavailable");
+  const bytes = new TextEncoder().encode(input);
+  const digest = await subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export type OperationTarget = {
@@ -60,25 +69,36 @@ export type OperationTarget = {
 };
 
 /**
- * Fingerprint of one operation attempt. It deliberately includes the whole
- * immutable target scope, so the same payload against a different reservation,
- * folio or line produces a DIFFERENT fingerprint.
+ * Canonical, bounded input for one operation attempt. It deliberately
+ * includes the whole immutable target scope, so the same payload against a
+ * different reservation, folio or line produces a DIFFERENT fingerprint.
  */
-export function operationFingerprint(
+export function canonicalOperationInput(
   operation: FolioOperation,
   target: OperationTarget,
   payload: unknown,
 ): string {
-  return digest(
-    stable({
-      operation,
-      tenantId: target.tenantId,
-      reservationId: target.reservationId,
-      folioId: target.folioId,
-      lineId: target.lineId,
-      payload,
-    }),
-  );
+  const canonical = stable({
+    operation,
+    tenantId: target.tenantId,
+    reservationId: target.reservationId,
+    folioId: target.folioId,
+    lineId: target.lineId,
+    payload,
+  });
+  if (canonical.length > CANONICAL_INPUT_LIMIT) {
+    throw new Error("fingerprint_input_too_large");
+  }
+  return canonical;
+}
+
+/** SHA-256 fingerprint of one operation attempt (server-side only). */
+export async function operationFingerprint(
+  operation: FolioOperation,
+  target: OperationTarget,
+  payload: unknown,
+): Promise<string> {
+  return sha256Hex(canonicalOperationInput(operation, target, payload));
 }
 
 export type ClaimRecord = {

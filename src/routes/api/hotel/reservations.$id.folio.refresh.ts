@@ -9,13 +9,19 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { isUuid } from "@/lib/reservations-store.server";
 import { refreshFolioRoomNights } from "@/lib/folio-store.server";
-import { folioDeny, folioFailure, folioJson, requireFolioActor } from "@/lib/folio-api.server";
+import { folioDeny, folioFailure, folioJson, requireFolioActor, folioSameOriginGuard } from "@/lib/folio-api.server";
 
 export async function handleRefreshFolio({
+  request,
   params,
 }: {
+  request: Request;
   params: { id?: string };
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:folio:add_item");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

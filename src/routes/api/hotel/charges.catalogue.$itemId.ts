@@ -6,6 +6,7 @@ import { mappingStatus } from "@/lib/charges-catalogue";
 import { updateAddonItem } from "@/lib/folio-store.server";
 import {
   folioDeny,
+  folioSameOriginGuard,
   folioFailure,
   folioJson,
   readJsonBody,
@@ -21,6 +22,10 @@ export async function handleUpdateCatalogueItem({
   request: Request;
   params: { itemId?: string };
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:charges:manage");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

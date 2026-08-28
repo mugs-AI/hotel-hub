@@ -662,44 +662,49 @@ export async function addTourismTaxEvidence(
   if (collectedOn === undefined) throw new FolioError("invalid_collected_on", 400);
 
   const db = await resolveDb(sb);
-  // Idempotent replay: the same client request id never double-credits.
-  const existing = await db
+  if (typeof db.rpc !== "function") throw new FolioError("folio_write_not_atomic", 500);
+
+  // ONE transaction: operation claim + insert. A replayed request can never
+  // double-credit the guest, and a different body under the same request id
+  // is refused instead of silently accepted.
+  const fingerprint = await operationFingerprint(
+    "folio.tourism_tax_evidence",
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: null,
+      lineId: null,
+    },
+    { label, reference, collectedOn, amountCents: amount, note },
+  );
+  const res = await db.rpc("hotelhub_add_tourism_tax_evidence", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_source_label: label,
+    p_reference: reference,
+    p_collected_on: collectedOn,
+    p_amount_cents: amount,
+    p_note: note,
+    p_client_request_id: input.clientRequestId,
+    p_actor_n3_user_key: input.actorKey,
+    p_request_fingerprint: fingerprint,
+  });
+  if (res.error) throw new FolioError("tourism_tax_evidence_write_failed", 500);
+  const payload = res.data as { ok?: boolean; code?: string; evidenceId?: string | null } | null;
+  if (!payload || typeof payload !== "object" || payload.ok !== true) {
+    const code = typeof payload?.code === "string" ? payload.code : "tourism_tax_evidence_write_failed";
+    throw new FolioError(code, folioErrorStatus(code));
+  }
+
+  const stored = await db
     .from<EvidenceRow>("hotel_tourism_tax_evidence")
     .select(EVIDENCE_COLS)
     .eq("tenant_id", input.tenantId)
+    .eq("reservation_id", input.reservationId)
     .eq("client_request_id", input.clientRequestId)
     .maybeSingle();
-  if (existing.error) throw new FolioError("tourism_tax_evidence_read_failed", 500);
-  if (existing.data) return existing.data;
-
-  const inserted = await db
-    .from<EvidenceRow>("hotel_tourism_tax_evidence")
-    .insert({
-      tenant_id: input.tenantId,
-      reservation_id: input.reservationId,
-      source_label: label,
-      reference,
-      collected_on: collectedOn,
-      amount_cents: amount,
-      note,
-      actor_n3_user_key: input.actorKey,
-      client_request_id: input.clientRequestId,
-    })
-    .select(EVIDENCE_COLS)
-    .single();
-  if (inserted.error || !inserted.data) {
-    if (isDuplicate(inserted.error)) {
-      const replay = await db
-        .from<EvidenceRow>("hotel_tourism_tax_evidence")
-        .select(EVIDENCE_COLS)
-        .eq("tenant_id", input.tenantId)
-        .eq("client_request_id", input.clientRequestId)
-        .maybeSingle();
-      if (replay.data) return replay.data;
-    }
-    throw new FolioError("tourism_tax_evidence_write_failed", 500);
-  }
-  return inserted.data;
+  if (stored.error || !stored.data) throw new FolioError("tourism_tax_evidence_read_failed", 500);
+  return stored.data;
 }
 
 // ------------------------------------------------------------------ folio
@@ -713,6 +718,7 @@ type LineRow = {
   tax_class: string | null;
   description_snapshot: string;
   quantity: number;
+  version?: number | null;
   unit_price_cents: number;
   subtotal_cents: number;
   source_reservation_room_id: string | null;
@@ -727,7 +733,7 @@ type LineRow = {
 };
 
 const LINE_COLS =
-  "id, line_type, status, tax_class, description_snapshot, quantity, unit_price_cents, subtotal_cents, source_reservation_room_id, source_hotel_room_id, stay_date, catalogue_id, reason, reverses_line_id, actor_n3_user_key, client_request_id, created_at";
+  "id, line_type, status, tax_class, description_snapshot, quantity, version, unit_price_cents, subtotal_cents, source_reservation_room_id, source_hotel_room_id, stay_date, catalogue_id, reason, reverses_line_id, actor_n3_user_key, client_request_id, created_at";
 
 export async function ensureFolio(
   tenantId: string,
@@ -984,6 +990,8 @@ type RoomRow = {
   room_number: string;
   display_name: string | null;
   n3_stock_id: string | null;
+  n3_stock_code?: string | null;
+  n3_stock_name?: string | null;
 };
 
 function roomLabelOf(room: RoomRow | undefined): string {
@@ -1025,7 +1033,7 @@ async function readReservationRooms(
   if (rooms.length) {
     const roomsRes = await db
       .from<RoomRow>("hotel_rooms")
-      .select("id, room_number, display_name, n3_stock_id")
+      .select("id, room_number, display_name, n3_stock_id, n3_stock_code, n3_stock_name")
       .eq("tenant_id", tenantId)
       .in(
         "id",
@@ -1074,22 +1082,51 @@ export async function syncRoomNights(
   const missing = planMissingRoomNights(plan, existingNights);
   if (missing.length === 0) return { inserted: 0, unmappedRoomLabels };
 
-  const payload = missing.map((n) => ({
-    tenant_id: input.tenantId,
-    folio_id: input.folioId,
-    line_type: "room_night",
-    status: "draft",
-    source_reservation_room_id: n.reservationRoomId,
-    source_hotel_room_id: n.hotelRoomId,
-    stay_date: n.stayDate,
-    tax_class: "accommodation",
-    description_snapshot: `Room charge — ${n.roomLabel}`.slice(0, 160),
-    quantity: 1,
-    unit_price_cents: n.unitPriceCents,
-    subtotal_cents: n.unitPriceCents,
-    tax_snapshot: { source: "reservation_room", stayDate: n.stayDate },
-    actor_n3_user_key: input.actorKey,
-  }));
+  // IMMUTABLE SNAPSHOT. Everything the night is worth, and everything it was
+  // sold as, is frozen here: the N3 stock identity, the agreed rate, the room
+  // identity, the stay date and the tax/levy configuration in force (with its
+  // effective dates). A later remap, rate edit or settings change can never
+  // rewrite an existing night — corrections are reversal-only.
+  const settings = await readFinancialSettings(input.tenantId, db);
+  const frozenAt = new Date().toISOString();
+  const settingsSnapshot = {
+    capturedAt: frozenAt,
+    serviceTaxRegistered: settings.serviceTaxRegistered,
+    accommodation: settings.serviceTax.accommodation,
+    serviceCharge: settings.serviceCharge,
+    tourismTax: settings.tourismTax,
+    localLevy: settings.localLevy,
+    rounding: { mode: settings.rounding.mode },
+    settingsUpdatedAt: settings.updatedAt,
+  };
+  const payload = missing.map((n) => {
+    const hotelRoom = byRoomId.get(n.hotelRoomId);
+    return {
+      tenant_id: input.tenantId,
+      folio_id: input.folioId,
+      line_type: "room_night",
+      status: "draft",
+      source_reservation_room_id: n.reservationRoomId,
+      source_hotel_room_id: n.hotelRoomId,
+      stay_date: n.stayDate,
+      tax_class: "accommodation",
+      description_snapshot: `Room charge — ${n.roomLabel}`.slice(0, 160),
+      quantity: 1,
+      unit_price_cents: n.unitPriceCents,
+      subtotal_cents: n.unitPriceCents,
+      total_cents: n.unitPriceCents,
+      tax_snapshot: { source: "reservation_room", stayDate: n.stayDate },
+      n3_stock_id_snapshot: hotelRoom?.n3_stock_id ?? null,
+      n3_stock_code_snapshot: hotelRoom?.n3_stock_code ?? null,
+      n3_stock_name_snapshot: hotelRoom?.n3_stock_name ?? null,
+      n3_tax_code_id_snapshot: settings.serviceTax.accommodation.n3TaxCodeId ?? null,
+      agreed_rate_cents_snapshot: n.unitPriceCents,
+      room_label_snapshot: n.roomLabel,
+      settings_snapshot: settingsSnapshot,
+      snapshot_frozen_at: frozenAt,
+      actor_n3_user_key: input.actorKey,
+    };
+  });
   const res = await db.from<LineRow>("hotel_folio_lines").insert(payload).select(LINE_COLS);
   if (res.error && !isDuplicate(res.error)) throw new FolioError("folio_write_failed", 500);
   return { inserted: res.data?.length ?? 0, unmappedRoomLabels };
@@ -1164,7 +1201,7 @@ export async function addAddonLine(
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
   const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
 
-  const fingerprint = operationFingerprint(
+  const fingerprint = await operationFingerprint(
     "folio.add_addon",
     {
       tenantId: input.tenantId,
@@ -1227,55 +1264,112 @@ export async function addAddonLine(
     throw new FolioError("invalid_amount", 400);
   }
 
-  const inserted = await db
-    .from<LineRow>("hotel_folio_lines")
-    .insert({
-      tenant_id: input.tenantId,
-      folio_id: folio.id,
-      line_type: "add_on",
-      status: "draft",
-      catalogue_id: item.id,
-      tax_class: item.taxClass,
-      description_snapshot: item.displayName.slice(0, 160),
-      quantity,
-      unit_price_cents: unitPrice,
-      subtotal_cents: subtotal,
-      tax_snapshot: {
-        source: "catalogue",
-        catalogueId: item.id,
-        taxClass: item.taxClass,
-        n3StockId: item.n3StockId,
-        n3UomId: item.n3UomId,
-        n3TaxCodeId: item.n3TaxCodeId,
-      },
-      reason,
-      actor_n3_user_key: input.actorKey,
-      client_request_id: input.clientRequestId,
-    })
-    .select(LINE_COLS)
-    .single();
-  if (inserted.error || !inserted.data) throw new FolioError("folio_write_failed", 500);
-
-  await recordFolioOperation(db, {
+  const lineId = await atomicAddLine(db, {
     tenantId: input.tenantId,
-    operation: "folio.add_addon",
     reservationId: input.reservationId,
-    folioId: folio.id,
-    lineId: null,
+    operation: "folio.add_addon",
+    lineType: "add_on",
+    catalogueId: item.id,
+    taxClass: item.taxClass,
+    description: item.displayName.slice(0, 160),
+    quantity,
+    unitPriceCents: unitPrice,
+    subtotalCents: subtotal,
+    taxSnapshot: {
+      source: "catalogue",
+      catalogueId: item.id,
+      taxClass: item.taxClass,
+      n3StockId: item.n3StockId,
+      n3UomId: item.n3UomId,
+      n3TaxCodeId: item.n3TaxCodeId,
+    },
+    reason,
     clientRequestId: input.clientRequestId,
     fingerprint,
-    resultLineId: inserted.data.id,
     actorKey: input.actorKey,
   });
-  return toStoredLine(inserted.data, new Map());
+  const row = await readScopedLine(db, input.tenantId, folio.id, lineId);
+  if (!row) throw new FolioError("folio_read_failed", 500);
+  return toStoredLine(row, new Map());
 }
 
+/**
+ * ONE transaction: operation claim + scope proof + line insert. Two
+ * concurrent identical requests cannot both insert — the loser serialises on
+ * the folio row lock and comes back as a replay of the same line.
+ */
+async function atomicAddLine(
+  db: FolioDb,
+  input: {
+    tenantId: string;
+    reservationId: string;
+    operation: "folio.add_addon" | "folio.adjustment";
+    lineType: "add_on" | "discount" | "manual_adjustment";
+    catalogueId: string | null;
+    taxClass: string | null;
+    description: string;
+    quantity: number;
+    unitPriceCents: number;
+    subtotalCents: number;
+    taxSnapshot: Record<string, unknown>;
+    reason: string | null;
+    clientRequestId: string;
+    fingerprint: string;
+    actorKey: string;
+  },
+): Promise<string> {
+  if (typeof db.rpc !== "function") {
+    // Fail closed: a non-transactional fallback is exactly the defect this
+    // correction removes.
+    throw new FolioError("folio_write_not_atomic", 500);
+  }
+  const res = await db.rpc("hotelhub_add_folio_line", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_operation: input.operation,
+    p_line_type: input.lineType,
+    p_catalogue_id: input.catalogueId,
+    p_tax_class: input.taxClass,
+    p_description: input.description,
+    p_quantity: input.quantity,
+    p_unit_price_cents: input.unitPriceCents,
+    p_subtotal_cents: input.subtotalCents,
+    p_tax_cents: 0,
+    p_total_cents: input.subtotalCents,
+    p_tax_snapshot: input.taxSnapshot,
+    p_reason: input.reason,
+    p_client_request_id: input.clientRequestId,
+    p_actor_n3_user_key: input.actorKey,
+    p_request_fingerprint: input.fingerprint,
+  });
+  return unwrapLineResult(res);
+}
+
+/** Shared decoding of the `{ ok, code, lineId }` envelope returned by the
+ *  transactional folio functions. */
+function unwrapLineResult(res: { data?: unknown; error?: DbError }): string {
+  if (res.error) throw new FolioError("folio_write_failed", 500);
+  const payload = res.data as { ok?: boolean; code?: string; lineId?: string | null } | null;
+  if (!payload || typeof payload !== "object" || payload.ok !== true) {
+    const code = typeof payload?.code === "string" ? payload.code : "folio_write_failed";
+    throw new FolioError(code, folioErrorStatus(code));
+  }
+  if (typeof payload.lineId !== "string") throw new FolioError("folio_write_failed", 500);
+  return payload.lineId;
+}
+
+/**
+ * Quantity edit of a draft add-on. Atomic and operation/target/body specific:
+ * the claim, the version check and the update all happen inside
+ * `hotelhub_update_folio_line_quantity`, under the folio row lock.
+ */
 export async function updateAddonQuantity(
   input: {
     tenantId: string;
     reservationId: string;
     lineId: string;
     quantity: unknown;
+    clientRequestId: unknown;
     actorKey: string;
   },
   sb?: FolioDb,
@@ -1289,7 +1383,11 @@ export async function updateAddonQuantity(
   ) {
     throw new FolioError("invalid_quantity", 400);
   }
+  if (typeof input.clientRequestId !== "string" || !UUID_RE.test(input.clientRequestId)) {
+    throw new FolioError("invalid_client_request_id", 400);
+  }
   const db = await resolveDb(sb);
+  if (typeof db.rpc !== "function") throw new FolioError("folio_write_not_atomic", 500);
   // Full immutable scope: the line must belong to THIS reservation's folio.
   const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
   if (!folio) throw new FolioError("line_not_found", 404);
@@ -1302,22 +1400,36 @@ export async function updateAddonQuantity(
   if (!Number.isSafeInteger(subtotal) || subtotal > 1e9) {
     throw new FolioError("invalid_amount", 400);
   }
-  const updated = await db
-    .from<LineRow>("hotel_folio_lines")
-    .update({
-      quantity,
-      subtotal_cents: subtotal,
-      actor_n3_user_key: input.actorKey,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("tenant_id", input.tenantId)
-    .eq("folio_id", folio.id)
-    .eq("id", input.lineId)
-    .eq("status", "draft")
-    .select(LINE_COLS)
-    .single();
-  if (updated.error || !updated.data) throw new FolioError("folio_write_failed", 500);
-  return toStoredLine(updated.data, new Map());
+
+  const fingerprint = await operationFingerprint(
+    "folio.update_quantity",
+    {
+      tenantId: input.tenantId,
+      reservationId: input.reservationId,
+      folioId: folio.id,
+      lineId: input.lineId,
+    },
+    { quantity },
+  );
+  const res = await db.rpc("hotelhub_update_folio_line_quantity", {
+    p_tenant_id: input.tenantId,
+    p_reservation_id: input.reservationId,
+    p_line_id: input.lineId,
+    // Optimistic concurrency: the row we validated must still be the row the
+    // transaction locks, otherwise a competing edit wins and we report it.
+    p_expected_version: Number(row.version ?? 1),
+    p_quantity: quantity,
+    p_subtotal_cents: subtotal,
+    p_tax_cents: 0,
+    p_total_cents: subtotal,
+    p_client_request_id: input.clientRequestId,
+    p_actor_n3_user_key: input.actorKey,
+    p_request_fingerprint: fingerprint,
+  });
+  const lineId = unwrapLineResult(res);
+  const updated = await readScopedLine(db, input.tenantId, folio.id, lineId);
+  if (!updated) throw new FolioError("folio_read_failed", 500);
+  return toStoredLine(updated, new Map());
 }
 
 /** Owner-only manual adjustment or discount. Always signed, always reasoned. */
@@ -1361,7 +1473,7 @@ export async function addOwnerAdjustment(
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
   const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
 
-  const fingerprint = operationFingerprint(
+  const fingerprint = await operationFingerprint(
     "folio.adjustment",
     {
       tenantId: input.tenantId,
@@ -1389,39 +1501,26 @@ export async function addOwnerAdjustment(
     throw new FolioError("idempotency_conflict", 409);
   }
 
-  const inserted = await db
-    .from<LineRow>("hotel_folio_lines")
-    .insert({
-      tenant_id: input.tenantId,
-      folio_id: folio.id,
-      line_type: input.lineType,
-      status: "draft",
-      tax_class: taxClass,
-      description_snapshot: description.slice(0, 160),
-      quantity: 1,
-      unit_price_cents: amount,
-      subtotal_cents: amount,
-      tax_snapshot: { source: "owner_adjustment", taxClass },
-      reason,
-      actor_n3_user_key: input.actorKey,
-      client_request_id: input.clientRequestId,
-    })
-    .select(LINE_COLS)
-    .single();
-  if (inserted.error || !inserted.data) throw new FolioError("folio_write_failed", 500);
-
-  await recordFolioOperation(db, {
+  const lineId = await atomicAddLine(db, {
     tenantId: input.tenantId,
-    operation: "folio.adjustment",
     reservationId: input.reservationId,
-    folioId: folio.id,
-    lineId: null,
+    operation: "folio.adjustment",
+    lineType: input.lineType,
+    catalogueId: null,
+    taxClass,
+    description: description.slice(0, 160),
+    quantity: 1,
+    unitPriceCents: amount,
+    subtotalCents: amount,
+    taxSnapshot: { source: "owner_adjustment", taxClass },
+    reason,
     clientRequestId: input.clientRequestId,
     fingerprint,
-    resultLineId: inserted.data.id,
     actorKey: input.actorKey,
   });
-  return toStoredLine(inserted.data, new Map());
+  const row = await readScopedLine(db, input.tenantId, folio.id, lineId);
+  if (!row) throw new FolioError("folio_read_failed", 500);
+  return toStoredLine(row, new Map());
 }
 
 /**
@@ -1457,7 +1556,7 @@ export async function reverseFolioLine(
   const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
   if (!folio) throw new FolioError("line_not_found", 404);
 
-  const fingerprint = operationFingerprint(
+  const fingerprint = await operationFingerprint(
     "folio.reverse",
     {
       tenantId: input.tenantId,

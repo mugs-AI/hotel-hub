@@ -10,6 +10,7 @@ import { addOwnerAdjustment } from "@/lib/folio-store.server";
 import { validateAdjustmentBody } from "@/lib/folio-input";
 import {
   folioDeny,
+  folioSameOriginGuard,
   folioFailure,
   folioJson,
   readJsonBody,
@@ -23,6 +24,10 @@ export async function handleAddFolioAdjustment({
   request: Request;
   params: { id?: string };
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:folio:adjust");
   if ("response" in gate) return gate.response;
   const { actor } = gate;

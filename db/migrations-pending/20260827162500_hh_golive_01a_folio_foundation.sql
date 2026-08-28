@@ -164,11 +164,18 @@ alter table public.hotel_financial_settings enable row level security;
 create table if not exists public.hotel_folios (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.hotel_tenants(id) on delete cascade,
-  reservation_id uuid not null references public.hotel_reservations(id) on delete cascade,
+  reservation_id uuid not null,
   currency text not null default 'MYR' check (currency ~ '^[A-Z]{3}$'),
   status text not null default 'open' check (status in ('open','prepared')),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- TENANT-SCOPED relationship: the database itself refuses a folio that
+  -- points at another tenant's reservation.
+  constraint hotel_folios_tenant_reservation_fkey
+    foreign key (tenant_id, reservation_id)
+    references public.hotel_reservations (tenant_id, id) on delete cascade,
+  -- Allows other tables to reference (tenant_id, id) compositely.
+  constraint hotel_folios_tenant_id_uk unique (tenant_id, id)
 );
 
 -- Exactly one folio per tenant/reservation.
@@ -181,7 +188,7 @@ alter table public.hotel_folios enable row level security;
 create table if not exists public.hotel_folio_lines (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.hotel_tenants(id) on delete cascade,
-  folio_id uuid not null references public.hotel_folios(id) on delete cascade,
+  folio_id uuid not null,
   line_type public.hotel_folio_line_type not null,
   status public.hotel_folio_line_status not null default 'draft',
 
@@ -201,6 +208,21 @@ create table if not exists public.hotel_folio_lines (
   -- Frozen snapshot of the tax/levy configuration used for this line.
   tax_snapshot jsonb not null default '{}'::jsonb,
 
+  -- IMMUTABLE ROOM-NIGHT SNAPSHOT. Frozen at check-in / explicit refresh so a
+  -- later room remap, N3 stock remap or rate edit can never rewrite history.
+  n3_stock_id_snapshot text,
+  n3_stock_code_snapshot text,
+  n3_stock_name_snapshot text,
+  n3_uom_id_snapshot text,
+  n3_tax_code_id_snapshot text,
+  agreed_rate_cents_snapshot integer,
+  room_label_snapshot text,
+  settings_snapshot jsonb,
+  snapshot_frozen_at timestamptz,
+
+  -- Optimistic concurrency for the quantity edit: a stale PATCH loses.
+  version integer not null default 1 check (version > 0),
+
   actor_n3_user_key text not null,
   reason text check (reason is null or length(reason) between 3 and 240),
   reverses_line_id uuid references public.hotel_folio_lines(id) on delete restrict,
@@ -212,14 +234,24 @@ create table if not exists public.hotel_folio_lines (
   -- A reversal must always name what it reverses and why.
   constraint hotel_folio_lines_reversal_link_chk check (
     (line_type <> 'reversal') or (reverses_line_id is not null and reason is not null)
-  )
+  ),
+  -- A room-night line is only valid with its frozen identity evidence.
+  constraint hotel_folio_lines_room_night_snapshot_chk check (
+    line_type <> 'room_night'
+    or (stay_date is not null
+        and source_reservation_room_id is not null
+        and agreed_rate_cents_snapshot is not null
+        and snapshot_frozen_at is not null
+        and jsonb_typeof(settings_snapshot) = 'object')
+  ),
+  constraint hotel_folio_lines_tenant_folio_fkey
+    foreign key (tenant_id, folio_id)
+    references public.hotel_folios (tenant_id, id) on delete cascade,
+  constraint hotel_folio_lines_tenant_id_uk unique (tenant_id, id)
 );
 
 create index if not exists hotel_folio_lines_folio_idx
   on public.hotel_folio_lines (tenant_id, folio_id, created_at);
-create unique index if not exists hotel_folio_lines_request_uidx
-  on public.hotel_folio_lines (tenant_id, client_request_id)
-  where client_request_id is not null;
 -- One derived room-night line per reservation room per stay date.
 create unique index if not exists hotel_folio_lines_room_night_uidx
   on public.hotel_folio_lines (tenant_id, folio_id, source_reservation_room_id, stay_date)
@@ -228,9 +260,55 @@ create unique index if not exists hotel_folio_lines_room_night_uidx
 create unique index if not exists hotel_folio_lines_reverses_uidx
   on public.hotel_folio_lines (tenant_id, reverses_line_id)
   where reverses_line_id is not null;
+--
+-- NOTE: there is deliberately NO unique index on (tenant_id, client_request_id)
+-- here. A bare request id is not an idempotency key — the operations ledger
+-- (hotel_folio_operations) is the single authority, keyed by
+-- (tenant, operation, client_request_id) and verified against target + body
+-- fingerprint. A line-level request-id unique index would contradict that
+-- model and would reject a legitimate different operation reusing an id.
 
 grant all on public.hotel_folio_lines to service_role;
 alter table public.hotel_folio_lines enable row level security;
+
+-- Room-night snapshots are append-only history: once frozen, the financial
+-- and identity evidence of the night can never be rewritten in place.
+-- Corrections are made by reversal, never by mutation.
+create or replace function public.hotelhub_folio_room_night_immutable()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if old.line_type = 'room_night' then
+    if new.line_type is distinct from old.line_type
+       or new.stay_date is distinct from old.stay_date
+       or new.source_reservation_room_id is distinct from old.source_reservation_room_id
+       or new.source_hotel_room_id is distinct from old.source_hotel_room_id
+       or new.unit_price_cents is distinct from old.unit_price_cents
+       or new.subtotal_cents is distinct from old.subtotal_cents
+       or new.quantity is distinct from old.quantity
+       or new.tax_class is distinct from old.tax_class
+       or new.agreed_rate_cents_snapshot is distinct from old.agreed_rate_cents_snapshot
+       or new.n3_stock_id_snapshot is distinct from old.n3_stock_id_snapshot
+       or new.n3_stock_code_snapshot is distinct from old.n3_stock_code_snapshot
+       or new.n3_stock_name_snapshot is distinct from old.n3_stock_name_snapshot
+       or new.n3_uom_id_snapshot is distinct from old.n3_uom_id_snapshot
+       or new.n3_tax_code_id_snapshot is distinct from old.n3_tax_code_id_snapshot
+       or new.settings_snapshot is distinct from old.settings_snapshot
+       or new.snapshot_frozen_at is distinct from old.snapshot_frozen_at
+    then
+      raise exception 'room_night_snapshot_immutable';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists hotel_folio_lines_room_night_immutable on public.hotel_folio_lines;
+create trigger hotel_folio_lines_room_night_immutable
+  before update on public.hotel_folio_lines
+  for each row execute function public.hotelhub_folio_room_night_immutable();
 
 -- ------------------------------- reservation tax profile + TTx evidence
 
@@ -251,7 +329,7 @@ alter table public.hotel_reservation_tax_profile enable row level security;
 create table if not exists public.hotel_tourism_tax_evidence (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.hotel_tenants(id) on delete cascade,
-  reservation_id uuid not null references public.hotel_reservations(id) on delete cascade,
+  reservation_id uuid not null,
   -- Manual evidence that an OTA / DPSP already collected Tourism Tax.
   -- No card, bank or other secret payment data is ever stored here.
   source_label text not null check (length(btrim(source_label)) between 2 and 60),
@@ -261,14 +339,17 @@ create table if not exists public.hotel_tourism_tax_evidence (
   note text check (note is null or length(note) <= 240),
   actor_n3_user_key text not null,
   client_request_id uuid,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint hotel_tourism_tax_evidence_tenant_res_fkey
+    foreign key (tenant_id, reservation_id)
+    references public.hotel_reservations (tenant_id, id) on delete cascade,
+  constraint hotel_tourism_tax_evidence_tenant_id_uk unique (tenant_id, id)
 );
 
 create index if not exists hotel_tourism_tax_evidence_res_idx
   on public.hotel_tourism_tax_evidence (tenant_id, reservation_id, created_at);
-create unique index if not exists hotel_tourism_tax_evidence_request_uidx
-  on public.hotel_tourism_tax_evidence (tenant_id, client_request_id)
-  where client_request_id is not null;
+-- No bare (tenant, client_request_id) unique index: the operations ledger is
+-- the single idempotency authority (see section F).
 
 grant all on public.hotel_tourism_tax_evidence to service_role;
 alter table public.hotel_tourism_tax_evidence enable row level security;
@@ -287,17 +368,34 @@ create table if not exists public.hotel_folio_operations (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.hotel_tenants(id) on delete cascade,
   operation text not null check (operation in (
-    'folio.add_addon','folio.adjustment','folio.reverse','folio.tourism_tax_evidence'
+    'folio.add_addon','folio.adjustment','folio.reverse',
+    'folio.update_quantity','folio.tourism_tax_evidence'
   )),
-  reservation_id uuid not null references public.hotel_reservations(id) on delete cascade,
-  folio_id uuid references public.hotel_folios(id) on delete cascade,
-  target_line_id uuid references public.hotel_folio_lines(id) on delete cascade,
+  reservation_id uuid not null,
+  folio_id uuid,
+  target_line_id uuid,
   client_request_id uuid not null,
-  request_fingerprint text not null check (length(request_fingerprint) between 4 and 128),
-  result_line_id uuid references public.hotel_folio_lines(id) on delete set null,
+  -- SHA-256 hex of the canonical operation input (server-computed).
+  request_fingerprint text not null check (request_fingerprint ~ '^[0-9a-f]{64}$'),
+  result_line_id uuid,
   actor_n3_user_key text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint hotel_folio_operations_tenant_res_fkey
+    foreign key (tenant_id, reservation_id)
+    references public.hotel_reservations (tenant_id, id) on delete cascade,
+  constraint hotel_folio_operations_tenant_folio_fkey
+    foreign key (tenant_id, folio_id)
+    references public.hotel_folios (tenant_id, id) on delete cascade,
+  constraint hotel_folio_operations_tenant_target_fkey
+    foreign key (tenant_id, target_line_id)
+    references public.hotel_folio_lines (tenant_id, id) on delete cascade,
+  constraint hotel_folio_operations_tenant_result_fkey
+    foreign key (tenant_id, result_line_id)
+    references public.hotel_folio_lines (tenant_id, id) on delete cascade
 );
+
+create unique index if not exists hotel_folio_operations_key_uidx
+  on public.hotel_folio_operations (tenant_id, operation, client_request_id);
 
 create unique index if not exists hotel_folio_operations_key_uidx
   on public.hotel_folio_operations (tenant_id, operation, client_request_id);
@@ -425,4 +523,314 @@ revoke all on function public.hotelhub_reverse_folio_line(
 ) from public, anon, authenticated;
 grant execute on function public.hotelhub_reverse_folio_line(
   uuid, uuid, uuid, text, uuid, text, text
+) to service_role;
+
+-- ------------- H. atomic add-on / adjustment / quantity / evidence writes
+--
+-- Every financial mutation below is ONE statement inside ONE transaction:
+-- the operation claim, the scope proof and the write cannot be interleaved.
+-- Two concurrent identical requests therefore cannot both insert a line —
+-- the loser blocks on the operations unique index and returns the replay.
+--
+-- Money is computed by the audited pure TypeScript rules and passed in; the
+-- database re-proves the arithmetic so a bad caller cannot write a folio line
+-- whose parts do not add up.
+
+create or replace function public.hotelhub_claim_folio_operation(
+  p_tenant_id uuid,
+  p_operation text,
+  p_reservation_id uuid,
+  p_folio_id uuid,
+  p_target_line_id uuid,
+  p_client_request_id uuid,
+  p_request_fingerprint text,
+  p_actor_n3_user_key text
+) returns jsonb
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_claim public.hotel_folio_operations%rowtype;
+begin
+  select * into v_claim
+  from public.hotel_folio_operations
+  where tenant_id = p_tenant_id
+    and operation = p_operation
+    and client_request_id = p_client_request_id
+  for update;
+
+  if found then
+    if v_claim.request_fingerprint is distinct from p_request_fingerprint
+       or v_claim.folio_id is distinct from p_folio_id
+       or v_claim.target_line_id is distinct from p_target_line_id
+       or v_claim.reservation_id is distinct from p_reservation_id then
+      return jsonb_build_object('ok', false, 'code', 'idempotency_conflict');
+    end if;
+    return jsonb_build_object('ok', true, 'replay', true, 'lineId', v_claim.result_line_id);
+  end if;
+
+  insert into public.hotel_folio_operations (
+    tenant_id, operation, reservation_id, folio_id, target_line_id,
+    client_request_id, request_fingerprint, actor_n3_user_key
+  ) values (
+    p_tenant_id, p_operation, p_reservation_id, p_folio_id, p_target_line_id,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+
+  return jsonb_build_object('ok', true, 'replay', false, 'lineId', null);
+end;
+$$;
+
+create or replace function public.hotelhub_add_folio_line(
+  p_tenant_id uuid,
+  p_reservation_id uuid,
+  p_operation text,
+  p_line_type public.hotel_folio_line_type,
+  p_catalogue_id uuid,
+  p_tax_class public.hotel_tax_class,
+  p_description text,
+  p_quantity integer,
+  p_unit_price_cents integer,
+  p_subtotal_cents integer,
+  p_tax_cents integer,
+  p_total_cents integer,
+  p_tax_snapshot jsonb,
+  p_reason text,
+  p_client_request_id uuid,
+  p_actor_n3_user_key text,
+  p_request_fingerprint text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_folio_id uuid;
+  v_claim jsonb;
+  v_line public.hotel_folio_lines%rowtype;
+begin
+  if p_operation not in ('folio.add_addon', 'folio.adjustment') then
+    return jsonb_build_object('ok', false, 'code', 'operation_not_supported');
+  end if;
+  if p_quantity is null or p_quantity < 1 or p_quantity > 9999 then
+    return jsonb_build_object('ok', false, 'code', 'quantity_invalid');
+  end if;
+  if p_subtotal_cents is distinct from (p_quantity * p_unit_price_cents)
+     or p_total_cents is distinct from (p_subtotal_cents + coalesce(p_tax_cents, 0)) then
+    return jsonb_build_object('ok', false, 'code', 'amount_mismatch');
+  end if;
+
+  select f.id into v_folio_id
+  from public.hotel_folios f
+  where f.tenant_id = p_tenant_id and f.reservation_id = p_reservation_id
+  for update;
+
+  if v_folio_id is null then
+    return jsonb_build_object('ok', false, 'code', 'folio_not_found');
+  end if;
+
+  if p_catalogue_id is not null and not exists (
+    select 1 from public.hotel_addon_catalogue c
+    where c.tenant_id = p_tenant_id and c.id = p_catalogue_id
+  ) then
+    return jsonb_build_object('ok', false, 'code', 'catalogue_item_not_found');
+  end if;
+
+  v_claim := public.hotelhub_claim_folio_operation(
+    p_tenant_id, p_operation, p_reservation_id, v_folio_id, null,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+  if (v_claim->>'ok')::boolean is not true then
+    return v_claim;
+  end if;
+  if (v_claim->>'replay')::boolean then
+    return v_claim;
+  end if;
+
+  insert into public.hotel_folio_lines (
+    tenant_id, folio_id, line_type, status, catalogue_id, tax_class,
+    description_snapshot, quantity, unit_price_cents, subtotal_cents,
+    tax_cents, total_cents, tax_snapshot, reason, actor_n3_user_key,
+    client_request_id
+  ) values (
+    p_tenant_id, v_folio_id, p_line_type, 'draft', p_catalogue_id, p_tax_class,
+    left(p_description, 160), p_quantity, p_unit_price_cents, p_subtotal_cents,
+    coalesce(p_tax_cents, 0), p_total_cents, coalesce(p_tax_snapshot, '{}'::jsonb),
+    p_reason, p_actor_n3_user_key, p_client_request_id
+  ) returning * into v_line;
+
+  update public.hotel_folio_operations
+     set result_line_id = v_line.id
+   where tenant_id = p_tenant_id
+     and operation = p_operation
+     and client_request_id = p_client_request_id;
+
+  return jsonb_build_object('ok', true, 'replay', false, 'lineId', v_line.id);
+end;
+$$;
+
+create or replace function public.hotelhub_update_folio_line_quantity(
+  p_tenant_id uuid,
+  p_reservation_id uuid,
+  p_line_id uuid,
+  p_expected_version integer,
+  p_quantity integer,
+  p_subtotal_cents integer,
+  p_tax_cents integer,
+  p_total_cents integer,
+  p_client_request_id uuid,
+  p_actor_n3_user_key text,
+  p_request_fingerprint text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_folio_id uuid;
+  v_claim jsonb;
+  v_line public.hotel_folio_lines%rowtype;
+begin
+  if p_quantity is null or p_quantity < 1 or p_quantity > 9999 then
+    return jsonb_build_object('ok', false, 'code', 'quantity_invalid');
+  end if;
+
+  select f.id into v_folio_id
+  from public.hotel_folios f
+  where f.tenant_id = p_tenant_id and f.reservation_id = p_reservation_id
+  for update;
+
+  if v_folio_id is null then
+    return jsonb_build_object('ok', false, 'code', 'folio_not_found');
+  end if;
+
+  v_claim := public.hotelhub_claim_folio_operation(
+    p_tenant_id, 'folio.update_quantity', p_reservation_id, v_folio_id, p_line_id,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+  if (v_claim->>'ok')::boolean is not true then
+    return v_claim;
+  end if;
+  if (v_claim->>'replay')::boolean then
+    return jsonb_build_object('ok', true, 'replay', true, 'lineId', p_line_id);
+  end if;
+
+  select * into v_line
+  from public.hotel_folio_lines
+  where tenant_id = p_tenant_id and folio_id = v_folio_id and id = p_line_id
+  for update;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'code', 'line_not_found');
+  end if;
+  if v_line.line_type = 'room_night' then
+    return jsonb_build_object('ok', false, 'code', 'room_night_not_editable');
+  end if;
+  if v_line.status <> 'draft' then
+    return jsonb_build_object('ok', false, 'code', 'line_not_editable');
+  end if;
+  if v_line.version is distinct from p_expected_version then
+    return jsonb_build_object('ok', false, 'code', 'version_conflict');
+  end if;
+  if p_subtotal_cents is distinct from (p_quantity * v_line.unit_price_cents)
+     or p_total_cents is distinct from (p_subtotal_cents + coalesce(p_tax_cents, 0)) then
+    return jsonb_build_object('ok', false, 'code', 'amount_mismatch');
+  end if;
+
+  update public.hotel_folio_lines
+     set quantity = p_quantity,
+         subtotal_cents = p_subtotal_cents,
+         tax_cents = coalesce(p_tax_cents, 0),
+         total_cents = p_total_cents,
+         version = v_line.version + 1,
+         updated_at = now()
+   where tenant_id = p_tenant_id and folio_id = v_folio_id and id = p_line_id;
+
+  update public.hotel_folio_operations
+     set result_line_id = p_line_id
+   where tenant_id = p_tenant_id
+     and operation = 'folio.update_quantity'
+     and client_request_id = p_client_request_id;
+
+  return jsonb_build_object('ok', true, 'replay', false, 'lineId', p_line_id,
+                            'version', v_line.version + 1);
+end;
+$$;
+
+create or replace function public.hotelhub_add_tourism_tax_evidence(
+  p_tenant_id uuid,
+  p_reservation_id uuid,
+  p_source_label text,
+  p_reference text,
+  p_collected_on date,
+  p_amount_cents integer,
+  p_note text,
+  p_client_request_id uuid,
+  p_actor_n3_user_key text,
+  p_request_fingerprint text
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_claim jsonb;
+  v_id uuid;
+begin
+  if p_amount_cents is null or p_amount_cents < 0 or p_amount_cents > 100000000 then
+    return jsonb_build_object('ok', false, 'code', 'amount_invalid');
+  end if;
+  if not exists (
+    select 1 from public.hotel_reservations r
+    where r.tenant_id = p_tenant_id and r.id = p_reservation_id
+  ) then
+    return jsonb_build_object('ok', false, 'code', 'reservation_not_found');
+  end if;
+
+  v_claim := public.hotelhub_claim_folio_operation(
+    p_tenant_id, 'folio.tourism_tax_evidence', p_reservation_id, null, null,
+    p_client_request_id, p_request_fingerprint, p_actor_n3_user_key
+  );
+  if (v_claim->>'ok')::boolean is not true then
+    return v_claim;
+  end if;
+  if (v_claim->>'replay')::boolean then
+    return jsonb_build_object('ok', true, 'replay', true, 'evidenceId', null);
+  end if;
+
+  insert into public.hotel_tourism_tax_evidence (
+    tenant_id, reservation_id, source_label, reference, collected_on,
+    amount_cents, note, actor_n3_user_key, client_request_id
+  ) values (
+    p_tenant_id, p_reservation_id, btrim(p_source_label), p_reference, p_collected_on,
+    p_amount_cents, p_note, p_actor_n3_user_key, p_client_request_id
+  ) returning id into v_id;
+
+  return jsonb_build_object('ok', true, 'replay', false, 'evidenceId', v_id);
+end;
+$$;
+
+revoke all on function public.hotelhub_claim_folio_operation(
+  uuid, text, uuid, uuid, uuid, uuid, text, text
+) from public, anon, authenticated;
+revoke all on function public.hotelhub_add_folio_line(
+  uuid, uuid, text, public.hotel_folio_line_type, uuid, public.hotel_tax_class,
+  text, integer, integer, integer, integer, integer, jsonb, text, uuid, text, text
+) from public, anon, authenticated;
+revoke all on function public.hotelhub_update_folio_line_quantity(
+  uuid, uuid, uuid, integer, integer, integer, integer, integer, uuid, text, text
+) from public, anon, authenticated;
+revoke all on function public.hotelhub_add_tourism_tax_evidence(
+  uuid, uuid, text, text, date, integer, text, uuid, text, text
+) from public, anon, authenticated;
+
+grant execute on function public.hotelhub_add_folio_line(
+  uuid, uuid, text, public.hotel_folio_line_type, uuid, public.hotel_tax_class,
+  text, integer, integer, integer, integer, integer, jsonb, text, uuid, text, text
+) to service_role;
+grant execute on function public.hotelhub_update_folio_line_quantity(
+  uuid, uuid, uuid, integer, integer, integer, integer, integer, uuid, text, text
+) to service_role;
+grant execute on function public.hotelhub_add_tourism_tax_evidence(
+  uuid, uuid, text, text, date, integer, text, uuid, text, text
 ) to service_role;

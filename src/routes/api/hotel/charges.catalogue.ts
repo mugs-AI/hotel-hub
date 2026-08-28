@@ -54,6 +54,10 @@ export async function handleCreateCatalogueItem({
 }: {
   request: Request;
 }): Promise<Response> {
+  // Cross-origin write protection: a cookie session must not be usable
+  // from another origin.
+  const origin = folioSameOriginGuard(request);
+  if (origin) return origin;
   const gate = await requireFolioActor("hotel:charges:manage");
   if ("response" in gate) return gate.response;
   const { actor } = gate;
