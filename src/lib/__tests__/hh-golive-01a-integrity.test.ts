@@ -185,7 +185,7 @@ describe("API boundary validation", () => {
 });
 
 describe("migration safety", () => {
-  const sql = read("db/migrations-pending/20260827162500_hh_golive_01a_folio_foundation.sql");
+  const sql = read("supabase/migrations/20260827162500_33f5b427-d39d-4caf-bc85-df7c4ca6ab01.sql");
 
   it("declares the atomic reversal function", () => {
     expect(sql).toContain("hotelhub_reverse_folio_line");

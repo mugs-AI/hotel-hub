@@ -1,8 +1,7 @@
 // HH-GOLIVE-01A correction — race-safe operation claims.
 //
-// The staged SQL cannot be executed here (the approved scope forbids running
-// the migration, and no PostgreSQL instance is available to this suite), so
-// concurrency is proven two ways:
+// The canonical applied SQL is inspected here without re-executing it, so the
+// concurrency contract is proven two ways:
 //
 //   1. EXECUTABLE MODEL TESTS — an in-memory transactional model that mirrors
 //      the SQL exactly: the operation-key unique index is a serialization
@@ -10,17 +9,17 @@
 //      uncommitted insert), a claim is only visible to other transactions
 //      after commit, and locks are released at transaction end. Two
 //      genuinely interleaved async "transactions" are run against it.
-//   2. SQL CONTRACT TESTS — the staged file must keep the exact statement
+//   2. SQL CONTRACT TESTS — the applied file must keep the exact statement
 //      ORDER the model relies on (lock -> claim -> state decision), exactly
 //      one operation-key unique index, and a complete rollback manifest.
 //
-// Real PostgreSQL concurrency remains NOT VERIFIED until the migration is
-// applied; the acceptance test for that is stated in the report.
+// Real PostgreSQL concurrency is covered by the separately recorded database
+// acceptance evidence; this suite preserves the source-level contract.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SQL_PATH = "db/migrations-pending/20260827162500_hh_golive_01a_folio_foundation.sql";
+const SQL_PATH = "supabase/migrations/20260827162500_33f5b427-d39d-4caf-bc85-df7c4ca6ab01.sql";
 const sql = readFileSync(resolve(process.cwd(), SQL_PATH), "utf8");
 
 // --------------------------------------------------------------- the model
@@ -647,7 +646,7 @@ function fnBody(name: string): string {
   return sql.slice(start, end);
 }
 
-describe("staged SQL contract", () => {
+describe("applied SQL contract", () => {
   it("declares exactly one operation-key unique index", () => {
     const creates = sql.match(/create unique index if not exists hotel_folio_operations_key_uidx/g);
     expect(creates).toHaveLength(1);
@@ -751,8 +750,8 @@ describe("staged SQL contract", () => {
     }
   });
 
-  it("stays staged and unexecuted outside supabase/migrations", () => {
-    expect(SQL_PATH.startsWith("db/migrations-pending/")).toBe(true);
-    expect(sql).toContain("NOT EXECUTED");
+  it("uses the canonical applied migration path", () => {
+    expect(SQL_PATH.startsWith("supabase/migrations/")).toBe(true);
+    expect(SQL_PATH).toContain("33f5b427-d39d-4caf-bc85-df7c4ca6ab01");
   });
 });

@@ -534,18 +534,17 @@ describe("authoritative folio computation", () => {
   });
 });
 
-describe("staged migration contract", () => {
+describe("applied migration contract", () => {
   const sql = (() => {
     const p = resolve(
       __dirname,
-      "../../../db/migrations-pending/20260827162500_hh_golive_01a_folio_foundation.sql",
+      "../../../supabase/migrations/20260827162500_33f5b427-d39d-4caf-bc85-df7c4ca6ab01.sql",
     );
     return existsSync(p) ? readFileSync(p, "utf8") : "";
   })();
 
-  it("is staged, additive and never executed against live data", () => {
+  it("is additive and contains no destructive top-level data operations", () => {
     expect(sql).not.toBe("");
-    expect(sql).toMatch(/NOT EXECUTED/);
     // No data seeding and nothing destructive at migration top level. The
     // inserts/deletes INSIDE the function bodies are the audited financial
     // writes and the release of a caller's own operation claim, not seeded
