@@ -15,11 +15,7 @@
 //
 // The N3 read is INJECTED (`SelectorLoader`) so this module is exercised by
 // real behavioural tests without any network access.
-import {
-  N3_SELECTOR_CONTRACTS,
-  type N3SelectorKind,
-  type N3SelectorLoad,
-} from "./n3-selectors";
+import { N3_SELECTOR_CONTRACTS, type N3SelectorKind, type N3SelectorLoad } from "./n3-selectors";
 import type { SettingsPatch } from "./financial-settings";
 import { emptySnapshot, type N3Snapshot, type PostingComponent } from "./posting-mappings";
 
@@ -112,7 +108,6 @@ export async function canonicalizeSettingsPatch(
     }
     next.serviceTax = out;
   }
-
 
   if (patch.exempt) {
     const r = await canonicalizeN3Reference("tax_code", patch.exempt.n3TaxCodeId ?? null, load);

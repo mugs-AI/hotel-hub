@@ -283,9 +283,6 @@ export async function updateAddonItem(
   const current = await getAddonItem(tenantId, id, db);
   if (!current) throw new FolioError("item_not_found", 404);
 
-
-
-
   // Merge so a partial edit never silently clears an existing mapping.
   const merged: AddonInput = {
     category: input.category ?? current.category,
@@ -572,7 +569,6 @@ export async function patchFinancialSettings(
   if (result.error || !result.data) throw new FolioError("financial_settings_write_failed", 500);
   return toSettings(tenantId, result.data);
 }
-
 
 // ------------------------------------------------------------- tax profile
 

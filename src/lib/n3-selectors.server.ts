@@ -135,7 +135,6 @@ export class N3SelectorForbidden extends Error {
   }
 }
 
-
 /**
  * Load the full selectable list for one selector kind.
  *
