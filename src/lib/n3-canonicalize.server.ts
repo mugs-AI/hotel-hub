@@ -27,6 +27,7 @@ export const CANONICALIZE_ERRORS = {
   notFound: "n3_reference_not_found",
   unavailable: "n3_validation_unavailable",
   resolvedAccountServerOwned: "resolved_account_is_server_owned",
+  invalidMapping: "invalid_n3_mapping",
 } as const;
 
 export type CanonicalError = (typeof CANONICALIZE_ERRORS)[keyof typeof CANONICALIZE_ERRORS];
@@ -42,6 +43,7 @@ export function canonicalErrorStatus(code: string): number {
       return 503;
     case CANONICALIZE_ERRORS.notFound:
     case CANONICALIZE_ERRORS.resolvedAccountServerOwned:
+    case CANONICALIZE_ERRORS.invalidMapping:
       return 400;
     default:
       return 400;
@@ -183,21 +185,31 @@ export async function canonicalizeAddonInput(
   const next: Record<string, unknown> = { ...input };
   for (const field of ADDON_SNAPSHOT_FIELDS) delete next[field];
 
+  // Shape validation for every submitted identifier happens first, so a
+  // malformed value fails closed before any selector load or DB write.
+  const ids: Partial<Record<"n3StockId" | "n3UomId" | "n3TaxCodeId", string | null>> = {};
+  for (const field of ["n3StockId", "n3UomId", "n3TaxCodeId"] as const) {
+    if (!(field in input)) continue;
+    const parsed = parseSubmittedId(input[field]);
+    if (!parsed.ok) return parsed;
+    ids[field] = parsed.value;
+  }
+
   if ("n3StockId" in input) {
-    const r = await canonicalizeN3Reference("stock", asId(input.n3StockId), load);
+    const r = await canonicalizeN3Reference("stock", ids.n3StockId ?? null, load);
     if (!r.ok) return r;
     next.n3StockId = r.value.id;
     next.n3StockCodeSnapshot = r.value.code;
     next.n3StockNameSnapshot = r.value.name;
   }
   if ("n3UomId" in input) {
-    const r = await canonicalizeN3Reference("uom", asId(input.n3UomId), load);
+    const r = await canonicalizeN3Reference("uom", ids.n3UomId ?? null, load);
     if (!r.ok) return r;
     next.n3UomId = r.value.id;
     next.n3UomSnapshot = r.value.code;
   }
   if ("n3TaxCodeId" in input) {
-    const r = await canonicalizeN3Reference("tax_code", asId(input.n3TaxCodeId), load);
+    const r = await canonicalizeN3Reference("tax_code", ids.n3TaxCodeId ?? null, load);
     if (!r.ok) return r;
     next.n3TaxCodeId = r.value.id;
     next.n3TaxCodeSnapshot = r.value.code;
@@ -205,8 +217,16 @@ export async function canonicalizeAddonInput(
   return { ok: true, value: next };
 }
 
-function asId(v: unknown): string | null {
-  if (typeof v !== "string") return null;
+export const MAX_N3_ID_LENGTH = 120;
+
+/**
+ * Explicit null (or the accepted empty/whitespace form) clears the mapping.
+ * Any other value must be a string of at most MAX_N3_ID_LENGTH characters.
+ */
+function parseSubmittedId(v: unknown): CanonicalOutcome<string | null> {
+  if (v === null || v === undefined) return { ok: true, value: null };
+  if (typeof v !== "string") return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
+  if (v.length > MAX_N3_ID_LENGTH) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
   const t = v.trim();
-  return t ? t : null;
+  return { ok: true, value: t ? t : null };
 }
