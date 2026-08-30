@@ -469,3 +469,162 @@ export async function exchangeApiKey(
     clearTimeout(t);
   }
 }
+
+// ---- HH-GOLIVE-01A — Output Tax code and Unit-of-measure read contracts ----
+//
+// Exactly two additional hard-coded, read-only GET contracts are permitted:
+//   GET /api/TaxCodes/OutputTax/Query?$top=&$skip=
+//   GET /api/UOMs/Query?$top=&$skip=
+// Nothing here probes or accepts an arbitrary N3 path, and neither list is
+// ever written to. Raw upstream DTOs never leave this module: only sanitized
+// summaries are returned, and the browser only ever sees {id, code, name}.
+
+export const N3_TAX_CODE_PATH = "/api/TaxCodes/OutputTax/Query";
+export const N3_UOM_PATH = "/api/UOMs/Query";
+
+/**
+ * Strict reading of the documented N3 success envelope.
+ *
+ * A page is only accepted when the envelope explicitly declares success
+ * (`code === "0000"` or `success === true`) AND carries `data.value` as an
+ * array. Anything else — a non-success code, a missing envelope, a malformed
+ * body — is rejected so callers fail closed instead of treating a broken
+ * response as "no rows".
+ */
+export type N3StrictPage = { ok: true; items: unknown[]; total: number | null } | { ok: false };
+
+export function extractStrictPage(body: unknown): N3StrictPage {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false };
+  const b = body as Record<string, unknown>;
+  const code = b.code ?? b.Code;
+  const success = b.success ?? b.Success;
+  const declaredOk = (typeof code === "string" && code === "0000") || success === true;
+  if (!declaredOk) return { ok: false };
+  const data = b.data ?? b.Data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false };
+  const d = data as Record<string, unknown>;
+  const value = d.value ?? d.Value;
+  if (!Array.isArray(value)) return { ok: false };
+  const rawCount = d.count ?? d.Count;
+  let total: number | null = null;
+  if (typeof rawCount === "number" && Number.isFinite(rawCount) && rawCount >= 0) {
+    total = Math.floor(rawCount);
+  } else if (typeof rawCount === "string" && rawCount.trim() !== "") {
+    const n = Number(rawCount);
+    if (Number.isFinite(n) && n >= 0) total = Math.floor(n);
+  }
+  return { ok: true, items: value, total };
+}
+
+/** Sanitized Output Tax code. `postingAccountId` is deliberately NOT carried. */
+export type N3TaxCodeSummary = {
+  id: string;
+  code: string;
+  name: string | null;
+  isActive: boolean | null;
+  isOutputTax: boolean | null;
+};
+
+/** Sanitized unit of measure. `stockId` stays server-side for filtering. */
+export type N3UomSummary = {
+  id: string;
+  code: string;
+  name: string | null;
+  isActive: boolean | null;
+  stockId: string | null;
+};
+
+export function mapN3TaxCodeRow(raw: unknown): N3TaxCodeSummary | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  const id = pickString(row, ["Id", "id", "TaxCodeId", "taxCodeId", "Guid", "guid"]);
+  const code = pickString(row, ["Code", "code", "TaxCode", "taxCode"]);
+  if (!id || !code) return null;
+  return {
+    id,
+    code,
+    name: pickString(row, ["Description", "description", "Name", "name"]),
+    isActive: pickBool(row, ["IsActive", "isActive", "Active", "active"]),
+    isOutputTax: pickBool(row, ["IsOutputTax", "isOutputTax", "OutputTax", "outputTax"]),
+  };
+}
+
+export function mapN3UomRow(raw: unknown): N3UomSummary | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  const id = pickString(row, ["Id", "id", "UOMId", "uomId", "UomId", "Guid", "guid"]);
+  const code = pickString(row, ["Code", "code", "UOM", "uom", "Uom", "UOMCode", "uomCode"]);
+  if (!id || !code) return null;
+  return {
+    id,
+    code,
+    name: pickString(row, ["Description", "description", "Name", "name"]),
+    isActive: pickBool(row, ["IsActive", "isActive", "Active", "active"]),
+    stockId: pickString(row, ["StockId", "stockId", "StockID", "stockID", "Stock_Id"]),
+  };
+}
+
+/** Hard bound on how many pages a single full-list read may ever request. */
+export const STRICT_LIST_MAX_PAGES = 100;
+
+/**
+ * Bounded, fail-closed full-list read of one proven query endpoint.
+ *
+ * Any non-2xx status, non-success envelope, malformed envelope, transport
+ * failure or page cap breach throws `N3ListError`, so no caller can mistake a
+ * partial or broken read for a complete list.
+ */
+export async function listAllStrictN3<T>(
+  token: string,
+  path: string,
+  map: (raw: unknown) => T | null,
+): Promise<{ items: T[]; total: number }> {
+  const out: T[] = [];
+  let skip = 0;
+  let pages = 0;
+  let total: number | null = null;
+  for (;;) {
+    if (pages >= STRICT_LIST_MAX_PAGES) throw new N3ListError("limit_reached");
+    if (skip >= FULL_LIST_CAP) throw new N3ListError("limit_reached");
+    const first = pages === 0;
+    let res: { status: number; body: unknown; durationMs: number };
+    try {
+      res = await callN3Path(token, `${path}?$top=${FULL_LIST_TOP}&$skip=${skip}`);
+    } catch {
+      throw new N3ListError(first ? "unavailable" : "incomplete");
+    }
+    if (res.status === 401) throw new N3ListError("unauthorized");
+    if (res.status === 403) throw new N3ListError("forbidden");
+    if (res.status < 200 || res.status >= 300) {
+      throw new N3ListError(first ? "unavailable" : "incomplete");
+    }
+    const page = extractStrictPage(res.body);
+    if (!page.ok) throw new N3ListError(first ? "unavailable" : "incomplete");
+    if (first) total = page.total;
+    for (const raw of page.items) {
+      const mapped = map(raw);
+      if (mapped) out.push(mapped);
+    }
+    pages++;
+    const returned = page.items.length;
+    skip += FULL_LIST_TOP;
+    if (typeof total === "number") {
+      if (skip >= total) break;
+      // A short page before the declared total means the read is incomplete.
+      if (returned === 0) throw new N3ListError("incomplete");
+    } else if (returned < FULL_LIST_TOP) {
+      break;
+    }
+  }
+  return { items: out, total: typeof total === "number" ? total : out.length };
+}
+
+/** Complete Output Tax code list. Fails closed; never partial. */
+export function listAllN3TaxCodes(token: string) {
+  return listAllStrictN3<N3TaxCodeSummary>(token, N3_TAX_CODE_PATH, mapN3TaxCodeRow);
+}
+
+/** Complete unit-of-measure list. Fails closed; never partial. */
+export function listAllN3Uoms(token: string) {
+  return listAllStrictN3<N3UomSummary>(token, N3_UOM_PATH, mapN3UomRow);
+}
