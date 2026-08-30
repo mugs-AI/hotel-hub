@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
+import { formatMyTimestamp } from "@/lib/malaysia-date";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -449,7 +450,7 @@ function RunSummary({ data }: { data: ApiResponse }) {
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Run at</dt>
-          <dd className="font-medium">{new Date(run.runAt).toLocaleString()}</dd>
+          <dd className="font-medium">{formatMyTimestamp(run.runAt)}</dd>
         </div>
         <div>
           <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Tenant</dt>
