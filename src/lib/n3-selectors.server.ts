@@ -6,14 +6,24 @@
 //
 // The N3 bearer token never leaves the server, and raw upstream bodies are
 // never returned to the browser — only `{ id, code, name }` triples.
-import { callN3Path, listAllN3Stocks, N3ListError } from "./n3-gateway.server";
+import {
+  callN3Path,
+  listAllN3Stocks,
+  listAllN3TaxCodes,
+  listAllN3Uoms,
+  N3ListError,
+} from "./n3-gateway.server";
 import { unwrapN3Array } from "./n3-owner";
 import {
+  boundedN3Id,
   N3_SELECTOR_CONTRACTS,
+  sameN3Id,
+  type N3SelectorContext,
   type N3SelectorKind,
   type N3SelectorLoad,
   type N3SelectorRow,
 } from "./n3-selectors";
+
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
