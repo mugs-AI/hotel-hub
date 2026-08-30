@@ -3,7 +3,8 @@
 // The client request id is minted ONCE when the Owner opens the confirmation
 // flow so a safe HTTP retry cannot create a second N3 document.
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Info } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   depositErrorMessage,
   depositStatusLabel,
@@ -115,8 +116,6 @@ export function DepositsCard({
   // Stable per-confirmation-attempt identity. Minted on "Add deposit",
   // cleared only on cancel or a completed server result.
   const [attempt, setAttempt] = useState<{ clientRequestId: string; amount: number } | null>(null);
-  // Quiet by default: the card only opens when someone asks for detail.
-  const [expanded, setExpanded] = useState(false);
 
   if (!canView) return null;
   const deposits = q.data?.deposits ?? [];
@@ -165,32 +164,40 @@ export function DepositsCard({
 
   return (
     <section
-      className="rounded-lg border bg-white p-5 shadow-sm"
-      style={{ borderColor: `${TEAL}33`, borderLeft: `4px solid ${TEAL}` }}
+      className="rounded-lg border p-5 shadow-sm"
+      style={{
+        // Light teal/blue money card: deposits are money in, and read as money.
+        backgroundColor: "#F1FAFB",
+        borderColor: `${TEAL}40`,
+        borderLeft: `4px solid ${TEAL}`,
+      }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-          Deposits
-        </h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm" style={{ color: NAVY }}>
-            {q.isPending ? "Loading…" : headline}
-          </span>
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            aria-expanded={expanded}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-2 py-1 text-xs font-medium"
-            style={{ color: TEAL }}
-          >
-            {expanded ? (
-              <ChevronUp className="h-3 w-3" aria-hidden />
-            ) : (
-              <ChevronDown className="h-3 w-3" aria-hidden />
-            )}
-            {expanded ? "Hide" : "Details"}
-          </button>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+            Deposits
+          </h2>
+          <Popover>
+            <PopoverTrigger
+              type="button"
+              aria-label="About deposits"
+              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-input bg-white"
+              style={{ color: TEAL }}
+            >
+              <Info className="h-3 w-3" aria-hidden />
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80 text-xs">
+              <p>Money taken before the stay. Each deposit is saved in N3 as a payment received.</p>
+              <p className="mt-2">HotelHub never keeps a payment only on its own records.</p>
+              <p className="mt-2">
+                A payment entered straight into N3 will not appear here on its own.
+              </p>
+            </PopoverContent>
+          </Popover>
         </div>
+        <span className="text-sm" style={{ color: NAVY }}>
+          {q.isPending ? "Loading…" : headline}
+        </span>
       </div>
       {attention ? (
         <p className="mt-1 text-xs font-medium" style={{ color: GOLD }}>
@@ -198,12 +205,8 @@ export function DepositsCard({
         </p>
       ) : null}
 
-      {!expanded ? null : (
+      <>
         <>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Deposits are recorded in N3 as AR Receive Payments. HotelHub never records a local-only
-            payment.
-          </p>
 
           {q.isPending ? (
             <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
