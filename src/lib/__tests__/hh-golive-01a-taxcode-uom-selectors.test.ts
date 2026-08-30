@@ -142,7 +142,102 @@ describe("documented envelope and pagination", () => {
     };
     await expect(listAllN3Uoms(TOKEN)).rejects.toThrow();
   });
+
+  it("rejects a contradictory envelope where an explicit code denies success", () => {
+    expect(extractStrictPage({ code: "9999", success: true, data: { value: [], count: 0 } }).ok).toBe(
+      false,
+    );
+    expect(extractStrictPage({ Code: "9999", Success: true, data: { value: [] } }).ok).toBe(false);
+    // success:true remains a valid declaration only when no code field exists.
+    expect(extractStrictPage({ success: true, data: { value: [], count: 0 } }).ok).toBe(true);
+  });
+
+  it("rejects a contradictory envelope through the paginated read as well", async () => {
+    responder = () => ({
+      status: 200,
+      body: { code: "9999", success: true, data: { value: [], count: 0 } },
+    });
+    await expect(listAllN3TaxCodes(TOKEN)).rejects.toThrow();
+  });
+
+  it("fails immediately when the declared total exceeds the hard cap", async () => {
+    responder = () => ({
+      status: 200,
+      body: envelope(
+        Array.from({ length: 100 }, (_, i) => ({
+          id: `T${i}`,
+          code: `TX${i}`,
+          isActive: true,
+          isOutputTax: true,
+        })),
+        10_001,
+      ),
+    });
+    await expect(listAllN3TaxCodes(TOKEN)).rejects.toThrow();
+    expect(calls).toHaveLength(1);
+  });
+
+  it("fails incomplete on a short non-final page before the declared total", async () => {
+    responder = (url) => {
+      const skip = Number(new URL(url).searchParams.get("$skip"));
+      const n = skip === 0 ? 100 : 3; // second page is short but non-empty
+      const rows = Array.from({ length: n }, (_, i) => ({
+        id: `T${skip + i}`,
+        code: `TX${skip + i}`,
+        isActive: true,
+        isOutputTax: true,
+      }));
+      return { status: 200, body: envelope(rows, 250) };
+    };
+    await expect(listAllN3TaxCodes(TOKEN)).rejects.toThrow();
+  });
+
+  it("fails incomplete when the declared total changes between pages", async () => {
+    responder = (url) => {
+      const skip = Number(new URL(url).searchParams.get("$skip"));
+      const rows = Array.from({ length: 100 }, (_, i) => ({
+        id: `T${skip + i}`,
+        code: `TX${skip + i}`,
+        isActive: true,
+        isOutputTax: true,
+      }));
+      return { status: 200, body: envelope(rows, skip === 0 ? 250 : 300) };
+    };
+    await expect(listAllN3TaxCodes(TOKEN)).rejects.toThrow();
+  });
+
+  it("accepts an exact final partial page and returns every raw row", async () => {
+    const total = 205;
+    responder = (url) => {
+      const skip = Number(new URL(url).searchParams.get("$skip"));
+      const top = Number(new URL(url).searchParams.get("$top"));
+      const rows = [];
+      for (let i = skip; i < Math.min(total, skip + top); i++) {
+        rows.push({ id: `T${i}`, code: `TX${i}`, isActive: true, isOutputTax: true });
+      }
+      return { status: 200, body: envelope(rows, total) };
+    };
+    const { items, total: reported } = await listAllN3TaxCodes(TOKEN);
+    expect(items).toHaveLength(total);
+    expect(reported).toBe(total);
+  });
+
+  it("measures completeness on raw rows even when mapping drops some", async () => {
+    const total = 150;
+    responder = (url) => {
+      const skip = Number(new URL(url).searchParams.get("$skip"));
+      const top = Number(new URL(url).searchParams.get("$top"));
+      const rows = [];
+      for (let i = skip; i < Math.min(total, skip + top); i++) {
+        rows.push(i % 2 === 0 ? { id: `T${i}`, code: `TX${i}` } : { nope: true });
+      }
+      return { status: 200, body: envelope(rows, total) };
+    };
+    const { items } = await listAllN3TaxCodes(TOKEN);
+    expect(items).toHaveLength(75);
+  });
 });
+
 
 describe("row normalization and eligibility", () => {
   it("tolerates casing variants and numeric identifiers", () => {
