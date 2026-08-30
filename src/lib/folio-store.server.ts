@@ -34,6 +34,7 @@ import {
 import {
   applySettingsPatch,
   defaultFinancialSettings,
+  settingsWindowError,
   validateSettingsPatch,
   type FinancialSettings,
 } from "./financial-settings";
@@ -348,6 +349,14 @@ type SettingsRow = {
   rounding_mode: string;
   n3_rounding_account_id: string | null;
   n3_rounding_account_snapshot: string | null;
+  /**
+   * HH-GOLIVE-01A UAT correction. Supplied by the STAGED migration under
+   * db/migrations-pending, which is intentionally NOT applied in this
+   * milestone. Until it is, the column is absent and this stays undefined —
+   * the model then falls back to unmapped defaults and readiness stays
+   * blocked, which is the correct fail-closed behaviour.
+   */
+  posting_mappings?: unknown;
   updated_at: string | null;
 };
 
@@ -407,6 +416,7 @@ function toSettings(tenantId: string, row: SettingsRow | null): FinancialSetting
       n3RoundingAccountId: row.n3_rounding_account_id,
       n3RoundingAccountSnapshot: row.n3_rounding_account_snapshot,
     },
+    postingMappings: parsePostingMappings(row.posting_mappings),
     updatedAt: row.updated_at,
   };
 }
@@ -443,7 +453,17 @@ function settingsToRow(s: FinancialSettings): Record<string, unknown> {
     rounding_mode: s.rounding.mode,
     n3_rounding_account_id: s.rounding.n3RoundingAccountId,
     n3_rounding_account_snapshot: s.rounding.n3RoundingAccountSnapshot,
+    posting_mappings: s.postingMappings,
   };
+}
+
+/** True when the write failed only because the staged column is not applied. */
+function isMissingPostingMappingsColumn(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : "";
+  return message.toLowerCase().includes("posting_mappings");
 }
 
 export async function readFinancialSettings(
@@ -471,30 +491,44 @@ export async function patchFinancialSettings(
   const db = await resolveDb(sb);
   const current = await readFinancialSettings(tenantId, db);
   const next = applySettingsPatch(current, validated.patch);
+  // Effective windows are re-checked against the MERGED state so a patch that
+  // touches only one bound cannot create an inverted window.
+  const windowError = settingsWindowError(next);
+  if (windowError) throw new FolioError(windowError, 400);
   const row = {
     ...settingsToRow(next),
     updated_by_n3_user_key: actorKey,
     updated_at: new Date().toISOString(),
   };
 
-  const updated = await db
-    .from<SettingsRow>("hotel_financial_settings")
-    .update(row)
-    .eq("tenant_id", tenantId)
-    .select(SETTINGS_COLS)
-    .maybeSingle();
-  if (updated.error) throw new FolioError("financial_settings_write_failed", 500);
-  if (updated.data) return toSettings(tenantId, updated.data);
-
-  const inserted = await db
-    .from<SettingsRow>("hotel_financial_settings")
-    .insert({ tenant_id: tenantId, ...row })
-    .select(SETTINGS_COLS)
-    .single();
-  if (inserted.error || !inserted.data) {
-    throw new FolioError("financial_settings_write_failed", 500);
+  async function write(payload: Record<string, unknown>) {
+    const updated = await db
+      .from<SettingsRow>("hotel_financial_settings")
+      .update(payload)
+      .eq("tenant_id", tenantId)
+      .select(SETTINGS_COLS)
+      .maybeSingle();
+    if (updated.error) return { error: updated.error, data: null };
+    if (updated.data) return { error: null, data: updated.data };
+    const inserted = await db
+      .from<SettingsRow>("hotel_financial_settings")
+      .insert({ tenant_id: tenantId, ...payload })
+      .select(SETTINGS_COLS)
+      .single();
+    return { error: inserted.error ?? (inserted.data ? null : new Error("no_row")), data: inserted.data };
   }
-  return toSettings(tenantId, inserted.data);
+
+  let result = await write(row);
+  if (result.error && isMissingPostingMappingsColumn(result.error)) {
+    // The staged migration has not been applied yet. Persist everything else
+    // rather than failing the Owner's save; the mappings simply stay unstored,
+    // so readiness remains blocked.
+    const { posting_mappings: _omitted, ...withoutMappings } = row;
+    void _omitted;
+    result = await write(withoutMappings);
+  }
+  if (result.error || !result.data) throw new FolioError("financial_settings_write_failed", 500);
+  return toSettings(tenantId, result.data);
 }
 
 // ------------------------------------------------------------- tax profile
