@@ -352,12 +352,18 @@ export function verifyN3StockByCode(
 // (not just the currently displayed N3 page). Server-only; only exposed
 // through Owner-authorized fixed endpoints.
 
-export type N3GlobalError = "unauthorized" | "unavailable" | "incomplete";
+export type N3GlobalError =
+  | "unauthorized"
+  | "forbidden"
+  | "unavailable"
+  | "incomplete"
+  | "limit_reached";
 export class N3ListError extends Error {
   constructor(public code: N3GlobalError) {
     super(code);
   }
 }
+
 
 const FULL_LIST_TOP = 100;
 const FULL_LIST_CAP = 10_000;
