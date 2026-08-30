@@ -522,14 +522,23 @@ export function extractStrictPage(body: unknown): N3StrictPage {
   return { ok: true, items: value, total };
 }
 
-/** Sanitized Output Tax code. `postingAccountId` is deliberately NOT carried. */
+/**
+ * Sanitized Output Tax code.
+ *
+ * `postingAccountId` (and every other N3 account field) is deliberately NOT
+ * carried: HotelHub never lets an upstream posting account reach the browser.
+ * `rateBp` is the normalized live N3 rate in basis points, or null when N3
+ * declares no usable rate.
+ */
 export type N3TaxCodeSummary = {
   id: string;
   code: string;
   name: string | null;
   isActive: boolean | null;
   isOutputTax: boolean | null;
+  rateBp: number | null;
 };
+
 
 /** Sanitized unit of measure. `stockId` stays server-side for filtering. */
 export type N3UomSummary = {
