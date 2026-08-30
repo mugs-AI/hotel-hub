@@ -15,12 +15,26 @@
 //
 // The N3 read is INJECTED (`SelectorLoader`) so this module is exercised by
 // real behavioural tests without any network access.
-import { N3_SELECTOR_CONTRACTS, type N3SelectorKind, type N3SelectorLoad } from "./n3-selectors";
+import {
+  boundedN3Id,
+  N3_SELECTOR_CONTRACTS,
+  type N3SelectorContext,
+  type N3SelectorKind,
+  type N3SelectorLoad,
+} from "./n3-selectors";
 import type { SettingsPatch } from "./financial-settings";
-import { emptySnapshot, type N3Snapshot, type PostingComponent } from "./posting-mappings";
+import {
+  emptySnapshot,
+  type N3Snapshot,
+  type PostingComponent,
+  type PostingMappings,
+} from "./posting-mappings";
 
 /** Reads the complete authoritative list for one proven selector kind. */
-export type SelectorLoader = (kind: N3SelectorKind) => Promise<N3SelectorLoad>;
+export type SelectorLoader = (
+  kind: N3SelectorKind,
+  ctx?: N3SelectorContext,
+) => Promise<N3SelectorLoad>;
 
 export const CANONICALIZE_ERRORS = {
   contractUnverified: "n3_contract_unverified",
@@ -28,6 +42,10 @@ export const CANONICALIZE_ERRORS = {
   unavailable: "n3_validation_unavailable",
   resolvedAccountServerOwned: "resolved_account_is_server_owned",
   invalidMapping: "invalid_n3_mapping",
+  /** A unit of measure was requested without an effective N3 Stock. */
+  uomRequiresStock: "n3_uom_requires_stock",
+  /** The effective unit of measure does not belong to the effective Stock. */
+  uomStockMismatch: "n3_uom_stock_mismatch",
 } as const;
 
 export type CanonicalError = (typeof CANONICALIZE_ERRORS)[keyof typeof CANONICALIZE_ERRORS];
@@ -38,6 +56,8 @@ export type CanonicalOutcome<T> = { ok: true; value: T } | { ok: false; code: st
 export function canonicalErrorStatus(code: string): number {
   switch (code) {
     case CANONICALIZE_ERRORS.contractUnverified:
+    case CANONICALIZE_ERRORS.uomRequiresStock:
+    case CANONICALIZE_ERRORS.uomStockMismatch:
       return 422;
     case CANONICALIZE_ERRORS.unavailable:
       return 503;
@@ -58,6 +78,7 @@ export async function canonicalizeN3Reference(
   kind: N3SelectorKind,
   submittedId: string | null | undefined,
   load: SelectorLoader | undefined,
+  ctx?: N3SelectorContext,
 ): Promise<CanonicalOutcome<N3Snapshot>> {
   if (submittedId === null || submittedId === undefined || submittedId === "") {
     return { ok: true, value: emptySnapshot() };
@@ -68,12 +89,15 @@ export async function canonicalizeN3Reference(
   if (!load) return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   let loaded: N3SelectorLoad;
   try {
-    loaded = await load(kind);
+    loaded = await load(kind, ctx);
   } catch {
     return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   }
   if (loaded.status === "contract_unverified") {
     return { ok: false, code: CANONICALIZE_ERRORS.contractUnverified };
+  }
+  if (loaded.status === "stock_context_required") {
+    return { ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock };
   }
   if (loaded.status !== "ok") return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   const row = loaded.items.find((r) => r.id === submittedId);
@@ -81,6 +105,30 @@ export async function canonicalizeN3Reference(
   if (!row) return { ok: false, code: CANONICALIZE_ERRORS.notFound };
   return { ok: true, value: { id: row.id, code: row.code, name: row.name ?? null } };
 }
+
+/**
+ * Resolve a unit of measure against the STOCK it must belong to.
+ *
+ * The server re-reads the current N3 UOM list filtered to the effective Stock,
+ * so a UOM that belongs to another Stock — including one left behind by an
+ * earlier Stock choice — is refused with a stable, sanitized mismatch error
+ * rather than silently saved or guessed.
+ */
+export async function canonicalizeUomForStock(
+  uomId: string | null,
+  stockId: string | null,
+  load: SelectorLoader | undefined,
+): Promise<CanonicalOutcome<N3Snapshot>> {
+  if (!uomId) return { ok: true, value: emptySnapshot() };
+  if (!stockId) return { ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock };
+  const r = await canonicalizeN3Reference("uom", uomId, load, { stockId });
+  // Not present in the stock-filtered list means the pair is incompatible.
+  if (!r.ok && r.code === CANONICALIZE_ERRORS.notFound) {
+    return { ok: false, code: CANONICALIZE_ERRORS.uomStockMismatch };
+  }
+  return r;
+}
+
 
 // ------------------------------------------------- financial settings patch
 
