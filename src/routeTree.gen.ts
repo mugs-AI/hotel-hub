@@ -44,6 +44,7 @@ import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
 import { Route as ApiAuthConnectRouteImport } from './routes/api/auth/connect'
 import { Route as ApiN3ProbeIndexRouteImport } from './routes/api/n3/probe/index'
 import { Route as ApiN3StocksAllRouteImport } from './routes/api/n3/stocks.all'
+import { Route as ApiN3SelectorsKindRouteImport } from './routes/api/n3/selectors.$kind'
 import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$probe'
 import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
@@ -250,6 +251,11 @@ const ApiN3StocksAllRoute = ApiN3StocksAllRouteImport.update({
   path: '/all',
   getParentRoute: () => ApiN3StocksRoute,
 } as any)
+const ApiN3SelectorsKindRoute = ApiN3SelectorsKindRouteImport.update({
+  id: '/api/n3/selectors/$kind',
+  path: '/api/n3/selectors/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
   id: '/api/n3/probe/$probe',
   path: '/api/n3/probe/$probe',
@@ -444,6 +450,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
@@ -507,6 +514,7 @@ export interface FileRoutesByTo {
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe': typeof ApiN3ProbeIndexRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
@@ -571,6 +579,7 @@ export interface FileRoutesById {
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
   '/api/n3/probe/$probe': typeof ApiN3ProbeProbeRoute
+  '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
@@ -636,6 +645,7 @@ export interface FileRouteTypes {
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
     | '/api/hotel/charges/catalogue/$itemId'
@@ -699,6 +709,7 @@ export interface FileRouteTypes {
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe'
     | '/api/hotel/charges/catalogue/$itemId'
@@ -762,6 +773,7 @@ export interface FileRouteTypes {
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
     | '/api/n3/probe/$probe'
+    | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
     | '/api/hotel/charges/catalogue/$itemId'
@@ -821,6 +833,7 @@ export interface RootRouteChildren {
   ApiHotelChargesCatalogueRoute: typeof ApiHotelChargesCatalogueRouteWithChildren
   ApiHotelChargesSettingsRoute: typeof ApiHotelChargesSettingsRoute
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
+  ApiN3SelectorsKindRoute: typeof ApiN3SelectorsKindRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
 }
 
@@ -1070,6 +1083,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/n3/stocks/all'
       preLoaderRoute: typeof ApiN3StocksAllRouteImport
       parentRoute: typeof ApiN3StocksRoute
+    }
+    '/api/n3/selectors/$kind': {
+      id: '/api/n3/selectors/$kind'
+      path: '/api/n3/selectors/$kind'
+      fullPath: '/api/n3/selectors/$kind'
+      preLoaderRoute: typeof ApiN3SelectorsKindRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/n3/probe/$probe': {
       id: '/api/n3/probe/$probe'
@@ -1499,6 +1519,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelChargesCatalogueRoute: ApiHotelChargesCatalogueRouteWithChildren,
   ApiHotelChargesSettingsRoute: ApiHotelChargesSettingsRoute,
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
+  ApiN3SelectorsKindRoute: ApiN3SelectorsKindRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
 }
 export const routeTree = rootRouteImport
