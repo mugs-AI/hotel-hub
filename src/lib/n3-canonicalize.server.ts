@@ -99,20 +99,20 @@ export async function canonicalizeSettingsPatch(
   if (patch.serviceTax) {
     const out: NonNullable<SettingsPatch["serviceTax"]> = {};
     for (const [key, mapping] of Object.entries(patch.serviceTax)) {
-      const r = await canonicalizeN3Reference("tax_code", mapping?.n3TaxCodeId ?? null, load);
-      if (!r.ok) return r;
-      out[key as keyof NonNullable<SettingsPatch["serviceTax"]>] = {
-        ...mapping,
-        // Snapshots are NEVER taken from the browser.
-        ...(mapping && "n3TaxCodeId" in mapping
-          ? { n3TaxCodeId: r.value.id, n3TaxCodeSnapshot: r.value.code }
-          : { n3TaxCodeSnapshot: undefined }),
-      };
-      const cleaned = out[key as keyof NonNullable<SettingsPatch["serviceTax"]>]!;
-      if (cleaned.n3TaxCodeSnapshot === undefined) delete cleaned.n3TaxCodeSnapshot;
+      const cleaned = { ...(mapping ?? {}) };
+      // Snapshots are NEVER taken from the browser.
+      delete cleaned.n3TaxCodeSnapshot;
+      if (mapping && "n3TaxCodeId" in mapping) {
+        const r = await canonicalizeN3Reference("tax_code", mapping.n3TaxCodeId ?? null, load);
+        if (!r.ok) return r;
+        cleaned.n3TaxCodeId = r.value.id;
+        cleaned.n3TaxCodeSnapshot = r.value.code;
+      }
+      out[key as keyof NonNullable<SettingsPatch["serviceTax"]>] = cleaned;
     }
     next.serviceTax = out;
   }
+
 
   if (patch.exempt) {
     const r = await canonicalizeN3Reference("tax_code", patch.exempt.n3TaxCodeId ?? null, load);
