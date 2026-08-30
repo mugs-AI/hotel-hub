@@ -2,6 +2,8 @@
 // endpoint allowlist are permitted. Never reachable from the browser except
 // through the specific /api/n3/probe/:name route.
 
+import { normalizeTaxRateToBp } from "./n3-selectors";
+
 const MAIN_BASE = process.env.OPEN_API_BASE_URL ?? "https://openapi.account.qne.cloud";
 
 const N3_TIMEOUT_MS = 15_000;
@@ -522,13 +524,21 @@ export function extractStrictPage(body: unknown): N3StrictPage {
   return { ok: true, items: value, total };
 }
 
-/** Sanitized Output Tax code. `postingAccountId` is deliberately NOT carried. */
+/**
+ * Sanitized Output Tax code.
+ *
+ * `postingAccountId` (and every other N3 account field) is deliberately NOT
+ * carried: HotelHub never lets an upstream posting account reach the browser.
+ * `rateBp` is the normalized live N3 rate in basis points, or null when N3
+ * declares no usable rate.
+ */
 export type N3TaxCodeSummary = {
   id: string;
   code: string;
   name: string | null;
   isActive: boolean | null;
   isOutputTax: boolean | null;
+  rateBp: number | null;
 };
 
 /** Sanitized unit of measure. `stockId` stays server-side for filtering. */
@@ -552,6 +562,10 @@ export function mapN3TaxCodeRow(raw: unknown): N3TaxCodeSummary | null {
     name: pickString(row, ["Description", "description", "Name", "name"]),
     isActive: pickBool(row, ["IsActive", "isActive", "Active", "active"]),
     isOutputTax: pickBool(row, ["IsOutputTax", "isOutputTax", "OutputTax", "outputTax"]),
+    // Live N3 rate, normalized to basis points. Never guessed when absent.
+    rateBp: normalizeTaxRateToBp(
+      row.Rate ?? row.rate ?? row.TaxRate ?? row.taxRate ?? row.Percentage ?? row.percentage,
+    ),
   };
 }
 

@@ -14,9 +14,9 @@
 //     searchable selector that displays a code and a name.
 //   * A section that is switched off stays collapsed; configuration appears
 //     only once the Owner switches the charge on.
-//   * No rate is ever defaulted or auto-applied. Malaysian figures are shown
-//     as non-binding suggestions the Owner must accept explicitly, because a
-//     guessed tax rate is a legal problem, not a convenience.
+//   * No rate is ever guessed or suggested. A Service Tax rate comes from the
+//     chosen N3 Output Tax code and is re-read and overwritten by the server on
+//     save, because a guessed tax rate is a legal problem, not a convenience.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -41,14 +41,7 @@ import {
   type AddonCategory,
   type TaxClass,
 } from "@/lib/charges-catalogue";
-import {
-  SUGGESTED_ACCOMMODATION_RATE_BP,
-  SUGGESTED_FNB_RATE_BP,
-  SUGGESTED_PARKING_RATE_BP,
-  SUGGESTED_TOURISM_TAX_CENTS,
-  type FinancialSettings,
-  type TaxableClass,
-} from "@/lib/financial-settings";
+import { type FinancialSettings, type TaxableClass } from "@/lib/financial-settings";
 import {
   POSTING_COMPONENTS,
   POSTING_COMPONENT_HINTS,
@@ -80,13 +73,6 @@ const TAXABLE_CLASS_LABELS: Record<TaxableClass, string> = {
   food_and_beverage: "Food & beverage",
   parking: "Parking",
   other_taxable_service: "Other taxable service",
-};
-
-const SUGGESTED_BP: Record<TaxableClass, number> = {
-  accommodation: SUGGESTED_ACCOMMODATION_RATE_BP,
-  food_and_beverage: SUGGESTED_FNB_RATE_BP,
-  parking: SUGGESTED_PARKING_RATE_BP,
-  other_taxable_service: SUGGESTED_FNB_RATE_BP,
 };
 
 const ROUNDING_LABELS: Record<RoundingMode, string> = {
@@ -857,8 +843,8 @@ function TaxSettingsForm({
             Service Tax by class
           </legend>
           <p className="text-sm text-muted-foreground">
-            Leave a rate blank if it is not configured — HotelHub will block the folio rather than
-            guess.
+            Choose the N3 tax code for each class. Leave the rate blank if it is not set up —
+            HotelHub blocks the folio instead of guessing.
           </p>
           <div className="mt-3 space-y-3">
             {TAXABLE_CLASSES.map((c) => (
@@ -878,22 +864,19 @@ function TaxSettingsForm({
                   label={`${TAXABLE_CLASS_LABELS[c]} tax code`}
                   value={{ code: codes[c].text, name: null }}
                   disabled={disabled}
-                  onSelect={(row) =>
-                    setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } })
-                  }
+                  onSelect={(row) => {
+                    setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } });
+                    // The rate comes from the chosen N3 tax code, never from a
+                    // suggestion. The server re-reads N3 and overwrites it on save.
+                    if (typeof row.rateBp === "number") {
+                      setRates({ ...rates, [c]: bpToPercentText(row.rateBp) });
+                    }
+                  }}
                   onClear={() => setCodes({ ...codes, [c]: { id: null, text: null } })}
                 />
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => setRates({ ...rates, [c]: bpToPercentText(SUGGESTED_BP[c]) })}
-                  >
-                    Use suggested {SUGGESTED_BP[c] / 100}%
-                  </Button>
-                </div>
+                <p className="self-end text-xs text-muted-foreground">
+                  The rate comes from the N3 tax code and is re-checked when you save.
+                </p>
               </div>
             ))}
             <div className="sm:w-1/3">
@@ -972,14 +955,6 @@ function TaxSettingsForm({
                 disabled={disabled}
                 onChange={(e) => setTtAmount(e.target.value)}
               />
-              <button
-                type="button"
-                className="mt-1 text-sm underline underline-offset-2"
-                disabled={disabled}
-                onClick={() => setTtAmount(centsToText(SUGGESTED_TOURISM_TAX_CENTS))}
-              >
-                Use suggested {centsToText(SUGGESTED_TOURISM_TAX_CENTS)}
-              </button>
             </div>
             <div>
               <Label htmlFor="tt-from">Effective from</Label>

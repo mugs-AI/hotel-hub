@@ -242,7 +242,14 @@ describe("row normalization and eligibility", () => {
   it("tolerates casing variants and numeric identifiers", () => {
     expect(
       mapN3TaxCodeRow({ Id: 42, Code: "SR", Description: "Standard", IsActive: true }),
-    ).toEqual({ id: "42", code: "SR", name: "Standard", isActive: true, isOutputTax: null });
+    ).toEqual({
+      id: "42",
+      code: "SR",
+      name: "Standard",
+      isActive: true,
+      isOutputTax: null,
+      rateBp: null,
+    });
     expect(mapN3UomRow({ id: 7, code: "EA", isActive: true, StockId: 9 })).toEqual({
       id: "7",
       code: "EA",
@@ -252,7 +259,7 @@ describe("row normalization and eligibility", () => {
     });
   });
 
-  it("never exposes postingAccountId or rate to the browser summary", () => {
+  it("never exposes postingAccountId, and carries only the normalized live rate", () => {
     const row = mapN3TaxCodeRow({
       id: "1",
       code: "SR",
@@ -263,6 +270,9 @@ describe("row normalization and eligibility", () => {
     });
     expect(JSON.stringify(row)).not.toContain("GL-SECRET");
     expect(row && "rate" in row).toBe(false);
+    // The live N3 rate is normalized to basis points; it is a prefill only and
+    // the server always re-reads and overwrites it on save.
+    expect(row?.rateBp).toBe(600);
   });
 
   it("rejects inactive or non-output tax codes and missing flags", () => {

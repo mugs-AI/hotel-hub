@@ -59,7 +59,7 @@ describe("Deposits compact summary — real amount AND real status", () => {
     expect(html).toContain("1 deposit · MYR 250.00 · Posted");
   });
 
-  it("shows a failed single deposit honestly and keeps the warning outside Details", () => {
+  it("shows a failed single deposit honestly and keeps the warning always visible", () => {
     const html = depositCard([failed]);
     expect(html).toContain("1 deposit · MYR 100.00 · Failed");
     expect(html).toContain("1 failed");
@@ -77,11 +77,12 @@ describe("Deposits compact summary — real amount AND real status", () => {
     expect(html).toContain("do not re-post, check N3 first");
   });
 
-  it("keeps the empty collapsed state to heading, No deposit and Details", () => {
+  it("keeps the empty state to heading, No deposit and an info control", () => {
     const html = depositCard([]);
     expect(html).toContain("Deposits");
     expect(html).toContain("No deposit");
-    expect(html).toContain("Details");
+    expect(html).toContain("About deposits");
+    expect(html).not.toContain("Details");
     expect(html).not.toContain("Receive Payment");
     expect(html).not.toContain("Show details");
   });

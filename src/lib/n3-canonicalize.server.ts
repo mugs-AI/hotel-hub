@@ -107,6 +107,34 @@ export async function canonicalizeN3Reference(
 }
 
 /**
+ * Resolve an Output Tax code AND its authoritative live rate.
+ *
+ * The rate a browser submits is never trusted: whenever N3 declares a rate for
+ * the chosen tax code, that rate REPLACES the submitted one. When N3 declares
+ * no rate, nothing is guessed — the Owner-entered rate is kept and an unset
+ * rate keeps blocking readiness.
+ */
+export async function canonicalizeTaxCodeWithRate(
+  submittedId: string | null | undefined,
+  load: SelectorLoader | undefined,
+): Promise<CanonicalOutcome<{ snapshot: N3Snapshot; rateBp: number | null }>> {
+  const resolved = await canonicalizeN3Reference("tax_code", submittedId, load);
+  if (!resolved.ok) return resolved;
+  if (!resolved.value.id) return { ok: true, value: { snapshot: resolved.value, rateBp: null } };
+  let rateBp: number | null = null;
+  try {
+    const loaded = await load!("tax_code");
+    if (loaded.status === "ok") {
+      const row = loaded.items.find((r) => r.id === resolved.value.id);
+      rateBp = typeof row?.rateBp === "number" ? row.rateBp : null;
+    }
+  } catch {
+    return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
+  }
+  return { ok: true, value: { snapshot: resolved.value, rateBp } };
+}
+
+/**
  * Resolve a unit of measure against the STOCK it must belong to.
  *
  * The server re-reads the current N3 UOM list filtered to the effective Stock,
@@ -153,10 +181,13 @@ export async function canonicalizeSettingsPatch(
       // Snapshots are NEVER taken from the browser.
       delete cleaned.n3TaxCodeSnapshot;
       if (mapping && "n3TaxCodeId" in mapping) {
-        const r = await canonicalizeN3Reference("tax_code", mapping.n3TaxCodeId ?? null, load);
+        const r = await canonicalizeTaxCodeWithRate(mapping.n3TaxCodeId ?? null, load);
         if (!r.ok) return r;
-        cleaned.n3TaxCodeId = r.value.id;
-        cleaned.n3TaxCodeSnapshot = r.value.code;
+        cleaned.n3TaxCodeId = r.value.snapshot.id;
+        cleaned.n3TaxCodeSnapshot = r.value.snapshot.code;
+        // Server-authoritative rate: a live N3 rate always wins over whatever
+        // the browser sent. When N3 declares no rate, nothing is guessed.
+        if (r.value.rateBp !== null) cleaned.rateBp = r.value.rateBp;
       }
       out[key as keyof NonNullable<SettingsPatch["serviceTax"]>] = cleaned;
     }
