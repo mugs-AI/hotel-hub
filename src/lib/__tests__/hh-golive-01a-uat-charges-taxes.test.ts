@@ -4,7 +4,7 @@
 // immutability/verification reset, fail-closed future-posting readiness,
 // unproven N3 contracts, and the source contracts of the corrected UI and the
 // staged migration.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { isoToMyDate, isValidIsoDate, myDateToIso } from "@/lib/malaysia-date";
@@ -245,7 +245,7 @@ describe("Charges & Taxes source contract", () => {
   it("has no native date input anywhere in the application", () => {
     const hits: string[] = [];
     const walk = (dir: string) => {
-      for (const entry of require("node:fs").readdirSync(dir, { withFileTypes: true })) {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const full = `${dir}/${entry.name}`;
         if (entry.isDirectory()) walk(full);
         else if (/\.(tsx|ts)$/.test(entry.name)) {
