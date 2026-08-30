@@ -33,7 +33,14 @@ export type N3SelectorContract = {
   evidence: string;
   /** What is still missing when `proven` is false. Shown to the Owner. */
   missingEvidence: string | null;
+  /**
+   * True when the list is only meaningful inside the context of an already
+   * chosen N3 Stock. The browser control stays disabled until a Stock is
+   * selected and the server refuses to load the list without that context.
+   */
+  requiresStockContext?: boolean;
 };
+
 
 export const N3_SELECTOR_CONTRACTS: Record<N3SelectorKind, N3SelectorContract> = {
   stock: {
