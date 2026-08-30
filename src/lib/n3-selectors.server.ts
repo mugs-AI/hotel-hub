@@ -129,10 +129,7 @@ export class N3SelectorUnauthorized extends Error {
  * Never throws for an unproven contract — it returns `contract_unverified` so
  * the Owner sees a disabled control with a truthful explanation.
  */
-export async function loadN3Selector(
-  token: string,
-  kind: N3SelectorKind,
-): Promise<N3SelectorLoad> {
+export async function loadN3Selector(token: string, kind: N3SelectorKind): Promise<N3SelectorLoad> {
   const contract = N3_SELECTOR_CONTRACTS[kind];
   if (!contract.proven || !contract.endpoint) {
     return {

@@ -125,7 +125,8 @@ function snapshotText(sel: { code: string | null; name: string | null }): string
 
 /** Real-calendar + ordering check for an effective window. */
 export function effectiveWindowError(fromIso: string, toIso: string): string | null {
-  if (fromIso && !isValidIsoDate(fromIso)) return "Enter a real 'effective from' date (dd/mm/yyyy).";
+  if (fromIso && !isValidIsoDate(fromIso))
+    return "Enter a real 'effective from' date (dd/mm/yyyy).";
   if (toIso && !isValidIsoDate(toIso)) return "Enter a real 'effective to' date (dd/mm/yyyy).";
   if (fromIso && toIso && toIso < fromIso) {
     return "'Effective to' cannot be earlier than 'effective from'.";
@@ -424,9 +425,7 @@ function CatalogueRow({
               label="Unit of measure"
               value={{ code: item.n3UomSnapshot ?? null, name: null }}
               disabled={disabled}
-              onSelect={(row) =>
-                onSave({ n3UomId: row.id, n3UomSnapshot: snapshotText(row) })
-              }
+              onSelect={(row) => onSave({ n3UomId: row.id, n3UomSnapshot: snapshotText(row) })}
               onClear={() => onSave({ n3UomId: null, n3UomSnapshot: null })}
             />
             <N3SelectorField
@@ -521,7 +520,7 @@ function PostingMappingsSection({
             Accounting mapping
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Tells the later posting milestone where each charge belongs in your accounts. {" "}
+            Tells the later posting milestone where each charge belongs in your accounts.{" "}
             {NOT_POSTED_NOTICE}
           </p>
         </div>
@@ -570,10 +569,7 @@ function PostingMappingsSection({
                     <td className="py-1 pr-3 text-muted-foreground">{row.stock}</td>
                     <td className="py-1 pr-3 text-muted-foreground">{row.taxCode}</td>
                     <td className="py-1 pr-3 text-muted-foreground">{row.resolvedAccount}</td>
-                    <td
-                      className="py-1"
-                      style={{ color: row.status === "ready" ? NAVY : ERR }}
-                    >
+                    <td className="py-1" style={{ color: row.status === "ready" ? NAVY : ERR }}>
                       {MAPPING_ROW_STATUS_LABELS[row.status]}
                     </td>
                   </tr>
@@ -688,14 +684,14 @@ function TaxSettingsForm({
     parking: "",
     other_taxable_service: "",
   });
-  const [codes, setCodes] = useState<Record<TaxableClass, { id: string | null; text: string | null }>>(
-    {
-      accommodation: { id: null, text: null },
-      food_and_beverage: { id: null, text: null },
-      parking: { id: null, text: null },
-      other_taxable_service: { id: null, text: null },
-    },
-  );
+  const [codes, setCodes] = useState<
+    Record<TaxableClass, { id: string | null; text: string | null }>
+  >({
+    accommodation: { id: null, text: null },
+    food_and_beverage: { id: null, text: null },
+    parking: { id: null, text: null },
+    other_taxable_service: { id: null, text: null },
+  });
   const [exempt, setExempt] = useState<{ id: string | null; text: string | null }>({
     id: null,
     text: null,
@@ -713,9 +709,10 @@ function TaxSettingsForm({
   const [levyFrom, setLevyFrom] = useState("");
   const [levyTo, setLevyTo] = useState("");
   const [rounding, setRounding] = useState<RoundingMode>("none");
-  const [roundingAccount, setRoundingAccount] = useState<{ id: string | null; text: string | null }>(
-    { id: null, text: null },
-  );
+  const [roundingAccount, setRoundingAccount] = useState<{
+    id: string | null;
+    text: string | null;
+  }>({ id: null, text: null });
 
   useEffect(() => {
     setServiceTaxRegistered(settings.serviceTaxRegistered);

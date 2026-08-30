@@ -16,16 +16,11 @@ import {
   type PostingMapping,
   type PostingMappings,
 } from "./posting-mappings";
-import {
-  N3_SELECTOR_CONTRACTS,
-  N3_SELECTOR_KINDS,
-  type N3SelectorKind,
-} from "./n3-selectors";
+import { N3_SELECTOR_CONTRACTS, N3_SELECTOR_KINDS, type N3SelectorKind } from "./n3-selectors";
 import type { FinancialSettings, TaxableClass } from "./financial-settings";
 
 export const UNVERIFIED_ACCOUNT_TEXT = "Unable to verify accounting destination";
-export const NOT_POSTED_NOTICE =
-  "Prepared folio only — nothing is posted to N3 in this milestone.";
+export const NOT_POSTED_NOTICE = "Prepared folio only — nothing is posted to N3 in this milestone.";
 
 export type MappingRowStatus = "ready" | "incomplete" | "unverified" | "changed" | "not_used";
 

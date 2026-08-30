@@ -503,7 +503,6 @@ export async function patchFinancialSettings(
     updated_at: new Date().toISOString(),
   };
 
-
   async function write(payload: Record<string, unknown>) {
     const updated = await db
       .from<SettingsRow>("hotel_financial_settings")
@@ -518,7 +517,10 @@ export async function patchFinancialSettings(
       .insert({ tenant_id: tenantId, ...payload })
       .select(SETTINGS_COLS)
       .single();
-    return { error: inserted.error ?? (inserted.data ? null : new Error("no_row")), data: inserted.data };
+    return {
+      error: inserted.error ?? (inserted.data ? null : new Error("no_row")),
+      data: inserted.data,
+    };
   }
 
   let result = await write(row);

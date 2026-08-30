@@ -21,7 +21,11 @@ import {
   parsePostingMappings,
   validatePostingMappingsPatch,
 } from "@/lib/posting-mappings";
-import { postingReadiness, UNVERIFIED_ACCOUNT_TEXT, NOT_POSTED_NOTICE } from "@/lib/posting-readiness";
+import {
+  postingReadiness,
+  UNVERIFIED_ACCOUNT_TEXT,
+  NOT_POSTED_NOTICE,
+} from "@/lib/posting-readiness";
 import { N3_SELECTOR_CONTRACTS, isSelectorProven } from "@/lib/n3-selectors";
 import { effectiveWindowError } from "@/components/ChargesTaxesPanel";
 
@@ -87,9 +91,7 @@ describe("posting mapping references", () => {
 
   it("rejects unknown components and unknown fields", () => {
     expect(validatePostingMappingsPatch({ room_revenue: { enabled: true } }).ok).toBe(false);
-    expect(
-      validatePostingMappingsPatch({ discount: { verification: "verified" } }).ok,
-    ).toBe(false);
+    expect(validatePostingMappingsPatch({ discount: { verification: "verified" } }).ok).toBe(false);
   });
 
   it("never lets the browser assert a verification state", () => {
@@ -180,7 +182,11 @@ describe("fail-closed future-posting readiness", () => {
 
   it("blocks rounding without an eligible posting account", () => {
     const settings = defaultFinancialSettings(TENANT);
-    settings.rounding = { mode: "nearest_5_cents", n3RoundingAccountId: null, n3RoundingAccountSnapshot: null };
+    settings.rounding = {
+      mode: "nearest_5_cents",
+      n3RoundingAccountId: null,
+      n3RoundingAccountSnapshot: null,
+    };
     const r = postingReadiness(settings, settings.postingMappings);
     expect(r.rows.find((x) => x.key === "rounding")?.resolvedAccount).toBe(UNVERIFIED_ACCOUNT_TEXT);
     expect(r.readyForFuturePosting).toBe(false);

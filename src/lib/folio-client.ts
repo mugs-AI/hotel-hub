@@ -246,7 +246,6 @@ export type ChargeSettingsResponse = {
   capability: { canManage: boolean };
 };
 
-
 export function useChargeSettings(enabled = true) {
   const sessionKey = useSessionKey();
   return useQuery<ChargeSettingsResponse, FolioApiError>({

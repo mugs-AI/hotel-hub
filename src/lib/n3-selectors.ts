@@ -66,7 +66,8 @@ export const N3_SELECTOR_CONTRACTS: Record<N3SelectorKind, N3SelectorContract> =
     label: "N3 unit of measure",
     proven: false,
     endpoint: null,
-    evidence: "No read-only unit-of-measure contract is proven in the development brief or in code.",
+    evidence:
+      "No read-only unit-of-measure contract is proven in the development brief or in code.",
     missingEvidence:
       "A verified read-only N3 unit-of-measure list endpoint and its response fields (code, description, active flag).",
   },
