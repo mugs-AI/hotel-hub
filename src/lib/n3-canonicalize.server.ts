@@ -135,10 +135,15 @@ export async function canonicalizeUomForStock(
 /**
  * Rewrite an already-shape-validated settings patch so every N3 reference is
  * the canonical server-resolved value. Browser snapshots are discarded.
+ *
+ * `currentMappings` supplies the already-persisted posting mappings so a
+ * PARTIAL patch is validated against the EFFECTIVE stock/UOM pair, not only
+ * the submitted fields.
  */
 export async function canonicalizeSettingsPatch(
   patch: SettingsPatch,
   load: SelectorLoader | undefined,
+  currentMappings?: PostingMappings,
 ): Promise<CanonicalOutcome<SettingsPatch>> {
   const next: SettingsPatch = { ...patch };
 
@@ -193,16 +198,37 @@ export async function canonicalizeSettingsPatch(
       }
       const cleaned: NonNullable<SettingsPatch["postingMappings"]>[PostingComponent] = {};
       if (value.enabled !== undefined) cleaned.enabled = value.enabled;
-      for (const [field, kind] of [
-        ["stock", "stock"],
-        ["uom", "uom"],
-        ["taxCode", "tax_code"],
-      ] as const) {
-        if (!(field in value)) continue;
-        const r = await canonicalizeN3Reference(kind, value[field]?.id ?? null, load);
+
+      const persisted = currentMappings?.[component as PostingComponent];
+      const stockSubmitted = "stock" in value;
+      const uomSubmitted = "uom" in value;
+      const persistedStockId = persisted?.stock.id ?? null;
+      const persistedUomId = persisted?.uom.id ?? null;
+
+      let effectiveStockId = persistedStockId;
+      if (stockSubmitted) {
+        const r = await canonicalizeN3Reference("stock", value.stock?.id ?? null, load);
         if (!r.ok) return r;
-        cleaned[field] = r.value;
+        cleaned.stock = r.value;
+        effectiveStockId = r.value.id;
       }
+
+      if ("taxCode" in value) {
+        const r = await canonicalizeN3Reference("tax_code", value.taxCode?.id ?? null, load);
+        if (!r.ok) return r;
+        cleaned.taxCode = r.value;
+      }
+
+      // The effective pair is revalidated whenever either half moves, so a
+      // changed Stock can never retain an incompatible earlier UOM.
+      const stockChanged = stockSubmitted && effectiveStockId !== persistedStockId;
+      const effectiveUomId = uomSubmitted ? (value.uom?.id ?? null) : persistedUomId;
+      if (uomSubmitted || (stockChanged && effectiveUomId)) {
+        const r = await canonicalizeUomForStock(effectiveUomId, effectiveStockId, load);
+        if (!r.ok) return r;
+        cleaned.uom = r.value;
+      }
+
       if ("resolvedAccount" in value) cleaned.resolvedAccount = emptySnapshot();
       out[component as PostingComponent] = cleaned;
     }
@@ -211,6 +237,7 @@ export async function canonicalizeSettingsPatch(
 
   return { ok: true, value: next };
 }
+
 
 // --------------------------------------------------------- catalogue input
 
