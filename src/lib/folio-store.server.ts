@@ -39,6 +39,13 @@ import {
   type FinancialSettings,
 } from "./financial-settings";
 import { parsePostingMappings } from "./posting-mappings";
+import {
+  canonicalErrorStatus,
+  canonicalizeAddonInput,
+  canonicalizeSettingsPatch,
+  type SelectorLoader,
+} from "./n3-canonicalize.server";
+
 import { folioReadinessProjection } from "./folio-readiness";
 
 import { decideClaim, operationFingerprint, type FolioOperation } from "./folio-operations";
