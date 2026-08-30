@@ -205,10 +205,7 @@ export function DepositsCard({
         </p>
       ) : null}
 
-      <>
-        <>
-
-          {q.isPending ? (
+      {q.isPending ? (
             <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
           ) : deposits.length === 0 ? (
             <div className="mt-3 space-y-1 text-sm text-muted-foreground">
@@ -390,8 +387,6 @@ export function DepositsCard({
               ) : null}
             </div>
           )}
-        </>
-      )}
     </section>
   );
 }
