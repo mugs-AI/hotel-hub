@@ -38,7 +38,9 @@ import {
   validateSettingsPatch,
   type FinancialSettings,
 } from "./financial-settings";
+import { parsePostingMappings } from "./posting-mappings";
 import { folioReadinessProjection } from "./folio-readiness";
+
 import { decideClaim, operationFingerprint, type FolioOperation } from "./folio-operations";
 import { propertyTodayIso } from "./checkout-preview";
 import type {
