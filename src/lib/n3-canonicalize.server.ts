@@ -186,9 +186,8 @@ export async function canonicalizeSettingsPatch(
         cleaned.n3TaxCodeId = r.value.snapshot.id;
         cleaned.n3TaxCodeSnapshot = r.value.snapshot.code;
         // Server-authoritative rate: a live N3 rate always wins over whatever
-        // the browser sent. Clearing the code also clears the live rate.
-        if (r.value.snapshot.id === null) cleaned.rateBp = null;
-        else if (r.value.rateBp !== null) cleaned.rateBp = r.value.rateBp;
+        // the browser sent. When N3 declares no rate, nothing is guessed.
+        if (r.value.rateBp !== null) cleaned.rateBp = r.value.rateBp;
       }
       out[key as keyof NonNullable<SettingsPatch["serviceTax"]>] = cleaned;
     }
