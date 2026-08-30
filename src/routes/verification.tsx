@@ -10,7 +10,8 @@ export const Route = createFileRoute("/verification")({
       { title: "N3 Verification Console — HotelHub" },
       {
         name: "description",
-        content: "Owner-only read-only probes against the three allowlisted N3 endpoints.",
+        content:
+          "Owner-only look-up checks against the three approved N3 lists. Nothing is changed in N3.",
       },
     ],
   }),
@@ -106,7 +107,7 @@ function VerificationConsolePage() {
           <h1 className="text-2xl font-semibold tracking-tight">N3 Verification Console</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Owner-only. Runs the three fixed read-only probes through the server-side gateway. No
-            custom paths, no writes, no arbitrary endpoints.
+            custom paths, nothing written back, nothing outside the approved list.
           </p>
         </div>
 

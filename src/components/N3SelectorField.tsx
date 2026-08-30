@@ -11,6 +11,7 @@ import { hotelJson } from "@/lib/hotel-settings-client";
 import { matchesQuery } from "@/lib/n3-gateway.browser";
 import { PAGE_SIZE_OPTIONS, paginate, type PageSize } from "@/lib/search-pagination";
 import {
+  formatRateBpPercent,
   selectorRequiresStock,
   SELECTOR_STOCK_REQUIRED_TEXT,
   SELECTOR_UNVERIFIED_TEXT,
@@ -46,7 +47,7 @@ export function N3SelectorField({
   kind: N3SelectorKind;
   label: string;
   /** Current human-readable selection, or null. */
-  value: { code: string | null; name: string | null } | null;
+  value: { code: string | null; name: string | null; rateBp?: number | null } | null;
   onSelect: (row: N3Selection) => void;
   onClear?: () => void;
   disabled?: boolean;
@@ -103,10 +104,11 @@ export function N3SelectorField({
   useEffect(() => setPage(1), [query, pageSize]);
   const paged = useMemo(() => paginate(filtered, page, pageSize), [filtered, page, pageSize]);
 
+  const showsRate = kind === "tax_code";
   const selectedText = value?.code
-    ? value.name
-      ? `${value.code} — ${value.name}`
-      : value.code
+    ? [value.name ? `${value.code} — ${value.name}` : value.code]
+        .concat(showsRate ? [formatRateBpPercent(value.rateBp)] : [])
+        .join(" — ")
     : "Not chosen";
 
   const blocked = Boolean(disabled) || unverified || awaitingStock || state.kind === "error";
@@ -177,6 +179,15 @@ export function N3SelectorField({
                 <span className="text-sm" style={{ color: NAVY }}>
                   <span className="font-mono">{row.code}</span>
                   <span className="text-muted-foreground"> — {row.name ?? "—"}</span>
+                  {showsRate ? (
+                    <span
+                      className="text-muted-foreground"
+                      data-testid={`selector-row-rate-${row.id}`}
+                    >
+                      {" "}
+                      — {formatRateBpPercent(row.rateBp)}
+                    </span>
+                  ) : null}
                 </span>
                 <Button
                   type="button"

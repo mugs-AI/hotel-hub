@@ -132,6 +132,15 @@ export function normalizeTaxRateToBp(v: unknown): number | null {
   return Number.isSafeInteger(bp) ? bp : null;
 }
 
+/**
+ * Human display of a live N3 rate. `null` is never rendered as a number —
+ * "no rate in N3" is a blocking condition, not a zero.
+ */
+export function formatRateBpPercent(bp: number | null | undefined): string {
+  if (typeof bp !== "number" || !Number.isFinite(bp)) return "no rate in N3";
+  return `${String(bp / 100)}%`;
+}
+
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
   | { status: "contract_unverified"; kind: N3SelectorKind; missingEvidence: string }

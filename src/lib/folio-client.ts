@@ -298,7 +298,12 @@ export function folioErrorMessage(err: unknown, fallback = "Something went wrong
     unknown_field: "That request contained a field this action does not accept.",
     invalid_tax_class: "Choose a valid tax treatment.",
     invalid_source_label: "Give the collecting party a name of 2 to 60 characters.",
-    invalid_collected_on: "Enter the collection date as YYYY-MM-DD.",
+    invalid_collected_on: "Enter the collection date as dd/mm/yyyy.",
+    n3_tax_rate_unavailable:
+      "N3 has no rate on that tax code, so nothing was saved. Fix the rate in N3, then try again.",
+    n3_contract_unverified: "That N3 list is not available yet, so nothing was saved.",
+    n3_reference_not_found: "That N3 record no longer exists. Choose it again from the list.",
+    n3_validation_unavailable: "N3 could not be reached, so nothing was saved. Try again shortly.",
   };
   return map[code] ?? fallback;
 }

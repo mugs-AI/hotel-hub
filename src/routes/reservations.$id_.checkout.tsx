@@ -2,6 +2,7 @@ import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { FolioCard } from "@/components/FolioCard";
 import { useCheckoutPreview, checkoutErrorMessage, formatMoney } from "@/lib/checkout-client";
+import { isoToMyDate } from "@/lib/malaysia-date";
 
 export const Route = createFileRoute("/reservations/$id_/checkout")({
   head: () => ({
@@ -71,13 +72,13 @@ function CheckoutPreviewPage() {
               </h2>
               <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
                 <dt className="text-muted-foreground">Arrival</dt>
-                <dd>{d.reservation.arrivalDate}</dd>
+                <dd>{isoToMyDate(d.reservation.arrivalDate)}</dd>
                 <dt className="text-muted-foreground">Departure</dt>
-                <dd>{d.reservation.departureDate}</dd>
+                <dd>{isoToMyDate(d.reservation.departureDate)}</dd>
                 <dt className="text-muted-foreground">Rooms</dt>
                 <dd>{d.reservation.roomLabels.join(", ") || "—"}</dd>
                 <dt className="text-muted-foreground">Property date</dt>
-                <dd>{d.propertyDate}</dd>
+                <dd>{isoToMyDate(d.propertyDate)}</dd>
               </dl>
             </section>
 

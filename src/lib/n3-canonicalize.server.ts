@@ -46,6 +46,8 @@ export const CANONICALIZE_ERRORS = {
   uomRequiresStock: "n3_uom_requires_stock",
   /** The effective unit of measure does not belong to the effective Stock. */
   uomStockMismatch: "n3_uom_stock_mismatch",
+  /** The chosen Output Tax code has no usable live rate in N3. */
+  taxRateUnavailable: "n3_tax_rate_unavailable",
 } as const;
 
 export type CanonicalError = (typeof CANONICALIZE_ERRORS)[keyof typeof CANONICALIZE_ERRORS];
@@ -58,6 +60,7 @@ export function canonicalErrorStatus(code: string): number {
     case CANONICALIZE_ERRORS.contractUnverified:
     case CANONICALIZE_ERRORS.uomRequiresStock:
     case CANONICALIZE_ERRORS.uomStockMismatch:
+    case CANONICALIZE_ERRORS.taxRateUnavailable:
       return 422;
     case CANONICALIZE_ERRORS.unavailable:
       return 503;
@@ -180,14 +183,25 @@ export async function canonicalizeSettingsPatch(
       const cleaned = { ...(mapping ?? {}) };
       // Snapshots are NEVER taken from the browser.
       delete cleaned.n3TaxCodeSnapshot;
+      // A Service Tax rate can only ever come from the live N3 Output Tax
+      // code. A browser-submitted rate is discarded before anything is stored.
+      delete cleaned.rateBp;
       if (mapping && "n3TaxCodeId" in mapping) {
         const r = await canonicalizeTaxCodeWithRate(mapping.n3TaxCodeId ?? null, load);
         if (!r.ok) return r;
         cleaned.n3TaxCodeId = r.value.snapshot.id;
         cleaned.n3TaxCodeSnapshot = r.value.snapshot.code;
-        // Server-authoritative rate: a live N3 rate always wins over whatever
-        // the browser sent. When N3 declares no rate, nothing is guessed.
-        if (r.value.rateBp !== null) cleaned.rateBp = r.value.rateBp;
+        if (!r.value.snapshot.id) {
+          // Clearing the tax code clears the rate with it — a stale rate must
+          // never survive its source.
+          cleaned.rateBp = null;
+        } else if (r.value.rateBp === null) {
+          // A chosen tax code whose live N3 rate is missing or malformed is a
+          // legal problem, not a convenience: the whole save is rejected.
+          return { ok: false, code: CANONICALIZE_ERRORS.taxRateUnavailable };
+        } else {
+          cleaned.rateBp = r.value.rateBp;
+        }
       }
       out[key as keyof NonNullable<SettingsPatch["serviceTax"]>] = cleaned;
     }

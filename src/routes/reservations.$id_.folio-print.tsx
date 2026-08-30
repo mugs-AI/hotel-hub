@@ -10,6 +10,7 @@ import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
 import { formatFolioMoney } from "@/lib/folio-view";
 import { useCheckoutPreview } from "@/lib/checkout-client";
+import { isoToMyDate } from "@/lib/malaysia-date";
 
 export const Route = createFileRoute("/reservations/$id_/folio-print")({
   head: () => ({
@@ -118,7 +119,8 @@ function FolioPrintPage() {
             Booking {dto.reservation.bookingReference}
             {dto.reservation.primaryGuestName ? ` · ${dto.reservation.primaryGuestName}` : ""}
             {" · "}
-            {dto.reservation.arrivalDate} → {dto.reservation.departureDate}
+            {isoToMyDate(dto.reservation.arrivalDate)} →{" "}
+            {isoToMyDate(dto.reservation.departureDate)}
           </p>
         </header>
 
