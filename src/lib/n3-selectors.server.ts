@@ -153,6 +153,7 @@ export function isSelectableOutputTaxCode(row: {
   code: string;
   isActive: boolean | null;
   isOutputTax: boolean | null;
+  rateBp?: number | null;
 }): boolean {
   return Boolean(row.id) && Boolean(row.code) && row.isActive === true && row.isOutputTax === true;
 }
@@ -218,11 +219,16 @@ export async function loadN3Selector(
   if (kind === "tax_code") {
     try {
       const { items } = await listAllN3TaxCodes(token);
-      // Only sanitized {id, code, name} leaves the server: rate and
-      // postingAccountId are deliberately dropped here.
+      // Only sanitized {id, code, name, rateBp} leaves the server. The N3
+      // posting account of a tax code is deliberately never carried.
       const rows: N3SelectorRow[] = items
         .filter(isSelectableOutputTaxCode)
-        .map((t) => ({ id: t.id, code: t.code, name: t.name ?? null }));
+        .map((t) => ({
+          id: t.id,
+          code: t.code,
+          name: t.name ?? null,
+          rateBp: t.rateBp ?? null,
+        }));
       return { status: "ok", kind, items: rows, total: rows.length };
     } catch (e) {
       return listErrorToLoad(e, kind);
