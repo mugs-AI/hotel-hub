@@ -93,7 +93,14 @@ export function selectorRequiresStock(kind: N3SelectorKind): boolean {
 /** Context a selector load may need. Currently only the stock-linked UOM list. */
 export type N3SelectorContext = { stockId?: string | null };
 
-/** One selectable N3 row. The browser only ever sees these three fields. */
+/**
+ * One selectable N3 row. The browser only ever sees these fields.
+ *
+ * `rateBp` is present ONLY for Output Tax codes and only when N3 itself
+ * declares a rate. It is a display/prefill convenience: the server always
+ * re-reads and overwrites it on save, so a browser value is never trusted.
+ * The N3 posting account of a tax code is deliberately NEVER carried.
+ */
 export type N3SelectorRow = {
   /** Immutable N3 identifier. Opaque to the human, never typed by hand. */
   id: string;
@@ -101,7 +108,30 @@ export type N3SelectorRow = {
   code: string;
   /** Human-readable name/description. */
   name: string | null;
+  /** Normalized live tax rate in basis points, or null when N3 declares none. */
+  rateBp?: number | null;
 };
+
+/**
+ * Normalize an N3-declared tax rate to basis points.
+ *
+ * N3 states an Output Tax rate as a PERCENTAGE (6 means 6%). Anything that is
+ * not a finite number/numeric string in 0..100 returns null — an unknown rate
+ * is never guessed, it simply stays unconfigured and blocks readiness.
+ */
+export function normalizeTaxRateToBp(v: unknown): number | null {
+  let n: number;
+  if (typeof v === "number") n = v;
+  else if (typeof v === "string") {
+    const t = v.trim().replace(/%$/, "").trim();
+    if (!t) return null;
+    n = Number(t);
+  } else return null;
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  const bp = Math.round(n * 100);
+  return Number.isSafeInteger(bp) ? bp : null;
+}
+
 
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
