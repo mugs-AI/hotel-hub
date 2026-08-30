@@ -357,11 +357,11 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 </div>
                 <div>
                   <Label htmlFor="ttx-date">Collected on</Label>
-                  <Input
+                  <MalaysianDateInput
                     id="ttx-date"
-                    type="date"
                     value={evidenceDate}
-                    onChange={(e) => setEvidenceDate(e.target.value)}
+                    pickerLabel="Choose the collection date"
+                    onChange={setEvidenceDate}
                   />
                 </div>
                 <div>

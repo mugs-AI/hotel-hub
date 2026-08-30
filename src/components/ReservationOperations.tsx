@@ -535,11 +535,11 @@ export function ReservationActionsCard({
                   {flow.kind === "stay_extension" ? (
                     <label className="mt-2 block text-xs">
                       <span className="text-muted-foreground">New departure date</span>
-                      <input
-                        type="date"
+                      <MalaysianDateInput
                         value={detail}
-                        onChange={(e) => setDetail(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                        className="mt-1"
+                        pickerLabel="Choose the new departure date"
+                        onChange={setDetail}
                       />
                     </label>
                   ) : null}

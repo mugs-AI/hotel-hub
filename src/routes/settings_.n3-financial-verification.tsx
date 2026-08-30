@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 
@@ -308,20 +309,21 @@ function Console() {
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <Label htmlFor="date-from">Date From ({fmtDMY(dateFrom)})</Label>
-            <Input
+            <MalaysianDateInput
               id="date-from"
-              type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              pickerLabel="Choose the from date"
+              onChange={setDateFrom}
             />
           </div>
           <div>
             <Label htmlFor="date-to">Date To ({fmtDMY(dateTo)})</Label>
-            <Input
+            <MalaysianDateInput
               id="date-to"
-              type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              minIso={dateFrom || undefined}
+              pickerLabel="Choose the to date"
+              onChange={setDateTo}
             />
           </div>
           <div>
