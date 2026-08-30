@@ -248,14 +248,25 @@ const ADDON_SNAPSHOT_FIELDS = [
   "n3TaxCodeSnapshot",
 ] as const;
 
+/** The already-persisted N3 pair for a partial catalogue update. */
+export type AddonCurrentMapping = {
+  n3StockId: string | null;
+  n3UomId: string | null;
+};
+
 /**
  * Rewrite a catalogue create/update body so N3 mappings are canonical.
  * Browser-supplied snapshots are always discarded, whether or not the
  * matching identifier was submitted.
+ *
+ * `current` supplies the persisted stock/UOM pair so a PARTIAL update is
+ * validated against the EFFECTIVE pair. Changing the Stock without choosing a
+ * compatible unit of measure fails atomically before any database write.
  */
 export async function canonicalizeAddonInput(
   input: Record<string, unknown>,
   load: SelectorLoader | undefined,
+  current?: AddonCurrentMapping,
 ): Promise<CanonicalOutcome<Record<string, unknown>>> {
   const next: Record<string, unknown> = { ...input };
   for (const field of ADDON_SNAPSHOT_FIELDS) delete next[field];
@@ -270,19 +281,32 @@ export async function canonicalizeAddonInput(
     ids[field] = parsed.value;
   }
 
-  if ("n3StockId" in input) {
+  const persistedStockId = current?.n3StockId ?? null;
+  const persistedUomId = current?.n3UomId ?? null;
+  const stockSubmitted = "n3StockId" in input;
+  const uomSubmitted = "n3UomId" in input;
+
+  let effectiveStockId = persistedStockId;
+  if (stockSubmitted) {
     const r = await canonicalizeN3Reference("stock", ids.n3StockId ?? null, load);
     if (!r.ok) return r;
     next.n3StockId = r.value.id;
     next.n3StockCodeSnapshot = r.value.code;
     next.n3StockNameSnapshot = r.value.name;
+    effectiveStockId = r.value.id;
   }
-  if ("n3UomId" in input) {
-    const r = await canonicalizeN3Reference("uom", ids.n3UomId ?? null, load);
+
+  // Stock-linked unit of measure: revalidate the EFFECTIVE pair whenever
+  // either half moves, so a stale UOM can never survive a Stock change.
+  const stockChanged = stockSubmitted && effectiveStockId !== persistedStockId;
+  const effectiveUomId = uomSubmitted ? (ids.n3UomId ?? null) : persistedUomId;
+  if (uomSubmitted || (stockChanged && effectiveUomId)) {
+    const r = await canonicalizeUomForStock(effectiveUomId, effectiveStockId, load);
     if (!r.ok) return r;
     next.n3UomId = r.value.id;
     next.n3UomSnapshot = r.value.code;
   }
+
   if ("n3TaxCodeId" in input) {
     const r = await canonicalizeN3Reference("tax_code", ids.n3TaxCodeId ?? null, load);
     if (!r.ok) return r;
@@ -291,6 +315,7 @@ export async function canonicalizeAddonInput(
   }
   return { ok: true, value: next };
 }
+
 
 export const MAX_N3_ID_LENGTH = 120;
 
