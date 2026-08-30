@@ -189,3 +189,18 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
   }
   return { status: "ok", kind, items: rows, total: rows.length };
 }
+
+/**
+ * Loader used by Owner WRITE paths to canonicalize a submitted N3 identifier.
+ * It never destroys the session: a write is simply refused when N3 cannot be
+ * consulted (401/403/network all collapse to `unavailable` here).
+ */
+export function serverSelectorLoader(token: string) {
+  return async (kind: N3SelectorKind): Promise<N3SelectorLoad> => {
+    try {
+      return await loadN3Selector(token, kind);
+    } catch {
+      return { status: "unavailable", kind };
+    }
+  };
+}
