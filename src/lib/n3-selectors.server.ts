@@ -172,7 +172,11 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
   } catch {
     return { status: "unavailable", kind };
   }
-  if (res.status === 401 || res.status === 403) throw new N3SelectorUnauthorized();
+  // Only 401 means the N3 token is no longer valid. 403 is a permission
+  // decision about this resource and must never destroy a valid session.
+  if (res.status === 401) throw new N3SelectorUnauthorized();
+  if (res.status === 403) throw new N3SelectorForbidden();
+
   if (res.status < 200 || res.status >= 300) return { status: "unavailable", kind };
   const unwrapped = unwrapN3Array(res.body);
   if (unwrapped.status !== "ok") return { status: "unavailable", kind };
