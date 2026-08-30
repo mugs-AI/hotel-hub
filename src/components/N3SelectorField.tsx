@@ -36,6 +36,7 @@ export function N3SelectorField({
   onClear,
   disabled,
   describedById,
+  stockId,
 }: {
   kind: N3SelectorKind;
   label: string;
@@ -45,6 +46,11 @@ export function N3SelectorField({
   onClear?: () => void;
   disabled?: boolean;
   describedById?: string;
+  /**
+   * Immutable N3 Stock identifier currently in effect. Required for the
+   * stock-linked unit-of-measure list; ignored by every other selector.
+   */
+  stockId?: string | null;
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [open, setOpen] = useState(false);
@@ -52,12 +58,23 @@ export function N3SelectorField({
   const [pageSize, setPageSize] = useState<PageSize>(20);
   const [page, setPage] = useState(1);
 
+  const needsStock = selectorRequiresStock(kind);
+  const stockContext = needsStock ? (stockId ?? null) : null;
+  const stockMissing = needsStock && !stockContext;
+
   useEffect(() => {
+    // A stock-linked list is never requested without its stock context.
+    if (stockMissing) {
+      setOpen(false);
+      setState({ kind: "loaded", load: { status: "stock_context_required", kind } });
+      return;
+    }
     let cancelled = false;
     setState({ kind: "loading" });
     (async () => {
       try {
-        const load = await hotelJson<N3SelectorLoad>(`/api/n3/selectors/${kind}`);
+        const suffix = stockContext ? `?stockId=${encodeURIComponent(stockContext)}` : "";
+        const load = await hotelJson<N3SelectorLoad>(`/api/n3/selectors/${kind}${suffix}`);
         if (!cancelled) setState({ kind: "loaded", load });
       } catch {
         if (!cancelled) setState({ kind: "error" });
@@ -66,10 +83,11 @@ export function N3SelectorField({
     return () => {
       cancelled = true;
     };
-  }, [kind]);
+  }, [kind, stockContext, stockMissing]);
 
   const load = state.kind === "loaded" ? state.load : null;
   const unverified = load?.status === "contract_unverified";
+  const awaitingStock = stockMissing || load?.status === "stock_context_required";
   const rows: N3SelectorRow[] = load?.status === "ok" ? load.items : [];
 
   const filtered = useMemo(() => {
@@ -86,7 +104,7 @@ export function N3SelectorField({
       : value.code
     : "Not chosen";
 
-  const blocked = Boolean(disabled) || unverified || state.kind === "error";
+  const blocked = Boolean(disabled) || unverified || awaitingStock || state.kind === "error";
 
   return (
     <div className="space-y-1">
@@ -124,12 +142,18 @@ export function N3SelectorField({
           {SELECTOR_UNVERIFIED_TEXT}. Still needed: {load.missingEvidence}
         </p>
       ) : null}
+      {awaitingStock ? (
+        <p className="text-sm text-muted-foreground" data-testid={`selector-needs-stock-${kind}`}>
+          {SELECTOR_STOCK_REQUIRED_TEXT}.
+        </p>
+      ) : null}
       {state.kind === "error" || load?.status === "unavailable" ? (
         <p className="text-sm" style={{ color: ERR }}>
           N3 could not be reached for this list. Nothing has been changed.
         </p>
       ) : null}
       {state.kind === "loading" ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+
 
       {open && load?.status === "ok" ? (
         <div className="mt-2 space-y-2 rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
