@@ -63,7 +63,7 @@ describe("HH-GOLIVE-01A malformed catalogue N3 identifiers", () => {
   it("still canonicalizes a valid string identifier through the N3 list", async () => {
     const load: SelectorLoader = vi.fn(async () => ({
       status: "ok" as const,
-      rows: [{ id: "STOCK-1", code: "STK1", name: "Laundry" }],
+      items: [{ id: "STOCK-1", code: "STK1", name: "Laundry" }],
     })) as unknown as SelectorLoader;
     const result = await canonicalizeAddonInput({ name: "Item", n3StockId: "STOCK-1" }, load);
     expect(result.ok).toBe(true);
@@ -78,7 +78,7 @@ describe("HH-GOLIVE-01A malformed catalogue N3 identifiers", () => {
     const id = "x".repeat(120);
     const load: SelectorLoader = vi.fn(async () => ({
       status: "ok" as const,
-      rows: [{ id, code: "STK1", name: "Laundry" }],
+      items: [{ id, code: "STK1", name: "Laundry" }],
     })) as unknown as SelectorLoader;
     const result = await canonicalizeAddonInput({ name: "Item", n3StockId: id }, load);
     expect(result.ok).toBe(true);
