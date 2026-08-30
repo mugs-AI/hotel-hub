@@ -234,9 +234,14 @@ export async function createAddonItem(
   tenantId: string,
   input: AddonInput,
   sb?: FolioDb,
+  load?: SelectorLoader,
 ): Promise<AddonItem> {
-  const validated = validateAddonInput(input);
+  // Server-authoritative N3 mapping before anything else is considered.
+  const canonical = await canonicalizeAddonInput(input as Record<string, unknown>, load);
+  if (!canonical.ok) throw new FolioError(canonical.code, canonicalErrorStatus(canonical.code));
+  const validated = validateAddonInput(canonical.value as AddonInput);
   if (!validated.ok) throw new FolioError(validated.code, 400);
+
   const db = await resolveDb(sb);
   const existing = await listAddonItems(tenantId, {}, db);
   const needle = validated.value.displayName.trim().toLowerCase();
