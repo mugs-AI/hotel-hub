@@ -63,12 +63,13 @@ describe("Deposits card — quiet, but never hides money trouble", () => {
     );
   }
 
-  it("collapses to the heading, 'No deposit' and a single Details control", () => {
+  it("shows the heading, 'No deposit' and a single info control, never a Details toggle", () => {
     deposits.list = [];
     const html = card();
     expect(html).toContain(">Deposits<");
     expect(html).toContain("No deposit");
-    expect((html.match(/Details/g) ?? []).length).toBe(1);
+    expect((html.match(/About deposits/g) ?? []).length).toBe(1);
+    expect(html).not.toContain("Details");
     expect(html).not.toContain("Show details");
     expect(html).not.toContain("Receive Payment");
     expect(html).not.toContain("disabled for this property");
