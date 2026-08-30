@@ -561,6 +561,10 @@ export function mapN3TaxCodeRow(raw: unknown): N3TaxCodeSummary | null {
     name: pickString(row, ["Description", "description", "Name", "name"]),
     isActive: pickBool(row, ["IsActive", "isActive", "Active", "active"]),
     isOutputTax: pickBool(row, ["IsOutputTax", "isOutputTax", "OutputTax", "outputTax"]),
+    // Live N3 rate, normalized to basis points. Never guessed when absent.
+    rateBp: normalizeTaxRateToBp(
+      row.Rate ?? row.rate ?? row.TaxRate ?? row.taxRate ?? row.Percentage ?? row.percentage,
+    ),
   };
 }
 
