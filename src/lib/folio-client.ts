@@ -241,8 +241,11 @@ export function useSaveCatalogueItem() {
 export type ChargeSettingsResponse = {
   settings?: FinancialSettings;
   readiness: FolioReadiness;
+  /** Owner-only: future-posting mapping summary and fail-closed readiness. */
+  posting?: PostingReadiness;
   capability: { canManage: boolean };
 };
+
 
 export function useChargeSettings(enabled = true) {
   const sessionKey = useSessionKey();
