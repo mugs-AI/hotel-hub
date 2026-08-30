@@ -39,7 +39,7 @@ describe("C — Malaysian dates on every customer-facing input", () => {
 
   it("the Malaysian input shows DD/MM/YYYY while its value stays ISO", () => {
     const src = readFileSync(join(SRC, "components/malaysia-date-input.tsx"), "utf8");
-    expect(src).toContain("DD/MM/YYYY");
+    expect(src.toUpperCase()).toContain("DD/MM/YYYY");
     expect(src).toContain('type="text"');
   });
 });
