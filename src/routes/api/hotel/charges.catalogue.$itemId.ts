@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { mappingStatus } from "@/lib/charges-catalogue";
 import { updateAddonItem } from "@/lib/folio-store.server";
+import { serverSelectorLoader } from "@/lib/n3-selectors.server";
 import {
   folioDeny,
   folioSameOriginGuard,
@@ -33,7 +34,13 @@ export async function handleUpdateCatalogueItem({
   if (!UUID_RE.test(itemId)) return folioDeny(400, "invalid_id");
   try {
     const body = await readJsonBody(request);
-    const item = await updateAddonItem(actor.tenantId, itemId, body);
+    const item = await updateAddonItem(
+      actor.tenantId,
+      itemId,
+      body,
+      undefined,
+      serverSelectorLoader(actor.n3Token),
+    );
     await logAudit({
       tenantId: actor.tenantId,
       n3UserKey: actor.actorKey,

@@ -9,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { mappingStatus } from "@/lib/charges-catalogue";
 import { createAddonItem, listAddonItems } from "@/lib/folio-store.server";
+import { serverSelectorLoader } from "@/lib/n3-selectors.server";
 import {
   folioFailure,
   folioJson,
@@ -69,7 +70,12 @@ export async function handleCreateCatalogueItem({
   const { actor } = gate;
   try {
     const body = await readJsonBody(request);
-    const item = await createAddonItem(actor.tenantId, body);
+    const item = await createAddonItem(
+      actor.tenantId,
+      body,
+      undefined,
+      serverSelectorLoader(actor.n3Token),
+    );
     await logAudit({
       tenantId: actor.tenantId,
       n3UserKey: actor.actorKey,
