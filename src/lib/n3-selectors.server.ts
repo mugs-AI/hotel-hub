@@ -24,7 +24,6 @@ import {
   type N3SelectorRow,
 } from "./n3-selectors";
 
-
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -286,4 +285,3 @@ export function serverSelectorLoader(token: string) {
     }
   };
 }
-

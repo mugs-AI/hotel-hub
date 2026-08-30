@@ -486,7 +486,6 @@ function CatalogueRow({
                     n3UomSnapshot: null,
                   });
                 }}
-
               />
             </div>
           ) : null}

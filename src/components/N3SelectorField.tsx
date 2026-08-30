@@ -19,7 +19,6 @@ import {
   type N3SelectorRow,
 } from "@/lib/n3-selectors";
 
-
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const ERR = "#C2413B";
@@ -153,7 +152,6 @@ export function N3SelectorField({
         </p>
       ) : null}
       {state.kind === "loading" ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
-
 
       {open && load?.status === "ok" ? (
         <div className="mt-2 space-y-2 rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>

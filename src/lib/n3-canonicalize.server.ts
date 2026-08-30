@@ -129,7 +129,6 @@ export async function canonicalizeUomForStock(
   return r;
 }
 
-
 // ------------------------------------------------- financial settings patch
 
 /**
@@ -238,7 +237,6 @@ export async function canonicalizeSettingsPatch(
   return { ok: true, value: next };
 }
 
-
 // --------------------------------------------------------- catalogue input
 
 const ADDON_SNAPSHOT_FIELDS = [
@@ -328,4 +326,3 @@ function parseSubmittedId(v: unknown): CanonicalOutcome<string | null> {
   if (parsed === undefined) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
   return { ok: true, value: parsed };
 }
-

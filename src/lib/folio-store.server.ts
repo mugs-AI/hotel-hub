@@ -291,7 +291,6 @@ export async function updateAddonItem(
   }
   const input = canonicalInput.value as AddonInput;
 
-
   // Merge so a partial edit never silently clears an existing mapping.
   const merged: AddonInput = {
     category: input.category ?? current.category,
@@ -529,11 +528,7 @@ export async function patchFinancialSettings(
   const current = await readFinancialSettings(tenantId, db);
   // Server-authoritative mapping: browser code/name snapshots are discarded and
   // every non-null identifier must exist in the current authoritative N3 list.
-  const canonical = await canonicalizeSettingsPatch(
-    validated.patch,
-    load,
-    current.postingMappings,
-  );
+  const canonical = await canonicalizeSettingsPatch(validated.patch, load, current.postingMappings);
   if (!canonical.ok) throw new FolioError(canonical.code, canonicalErrorStatus(canonical.code));
   const patch = canonical.value;
   const next = applySettingsPatch(current, patch);

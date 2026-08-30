@@ -62,7 +62,6 @@ export async function handleN3Selector({
   }
 }
 
-
 export const Route = createFileRoute("/api/n3/selectors/$kind")({
   server: { handlers: { GET: handleN3Selector } },
 });

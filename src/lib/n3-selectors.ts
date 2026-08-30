@@ -41,7 +41,6 @@ export type N3SelectorContract = {
   requiresStockContext?: boolean;
 };
 
-
 export const N3_SELECTOR_CONTRACTS: Record<N3SelectorKind, N3SelectorContract> = {
   stock: {
     kind: "stock",
@@ -138,7 +137,6 @@ export function sameN3Id(a: string | null | undefined, b: string | null | undefi
   if (!a || !b) return false;
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
-
 
 /**
  * Free-text N3 identifiers are forbidden. A stored identifier is only valid

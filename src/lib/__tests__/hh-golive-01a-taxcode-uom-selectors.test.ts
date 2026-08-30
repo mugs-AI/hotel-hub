@@ -146,9 +146,9 @@ describe("documented envelope and pagination", () => {
 
 describe("row normalization and eligibility", () => {
   it("tolerates casing variants and numeric identifiers", () => {
-    expect(mapN3TaxCodeRow({ Id: 42, Code: "SR", Description: "Standard", IsActive: true })).toEqual(
-      { id: "42", code: "SR", name: "Standard", isActive: true, isOutputTax: null },
-    );
+    expect(
+      mapN3TaxCodeRow({ Id: 42, Code: "SR", Description: "Standard", IsActive: true }),
+    ).toEqual({ id: "42", code: "SR", name: "Standard", isActive: true, isOutputTax: null });
     expect(mapN3UomRow({ id: 7, code: "EA", isActive: true, StockId: 9 })).toEqual({
       id: "7",
       code: "EA",
@@ -270,7 +270,9 @@ describe("selector loading", () => {
 
 // ---------------------------------------------------- effective-pair writes
 
-function loaderFor(rowsByKind: Record<string, Array<{ id: string; code: string }>>): SelectorLoader {
+function loaderFor(
+  rowsByKind: Record<string, Array<{ id: string; code: string }>>,
+): SelectorLoader {
   return async (kind, ctx) => {
     if (kind === "uom") {
       const stockId = ctx?.stockId ?? null;
@@ -307,10 +309,7 @@ describe("catalogue effective stock/UOM pair", () => {
   });
 
   it("rejects a cross-stock unit of measure before any write", async () => {
-    const out = await canonicalizeAddonInput(
-      { n3StockId: "S1", n3UomId: "U2" },
-      loaderFor(ROWS),
-    );
+    const out = await canonicalizeAddonInput({ n3StockId: "S1", n3UomId: "U2" }, loaderFor(ROWS));
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.code).toBe(CANONICALIZE_ERRORS.uomStockMismatch);
@@ -344,11 +343,10 @@ describe("catalogue effective stock/UOM pair", () => {
   });
 
   it("allows a stock change that also reselects a compatible unit", async () => {
-    const out = await canonicalizeAddonInput(
-      { n3StockId: "S2", n3UomId: "U2" },
-      loaderFor(ROWS),
-      { n3StockId: "S1", n3UomId: "U1" },
-    );
+    const out = await canonicalizeAddonInput({ n3StockId: "S2", n3UomId: "U2" }, loaderFor(ROWS), {
+      n3StockId: "S1",
+      n3UomId: "U1",
+    });
     expect(out.ok).toBe(true);
     if (out.ok) expect(out.value.n3UomSnapshot).toBe("HR");
   });

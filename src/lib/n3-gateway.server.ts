@@ -364,7 +364,6 @@ export class N3ListError extends Error {
   }
 }
 
-
 const FULL_LIST_TOP = 100;
 const FULL_LIST_CAP = 10_000;
 const FULL_LIST_CONCURRENCY = 3;
