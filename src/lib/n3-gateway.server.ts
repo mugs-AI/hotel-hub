@@ -497,8 +497,13 @@ export function extractStrictPage(body: unknown): N3StrictPage {
   const b = body as Record<string, unknown>;
   const code = b.code ?? b.Code;
   const success = b.success ?? b.Success;
-  const declaredOk = (typeof code === "string" && code === "0000") || success === true;
+  // An explicit code governs: only "0000" declares success. `success: true` is
+  // a fallback declaration used ONLY when no code field is present, so a
+  // contradictory `{ code: "9999", success: true }` fails closed.
+  const declaredOk =
+    code === undefined || code === null ? success === true : typeof code === "string" && code === "0000";
   if (!declaredOk) return { ok: false };
+
   const data = b.data ?? b.Data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false };
   const d = data as Record<string, unknown>;
