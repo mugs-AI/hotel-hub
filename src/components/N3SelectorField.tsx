@@ -25,7 +25,13 @@ const ERR = "#C2413B";
 
 type State = { kind: "loading" } | { kind: "loaded"; load: N3SelectorLoad } | { kind: "error" };
 
-export type N3Selection = { id: string; code: string; name: string | null };
+export type N3Selection = {
+  id: string;
+  code: string;
+  name: string | null;
+  /** Live N3 rate in basis points for Output Tax codes; null when N3 has none. */
+  rateBp?: number | null;
+};
 
 export function N3SelectorField({
   kind,
@@ -177,7 +183,12 @@ export function N3SelectorField({
                   size="sm"
                   style={{ backgroundColor: TEAL }}
                   onClick={() => {
-                    onSelect({ id: row.id, code: row.code, name: row.name });
+                    onSelect({
+                      id: row.id,
+                      code: row.code,
+                      name: row.name,
+                      rateBp: row.rateBp ?? null,
+                    });
                     setOpen(false);
                     setQuery("");
                   }}
