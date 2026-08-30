@@ -11,11 +11,14 @@ import { hotelJson } from "@/lib/hotel-settings-client";
 import { matchesQuery } from "@/lib/n3-gateway.browser";
 import { PAGE_SIZE_OPTIONS, paginate, type PageSize } from "@/lib/search-pagination";
 import {
+  selectorRequiresStock,
+  SELECTOR_STOCK_REQUIRED_TEXT,
   SELECTOR_UNVERIFIED_TEXT,
   type N3SelectorKind,
   type N3SelectorLoad,
   type N3SelectorRow,
 } from "@/lib/n3-selectors";
+
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
