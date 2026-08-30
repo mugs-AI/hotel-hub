@@ -150,7 +150,6 @@ export function isTaxRowSelectable(row: { rateBp?: number | null }): boolean {
   return typeof row.rateBp === "number" && Number.isFinite(row.rateBp);
 }
 
-
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
   | { status: "contract_unverified"; kind: N3SelectorKind; missingEvidence: string }
