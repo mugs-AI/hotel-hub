@@ -274,14 +274,23 @@ export async function updateAddonItem(
   sb?: FolioDb,
   load?: SelectorLoader,
 ): Promise<AddonItem> {
-  const canonicalInput = await canonicalizeAddonInput(rawInput as Record<string, unknown>, load);
+  // The persisted row is read FIRST (read-only) so canonicalization can
+  // validate the EFFECTIVE stock/unit-of-measure pair, not only the fields
+  // this partial update happens to carry. Nothing is written before every
+  // N3 reference has been revalidated.
+  const db = await resolveDb(sb);
+  const current = await getAddonItem(tenantId, id, db);
+  if (!current) throw new FolioError("item_not_found", 404);
+
+  const canonicalInput = await canonicalizeAddonInput(rawInput as Record<string, unknown>, load, {
+    n3StockId: current.n3StockId,
+    n3UomId: current.n3UomId,
+  });
   if (!canonicalInput.ok) {
     throw new FolioError(canonicalInput.code, canonicalErrorStatus(canonicalInput.code));
   }
   const input = canonicalInput.value as AddonInput;
-  const db = await resolveDb(sb);
-  const current = await getAddonItem(tenantId, id, db);
-  if (!current) throw new FolioError("item_not_found", 404);
+
 
   // Merge so a partial edit never silently clears an existing mapping.
   const merged: AddonInput = {
