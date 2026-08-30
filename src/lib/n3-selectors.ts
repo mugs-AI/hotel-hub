@@ -132,7 +132,6 @@ export function normalizeTaxRateToBp(v: unknown): number | null {
   return Number.isSafeInteger(bp) ? bp : null;
 }
 
-
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
   | { status: "contract_unverified"; kind: N3SelectorKind; missingEvidence: string }

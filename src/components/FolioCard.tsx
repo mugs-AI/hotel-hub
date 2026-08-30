@@ -82,8 +82,8 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
             Folio (preparation only)
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Room charges, extras and Malaysian taxes are worked out for you. Nothing here is sent
-            to accounting yet: no cash memo, no invoice, no deposit matching and no refund.
+            Room charges, extras and Malaysian taxes are worked out for you. Nothing here is sent to
+            accounting yet: no cash memo, no invoice, no deposit matching and no refund.
           </p>
         </div>
         <div className="text-right">

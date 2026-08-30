@@ -6,7 +6,6 @@ import { normalizeTaxRateToBp } from "./n3-selectors";
 
 const MAIN_BASE = process.env.OPEN_API_BASE_URL ?? "https://openapi.account.qne.cloud";
 
-
 const N3_TIMEOUT_MS = 15_000;
 
 export type ProbeName = "companyprofile" | "customers" | "stocks";
@@ -541,7 +540,6 @@ export type N3TaxCodeSummary = {
   isOutputTax: boolean | null;
   rateBp: number | null;
 };
-
 
 /** Sanitized unit of measure. `stockId` stays server-side for filtering. */
 export type N3UomSummary = {
