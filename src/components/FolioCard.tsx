@@ -31,6 +31,7 @@ import { formatFolioMoney, type FolioLineDTO } from "@/lib/folio-view";
 import { GUEST_TAX_CLASS_LABELS, GUEST_TAX_CLASSES, type GuestTaxClass } from "@/lib/folio";
 import { makeRequestId } from "@/lib/idempotency";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
+import { isoToMyDate } from "@/lib/malaysia-date";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -183,7 +184,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                       {l.roomLabel ? (
                         <span className="block text-sm text-muted-foreground">
                           {l.roomLabel}
-                          {l.stayDate ? ` · ${l.stayDate}` : ""}
+                          {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
                         </span>
                       ) : null}
                       {l.reason ? (

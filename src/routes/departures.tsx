@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
+import { isoToMyDate } from "@/lib/malaysia-date";
 
 export const Route = createFileRoute("/departures")({
   head: () => ({
@@ -71,7 +72,7 @@ function DeparturesPage() {
           })}
           {q.data ? (
             <span className="ml-auto text-xs text-muted-foreground">
-              Property date {q.data.propertyDate}
+              Property date {isoToMyDate(q.data.propertyDate)}
             </span>
           ) : null}
         </div>
@@ -134,7 +135,7 @@ function DeparturesPage() {
                       </td>
                       <td className="px-4 py-2">{it.roomLabels.join(", ") || "—"}</td>
                       <td className="px-4 py-2">{it.guestCount}</td>
-                      <td className="px-4 py-2">{it.departureDate}</td>
+                      <td className="px-4 py-2">{isoToMyDate(it.departureDate)}</td>
                       <td className="px-4 py-2">
                         <span
                           className="rounded px-2 py-0.5 text-xs font-semibold"
