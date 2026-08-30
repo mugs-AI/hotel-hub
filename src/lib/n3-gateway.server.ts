@@ -497,8 +497,15 @@ export function extractStrictPage(body: unknown): N3StrictPage {
   const b = body as Record<string, unknown>;
   const code = b.code ?? b.Code;
   const success = b.success ?? b.Success;
-  const declaredOk = (typeof code === "string" && code === "0000") || success === true;
+  // An explicit code governs: only "0000" declares success. `success: true` is
+  // a fallback declaration used ONLY when no code field is present, so a
+  // contradictory `{ code: "9999", success: true }` fails closed.
+  const declaredOk =
+    code === undefined || code === null
+      ? success === true
+      : typeof code === "string" && code === "0000";
   if (!declaredOk) return { ok: false };
+
   const data = b.data ?? b.Data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return { ok: false };
   const d = data as Record<string, unknown>;
@@ -581,6 +588,7 @@ export async function listAllStrictN3<T>(
   const out: T[] = [];
   let skip = 0;
   let pages = 0;
+  let rawCount = 0;
   let total: number | null = null;
   for (;;) {
     if (pages >= STRICT_LIST_MAX_PAGES) throw new N3ListError("limit_reached");
@@ -599,23 +607,43 @@ export async function listAllStrictN3<T>(
     }
     const page = extractStrictPage(res.body);
     if (!page.ok) throw new N3ListError(first ? "unavailable" : "incomplete");
-    if (first) total = page.total;
+    if (first) {
+      total = page.total;
+      // A declared total beyond the hard cap is never silently truncated.
+      if (typeof total === "number" && total > FULL_LIST_CAP) {
+        throw new N3ListError("limit_reached");
+      }
+    } else if (typeof page.total === "number" && page.total !== total) {
+      // The upstream total changed mid-read: the list is not a consistent set.
+      throw new N3ListError("incomplete");
+    }
+
+    const returned = page.items.length;
+    if (typeof total === "number") {
+      const expected = Math.min(FULL_LIST_TOP, Math.max(0, total - rawCount));
+      // Short, empty or oversized pages against a known total are incomplete.
+      if (returned !== expected) throw new N3ListError("incomplete");
+    } else if (returned > FULL_LIST_TOP) {
+      throw new N3ListError("incomplete");
+    }
+
     for (const raw of page.items) {
       const mapped = map(raw);
       if (mapped) out.push(mapped);
     }
+    rawCount += returned;
     pages++;
-    const returned = page.items.length;
     skip += FULL_LIST_TOP;
+
     if (typeof total === "number") {
-      if (skip >= total) break;
-      // A short page before the declared total means the read is incomplete.
-      if (returned === 0) throw new N3ListError("incomplete");
+      // Completeness is measured on RAW upstream rows, not mapped output.
+      if (rawCount === total) break;
+      if (rawCount > total) throw new N3ListError("incomplete");
     } else if (returned < FULL_LIST_TOP) {
       break;
     }
   }
-  return { items: out, total: typeof total === "number" ? total : out.length };
+  return { items: out, total: typeof total === "number" ? total : rawCount };
 }
 
 /** Complete Output Tax code list. Fails closed; never partial. */
