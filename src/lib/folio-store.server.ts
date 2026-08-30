@@ -497,11 +497,12 @@ export async function patchFinancialSettings(
   // touches only one bound cannot create an inverted window.
   const windowError = settingsWindowError(next);
   if (windowError) throw new FolioError(windowError, 400);
-  const row = {
+  const row: Record<string, unknown> = {
     ...settingsToRow(next),
     updated_by_n3_user_key: actorKey,
     updated_at: new Date().toISOString(),
   };
+
 
   async function write(payload: Record<string, unknown>) {
     const updated = await db
