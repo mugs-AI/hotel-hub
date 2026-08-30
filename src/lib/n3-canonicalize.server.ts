@@ -112,10 +112,10 @@ export async function canonicalizeN3Reference(
 /**
  * Resolve an Output Tax code AND its authoritative live rate.
  *
- * The rate a browser submits is never trusted: whenever N3 declares a rate for
- * the chosen tax code, that rate REPLACES the submitted one. When N3 declares
- * no rate, nothing is guessed — the Owner-entered rate is kept and an unset
- * rate keeps blocking readiness.
+ * N3 is the sole source of a Service Tax rate. A rate submitted by a browser is
+ * never trusted and never kept: the caller discards it and stores only the live
+ * N3 rate. When N3 declares no usable rate for the chosen code, nothing is
+ * guessed — `rateBp` is null and the save is refused outright.
  */
 export async function canonicalizeTaxCodeWithRate(
   submittedId: string | null | undefined,
