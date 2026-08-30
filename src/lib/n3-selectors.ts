@@ -141,6 +141,15 @@ export function formatRateBpPercent(bp: number | null | undefined): string {
   return `${String(bp / 100)}%`;
 }
 
+/**
+ * An Output Tax code can only be chosen when N3 states a usable rate for it.
+ * 0 is a real rate (Exempt / out of scope) and stays selectable; a missing or
+ * malformed rate is not offered at all, because the save would be refused.
+ */
+export function isTaxRowSelectable(row: { rateBp?: number | null }): boolean {
+  return typeof row.rateBp === "number" && Number.isFinite(row.rateBp);
+}
+
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
   | { status: "contract_unverified"; kind: N3SelectorKind; missingEvidence: string }

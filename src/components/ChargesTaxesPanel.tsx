@@ -865,7 +865,7 @@ function TaxSettingsForm({
                 <N3SelectorField
                   kind="tax_code"
                   label={`${TAXABLE_CLASS_LABELS[c]} tax code`}
-                  value={{ code: codes[c].text, name: null, rateBp: rates[c] }}
+                  value={{ id: codes[c].id, code: codes[c].text, name: null, rateBp: rates[c] }}
                   disabled={disabled}
                   onSelect={(row) => {
                     setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } });

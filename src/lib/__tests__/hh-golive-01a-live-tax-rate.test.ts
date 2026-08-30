@@ -1,11 +1,11 @@
 // HH-GOLIVE-01A OWNER UAT correction — requirement A.
 //
-// The Service Tax rate is no longer a suggestion the Owner accepts. It comes
-// from the chosen proven N3 Output Tax code, and whatever rate the browser
-// submits is REPLACED by the live N3 rate on save. Nothing is guessed: when N3
-// declares no usable rate, the submitted rate stands and an unset rate keeps
-// blocking readiness. The N3 posting account of a tax code never reaches the
-// browser.
+// N3 is the SOLE source of the Service Tax rate. A rate submitted by the
+// browser is always discarded, never stored and never kept as a fallback.
+// Clearing the tax code clears the rate with it, and a chosen code whose live
+// N3 rate is missing or malformed makes the whole save fail closed. The N3
+// posting account of a tax code never reaches the browser.
+
 import { describe, expect, it } from "vitest";
 
 import { formatRateBpPercent, normalizeTaxRateToBp, type N3SelectorLoad } from "@/lib/n3-selectors";

@@ -12,6 +12,7 @@ import { matchesQuery } from "@/lib/n3-gateway.browser";
 import { PAGE_SIZE_OPTIONS, paginate, type PageSize } from "@/lib/search-pagination";
 import {
   formatRateBpPercent,
+  isTaxRowSelectable,
   selectorRequiresStock,
   SELECTOR_STOCK_REQUIRED_TEXT,
   SELECTOR_UNVERIFIED_TEXT,
@@ -47,7 +48,12 @@ export function N3SelectorField({
   kind: N3SelectorKind;
   label: string;
   /** Current human-readable selection, or null. */
-  value: { code: string | null; name: string | null; rateBp?: number | null } | null;
+  value: {
+    id?: string | null;
+    code: string | null;
+    name: string | null;
+    rateBp?: number | null;
+  } | null;
   onSelect: (row: N3Selection) => void;
   onClear?: () => void;
   disabled?: boolean;
@@ -105,9 +111,14 @@ export function N3SelectorField({
   const paged = useMemo(() => paginate(filtered, page, pageSize), [filtered, page, pageSize]);
 
   const showsRate = kind === "tax_code";
+  // The displayed rate is resolved from the loaded N3 list by immutable id, so
+  // the current selection always shows the live rate — including a real 0%
+  // Exempt code — rather than whatever the screen happens to hold.
+  const loadedSelected = value?.id ? rows.find((r) => r.id === value.id) : undefined;
+  const selectedRateBp = loadedSelected ? loadedSelected.rateBp : value?.rateBp;
   const selectedText = value?.code
     ? [value.name ? `${value.code} — ${value.name}` : value.code]
-        .concat(showsRate ? [formatRateBpPercent(value.rateBp)] : [])
+        .concat(showsRate ? [formatRateBpPercent(selectedRateBp)] : [])
         .join(" — ")
     : "Not chosen";
 
@@ -189,23 +200,33 @@ export function N3SelectorField({
                     </span>
                   ) : null}
                 </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  style={{ backgroundColor: TEAL }}
-                  onClick={() => {
-                    onSelect({
-                      id: row.id,
-                      code: row.code,
-                      name: row.name,
-                      rateBp: row.rateBp ?? null,
-                    });
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                >
-                  Select
-                </Button>
+                {showsRate && !isTaxRowSelectable(row) ? (
+                  <span
+                    className="text-xs"
+                    style={{ color: ERR }}
+                    data-testid={`selector-row-unusable-${row.id}`}
+                  >
+                    No rate in N3 — fix it in N3 first
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    style={{ backgroundColor: TEAL }}
+                    onClick={() => {
+                      onSelect({
+                        id: row.id,
+                        code: row.code,
+                        name: row.name,
+                        rateBp: row.rateBp ?? null,
+                      });
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                  >
+                    Select
+                  </Button>
+                )}
               </li>
             ))}
             {paged.pageItems.length === 0 ? (
