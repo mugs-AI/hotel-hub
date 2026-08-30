@@ -476,12 +476,17 @@ function CatalogueRow({
                 kind="stocks"
                 onPick={(row) => {
                   setPicking(false);
+                  // Unit of measure is stock-linked: a stock change always
+                  // clears the earlier unit and requires explicit reselection.
                   onSave({
                     n3StockId: row.id,
                     n3StockCodeSnapshot: row.code,
                     n3StockNameSnapshot: row.name ?? row.code,
+                    n3UomId: null,
+                    n3UomSnapshot: null,
                   });
                 }}
+
               />
             </div>
           ) : null}
