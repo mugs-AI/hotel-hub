@@ -6,6 +6,7 @@ import { useSessionMe } from "./session-client";
 import type { FolioViewDTO } from "./folio-view";
 import type { FinancialSettings } from "./financial-settings";
 import type { FolioReadiness } from "./folio-readiness";
+import type { PostingReadiness } from "./posting-readiness";
 import type { AddonCategory, MappingStatus, TaxClass } from "./charges-catalogue";
 import type { GuestTaxClass } from "./folio";
 
