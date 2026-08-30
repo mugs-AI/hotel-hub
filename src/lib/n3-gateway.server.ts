@@ -501,7 +501,9 @@ export function extractStrictPage(body: unknown): N3StrictPage {
   // a fallback declaration used ONLY when no code field is present, so a
   // contradictory `{ code: "9999", success: true }` fails closed.
   const declaredOk =
-    code === undefined || code === null ? success === true : typeof code === "string" && code === "0000";
+    code === undefined || code === null
+      ? success === true
+      : typeof code === "string" && code === "0000";
   if (!declaredOk) return { ok: false };
 
   const data = b.data ?? b.Data;
@@ -642,7 +644,6 @@ export async function listAllStrictN3<T>(
     }
   }
   return { items: out, total: typeof total === "number" ? total : rawCount };
-
 }
 
 /** Complete Output Tax code list. Fails closed; never partial. */

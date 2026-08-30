@@ -144,9 +144,9 @@ describe("documented envelope and pagination", () => {
   });
 
   it("rejects a contradictory envelope where an explicit code denies success", () => {
-    expect(extractStrictPage({ code: "9999", success: true, data: { value: [], count: 0 } }).ok).toBe(
-      false,
-    );
+    expect(
+      extractStrictPage({ code: "9999", success: true, data: { value: [], count: 0 } }).ok,
+    ).toBe(false);
     expect(extractStrictPage({ Code: "9999", Success: true, data: { value: [] } }).ok).toBe(false);
     // success:true remains a valid declaration only when no code field exists.
     expect(extractStrictPage({ success: true, data: { value: [], count: 0 } }).ok).toBe(true);
@@ -237,7 +237,6 @@ describe("documented envelope and pagination", () => {
     expect(items).toHaveLength(75);
   });
 });
-
 
 describe("row normalization and eligibility", () => {
   it("tolerates casing variants and numeric identifiers", () => {
