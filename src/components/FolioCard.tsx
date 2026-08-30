@@ -34,6 +34,7 @@ import { MalaysianDateInput } from "@/components/malaysia-date-input";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
+const GOLD = "#E5A93D";
 
 export function FolioCard({ reservationId, canView }: { reservationId: string; canView: boolean }) {
   const q = useReservationFolio(reservationId, canView);
@@ -65,8 +66,13 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
 
   return (
     <section
-      className="rounded-xl border bg-white p-5 shadow-sm"
-      style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}
+      className="rounded-xl border p-5 shadow-sm"
+      style={{
+        // Light warm money card: the folio is the guest's bill, and reads warm.
+        backgroundColor: "#FEF9F1",
+        borderColor: "#E8DCC6",
+        borderLeft: `4px solid ${GOLD}`,
+      }}
       aria-label="Folio preparation"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -75,9 +81,8 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
             Folio (preparation only)
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Room charges, extras and Malaysian taxes are calculated on the server. Nothing on this
-            card is posted to accounting: no cash memo, no invoice, no deposit matching and no
-            refund.
+            Room charges, extras and Malaysian taxes are worked out for you. Nothing here is sent
+            to accounting yet: no cash memo, no invoice, no deposit matching and no refund.
           </p>
         </div>
         <div className="text-right">
@@ -152,7 +157,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 {refresh.isPending ? "Preparing…" : "Prepare / refresh room nights"}
               </Button>
               <span className="text-sm text-muted-foreground">
-                Viewing a folio never changes it. Room nights are snapshotted at check-in, or here.
+                Opening a folio never changes it. Room nights are fixed at check-in, or here.
               </span>
             </div>
           ) : null}

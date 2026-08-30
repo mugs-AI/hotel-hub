@@ -212,11 +212,8 @@ export function DepositsCard({
               <p className="font-medium" style={{ color: NAVY }}>
                 {depositsCompactSummary({ gateOpen })}
               </p>
-              <p>No HotelHub-linked deposits are recorded for this reservation.</p>
-              {!gateOpen ? <p>Deposit posting is currently disabled for this property.</p> : null}
-              <p className="text-xs">
-                A Receive Payment created directly in N3 is not linked here automatically.
-              </p>
+              <p>No deposits recorded for this booking.</p>
+              {!gateOpen ? <p>Deposits are switched off for this property.</p> : null}
             </div>
           ) : (
             <ul className="mt-3 space-y-2">
@@ -293,17 +290,17 @@ export function DepositsCard({
 
           {!canCreate ? (
             <p className="mt-4 border-t pt-4 text-xs text-muted-foreground">
-              Owner approval is required to post a deposit to N3.
+              Only the Owner can send a deposit to N3.
             </p>
           ) : (
             <div className="mt-4 border-t pt-4">
               {!gateOpen ? (
                 <p className="text-xs text-muted-foreground">
-                  Deposit posting to N3 is not enabled for this property yet.
+                  Deposits are not switched on for this property yet.
                 </p>
               ) : !eligible ? (
                 <p className="text-xs text-muted-foreground">
-                  Only confirmed reservations can take a deposit.
+                  You can only take a deposit on a confirmed booking.
                 </p>
               ) : !attempt ? (
                 <div className="flex flex-wrap items-end gap-3">
@@ -330,7 +327,7 @@ export function DepositsCard({
               ) : (
                 <div className="rounded-md border p-3 text-xs" style={{ borderColor: `${GOLD}55` }}>
                   {preview.isPending ? (
-                    <p className="text-muted-foreground">Checking N3 defaults…</p>
+                    <p className="text-muted-foreground">Checking the details in N3…</p>
                   ) : preview.error ? (
                     <p style={{ color: ERR }}>{depositErrorMessage(preview.error.code)}</p>
                   ) : p ? (
