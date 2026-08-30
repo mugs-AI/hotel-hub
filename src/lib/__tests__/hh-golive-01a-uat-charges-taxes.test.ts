@@ -41,7 +41,7 @@ describe("Malaysian dates", () => {
   });
 
   it("rejects impossible calendar dates", () => {
-    expect(myDateToIso("31/02/2026")).toBe("");
+    expect(myDateToIso("31/02/2026")).toBeNull();
     expect(isValidIsoDate("2026-02-31")).toBe(false);
     expect(isIsoDate("2026-02-31")).toBe(false);
   });
@@ -49,7 +49,7 @@ describe("Malaysian dates", () => {
   it("accepts a real leap day and rejects a non-leap 29 February", () => {
     expect(myDateToIso("29/02/2028")).toBe("2028-02-29");
     expect(isIsoDate("2028-02-29")).toBe(true);
-    expect(myDateToIso("29/02/2027")).toBe("");
+    expect(myDateToIso("29/02/2027")).toBeNull();
     expect(isIsoDate("2027-02-29")).toBe(false);
   });
 
@@ -256,7 +256,7 @@ describe("Charges & Taxes source contract", () => {
     expect(panel).not.toMatch(/n3UomId:\s*orNull/);
     expect(panel).not.toMatch(/placeholder="[0-9a-f-]{8,}"/i);
     expect(panel).toContain("N3SelectorField");
-    expect(panel).toContain(NOT_POSTED_NOTICE);
+    expect(panel).toContain("NOT_POSTED_NOTICE");
   });
 
   it("renders the Accounting Mapping Summary columns", () => {
