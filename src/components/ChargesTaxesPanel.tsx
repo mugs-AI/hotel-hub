@@ -425,9 +425,11 @@ function CatalogueRow({
               label="Unit of measure"
               value={{ code: item.n3UomSnapshot ?? null, name: null }}
               disabled={disabled}
+              stockId={item.n3StockId ?? null}
               onSelect={(row) => onSave({ n3UomId: row.id, n3UomSnapshot: snapshotText(row) })}
               onClear={() => onSave({ n3UomId: null, n3UomSnapshot: null })}
             />
+
             <N3SelectorField
               kind="tax_code"
               label="Tax code"
