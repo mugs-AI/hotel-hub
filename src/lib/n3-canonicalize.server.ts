@@ -316,17 +316,16 @@ export async function canonicalizeAddonInput(
   return { ok: true, value: next };
 }
 
-
-export const MAX_N3_ID_LENGTH = 120;
+/** Re-exported so callers keep one single bound for N3 identifier length. */
+export { MAX_N3_ID_LENGTH } from "./n3-selectors";
 
 /**
  * Explicit null (or the accepted empty/whitespace form) clears the mapping.
  * Any other value must be a string of at most MAX_N3_ID_LENGTH characters.
  */
 function parseSubmittedId(v: unknown): CanonicalOutcome<string | null> {
-  if (v === null || v === undefined) return { ok: true, value: null };
-  if (typeof v !== "string") return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
-  if (v.length > MAX_N3_ID_LENGTH) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
-  const t = v.trim();
-  return { ok: true, value: t ? t : null };
+  const parsed = boundedN3Id(v);
+  if (parsed === undefined) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
+  return { ok: true, value: parsed };
 }
+
