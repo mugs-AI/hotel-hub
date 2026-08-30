@@ -55,6 +55,7 @@ import {
   type PostingReadiness,
 } from "@/lib/posting-readiness";
 import { isValidIsoDate } from "@/lib/malaysia-date";
+import { formatRateBpPercent } from "@/lib/n3-selectors";
 import { ROUNDING_MODES, type RoundingMode } from "@/lib/folio-money";
 
 const NAVY = "#102A43";
@@ -681,11 +682,13 @@ function TaxSettingsForm({
   onSave: (patch: Record<string, unknown>) => void;
 }) {
   const [serviceTaxRegistered, setServiceTaxRegistered] = useState(false);
-  const [rates, setRates] = useState<Record<TaxableClass, string>>({
-    accommodation: "",
-    food_and_beverage: "",
-    parking: "",
-    other_taxable_service: "",
+  // Service Tax rates are display-only: they mirror the live N3 rate of the
+  // chosen Output Tax code and are never typed or sent by the browser.
+  const [rates, setRates] = useState<Record<TaxableClass, number | null>>({
+    accommodation: null,
+    food_and_beverage: null,
+    parking: null,
+    other_taxable_service: null,
   });
   const [codes, setCodes] = useState<
     Record<TaxableClass, { id: string | null; text: string | null }>
@@ -720,10 +723,10 @@ function TaxSettingsForm({
   useEffect(() => {
     setServiceTaxRegistered(settings.serviceTaxRegistered);
     setRates({
-      accommodation: bpToPercentText(settings.serviceTax.accommodation.rateBp),
-      food_and_beverage: bpToPercentText(settings.serviceTax.food_and_beverage.rateBp),
-      parking: bpToPercentText(settings.serviceTax.parking.rateBp),
-      other_taxable_service: bpToPercentText(settings.serviceTax.other_taxable_service.rateBp),
+      accommodation: settings.serviceTax.accommodation.rateBp,
+      food_and_beverage: settings.serviceTax.food_and_beverage.rateBp,
+      parking: settings.serviceTax.parking.rateBp,
+      other_taxable_service: settings.serviceTax.other_taxable_service.rateBp,
     });
     setCodes({
       accommodation: {
@@ -766,13 +769,8 @@ function TaxSettingsForm({
   function submit() {
     const serviceTax: Record<string, unknown> = {};
     for (const c of TAXABLE_CLASSES) {
-      const bp = percentTextToBp(rates[c]);
-      if (bp === undefined) {
-        toast.error(`Enter a valid ${TAXABLE_CLASS_LABELS[c]} Service Tax rate.`);
-        return;
-      }
+      // No rate is sent: the server re-reads it from the chosen N3 tax code.
       serviceTax[c] = {
-        rateBp: bp,
         n3TaxCodeId: codes[c].id,
         n3TaxCodeSnapshot: codes[c].text,
       };
@@ -843,36 +841,43 @@ function TaxSettingsForm({
             Service Tax by class
           </legend>
           <p className="text-sm text-muted-foreground">
-            Choose the N3 tax code for each class. Leave the rate blank if it is not set up —
-            HotelHub blocks the folio instead of guessing.
+            Pick the N3 tax code for each class. The rate comes from N3 and cannot be typed here. If
+            N3 has no rate on the code you pick, the save is refused rather than guessed.
           </p>
           <div className="mt-3 space-y-3">
             {TAXABLE_CLASSES.map((c) => (
               <div key={c} className="grid gap-2 sm:grid-cols-3">
                 <div>
-                  <Label htmlFor={`rate-${c}`}>{TAXABLE_CLASS_LABELS[c]} rate %</Label>
-                  <Input
-                    id={`rate-${c}`}
-                    inputMode="decimal"
-                    value={rates[c]}
-                    disabled={disabled}
-                    onChange={(e) => setRates({ ...rates, [c]: e.target.value })}
-                  />
+                  <p className="text-sm font-medium" style={{ color: NAVY }}>
+                    {TAXABLE_CLASS_LABELS[c]} rate
+                  </p>
+                  <p
+                    className="mt-1 rounded border px-2 py-1 text-sm"
+                    style={{
+                      borderColor: `${NAVY}22`,
+                      color: rates[c] === null ? "#6B7A8C" : NAVY,
+                    }}
+                    data-testid={`rate-display-${c}`}
+                  >
+                    {rates[c] === null ? "Set by the N3 tax code" : formatRateBpPercent(rates[c])}
+                  </p>
                 </div>
                 <N3SelectorField
                   kind="tax_code"
                   label={`${TAXABLE_CLASS_LABELS[c]} tax code`}
-                  value={{ code: codes[c].text, name: null }}
+                  value={{ code: codes[c].text, name: null, rateBp: rates[c] }}
                   disabled={disabled}
                   onSelect={(row) => {
                     setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } });
-                    // The rate comes from the chosen N3 tax code, never from a
-                    // suggestion. The server re-reads N3 and overwrites it on save.
-                    if (typeof row.rateBp === "number") {
-                      setRates({ ...rates, [c]: bpToPercentText(row.rateBp) });
-                    }
+                    // The rate is only ever the live N3 rate of the chosen code.
+                    // The server re-reads N3 and refuses the save if it is gone.
+                    setRates({ ...rates, [c]: typeof row.rateBp === "number" ? row.rateBp : null });
                   }}
-                  onClear={() => setCodes({ ...codes, [c]: { id: null, text: null } })}
+                  onClear={() => {
+                    setCodes({ ...codes, [c]: { id: null, text: null } });
+                    // Clearing the code clears the rate it came from.
+                    setRates({ ...rates, [c]: null });
+                  }}
                 />
                 <p className="self-end text-xs text-muted-foreground">
                   The rate comes from the N3 tax code and is re-checked when you save.

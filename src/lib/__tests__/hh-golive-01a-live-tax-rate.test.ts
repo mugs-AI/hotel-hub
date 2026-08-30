@@ -8,8 +8,12 @@
 // browser.
 import { describe, expect, it } from "vitest";
 
-import { normalizeTaxRateToBp, type N3SelectorLoad } from "@/lib/n3-selectors";
-import { canonicalizeSettingsPatch, type SelectorLoader } from "@/lib/n3-canonicalize.server";
+import { formatRateBpPercent, normalizeTaxRateToBp, type N3SelectorLoad } from "@/lib/n3-selectors";
+import {
+  canonicalErrorStatus,
+  canonicalizeSettingsPatch,
+  type SelectorLoader,
+} from "@/lib/n3-canonicalize.server";
 import { defaultPostingMappings } from "@/lib/posting-mappings";
 
 function loaderFor(
@@ -53,14 +57,45 @@ describe("server-authoritative Service Tax rate", () => {
     }
   });
 
-  it("keeps the submitted rate when N3 declares none, and guesses nothing", async () => {
+  it("rejects the whole save when N3 declares no usable rate", async () => {
     const out = await canonicalizeSettingsPatch(
       { serviceTax: { accommodation: { n3TaxCodeId: "T2", rateBp: 600 } } },
       loaderFor(rows),
       defaultPostingMappings(),
     );
+    expect(out).toEqual({ ok: false, code: "n3_tax_rate_unavailable" });
+    expect(canonicalErrorStatus("n3_tax_rate_unavailable")).toBe(422);
+  });
+
+  it("clears the stored rate when the tax code is cleared", async () => {
+    const out = await canonicalizeSettingsPatch(
+      { serviceTax: { accommodation: { n3TaxCodeId: null, rateBp: 800 } } },
+      loaderFor(rows),
+      defaultPostingMappings(),
+    );
     expect(out.ok).toBe(true);
-    if (out.ok) expect(out.value.serviceTax?.accommodation?.rateBp).toBe(600);
+    if (out.ok) {
+      expect(out.value.serviceTax?.accommodation?.rateBp).toBeNull();
+      expect(out.value.serviceTax?.accommodation?.n3TaxCodeId).toBeNull();
+      expect(out.value.serviceTax?.accommodation?.n3TaxCodeSnapshot).toBeNull();
+    }
+  });
+
+  it("ignores a browser rate when no tax code is submitted", async () => {
+    const out = await canonicalizeSettingsPatch(
+      { serviceTax: { accommodation: { rateBp: 1234 } } },
+      loaderFor(rows),
+      defaultPostingMappings(),
+    );
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.value.serviceTax?.accommodation?.rateBp).toBeUndefined();
+  });
+
+  it("formats a live rate for display and never invents one", () => {
+    expect(formatRateBpPercent(800)).toBe("8%");
+    expect(formatRateBpPercent(650)).toBe("6.5%");
+    expect(formatRateBpPercent(null)).toBe("no rate in N3");
+    expect(formatRateBpPercent(undefined)).toBe("no rate in N3");
   });
 
   it("never lets a browser snapshot or posting account through", async () => {

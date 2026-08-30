@@ -336,7 +336,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                     >
                       <span>{e.sourceLabel}</span>
                       <span className="font-mono">{e.reference ?? "—"}</span>
-                      <span>{e.collectedOn ?? "—"}</span>
+                      <span>{isoToMyDate(e.collectedOn)}</span>
                       <span>{formatFolioMoney(e.amount, dto.reservation.currency)}</span>
                     </li>
                   ))}

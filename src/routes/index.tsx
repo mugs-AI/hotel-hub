@@ -58,7 +58,7 @@ function Home() {
             <li>· Dev-only API-key sign-in (Path B), stripped from production</li>
             <li>· Same-origin gateway — browser never calls N3 hosts directly</li>
             <li>
-              · Session header (company, tenant, user) captured at launch and read from the
+              · Sign-in details (company, hotel, user) captured at launch and read from the
               encrypted HttpOnly session cookie on each page load — not re-fetched from N3.
             </li>
             <li>· N3 verification console (Owner-only) for capability probing</li>

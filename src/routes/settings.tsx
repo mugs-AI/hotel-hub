@@ -74,12 +74,12 @@ export const Route = createFileRoute("/settings")({
       { title: "Settings — HotelHub" },
       {
         name: "description",
-        content: "Configure booking sources and tenant preferences for your hotel.",
+        content: "Set up where your bookings come from and how your hotel works.",
       },
       { property: "og:title", content: "Settings — HotelHub" },
       {
         property: "og:description",
-        content: "Configure booking sources and tenant preferences for your hotel.",
+        content: "Set up where your bookings come from and how your hotel works.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -116,7 +116,7 @@ function SettingsInner() {
             Settings are Owner-only
           </p>
           <p className="mt-1 text-muted-foreground">
-            Your HotelHub role does not have permission to edit tenant settings.
+            Your HotelHub role does not allow changing these hotel settings.
           </p>
         </div>
       </div>
