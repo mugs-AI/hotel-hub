@@ -523,14 +523,21 @@ export async function patchFinancialSettings(
 ): Promise<FinancialSettings> {
   const validated = validateSettingsPatch(rawPatch);
   if (!validated.ok) throw new FolioError(validated.code, 400);
+  const db = await resolveDb(sb);
+  // Read-only load of the persisted state FIRST, so a partial posting-mapping
+  // patch is validated against the effective stock/unit-of-measure pair.
+  const current = await readFinancialSettings(tenantId, db);
   // Server-authoritative mapping: browser code/name snapshots are discarded and
   // every non-null identifier must exist in the current authoritative N3 list.
-  const canonical = await canonicalizeSettingsPatch(validated.patch, load);
+  const canonical = await canonicalizeSettingsPatch(
+    validated.patch,
+    load,
+    current.postingMappings,
+  );
   if (!canonical.ok) throw new FolioError(canonical.code, canonicalErrorStatus(canonical.code));
   const patch = canonical.value;
-  const db = await resolveDb(sb);
-  const current = await readFinancialSettings(tenantId, db);
   const next = applySettingsPatch(current, patch);
+
   // Effective windows are re-checked against the MERGED state so a patch that
   // touches only one bound cannot create an inverted window.
   const windowError = settingsWindowError(next);
