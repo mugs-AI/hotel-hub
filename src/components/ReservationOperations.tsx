@@ -27,6 +27,7 @@ import { hotelJson } from "@/lib/hotel-settings-client";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
 import { useSessionMe } from "@/lib/session-client";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.
@@ -535,11 +536,11 @@ export function ReservationActionsCard({
                   {flow.kind === "stay_extension" ? (
                     <label className="mt-2 block text-xs">
                       <span className="text-muted-foreground">New departure date</span>
-                      <input
-                        type="date"
+                      <MalaysianDateInput
                         value={detail}
-                        onChange={(e) => setDetail(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                        className="mt-1"
+                        pickerLabel="Choose the new departure date"
+                        onChange={setDetail}
                       />
                     </label>
                   ) : null}

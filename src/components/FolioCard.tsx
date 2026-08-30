@@ -30,6 +30,7 @@ import {
 import { formatFolioMoney, type FolioLineDTO } from "@/lib/folio-view";
 import { GUEST_TAX_CLASS_LABELS, GUEST_TAX_CLASSES, type GuestTaxClass } from "@/lib/folio";
 import { makeRequestId } from "@/lib/idempotency";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -357,11 +358,11 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 </div>
                 <div>
                   <Label htmlFor="ttx-date">Collected on</Label>
-                  <Input
+                  <MalaysianDateInput
                     id="ttx-date"
-                    type="date"
                     value={evidenceDate}
-                    onChange={(e) => setEvidenceDate(e.target.value)}
+                    pickerLabel="Choose the collection date"
+                    onChange={setEvidenceDate}
                   />
                 </div>
                 <div>

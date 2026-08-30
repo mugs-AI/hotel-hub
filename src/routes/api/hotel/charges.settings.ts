@@ -8,6 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { patchFinancialSettings, readFinancialSettings } from "@/lib/folio-store.server";
 import { folioReadinessProjection } from "@/lib/folio-readiness";
+import { postingReadiness } from "@/lib/posting-readiness";
 import {
   folioFailure,
   folioJson,
@@ -27,7 +28,12 @@ export async function handleReadChargeSettings(): Promise<Response> {
       // Front desk never receives rates, tax-code ids or account ids.
       return folioJson({ readiness, capability: { canManage: false } });
     }
-    return folioJson({ settings, readiness, capability: { canManage: true } });
+    return folioJson({
+      settings,
+      readiness,
+      posting: postingReadiness(settings, settings.postingMappings),
+      capability: { canManage: true },
+    });
   } catch (err) {
     return folioFailure(err, { tenantId: actor.tenantId, actorKey: actor.actorKey });
   }
@@ -55,7 +61,12 @@ export async function handlePatchChargeSettings({
       eventType: "hotel.charges.settings_updated",
       detail: { fields: Object.keys(body), configurationComplete: readiness.configurationComplete },
     });
-    return folioJson({ settings, readiness, capability: { canManage: true } });
+    return folioJson({
+      settings,
+      readiness,
+      posting: postingReadiness(settings, settings.postingMappings),
+      capability: { canManage: true },
+    });
   } catch (err) {
     return folioFailure(err, { tenantId: actor.tenantId, actorKey: actor.actorKey });
   }
