@@ -209,8 +209,9 @@ describe("fail-closed future-posting readiness", () => {
   it("reports every unproven N3 read contract instead of guessing one", () => {
     const settings = defaultFinancialSettings(TENANT);
     const r = postingReadiness(settings, settings.postingMappings);
-    const kinds = r.blockedContracts.map((c) => c.kind).sort();
-    expect(kinds).toEqual(["tax_code", "uom"]);
+    // All four selector contracts are now proven from documented read-only
+    // GETs, so nothing is reported as blocked for want of a contract.
+    expect(r.blockedContracts.map((c) => c.kind).sort()).toEqual([]);
     for (const c of r.blockedContracts) expect(c.missingEvidence.length).toBeGreaterThan(0);
   });
 });
@@ -219,9 +220,10 @@ describe("N3 selector contracts", () => {
   it("only offers selectors whose read-only contract is proven in this repository", () => {
     expect(isSelectorProven("stock")).toBe(true);
     expect(isSelectorProven("gl_account")).toBe(true);
-    expect(isSelectorProven("tax_code")).toBe(false);
-    expect(isSelectorProven("uom")).toBe(false);
+    expect(isSelectorProven("tax_code")).toBe(true);
+    expect(isSelectorProven("uom")).toBe(true);
   });
+
 
   it("never carries an endpoint for an unproven contract", () => {
     for (const c of Object.values(N3_SELECTOR_CONTRACTS)) {
