@@ -888,7 +888,7 @@ function TaxSettingsForm({
               <N3SelectorField
                 kind="tax_code"
                 label="Exempt / out-of-scope tax code"
-                value={{ code: exempt.text, name: null }}
+                value={{ id: exempt.id, code: exempt.text, name: null }}
                 disabled={disabled}
                 onSelect={(row) => setExempt({ id: row.id, text: snapshotText(row) })}
                 onClear={() => setExempt({ id: null, text: null })}
