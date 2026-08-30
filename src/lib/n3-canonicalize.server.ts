@@ -27,6 +27,7 @@ export const CANONICALIZE_ERRORS = {
   notFound: "n3_reference_not_found",
   unavailable: "n3_validation_unavailable",
   resolvedAccountServerOwned: "resolved_account_is_server_owned",
+  invalidMapping: "invalid_n3_mapping",
 } as const;
 
 export type CanonicalError = (typeof CANONICALIZE_ERRORS)[keyof typeof CANONICALIZE_ERRORS];
