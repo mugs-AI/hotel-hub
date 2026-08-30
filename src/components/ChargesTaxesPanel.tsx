@@ -632,12 +632,18 @@ function PostingMappingsSection({
                       value={mapping.stock}
                       disabled={disabled}
                       onSelect={(row: N3Selection) =>
+                        // Stock-linked unit of measure is cleared on every
+                        // stock change and must be chosen again explicitly.
                         patchComponent(component, {
                           stock: { id: row.id, code: row.code, name: row.name },
+                          uom: { id: null, code: null, name: null },
                         })
                       }
                       onClear={() =>
-                        patchComponent(component, { stock: { id: null, code: null, name: null } })
+                        patchComponent(component, {
+                          stock: { id: null, code: null, name: null },
+                          uom: { id: null, code: null, name: null },
+                        })
                       }
                     />
                     <N3SelectorField
@@ -645,12 +651,17 @@ function PostingMappingsSection({
                       label="Unit of measure"
                       value={mapping.uom}
                       disabled={disabled}
+                      stockId={mapping.stock.id ?? null}
                       onSelect={(row) =>
                         patchComponent(component, {
                           uom: { id: row.id, code: row.code, name: row.name },
                         })
                       }
+                      onClear={() =>
+                        patchComponent(component, { uom: { id: null, code: null, name: null } })
+                      }
                     />
+
                     <N3SelectorField
                       kind="tax_code"
                       label="Tax code"
