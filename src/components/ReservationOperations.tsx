@@ -27,6 +27,7 @@ import { hotelJson } from "@/lib/hotel-settings-client";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
 import { useSessionMe } from "@/lib/session-client";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.

@@ -30,6 +30,7 @@ import {
 import { formatFolioMoney, type FolioLineDTO } from "@/lib/folio-view";
 import { GUEST_TAX_CLASS_LABELS, GUEST_TAX_CLASSES, type GuestTaxClass } from "@/lib/folio";
 import { makeRequestId } from "@/lib/idempotency";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
