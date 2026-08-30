@@ -13,6 +13,14 @@
 
 import { isRoundingMode, type RoundingMode } from "./folio-money";
 import { isTaxClass, type TaxClass } from "./charges-catalogue";
+import { isRealCalendarDate } from "./malaysia-date";
+import {
+  applyPostingMappingsPatch,
+  defaultPostingMappings,
+  validatePostingMappingsPatch,
+  type PostingMappings,
+  type PostingMappingsPatch,
+} from "./posting-mappings";
 
 /** Non-binding UI suggestions only. Never applied automatically. */
 export const SUGGESTED_ACCOMMODATION_RATE_BP = 800; // presently 8%
@@ -65,6 +73,11 @@ export type FinancialSettings = {
     n3RoundingAccountId: string | null;
     n3RoundingAccountSnapshot: string | null;
   };
+  /**
+   * HH-GOLIVE-01A UAT correction — future-posting accounting mappings.
+   * Preparation only: nothing here posts to N3 in this milestone.
+   */
+  postingMappings: PostingMappings;
   updatedAt: string | null;
 };
 
@@ -101,6 +114,7 @@ export function defaultFinancialSettings(tenantId: string): FinancialSettings {
       effectiveTo: null,
     },
     rounding: { mode: "none", n3RoundingAccountId: null, n3RoundingAccountSnapshot: null },
+    postingMappings: defaultPostingMappings(),
     updatedAt: null,
   };
 }
@@ -109,8 +123,29 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isIsoDate(v: unknown): v is string {
   if (typeof v !== "string" || !ISO_DATE_RE.test(v)) return false;
-  const t = Date.parse(`${v}T00:00:00Z`);
-  return Number.isFinite(t);
+  const [y, m, d] = v.split("-").map(Number);
+  // Strict real-calendar check: 2026-02-30 and 2027-02-29 are rejected.
+  return isRealCalendarDate(y, m, d);
+}
+
+/**
+ * Post-merge effective-window check. Patch-level validation only sees the
+ * fields in one request, so a request that moves only `effectiveTo` earlier
+ * than a previously stored `effectiveFrom` must still be refused.
+ */
+export function settingsWindowError(s: FinancialSettings): string | null {
+  for (const [key, w] of [
+    ["tourismTax", s.tourismTax],
+    ["localLevy", s.localLevy],
+  ] as const) {
+    if (w.effectiveFrom !== null && !isIsoDate(w.effectiveFrom))
+      return `invalid_${key}_effective_date`;
+    if (w.effectiveTo !== null && !isIsoDate(w.effectiveTo)) return `invalid_${key}_effective_date`;
+    if (w.effectiveFrom && w.effectiveTo && w.effectiveTo < w.effectiveFrom) {
+      return `invalid_${key}_effective_date`;
+    }
+  }
+  return null;
 }
 
 /** Inclusive-from, inclusive-to window test. Null bounds are open. */
@@ -175,6 +210,7 @@ export type SettingsPatch = Partial<{
   tourismTax: Partial<FinancialSettings["tourismTax"]>;
   localLevy: Partial<FinancialSettings["localLevy"]>;
   rounding: Partial<FinancialSettings["rounding"]>;
+  postingMappings: PostingMappingsPatch;
 }>;
 
 export type PatchValidation = { ok: true; patch: SettingsPatch } | { ok: false; code: string };
@@ -351,6 +387,12 @@ export function validateSettingsPatch(input: unknown): PatchValidation {
     patch.rounding = out;
   }
 
+  if ("postingMappings" in input) {
+    const v = validatePostingMappingsPatch(input.postingMappings);
+    if (!v.ok) return { ok: false, code: v.code };
+    patch.postingMappings = v.patch;
+  }
+
   if (Object.keys(patch).length === 0) return { ok: false, code: "no_valid_fields" };
   return { ok: true, patch };
 }
@@ -368,6 +410,7 @@ export function applySettingsPatch(
     tourismTax: { ...current.tourismTax },
     localLevy: { ...current.localLevy },
     rounding: { ...current.rounding },
+    postingMappings: { ...current.postingMappings },
   };
   if (patch.serviceTaxRegistered !== undefined) {
     next.serviceTaxRegistered = patch.serviceTaxRegistered;
@@ -383,5 +426,8 @@ export function applySettingsPatch(
   if (patch.tourismTax) next.tourismTax = { ...next.tourismTax, ...patch.tourismTax };
   if (patch.localLevy) next.localLevy = { ...next.localLevy, ...patch.localLevy };
   if (patch.rounding) next.rounding = { ...next.rounding, ...patch.rounding };
+  if (patch.postingMappings) {
+    next.postingMappings = applyPostingMappingsPatch(next.postingMappings, patch.postingMappings);
+  }
   return next;
 }
