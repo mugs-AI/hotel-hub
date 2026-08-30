@@ -7,7 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { destroySession, requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
-import { isN3SelectorKind } from "@/lib/n3-selectors";
+import { boundedN3Id, isN3SelectorKind, selectorRequiresStock } from "@/lib/n3-selectors";
 import {
   loadN3Selector,
   N3SelectorForbidden,
@@ -19,8 +19,10 @@ function deny(status: number, error: string) {
 }
 
 export async function handleN3Selector({
+  request,
   params,
 }: {
+  request: Request;
   params: { kind: string };
 }): Promise<Response> {
   if (!isN3SelectorKind(params.kind)) return deny(404, "unknown_selector");
@@ -28,8 +30,19 @@ export async function handleN3Selector({
   if (!decision.ok) {
     return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
   }
+
+  // Stock-linked lists carry a bounded, validated stock identifier. Nothing
+  // else from the query string is ever forwarded to N3.
+  let stockId: string | null = null;
+  if (selectorRequiresStock(params.kind)) {
+    const raw = new URL(request.url).searchParams.get("stockId");
+    const parsed = boundedN3Id(raw);
+    if (parsed === undefined) return deny(400, "invalid_stock_context");
+    stockId = parsed;
+  }
+
   try {
-    const load = await loadN3Selector(ctx.session.n3Token, params.kind);
+    const load = await loadN3Selector(ctx.session.n3Token, params.kind, { stockId });
     return Response.json(load, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     if (e instanceof N3SelectorUnauthorized) {

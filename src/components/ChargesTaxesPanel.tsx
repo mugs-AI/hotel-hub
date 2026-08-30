@@ -425,9 +425,11 @@ function CatalogueRow({
               label="Unit of measure"
               value={{ code: item.n3UomSnapshot ?? null, name: null }}
               disabled={disabled}
+              stockId={item.n3StockId ?? null}
               onSelect={(row) => onSave({ n3UomId: row.id, n3UomSnapshot: snapshotText(row) })}
               onClear={() => onSave({ n3UomId: null, n3UomSnapshot: null })}
             />
+
             <N3SelectorField
               kind="tax_code"
               label="Tax code"
@@ -474,10 +476,14 @@ function CatalogueRow({
                 kind="stocks"
                 onPick={(row) => {
                   setPicking(false);
+                  // Unit of measure is stock-linked: a stock change always
+                  // clears the earlier unit and requires explicit reselection.
                   onSave({
                     n3StockId: row.id,
                     n3StockCodeSnapshot: row.code,
                     n3StockNameSnapshot: row.name ?? row.code,
+                    n3UomId: null,
+                    n3UomSnapshot: null,
                   });
                 }}
               />
@@ -625,12 +631,18 @@ function PostingMappingsSection({
                       value={mapping.stock}
                       disabled={disabled}
                       onSelect={(row: N3Selection) =>
+                        // Stock-linked unit of measure is cleared on every
+                        // stock change and must be chosen again explicitly.
                         patchComponent(component, {
                           stock: { id: row.id, code: row.code, name: row.name },
+                          uom: { id: null, code: null, name: null },
                         })
                       }
                       onClear={() =>
-                        patchComponent(component, { stock: { id: null, code: null, name: null } })
+                        patchComponent(component, {
+                          stock: { id: null, code: null, name: null },
+                          uom: { id: null, code: null, name: null },
+                        })
                       }
                     />
                     <N3SelectorField
@@ -638,12 +650,17 @@ function PostingMappingsSection({
                       label="Unit of measure"
                       value={mapping.uom}
                       disabled={disabled}
+                      stockId={mapping.stock.id ?? null}
                       onSelect={(row) =>
                         patchComponent(component, {
                           uom: { id: row.id, code: row.code, name: row.name },
                         })
                       }
+                      onClear={() =>
+                        patchComponent(component, { uom: { id: null, code: null, name: null } })
+                      }
                     />
+
                     <N3SelectorField
                       kind="tax_code"
                       label="Tax code"

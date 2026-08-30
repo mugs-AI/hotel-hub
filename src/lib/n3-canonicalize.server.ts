@@ -15,12 +15,26 @@
 //
 // The N3 read is INJECTED (`SelectorLoader`) so this module is exercised by
 // real behavioural tests without any network access.
-import { N3_SELECTOR_CONTRACTS, type N3SelectorKind, type N3SelectorLoad } from "./n3-selectors";
+import {
+  boundedN3Id,
+  N3_SELECTOR_CONTRACTS,
+  type N3SelectorContext,
+  type N3SelectorKind,
+  type N3SelectorLoad,
+} from "./n3-selectors";
 import type { SettingsPatch } from "./financial-settings";
-import { emptySnapshot, type N3Snapshot, type PostingComponent } from "./posting-mappings";
+import {
+  emptySnapshot,
+  type N3Snapshot,
+  type PostingComponent,
+  type PostingMappings,
+} from "./posting-mappings";
 
 /** Reads the complete authoritative list for one proven selector kind. */
-export type SelectorLoader = (kind: N3SelectorKind) => Promise<N3SelectorLoad>;
+export type SelectorLoader = (
+  kind: N3SelectorKind,
+  ctx?: N3SelectorContext,
+) => Promise<N3SelectorLoad>;
 
 export const CANONICALIZE_ERRORS = {
   contractUnverified: "n3_contract_unverified",
@@ -28,6 +42,10 @@ export const CANONICALIZE_ERRORS = {
   unavailable: "n3_validation_unavailable",
   resolvedAccountServerOwned: "resolved_account_is_server_owned",
   invalidMapping: "invalid_n3_mapping",
+  /** A unit of measure was requested without an effective N3 Stock. */
+  uomRequiresStock: "n3_uom_requires_stock",
+  /** The effective unit of measure does not belong to the effective Stock. */
+  uomStockMismatch: "n3_uom_stock_mismatch",
 } as const;
 
 export type CanonicalError = (typeof CANONICALIZE_ERRORS)[keyof typeof CANONICALIZE_ERRORS];
@@ -38,6 +56,8 @@ export type CanonicalOutcome<T> = { ok: true; value: T } | { ok: false; code: st
 export function canonicalErrorStatus(code: string): number {
   switch (code) {
     case CANONICALIZE_ERRORS.contractUnverified:
+    case CANONICALIZE_ERRORS.uomRequiresStock:
+    case CANONICALIZE_ERRORS.uomStockMismatch:
       return 422;
     case CANONICALIZE_ERRORS.unavailable:
       return 503;
@@ -58,6 +78,7 @@ export async function canonicalizeN3Reference(
   kind: N3SelectorKind,
   submittedId: string | null | undefined,
   load: SelectorLoader | undefined,
+  ctx?: N3SelectorContext,
 ): Promise<CanonicalOutcome<N3Snapshot>> {
   if (submittedId === null || submittedId === undefined || submittedId === "") {
     return { ok: true, value: emptySnapshot() };
@@ -68,12 +89,15 @@ export async function canonicalizeN3Reference(
   if (!load) return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   let loaded: N3SelectorLoad;
   try {
-    loaded = await load(kind);
+    loaded = await load(kind, ctx);
   } catch {
     return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   }
   if (loaded.status === "contract_unverified") {
     return { ok: false, code: CANONICALIZE_ERRORS.contractUnverified };
+  }
+  if (loaded.status === "stock_context_required") {
+    return { ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock };
   }
   if (loaded.status !== "ok") return { ok: false, code: CANONICALIZE_ERRORS.unavailable };
   const row = loaded.items.find((r) => r.id === submittedId);
@@ -82,15 +106,43 @@ export async function canonicalizeN3Reference(
   return { ok: true, value: { id: row.id, code: row.code, name: row.name ?? null } };
 }
 
+/**
+ * Resolve a unit of measure against the STOCK it must belong to.
+ *
+ * The server re-reads the current N3 UOM list filtered to the effective Stock,
+ * so a UOM that belongs to another Stock — including one left behind by an
+ * earlier Stock choice — is refused with a stable, sanitized mismatch error
+ * rather than silently saved or guessed.
+ */
+export async function canonicalizeUomForStock(
+  uomId: string | null,
+  stockId: string | null,
+  load: SelectorLoader | undefined,
+): Promise<CanonicalOutcome<N3Snapshot>> {
+  if (!uomId) return { ok: true, value: emptySnapshot() };
+  if (!stockId) return { ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock };
+  const r = await canonicalizeN3Reference("uom", uomId, load, { stockId });
+  // Not present in the stock-filtered list means the pair is incompatible.
+  if (!r.ok && r.code === CANONICALIZE_ERRORS.notFound) {
+    return { ok: false, code: CANONICALIZE_ERRORS.uomStockMismatch };
+  }
+  return r;
+}
+
 // ------------------------------------------------- financial settings patch
 
 /**
  * Rewrite an already-shape-validated settings patch so every N3 reference is
  * the canonical server-resolved value. Browser snapshots are discarded.
+ *
+ * `currentMappings` supplies the already-persisted posting mappings so a
+ * PARTIAL patch is validated against the EFFECTIVE stock/UOM pair, not only
+ * the submitted fields.
  */
 export async function canonicalizeSettingsPatch(
   patch: SettingsPatch,
   load: SelectorLoader | undefined,
+  currentMappings?: PostingMappings,
 ): Promise<CanonicalOutcome<SettingsPatch>> {
   const next: SettingsPatch = { ...patch };
 
@@ -145,16 +197,37 @@ export async function canonicalizeSettingsPatch(
       }
       const cleaned: NonNullable<SettingsPatch["postingMappings"]>[PostingComponent] = {};
       if (value.enabled !== undefined) cleaned.enabled = value.enabled;
-      for (const [field, kind] of [
-        ["stock", "stock"],
-        ["uom", "uom"],
-        ["taxCode", "tax_code"],
-      ] as const) {
-        if (!(field in value)) continue;
-        const r = await canonicalizeN3Reference(kind, value[field]?.id ?? null, load);
+
+      const persisted = currentMappings?.[component as PostingComponent];
+      const stockSubmitted = "stock" in value;
+      const uomSubmitted = "uom" in value;
+      const persistedStockId = persisted?.stock.id ?? null;
+      const persistedUomId = persisted?.uom.id ?? null;
+
+      let effectiveStockId = persistedStockId;
+      if (stockSubmitted) {
+        const r = await canonicalizeN3Reference("stock", value.stock?.id ?? null, load);
         if (!r.ok) return r;
-        cleaned[field] = r.value;
+        cleaned.stock = r.value;
+        effectiveStockId = r.value.id;
       }
+
+      if ("taxCode" in value) {
+        const r = await canonicalizeN3Reference("tax_code", value.taxCode?.id ?? null, load);
+        if (!r.ok) return r;
+        cleaned.taxCode = r.value;
+      }
+
+      // The effective pair is revalidated whenever either half moves, so a
+      // changed Stock can never retain an incompatible earlier UOM.
+      const stockChanged = stockSubmitted && effectiveStockId !== persistedStockId;
+      const effectiveUomId = uomSubmitted ? (value.uom?.id ?? null) : persistedUomId;
+      if (uomSubmitted || (stockChanged && effectiveUomId)) {
+        const r = await canonicalizeUomForStock(effectiveUomId, effectiveStockId, load);
+        if (!r.ok) return r;
+        cleaned.uom = r.value;
+      }
+
       if ("resolvedAccount" in value) cleaned.resolvedAccount = emptySnapshot();
       out[component as PostingComponent] = cleaned;
     }
@@ -173,14 +246,25 @@ const ADDON_SNAPSHOT_FIELDS = [
   "n3TaxCodeSnapshot",
 ] as const;
 
+/** The already-persisted N3 pair for a partial catalogue update. */
+export type AddonCurrentMapping = {
+  n3StockId: string | null;
+  n3UomId: string | null;
+};
+
 /**
  * Rewrite a catalogue create/update body so N3 mappings are canonical.
  * Browser-supplied snapshots are always discarded, whether or not the
  * matching identifier was submitted.
+ *
+ * `current` supplies the persisted stock/UOM pair so a PARTIAL update is
+ * validated against the EFFECTIVE pair. Changing the Stock without choosing a
+ * compatible unit of measure fails atomically before any database write.
  */
 export async function canonicalizeAddonInput(
   input: Record<string, unknown>,
   load: SelectorLoader | undefined,
+  current?: AddonCurrentMapping,
 ): Promise<CanonicalOutcome<Record<string, unknown>>> {
   const next: Record<string, unknown> = { ...input };
   for (const field of ADDON_SNAPSHOT_FIELDS) delete next[field];
@@ -195,19 +279,32 @@ export async function canonicalizeAddonInput(
     ids[field] = parsed.value;
   }
 
-  if ("n3StockId" in input) {
+  const persistedStockId = current?.n3StockId ?? null;
+  const persistedUomId = current?.n3UomId ?? null;
+  const stockSubmitted = "n3StockId" in input;
+  const uomSubmitted = "n3UomId" in input;
+
+  let effectiveStockId = persistedStockId;
+  if (stockSubmitted) {
     const r = await canonicalizeN3Reference("stock", ids.n3StockId ?? null, load);
     if (!r.ok) return r;
     next.n3StockId = r.value.id;
     next.n3StockCodeSnapshot = r.value.code;
     next.n3StockNameSnapshot = r.value.name;
+    effectiveStockId = r.value.id;
   }
-  if ("n3UomId" in input) {
-    const r = await canonicalizeN3Reference("uom", ids.n3UomId ?? null, load);
+
+  // Stock-linked unit of measure: revalidate the EFFECTIVE pair whenever
+  // either half moves, so a stale UOM can never survive a Stock change.
+  const stockChanged = stockSubmitted && effectiveStockId !== persistedStockId;
+  const effectiveUomId = uomSubmitted ? (ids.n3UomId ?? null) : persistedUomId;
+  if (uomSubmitted || (stockChanged && effectiveUomId)) {
+    const r = await canonicalizeUomForStock(effectiveUomId, effectiveStockId, load);
     if (!r.ok) return r;
     next.n3UomId = r.value.id;
     next.n3UomSnapshot = r.value.code;
   }
+
   if ("n3TaxCodeId" in input) {
     const r = await canonicalizeN3Reference("tax_code", ids.n3TaxCodeId ?? null, load);
     if (!r.ok) return r;
@@ -217,16 +314,15 @@ export async function canonicalizeAddonInput(
   return { ok: true, value: next };
 }
 
-export const MAX_N3_ID_LENGTH = 120;
+/** Re-exported so callers keep one single bound for N3 identifier length. */
+export { MAX_N3_ID_LENGTH } from "./n3-selectors";
 
 /**
  * Explicit null (or the accepted empty/whitespace form) clears the mapping.
  * Any other value must be a string of at most MAX_N3_ID_LENGTH characters.
  */
 function parseSubmittedId(v: unknown): CanonicalOutcome<string | null> {
-  if (v === null || v === undefined) return { ok: true, value: null };
-  if (typeof v !== "string") return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
-  if (v.length > MAX_N3_ID_LENGTH) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
-  const t = v.trim();
-  return { ok: true, value: t ? t : null };
+  const parsed = boundedN3Id(v);
+  if (parsed === undefined) return { ok: false, code: CANONICALIZE_ERRORS.invalidMapping };
+  return { ok: true, value: parsed };
 }

@@ -33,6 +33,12 @@ export type N3SelectorContract = {
   evidence: string;
   /** What is still missing when `proven` is false. Shown to the Owner. */
   missingEvidence: string | null;
+  /**
+   * True when the list is only meaningful inside the context of an already
+   * chosen N3 Stock. The browser control stays disabled until a Stock is
+   * selected and the server refuses to load the list without that context.
+   */
+  requiresStockContext?: boolean;
 };
 
 export const N3_SELECTOR_CONTRACTS: Record<N3SelectorKind, N3SelectorContract> = {
@@ -54,28 +60,38 @@ export const N3_SELECTOR_CONTRACTS: Record<N3SelectorKind, N3SelectorContract> =
   },
   tax_code: {
     kind: "tax_code",
-    label: "N3 tax code",
-    proven: false,
-    endpoint: null,
-    evidence: "No read-only tax-code contract is proven in the development brief or in code.",
-    missingEvidence:
-      "A verified read-only N3 tax-code list endpoint and its response fields (code, description, taxable class, active flag).",
+    label: "N3 output tax code",
+    proven: true,
+    endpoint: "/api/TaxCodes/OutputTax/Query",
+    evidence:
+      "Official N3 read-only Output Tax code query with bounded OData pagination; TaxCodeDto exposes id, code, description, rate, isOutputTax and isActive.",
+    missingEvidence: null,
   },
   uom: {
     kind: "uom",
     label: "N3 unit of measure",
-    proven: false,
-    endpoint: null,
+    proven: true,
+    endpoint: "/api/UOMs/Query",
     evidence:
-      "No read-only unit-of-measure contract is proven in the development brief or in code.",
-    missingEvidence:
-      "A verified read-only N3 unit-of-measure list endpoint and its response fields (code, description, active flag).",
+      "Official N3 read-only unit-of-measure query with bounded OData pagination; UOMDto exposes id, code, description, isActive and stockId.",
+    missingEvidence: null,
+    // A UOM in N3 belongs to exactly one Stock, so the list is only
+    // meaningful — and only loadable — once a Stock has been chosen.
+    requiresStockContext: true,
   },
 };
 
 export function isSelectorProven(kind: N3SelectorKind): boolean {
   return N3_SELECTOR_CONTRACTS[kind].proven;
 }
+
+/** True when this selector cannot be loaded without a chosen N3 Stock. */
+export function selectorRequiresStock(kind: N3SelectorKind): boolean {
+  return N3_SELECTOR_CONTRACTS[kind].requiresStockContext === true;
+}
+
+/** Context a selector load may need. Currently only the stock-linked UOM list. */
+export type N3SelectorContext = { stockId?: string | null };
 
 /** One selectable N3 row. The browser only ever sees these three fields. */
 export type N3SelectorRow = {
@@ -90,10 +106,37 @@ export type N3SelectorRow = {
 export type N3SelectorLoad =
   | { status: "ok"; kind: N3SelectorKind; items: N3SelectorRow[]; total: number }
   | { status: "contract_unverified"; kind: N3SelectorKind; missingEvidence: string }
+  | { status: "stock_context_required"; kind: N3SelectorKind }
   | { status: "unavailable"; kind: N3SelectorKind };
 
 /** Standard blocked-state copy. Never mentions an endpoint or an identifier. */
 export const SELECTOR_UNVERIFIED_TEXT = "N3 contract not yet verified";
+
+/** Shown when a unit of measure is requested before a Stock has been chosen. */
+export const SELECTOR_STOCK_REQUIRED_TEXT =
+  "Choose the N3 stock first — units of measure belong to a stock";
+
+/** Maximum accepted length of any submitted N3 identifier. */
+export const MAX_N3_ID_LENGTH = 120;
+
+/**
+ * Bounded shape check for an N3 identifier arriving from a browser. Returns
+ * the trimmed identifier, `null` for an accepted clear, or `undefined` when
+ * the value is malformed and must fail closed.
+ */
+export function boundedN3Id(v: unknown): string | null | undefined {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== "string") return undefined;
+  if (v.length > MAX_N3_ID_LENGTH) return undefined;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+/** Case- and whitespace-insensitive comparison of two N3 identifiers. */
+export function sameN3Id(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
 
 /**
  * Free-text N3 identifiers are forbidden. A stored identifier is only valid

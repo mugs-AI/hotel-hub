@@ -6,10 +6,19 @@
 //
 // The N3 bearer token never leaves the server, and raw upstream bodies are
 // never returned to the browser — only `{ id, code, name }` triples.
-import { callN3Path, listAllN3Stocks, N3ListError } from "./n3-gateway.server";
+import {
+  callN3Path,
+  listAllN3Stocks,
+  listAllN3TaxCodes,
+  listAllN3Uoms,
+  N3ListError,
+} from "./n3-gateway.server";
 import { unwrapN3Array } from "./n3-owner";
 import {
+  boundedN3Id,
   N3_SELECTOR_CONTRACTS,
+  sameN3Id,
+  type N3SelectorContext,
   type N3SelectorKind,
   type N3SelectorLoad,
   type N3SelectorRow,
@@ -136,12 +145,54 @@ export class N3SelectorForbidden extends Error {
 }
 
 /**
+ * A tax code is selectable only when N3 states EXPLICITLY that it is both
+ * active and an Output Tax code. A missing flag is never assumed.
+ */
+export function isSelectableOutputTaxCode(row: {
+  id: string;
+  code: string;
+  isActive: boolean | null;
+  isOutputTax: boolean | null;
+}): boolean {
+  return Boolean(row.id) && Boolean(row.code) && row.isActive === true && row.isOutputTax === true;
+}
+
+/**
+ * A unit of measure is selectable only when N3 states EXPLICITLY that it is
+ * active AND it is linked to the exact Stock currently in context.
+ */
+export function isSelectableUomForStock(
+  row: { id: string; code: string; isActive: boolean | null; stockId: string | null },
+  stockId: string,
+): boolean {
+  if (!row.id || !row.code) return false;
+  if (row.isActive !== true) return false;
+  return sameN3Id(row.stockId, stockId);
+}
+
+/** Translate a bounded-list failure into a selector outcome. */
+function listErrorToLoad(e: unknown, kind: N3SelectorKind): N3SelectorLoad {
+  if (e instanceof N3ListError) {
+    // Only 401 means the N3 token itself is no longer valid.
+    if (e.code === "unauthorized") throw new N3SelectorUnauthorized();
+    if (e.code === "forbidden") throw new N3SelectorForbidden();
+  }
+  return { status: "unavailable", kind };
+}
+
+/**
  * Load the full selectable list for one selector kind.
  *
  * Never throws for an unproven contract — it returns `contract_unverified` so
- * the Owner sees a disabled control with a truthful explanation.
+ * the Owner sees a disabled control with a truthful explanation. The
+ * stock-linked unit-of-measure list additionally requires a validated Stock
+ * identifier in `ctx` and returns `stock_context_required` without it.
  */
-export async function loadN3Selector(token: string, kind: N3SelectorKind): Promise<N3SelectorLoad> {
+export async function loadN3Selector(
+  token: string,
+  kind: N3SelectorKind,
+  ctx?: N3SelectorContext,
+): Promise<N3SelectorLoad> {
   const contract = N3_SELECTOR_CONTRACTS[kind];
   if (!contract.proven || !contract.endpoint) {
     return {
@@ -161,6 +212,37 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
     } catch (e) {
       if (e instanceof N3ListError && e.code === "unauthorized") throw new N3SelectorUnauthorized();
       return { status: "unavailable", kind };
+    }
+  }
+
+  if (kind === "tax_code") {
+    try {
+      const { items } = await listAllN3TaxCodes(token);
+      // Only sanitized {id, code, name} leaves the server: rate and
+      // postingAccountId are deliberately dropped here.
+      const rows: N3SelectorRow[] = items
+        .filter(isSelectableOutputTaxCode)
+        .map((t) => ({ id: t.id, code: t.code, name: t.name ?? null }));
+      return { status: "ok", kind, items: rows, total: rows.length };
+    } catch (e) {
+      return listErrorToLoad(e, kind);
+    }
+  }
+
+  if (kind === "uom") {
+    const stockId = boundedN3Id(ctx?.stockId);
+    // Malformed or absent stock context: refuse without touching N3.
+    if (stockId === undefined || stockId === null) {
+      return { status: "stock_context_required", kind };
+    }
+    try {
+      const { items } = await listAllN3Uoms(token);
+      const rows: N3SelectorRow[] = items
+        .filter((u) => isSelectableUomForStock(u, stockId))
+        .map((u) => ({ id: u.id, code: u.code, name: u.name ?? null }));
+      return { status: "ok", kind, items: rows, total: rows.length };
+    } catch (e) {
+      return listErrorToLoad(e, kind);
     }
   }
 
@@ -195,9 +277,9 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
  * consulted (401/403/network all collapse to `unavailable` here).
  */
 export function serverSelectorLoader(token: string) {
-  return async (kind: N3SelectorKind): Promise<N3SelectorLoad> => {
+  return async (kind: N3SelectorKind, ctx?: N3SelectorContext): Promise<N3SelectorLoad> => {
     try {
-      return await loadN3Selector(token, kind);
+      return await loadN3Selector(token, kind, ctx);
     } catch {
       return { status: "unavailable", kind };
     }

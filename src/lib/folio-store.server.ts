@@ -274,14 +274,22 @@ export async function updateAddonItem(
   sb?: FolioDb,
   load?: SelectorLoader,
 ): Promise<AddonItem> {
-  const canonicalInput = await canonicalizeAddonInput(rawInput as Record<string, unknown>, load);
+  // The persisted row is read FIRST (read-only) so canonicalization can
+  // validate the EFFECTIVE stock/unit-of-measure pair, not only the fields
+  // this partial update happens to carry. Nothing is written before every
+  // N3 reference has been revalidated.
+  const db = await resolveDb(sb);
+  const current = await getAddonItem(tenantId, id, db);
+  if (!current) throw new FolioError("item_not_found", 404);
+
+  const canonicalInput = await canonicalizeAddonInput(rawInput as Record<string, unknown>, load, {
+    n3StockId: current.n3StockId,
+    n3UomId: current.n3UomId,
+  });
   if (!canonicalInput.ok) {
     throw new FolioError(canonicalInput.code, canonicalErrorStatus(canonicalInput.code));
   }
   const input = canonicalInput.value as AddonInput;
-  const db = await resolveDb(sb);
-  const current = await getAddonItem(tenantId, id, db);
-  if (!current) throw new FolioError("item_not_found", 404);
 
   // Merge so a partial edit never silently clears an existing mapping.
   const merged: AddonInput = {
@@ -514,14 +522,17 @@ export async function patchFinancialSettings(
 ): Promise<FinancialSettings> {
   const validated = validateSettingsPatch(rawPatch);
   if (!validated.ok) throw new FolioError(validated.code, 400);
+  const db = await resolveDb(sb);
+  // Read-only load of the persisted state FIRST, so a partial posting-mapping
+  // patch is validated against the effective stock/unit-of-measure pair.
+  const current = await readFinancialSettings(tenantId, db);
   // Server-authoritative mapping: browser code/name snapshots are discarded and
   // every non-null identifier must exist in the current authoritative N3 list.
-  const canonical = await canonicalizeSettingsPatch(validated.patch, load);
+  const canonical = await canonicalizeSettingsPatch(validated.patch, load, current.postingMappings);
   if (!canonical.ok) throw new FolioError(canonical.code, canonicalErrorStatus(canonical.code));
   const patch = canonical.value;
-  const db = await resolveDb(sb);
-  const current = await readFinancialSettings(tenantId, db);
   const next = applySettingsPatch(current, patch);
+
   // Effective windows are re-checked against the MERGED state so a patch that
   // touches only one bound cannot create an inverted window.
   const windowError = settingsWindowError(next);

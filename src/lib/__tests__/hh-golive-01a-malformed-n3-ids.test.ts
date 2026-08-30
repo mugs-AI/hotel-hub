@@ -71,7 +71,7 @@ describe("HH-GOLIVE-01A malformed catalogue N3 identifiers", () => {
       expect(result.value.n3StockId).toBe("STOCK-1");
       expect(result.value.n3StockCodeSnapshot).toBe("STK1");
     }
-    expect(load).toHaveBeenCalledWith("stock");
+    expect(load).toHaveBeenCalledWith("stock", undefined);
   });
 
   it("accepts a boundary-length 120 character identifier shape", async () => {
