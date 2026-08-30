@@ -272,10 +272,17 @@ export async function updateAddonItem(
   id: string,
   input: AddonInput,
   sb?: FolioDb,
+  load?: SelectorLoader,
 ): Promise<AddonItem> {
+  const canonicalInput = await canonicalizeAddonInput(input as Record<string, unknown>, load);
+  if (!canonicalInput.ok) {
+    throw new FolioError(canonicalInput.code, canonicalErrorStatus(canonicalInput.code));
+  }
+  input = canonicalInput.value as AddonInput;
   const db = await resolveDb(sb);
   const current = await getAddonItem(tenantId, id, db);
   if (!current) throw new FolioError("item_not_found", 404);
+
 
   // Merge so a partial edit never silently clears an existing mapping.
   const merged: AddonInput = {
