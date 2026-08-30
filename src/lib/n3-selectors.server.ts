@@ -124,6 +124,19 @@ export class N3SelectorUnauthorized extends Error {
 }
 
 /**
+ * N3 answered 403. The HotelHub session is still valid — the N3 user simply
+ * lacks permission for this resource. Never destroys the session (HTTP 403 is
+ * NOT token expiry; only 401 is).
+ */
+export class N3SelectorForbidden extends Error {
+  constructor() {
+    super("n3_forbidden");
+    this.name = "N3SelectorForbidden";
+  }
+}
+
+
+/**
  * Load the full selectable list for one selector kind.
  *
  * Never throws for an unproven contract — it returns `contract_unverified` so
