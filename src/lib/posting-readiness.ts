@@ -202,7 +202,6 @@ export function postingReadiness(
     blockers.push("Nothing has been mapped yet, so future posting cannot be prepared.");
   }
 
-
   return {
     readyForFuturePosting: blockers.length === 0,
     rows,

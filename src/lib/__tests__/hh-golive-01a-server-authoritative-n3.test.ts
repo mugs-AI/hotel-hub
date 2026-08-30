@@ -105,7 +105,6 @@ describe("server-authoritative N3 canonicalization", () => {
     expect(r).toEqual({ ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock });
   });
 
-
   it("never accepts a browser-supplied resolvedAccount", async () => {
     const patch = patchOf({
       postingMappings: {

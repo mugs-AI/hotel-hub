@@ -224,7 +224,6 @@ describe("N3 selector contracts", () => {
     expect(isSelectorProven("uom")).toBe(true);
   });
 
-
   it("never carries an endpoint for an unproven contract", () => {
     for (const c of Object.values(N3_SELECTOR_CONTRACTS)) {
       if (!c.proven) expect(c.endpoint).toBeNull();
