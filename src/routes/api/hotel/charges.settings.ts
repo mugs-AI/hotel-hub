@@ -7,6 +7,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { logAudit } from "@/lib/audit.server";
 import { patchFinancialSettings, readFinancialSettings } from "@/lib/folio-store.server";
+import { serverSelectorLoader } from "@/lib/n3-selectors.server";
 import { folioReadinessProjection } from "@/lib/folio-readiness";
 import { postingReadiness } from "@/lib/posting-readiness";
 import {
@@ -53,7 +54,14 @@ export async function handlePatchChargeSettings({
   const { actor } = gate;
   try {
     const body = await readJsonBody(request);
-    const settings = await patchFinancialSettings(actor.tenantId, body, actor.actorKey);
+    const settings = await patchFinancialSettings(
+      actor.tenantId,
+      body,
+      actor.actorKey,
+      undefined,
+      // Every submitted N3 identifier is re-read from the authoritative list.
+      serverSelectorLoader(actor.n3Token),
+    );
     const readiness = folioReadinessProjection(settings);
     await logAudit({
       tenantId: actor.tenantId,

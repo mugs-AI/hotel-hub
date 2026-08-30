@@ -124,6 +124,18 @@ export class N3SelectorUnauthorized extends Error {
 }
 
 /**
+ * N3 answered 403. The HotelHub session is still valid — the N3 user simply
+ * lacks permission for this resource. Never destroys the session (HTTP 403 is
+ * NOT token expiry; only 401 is).
+ */
+export class N3SelectorForbidden extends Error {
+  constructor() {
+    super("n3_forbidden");
+    this.name = "N3SelectorForbidden";
+  }
+}
+
+/**
  * Load the full selectable list for one selector kind.
  *
  * Never throws for an unproven contract — it returns `contract_unverified` so
@@ -159,7 +171,11 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
   } catch {
     return { status: "unavailable", kind };
   }
-  if (res.status === 401 || res.status === 403) throw new N3SelectorUnauthorized();
+  // Only 401 means the N3 token is no longer valid. 403 is a permission
+  // decision about this resource and must never destroy a valid session.
+  if (res.status === 401) throw new N3SelectorUnauthorized();
+  if (res.status === 403) throw new N3SelectorForbidden();
+
   if (res.status < 200 || res.status >= 300) return { status: "unavailable", kind };
   const unwrapped = unwrapN3Array(res.body);
   if (unwrapped.status !== "ok") return { status: "unavailable", kind };
@@ -171,4 +187,19 @@ export async function loadN3Selector(token: string, kind: N3SelectorKind): Promi
     if (row) rows.push(row);
   }
   return { status: "ok", kind, items: rows, total: rows.length };
+}
+
+/**
+ * Loader used by Owner WRITE paths to canonicalize a submitted N3 identifier.
+ * It never destroys the session: a write is simply refused when N3 cannot be
+ * consulted (401/403/network all collapse to `unavailable` here).
+ */
+export function serverSelectorLoader(token: string) {
+  return async (kind: N3SelectorKind): Promise<N3SelectorLoad> => {
+    try {
+      return await loadN3Selector(token, kind);
+    } catch {
+      return { status: "unavailable", kind };
+    }
+  };
 }

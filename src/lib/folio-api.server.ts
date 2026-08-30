@@ -43,6 +43,8 @@ export async function readJsonBody(request: Request): Promise<Record<string, unk
 export type FolioActor = {
   tenantId: string;
   actorKey: string;
+  /** Server-only N3 bearer token. Never leaves the server. */
+  n3Token: string;
   role: Parameters<typeof hasPermission>[0];
   timezone: string;
   can: (permission: Permission) => boolean;
@@ -74,6 +76,7 @@ export async function requireFolioActor(
     actor: {
       tenantId,
       actorKey: ctx.session.n3UserKey,
+      n3Token: ctx.session.n3Token,
       role,
       timezone: settings?.timezone ?? "Asia/Kuala_Lumpur",
       can: (p: Permission) => hasPermission(role, p),

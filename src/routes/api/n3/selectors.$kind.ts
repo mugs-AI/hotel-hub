@@ -8,7 +8,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { destroySession, requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { isN3SelectorKind } from "@/lib/n3-selectors";
-import { loadN3Selector, N3SelectorUnauthorized } from "@/lib/n3-selectors.server";
+import {
+  loadN3Selector,
+  N3SelectorForbidden,
+  N3SelectorUnauthorized,
+} from "@/lib/n3-selectors.server";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -38,6 +42,9 @@ export async function handleN3Selector({
       });
       return deny(401, "n3_unauthorized");
     }
+    // N3 403 is a permission decision, NOT token expiry: fail closed but keep
+    // the valid HotelHub session (matches the accepted deposit contract).
+    if (e instanceof N3SelectorForbidden) return deny(403, "n3_forbidden");
     return deny(502, "n3_unavailable");
   }
 }
