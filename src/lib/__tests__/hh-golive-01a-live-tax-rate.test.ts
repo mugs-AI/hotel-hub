@@ -12,8 +12,10 @@ import { normalizeTaxRateToBp, type N3SelectorLoad } from "@/lib/n3-selectors";
 import { canonicalizeSettingsPatch, type SelectorLoader } from "@/lib/n3-canonicalize.server";
 import { defaultPostingMappings } from "@/lib/posting-mappings";
 
-function loaderFor(rows: Array<{ id: string; code: string; name: string | null; rateBp?: number | null }>): SelectorLoader {
-  return async () => ({ status: "ok", items: rows } as N3SelectorLoad);
+function loaderFor(
+  rows: Array<{ id: string; code: string; name: string | null; rateBp?: number | null }>,
+): SelectorLoader {
+  return async () => ({ status: "ok", items: rows }) as N3SelectorLoad;
 }
 
 describe("normalizeTaxRateToBp — N3 states a percentage", () => {
