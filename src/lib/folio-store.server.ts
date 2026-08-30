@@ -487,12 +487,23 @@ export async function patchFinancialSettings(
   rawPatch: unknown,
   actorKey: string,
   sb?: FolioDb,
+  /**
+   * Authoritative N3 read used to canonicalize every submitted identifier.
+   * Omitted = no N3 validation is possible, so any non-null N3 reference in
+   * the request is refused and NOTHING is saved.
+   */
+  load?: SelectorLoader,
 ): Promise<FinancialSettings> {
   const validated = validateSettingsPatch(rawPatch);
   if (!validated.ok) throw new FolioError(validated.code, 400);
+  // Server-authoritative mapping: browser code/name snapshots are discarded and
+  // every non-null identifier must exist in the current authoritative N3 list.
+  const canonical = await canonicalizeSettingsPatch(validated.patch, load);
+  if (!canonical.ok) throw new FolioError(canonical.code, canonicalErrorStatus(canonical.code));
+  const patch = canonical.value;
   const db = await resolveDb(sb);
   const current = await readFinancialSettings(tenantId, db);
-  const next = applySettingsPatch(current, validated.patch);
+  const next = applySettingsPatch(current, patch);
   // Effective windows are re-checked against the MERGED state so a patch that
   // touches only one bound cannot create an inverted window.
   const windowError = settingsWindowError(next);
@@ -525,9 +536,14 @@ export async function patchFinancialSettings(
 
   let result = await write(row);
   if (result.error && isMissingPostingMappingsColumn(result.error)) {
-    // The staged migration has not been applied yet. Persist everything else
-    // rather than failing the Owner's save; the mappings simply stay unstored,
-    // so readiness remains blocked.
+    if (patch.postingMappings) {
+      // The request carries posting mappings but the staged migration has not
+      // been applied. Fail loudly and atomically — never report success while
+      // silently discarding the Owner's mapping.
+      throw new FolioError("posting_mappings_storage_unavailable", 503);
+    }
+    // Tax-only save: persist everything else; mappings simply stay unstored so
+    // readiness remains blocked.
     const { posting_mappings: _omitted, ...withoutMappings } = row;
     void _omitted;
     result = await write(withoutMappings);
@@ -535,6 +551,7 @@ export async function patchFinancialSettings(
   if (result.error || !result.data) throw new FolioError("financial_settings_write_failed", 500);
   return toSettings(tenantId, result.data);
 }
+
 
 // ------------------------------------------------------------- tax profile
 
