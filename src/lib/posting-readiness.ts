@@ -195,6 +195,14 @@ export function postingReadiness(
     blockers.push(`${c.label}: N3 contract not yet verified, so it cannot be selected yet.`);
   }
 
+  // Fail closed on an empty configuration: readiness is a positive proof that
+  // at least one destination has actually been mapped and confirmed, never the
+  // absence of complaints about a property that has configured nothing at all.
+  if (!rows.some((r) => r.status === "ready")) {
+    blockers.push("Nothing has been mapped yet, so future posting cannot be prepared.");
+  }
+
+
   return {
     readyForFuturePosting: blockers.length === 0,
     rows,
