@@ -98,10 +98,13 @@ describe("server-authoritative N3 canonicalization", () => {
     if (cleared.ok) expect(cleared.value.exempt?.n3TaxCodeId).toBeNull();
   });
 
-  it("refuses a non-null unit of measure while its contract is unproven", async () => {
+  it("refuses a unit of measure with no effective stock in context", async () => {
+    // The unit of measure is stock-linked: without an effective Stock there is
+    // nothing to validate it against, so the write fails closed.
     const r = await canonicalizeAddonInput({ n3UomId: "uom-1" }, loader());
-    expect(r).toEqual({ ok: false, code: CANONICALIZE_ERRORS.contractUnverified });
+    expect(r).toEqual({ ok: false, code: CANONICALIZE_ERRORS.uomRequiresStock });
   });
+
 
   it("never accepts a browser-supplied resolvedAccount", async () => {
     const patch = patchOf({
