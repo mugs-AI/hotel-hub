@@ -43,6 +43,7 @@ export function canonicalErrorStatus(code: string): number {
       return 503;
     case CANONICALIZE_ERRORS.notFound:
     case CANONICALIZE_ERRORS.resolvedAccountServerOwned:
+    case CANONICALIZE_ERRORS.invalidMapping:
       return 400;
     default:
       return 400;
