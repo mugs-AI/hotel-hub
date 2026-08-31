@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
-import { formatFolioMoney } from "@/lib/folio-view";
+import { formatFolioMoney, visibleFolioTotalRows } from "@/lib/folio-view";
 import { useCheckoutPreview } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 
@@ -144,7 +144,7 @@ function FolioPrintPage() {
                   {l.roomLabel ? (
                     <span style={{ display: "block", color: "#4a5568" }}>
                       {l.roomLabel}
-                      {l.stayDate ? ` · ${l.stayDate}` : ""}
+                      {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
                     </span>
                   ) : null}
                 </td>
@@ -166,18 +166,12 @@ function FolioPrintPage() {
 
         <div className="totals">
           <dl>
-            <dt>Charges</dt>
-            <dd>{formatFolioMoney(dto.totals.charges, currency)}</dd>
-            <dt>Service charge</dt>
-            <dd>{formatFolioMoney(dto.totals.serviceCharge, currency)}</dd>
-            <dt>Service Tax</dt>
-            <dd>{formatFolioMoney(dto.totals.serviceTax, currency)}</dd>
-            <dt>Tourism Tax</dt>
-            <dd>{formatFolioMoney(dto.totals.tourismTax, currency)}</dd>
-            <dt>{dto.readiness.localLevyLabel ?? "Local levy"}</dt>
-            <dd>{formatFolioMoney(dto.totals.localLevy, currency)}</dd>
-            <dt>Rounding</dt>
-            <dd>{formatFolioMoney(dto.totals.rounding, currency)}</dd>
+            {visibleFolioTotalRows(dto).map((row) => (
+              <div key={row.key} className="contents">
+                <dt>{row.label}</dt>
+                <dd>{formatFolioMoney(row.amount, currency)}</dd>
+              </div>
+            ))}
             <dt className="grand">Prepared total</dt>
             <dd className="grand">{formatFolioMoney(dto.totals.grandTotal, currency)}</dd>
             {settlement ? (

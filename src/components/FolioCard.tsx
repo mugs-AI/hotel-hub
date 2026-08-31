@@ -27,11 +27,12 @@ import {
   useSetGuestTaxClass,
   useUpdateFolioQuantity,
 } from "@/lib/folio-client";
-import { formatFolioMoney, type FolioLineDTO } from "@/lib/folio-view";
+import { formatFolioMoney, visibleFolioTotalRows, type FolioLineDTO } from "@/lib/folio-view";
 import { GUEST_TAX_CLASS_LABELS, GUEST_TAX_CLASSES, type GuestTaxClass } from "@/lib/folio";
 import { makeRequestId } from "@/lib/idempotency";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { isoToMyDate } from "@/lib/malaysia-date";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -77,14 +78,14 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
       aria-label="Folio preparation"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-1.5">
           <h2 className="text-base font-semibold" style={{ color: NAVY }}>
             Folio (preparation only)
           </h2>
-          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            Room charges, extras and Malaysian taxes are worked out for you. Nothing here is sent to
-            accounting yet: no cash memo, no invoice, no deposit matching and no refund.
-          </p>
+          <CardInfoPopover label="About the folio">
+            Room charges, extras and enabled Malaysian taxes are prepared here. Nothing is posted to
+            N3 in this milestone.
+          </CardInfoPopover>
         </div>
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Prepared total</p>
@@ -157,9 +158,11 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
               >
                 {refresh.isPending ? "Preparing…" : "Prepare / refresh room nights"}
               </Button>
-              <span className="text-sm text-muted-foreground">
-                Opening a folio never changes it. Room nights are fixed at check-in, or here.
-              </span>
+              {dto.readiness.projectedRoomNights > 0 ? (
+                <span className="text-sm text-muted-foreground">
+                  {dto.readiness.projectedRoomNights} room-night(s) ready to save.
+                </span>
+              ) : null}
             </div>
           ) : null}
 
@@ -255,32 +258,14 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
           </div>
 
           <dl className="grid grid-cols-2 gap-y-1 text-sm">
-            <dt className="text-muted-foreground">Charges</dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.charges, dto.reservation.currency)}
-            </dd>
-            <dt className="text-muted-foreground">Service charge</dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.serviceCharge, dto.reservation.currency)}
-            </dd>
-            <dt className="text-muted-foreground">Service Tax</dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.serviceTax, dto.reservation.currency)}
-            </dd>
-            <dt className="text-muted-foreground">Tourism Tax</dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.tourismTax, dto.reservation.currency)}
-            </dd>
-            <dt className="text-muted-foreground">
-              {dto.readiness.localLevyLabel ?? "Local levy"}
-            </dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.localLevy, dto.reservation.currency)}
-            </dd>
-            <dt className="text-muted-foreground">Rounding</dt>
-            <dd className="text-right">
-              {formatFolioMoney(dto.totals.rounding, dto.reservation.currency)}
-            </dd>
+            {visibleFolioTotalRows(dto).map((row) => (
+              <div key={row.key} className="contents">
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="text-right">
+                  {formatFolioMoney(row.amount, dto.reservation.currency)}
+                </dd>
+              </div>
+            ))}
             <dt className="font-semibold" style={{ color: NAVY }}>
               Prepared total
             </dt>

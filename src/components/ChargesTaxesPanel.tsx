@@ -12,8 +12,8 @@
 //   * Dates are Malaysian dd/mm/yyyy on screen and ISO yyyy-mm-dd on the wire.
 //   * No N3 identifier is ever shown or typed. Every N3 value comes from a
 //     searchable selector that displays a code and a name.
-//   * A section that is switched off stays collapsed; configuration appears
-//     only once the Owner switches the charge on.
+//   * Every type stays visible in a left-hand list. Its checkbox controls use;
+//     selecting it opens the retained configuration on the right.
 //   * No rate is ever guessed or suggested. A Service Tax rate comes from the
 //     chosen N3 Output Tax code and is re-read and overwritten by the server on
 //     save, because a guessed tax rate is a legal problem, not a convenience.
@@ -170,8 +170,7 @@ export function ChargesTaxesPanel() {
           Malaysian taxes and levies
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          These settings decide how HotelHub totals a folio. Dates are entered as dd/mm/yyyy. No
-          rate is applied until you set it here.
+          Tick a type on or off, then select it to configure the settings on the right.
         </p>
         {settings.data?.settings ? (
           <TaxSettingsForm
@@ -180,6 +179,12 @@ export function ChargesTaxesPanel() {
             onSave={(patch) =>
               saveSettings.mutate(patch, {
                 onSuccess: () => toast.success("Tax settings saved."),
+                onError: (err) => toast.error(folioErrorMessage(err)),
+              })
+            }
+            onSaveMapping={(patch) =>
+              saveSettings.mutate(patch, {
+                onSuccess: () => toast.success("N3 mapping saved."),
                 onError: (err) => toast.error(folioErrorMessage(err)),
               })
             }
@@ -611,55 +616,11 @@ function PostingMappingsSection({
                   {POSTING_COMPONENT_HINTS[component]}
                 </p>
                 {isOn ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <N3SelectorField
-                      kind="stock"
-                      label="N3 stock / service"
-                      value={mapping.stock}
-                      disabled={disabled}
-                      onSelect={(row: N3Selection) =>
-                        // Stock-linked unit of measure is cleared on every
-                        // stock change and must be chosen again explicitly.
-                        patchComponent(component, {
-                          stock: { id: row.id, code: row.code, name: row.name },
-                          uom: { id: null, code: null, name: null },
-                        })
-                      }
-                      onClear={() =>
-                        patchComponent(component, {
-                          stock: { id: null, code: null, name: null },
-                          uom: { id: null, code: null, name: null },
-                        })
-                      }
-                    />
-                    <N3SelectorField
-                      kind="uom"
-                      label="Unit of measure"
-                      value={mapping.uom}
-                      disabled={disabled}
-                      stockId={mapping.stock.id ?? null}
-                      onSelect={(row) =>
-                        patchComponent(component, {
-                          uom: { id: row.id, code: row.code, name: row.name },
-                        })
-                      }
-                      onClear={() =>
-                        patchComponent(component, { uom: { id: null, code: null, name: null } })
-                      }
-                    />
-
-                    <N3SelectorField
-                      kind="tax_code"
-                      label="Tax code"
-                      value={mapping.taxCode}
-                      disabled={disabled}
-                      onSelect={(row) =>
-                        patchComponent(component, {
-                          taxCode: { id: row.id, code: row.code, name: row.name },
-                        })
-                      }
-                    />
-                  </div>
+                  <PostingMappingFields
+                    mapping={mapping}
+                    disabled={disabled}
+                    onPatch={(value) => patchComponent(component, value)}
+                  />
                 ) : null}
               </fieldset>
             );
@@ -670,17 +631,88 @@ function PostingMappingsSection({
   );
 }
 
+function PostingMappingFields({
+  mapping,
+  disabled,
+  onPatch,
+}: {
+  mapping: PostingMappings[PostingComponent];
+  disabled: boolean;
+  onPatch: (value: Record<string, unknown>) => void;
+}) {
+  return (
+    <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <N3SelectorField
+        kind="stock"
+        label="N3 stock / service"
+        value={mapping.stock}
+        disabled={disabled}
+        onSelect={(row: N3Selection) =>
+          onPatch({
+            stock: { id: row.id, code: row.code, name: row.name },
+            // UOM belongs to the stock: a stock change must clear it.
+            uom: { id: null, code: null, name: null },
+          })
+        }
+        onClear={() =>
+          onPatch({
+            stock: { id: null, code: null, name: null },
+            uom: { id: null, code: null, name: null },
+          })
+        }
+      />
+      <N3SelectorField
+        kind="uom"
+        label="N3 UOM"
+        value={mapping.uom}
+        disabled={disabled}
+        stockId={mapping.stock.id ?? null}
+        onSelect={(row) => onPatch({ uom: { id: row.id, code: row.code, name: row.name } })}
+        onClear={() => onPatch({ uom: { id: null, code: null, name: null } })}
+      />
+      <N3SelectorField
+        kind="tax_code"
+        label="N3 Tax Code"
+        value={mapping.taxCode}
+        disabled={disabled}
+        onSelect={(row) => onPatch({ taxCode: { id: row.id, code: row.code, name: row.name } })}
+        onClear={() => onPatch({ taxCode: { id: null, code: null, name: null } })}
+      />
+    </div>
+  );
+}
+
 // ------------------------------------------------------------- tax settings
+
+type TaxSettingsSection =
+  | "service_tax"
+  | "service_charge"
+  | "tourism_tax"
+  | "local_levy"
+  | "rounding";
+
+const TAX_SETTINGS_SECTION_LABELS: Record<TaxSettingsSection, string> = {
+  service_tax: "Service Tax",
+  service_charge: "Service charge",
+  tourism_tax: "Tourism Tax",
+  local_levy: "State / local levy",
+  rounding: "Rounding",
+};
+
+const TAX_SETTINGS_SECTIONS = Object.keys(TAX_SETTINGS_SECTION_LABELS) as TaxSettingsSection[];
 
 function TaxSettingsForm({
   settings,
   disabled,
   onSave,
+  onSaveMapping,
 }: {
   settings: FinancialSettings;
   disabled: boolean;
   onSave: (patch: Record<string, unknown>) => void;
+  onSaveMapping: (patch: Record<string, unknown>) => void;
 }) {
+  const [activeSection, setActiveSection] = useState<TaxSettingsSection>("service_tax");
   const [serviceTaxRegistered, setServiceTaxRegistered] = useState(false);
   // Service Tax rates are display-only: they mirror the live N3 rate of the
   // chosen Output Tax code and are never typed or sent by the browser.
@@ -823,261 +855,321 @@ function TaxSettingsForm({
     });
   }
 
-  return (
-    <div className="mt-4 space-y-5 text-sm">
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={serviceTaxRegistered}
-          disabled={disabled}
-          onChange={(e) => setServiceTaxRegistered(e.target.checked)}
-        />
-        This property is registered for Service Tax
-      </label>
+  function sectionEnabled(section: TaxSettingsSection): boolean {
+    switch (section) {
+      case "service_tax":
+        return serviceTaxRegistered;
+      case "service_charge":
+        return scEnabled;
+      case "tourism_tax":
+        return ttEnabled;
+      case "local_levy":
+        return levyEnabled;
+      case "rounding":
+        return rounding !== "none";
+    }
+  }
 
-      {serviceTaxRegistered ? (
-        <fieldset className="rounded-lg border p-3">
-          <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-            Service Tax by class
-          </legend>
-          <p className="text-sm text-muted-foreground">
-            Pick the N3 tax code for each class. The rate comes from N3 and cannot be typed here. If
-            N3 has no rate on the code you pick, the save is refused rather than guessed.
+  function setSectionEnabled(section: TaxSettingsSection, enabled: boolean) {
+    switch (section) {
+      case "service_tax":
+        setServiceTaxRegistered(enabled);
+        break;
+      case "service_charge":
+        setScEnabled(enabled);
+        break;
+      case "tourism_tax":
+        setTtEnabled(enabled);
+        break;
+      case "local_levy":
+        setLevyEnabled(enabled);
+        break;
+      case "rounding":
+        setRounding(enabled ? (rounding === "none" ? "nearest_5_cents" : rounding) : "none");
+        break;
+    }
+  }
+
+  const activePostingComponent: PostingComponent | null =
+    activeSection === "service_charge"
+      ? "service_charge"
+      : activeSection === "tourism_tax"
+        ? "tourism_tax"
+        : activeSection === "local_levy"
+          ? "local_levy"
+          : null;
+
+  return (
+    <div className="mt-4 space-y-4 text-sm">
+      <div className="grid overflow-hidden rounded-lg border md:grid-cols-[15rem_minmax(0,1fr)]">
+        <div className="border-b bg-slate-50 p-2 md:border-r md:border-b-0">
+          <p
+            className="px-2 py-1 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: NAVY }}
+          >
+            Tax / charge type
           </p>
-          <div className="mt-3 space-y-3">
-            {TAXABLE_CLASSES.map((c) => (
-              <div key={c} className="grid gap-2 sm:grid-cols-3">
-                <div>
-                  <p className="text-sm font-medium" style={{ color: NAVY }}>
-                    {TAXABLE_CLASS_LABELS[c]} rate
-                  </p>
-                  <p
-                    className="mt-1 rounded border px-2 py-1 text-sm"
-                    style={{
-                      borderColor: `${NAVY}22`,
-                      color: rates[c] === null ? "#6B7A8C" : NAVY,
+          <div className="mt-1 space-y-1">
+            {TAX_SETTINGS_SECTIONS.map((section) => {
+              const enabled = sectionEnabled(section);
+              const selected = section === activeSection;
+              return (
+                <div
+                  key={section}
+                  className="flex items-center gap-2 rounded-md border px-2 py-2"
+                  style={{
+                    borderColor: selected ? `${TEAL}66` : "transparent",
+                    backgroundColor: selected ? `${TEAL}12` : "transparent",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    disabled={disabled}
+                    aria-label={`${enabled ? "Switch off" : "Switch on"} ${TAX_SETTINGS_SECTION_LABELS[section]}`}
+                    onChange={(e) => {
+                      setSectionEnabled(section, e.target.checked);
+                      setActiveSection(section);
                     }}
-                    data-testid={`rate-display-${c}`}
+                  />
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() => setActiveSection(section)}
                   >
-                    {rates[c] === null ? "Set by the N3 tax code" : formatRateBpPercent(rates[c])}
-                  </p>
+                    <span className="block font-medium" style={{ color: NAVY }}>
+                      {TAX_SETTINGS_SECTION_LABELS[section]}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{enabled ? "On" : "Off"}</span>
+                  </button>
                 </div>
-                <N3SelectorField
-                  kind="tax_code"
-                  label={`${TAXABLE_CLASS_LABELS[c]} tax code`}
-                  value={{ id: codes[c].id, code: codes[c].text, name: null, rateBp: rates[c] }}
-                  disabled={disabled}
-                  onSelect={(row) => {
-                    setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } });
-                    // The rate is only ever the live N3 rate of the chosen code.
-                    // The server re-reads N3 and refuses the save if it is gone.
-                    setRates({ ...rates, [c]: typeof row.rateBp === "number" ? row.rateBp : null });
-                  }}
-                  onClear={() => {
-                    setCodes({ ...codes, [c]: { id: null, text: null } });
-                    // Clearing the code clears the rate it came from.
-                    setRates({ ...rates, [c]: null });
-                  }}
-                />
-                <p className="self-end text-xs text-muted-foreground">
-                  The rate comes from the N3 tax code and is re-checked when you save.
-                </p>
-              </div>
-            ))}
-            <div className="sm:w-1/3">
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="min-w-0 p-4">
+          <div className="flex items-center justify-between gap-3 border-b pb-3">
+            <h3 className="font-semibold" style={{ color: NAVY }}>
+              {TAX_SETTINGS_SECTION_LABELS[activeSection]}
+            </h3>
+            <span
+              className="rounded-full px-2 py-0.5 text-xs font-medium"
+              style={{
+                color: sectionEnabled(activeSection) ? "#0E7C57" : "#6B7280",
+                backgroundColor: sectionEnabled(activeSection) ? "#E7F6F3" : "#F3F4F6",
+              }}
+            >
+              {sectionEnabled(activeSection) ? "On" : "Off"}
+            </span>
+          </div>
+
+          {activeSection === "service_tax" ? (
+            <div className="mt-4 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Map each class to a live N3 Output Tax code. Its N3 rate is used automatically.
+              </p>
+              {TAXABLE_CLASSES.map((c) => (
+                <div key={c} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[11rem_1fr]">
+                  <div>
+                    <p className="font-medium" style={{ color: NAVY }}>
+                      {TAXABLE_CLASS_LABELS[c]}
+                    </p>
+                    <p
+                      className="mt-1 text-xs text-muted-foreground"
+                      data-testid={`rate-display-${c}`}
+                    >
+                      {rates[c] === null ? "Rate from N3" : formatRateBpPercent(rates[c])}
+                    </p>
+                  </div>
+                  <N3SelectorField
+                    kind="tax_code"
+                    label="N3 Tax Code"
+                    value={{ id: codes[c].id, code: codes[c].text, name: null, rateBp: rates[c] }}
+                    disabled={disabled}
+                    onSelect={(row) => {
+                      setCodes({ ...codes, [c]: { id: row.id, text: snapshotText(row) } });
+                      setRates({
+                        ...rates,
+                        [c]: typeof row.rateBp === "number" ? row.rateBp : null,
+                      });
+                    }}
+                    onClear={() => {
+                      setCodes({ ...codes, [c]: { id: null, text: null } });
+                      setRates({ ...rates, [c]: null });
+                    }}
+                  />
+                </div>
+              ))}
               <N3SelectorField
                 kind="tax_code"
-                label="Exempt / out-of-scope tax code"
+                label="Exempt / out-of-scope N3 Tax Code"
                 value={{ id: exempt.id, code: exempt.text, name: null }}
                 disabled={disabled}
                 onSelect={(row) => setExempt({ id: row.id, text: snapshotText(row) })}
                 onClear={() => setExempt({ id: null, text: null })}
               />
             </div>
-          </div>
-        </fieldset>
-      ) : null}
+          ) : null}
 
-      <fieldset className="rounded-lg border p-3">
-        <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-          Service charge (your own charge, not a government tax)
-        </legend>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={scEnabled}
-            disabled={disabled}
-            onChange={(e) => setScEnabled(e.target.checked)}
-          />
-          Apply a service charge
-        </label>
-        {scEnabled ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="sc-percent">Percentage</Label>
-              <Input
-                id="sc-percent"
-                inputMode="decimal"
-                value={scPercent}
-                disabled={disabled}
-                onChange={(e) => setScPercent(e.target.value)}
-              />
+          {activeSection === "service_charge" ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="sc-percent">Percentage</Label>
+                <Input
+                  id="sc-percent"
+                  inputMode="decimal"
+                  value={scPercent}
+                  disabled={disabled}
+                  onChange={(e) => setScPercent(e.target.value)}
+                />
+              </div>
+              <label className="flex items-end gap-2 pb-2">
+                <input
+                  type="checkbox"
+                  checked={scTaxed}
+                  disabled={disabled}
+                  onChange={(e) => setScTaxed(e.target.checked)}
+                />
+                Service Tax applies
+              </label>
+              <p className="text-xs text-muted-foreground sm:col-span-2">
+                This is the hotel’s commercial charge, not a government tax.
+              </p>
             </div>
-            <label className="flex items-end gap-2 pb-2">
-              <input
-                type="checkbox"
-                checked={scTaxed}
-                disabled={disabled}
-                onChange={(e) => setScTaxed(e.target.checked)}
-              />
-              Service Tax applies to the service charge
-            </label>
-          </div>
-        ) : null}
-      </fieldset>
+          ) : null}
 
-      <fieldset className="rounded-lg border p-3">
-        <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-          Tourism Tax (foreign guests)
-        </legend>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={ttEnabled}
-            disabled={disabled}
-            onChange={(e) => setTtEnabled(e.target.checked)}
-          />
-          Collect Tourism Tax
-        </label>
-        {ttEnabled ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div>
-              <Label htmlFor="tt-amount">Per occupied room-night</Label>
-              <Input
-                id="tt-amount"
-                inputMode="decimal"
-                value={ttAmount}
-                disabled={disabled}
-                onChange={(e) => setTtAmount(e.target.value)}
-              />
+          {activeSection === "tourism_tax" ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="tt-amount">Per occupied room-night</Label>
+                <Input
+                  id="tt-amount"
+                  inputMode="decimal"
+                  value={ttAmount}
+                  disabled={disabled}
+                  onChange={(e) => setTtAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="tt-from">Effective from</Label>
+                <MalaysianDateInput
+                  id="tt-from"
+                  value={ttFrom}
+                  disabled={disabled}
+                  pickerLabel="Choose Tourism Tax effective-from date"
+                  onChange={setTtFrom}
+                />
+              </div>
+              <div>
+                <Label htmlFor="tt-to">Effective to</Label>
+                <MalaysianDateInput
+                  id="tt-to"
+                  value={ttTo}
+                  disabled={disabled}
+                  minIso={ttFrom || undefined}
+                  pickerLabel="Choose Tourism Tax effective-to date"
+                  onChange={setTtTo}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground sm:col-span-3">
+                Guest residency and OTA collection evidence are recorded on the reservation folio.
+              </p>
             </div>
-            <div>
-              <Label htmlFor="tt-from">Effective from</Label>
-              <MalaysianDateInput
-                id="tt-from"
-                value={ttFrom}
-                disabled={disabled}
-                pickerLabel="Choose Tourism Tax effective-from date"
-                onChange={setTtFrom}
-              />
-            </div>
-            <div>
-              <Label htmlFor="tt-to">Effective to</Label>
-              <MalaysianDateInput
-                id="tt-to"
-                value={ttTo}
-                disabled={disabled}
-                minIso={ttFrom || undefined}
-                pickerLabel="Choose Tourism Tax effective-to date"
-                onChange={setTtTo}
-              />
-            </div>
-          </div>
-        ) : null}
-      </fieldset>
+          ) : null}
 
-      <fieldset className="rounded-lg border p-3">
-        <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-          State / local levy
-        </legend>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={levyEnabled}
-            disabled={disabled}
-            onChange={(e) => setLevyEnabled(e.target.checked)}
-          />
-          Apply a local levy
-        </label>
-        {levyEnabled ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-4">
-            <div>
-              <Label htmlFor="levy-label">Levy name on the folio</Label>
-              <Input
-                id="levy-label"
-                value={levyLabel}
-                disabled={disabled}
-                onChange={(e) => setLevyLabel(e.target.value)}
-              />
+          {activeSection === "local_levy" ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <Label htmlFor="levy-label">Display name</Label>
+                <Input
+                  id="levy-label"
+                  value={levyLabel}
+                  disabled={disabled}
+                  onChange={(e) => setLevyLabel(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="levy-amount">Per occupied room-night</Label>
+                <Input
+                  id="levy-amount"
+                  inputMode="decimal"
+                  value={levyAmount}
+                  disabled={disabled}
+                  onChange={(e) => setLevyAmount(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="levy-from">Effective from</Label>
+                <MalaysianDateInput
+                  id="levy-from"
+                  value={levyFrom}
+                  disabled={disabled}
+                  pickerLabel="Choose levy effective-from date"
+                  onChange={setLevyFrom}
+                />
+              </div>
+              <div>
+                <Label htmlFor="levy-to">Effective to</Label>
+                <MalaysianDateInput
+                  id="levy-to"
+                  value={levyTo}
+                  disabled={disabled}
+                  minIso={levyFrom || undefined}
+                  pickerLabel="Choose levy effective-to date"
+                  onChange={setLevyTo}
+                />
+              </div>
             </div>
-            <div>
-              <Label htmlFor="levy-amount">Per occupied room-night</Label>
-              <Input
-                id="levy-amount"
-                inputMode="decimal"
-                value={levyAmount}
-                disabled={disabled}
-                onChange={(e) => setLevyAmount(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="levy-from">Effective from</Label>
-              <MalaysianDateInput
-                id="levy-from"
-                value={levyFrom}
-                disabled={disabled}
-                pickerLabel="Choose levy effective-from date"
-                onChange={setLevyFrom}
-              />
-            </div>
-            <div>
-              <Label htmlFor="levy-to">Effective to</Label>
-              <MalaysianDateInput
-                id="levy-to"
-                value={levyTo}
-                disabled={disabled}
-                minIso={levyFrom || undefined}
-                pickerLabel="Choose levy effective-to date"
-                onChange={setLevyTo}
-              />
-            </div>
-          </div>
-        ) : null}
-      </fieldset>
+          ) : null}
 
-      <fieldset className="rounded-lg border p-3">
-        <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-          Rounding
-        </legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="rounding-mode">Mode</Label>
-            <select
-              id="rounding-mode"
-              className="mt-1 w-full rounded border px-2 py-2 text-sm"
-              value={rounding}
-              disabled={disabled}
-              onChange={(e) => setRounding(e.target.value as RoundingMode)}
-            >
-              {ROUNDING_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {ROUNDING_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {rounding !== "none" ? (
-            <N3SelectorField
-              kind="gl_account"
-              label="Rounding posting account"
-              value={{ code: roundingAccount.text, name: null }}
-              disabled={disabled}
-              onSelect={(row) => setRoundingAccount({ id: row.id, text: snapshotText(row) })}
-              onClear={() => setRoundingAccount({ id: null, text: null })}
-            />
+          {activeSection === "rounding" ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="rounding-mode">Mode</Label>
+                <select
+                  id="rounding-mode"
+                  className="mt-1 w-full rounded border px-2 py-2 text-sm"
+                  value={rounding}
+                  disabled={disabled}
+                  onChange={(e) => setRounding(e.target.value as RoundingMode)}
+                >
+                  {ROUNDING_MODES.map((m) => (
+                    <option key={m} value={m}>
+                      {ROUNDING_LABELS[m]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {rounding !== "none" ? (
+                <N3SelectorField
+                  kind="gl_account"
+                  label="N3 rounding account"
+                  value={{ code: roundingAccount.text, name: null }}
+                  disabled={disabled}
+                  onSelect={(row) => setRoundingAccount({ id: row.id, text: snapshotText(row) })}
+                  onClear={() => setRoundingAccount({ id: null, text: null })}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {activePostingComponent ? (
+            <div className="mt-5 border-t pt-4">
+              <p className="font-medium" style={{ color: NAVY }}>
+                N3 mapping
+              </p>
+              <PostingMappingFields
+                mapping={settings.postingMappings[activePostingComponent]}
+                disabled={disabled}
+                onPatch={(value) =>
+                  onSaveMapping({ postingMappings: { [activePostingComponent]: value } })
+                }
+              />
+            </div>
           ) : null}
         </div>
-      </fieldset>
+      </div>
 
       <Button type="button" disabled={disabled} style={{ backgroundColor: NAVY }} onClick={submit}>
         Save tax settings

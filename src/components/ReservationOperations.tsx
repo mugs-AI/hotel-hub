@@ -7,7 +7,6 @@ import {
   directActionLabel,
   effectiveExceptionMode,
   exceptionActionLabel,
-  exceptionModeHint,
   exceptionSubmitLabel,
   operationErrorMessage,
   operationStateLabel,
@@ -28,6 +27,7 @@ import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping";
 import { useSessionMe } from "@/lib/session-client";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.
@@ -295,9 +295,15 @@ export function ReservationActionsCard({
       className="rounded-lg border bg-white p-5 shadow-sm"
       style={{ borderColor: `${GOLD}33`, borderLeft: `4px solid ${GOLD}` }}
     >
-      <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-        Actions
-      </h2>
+      <div className="flex items-center gap-1.5">
+        <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+          Actions
+        </h2>
+        <CardInfoPopover label="About reservation actions">
+          Update this stay here. Changes are recorded in the timeline and follow the property’s
+          approval setting.
+        </CardInfoPopover>
+      </div>
       {readOnly ? (
         <p className="mt-2 text-sm text-muted-foreground">
           This reservation is {status} and is read-only.
@@ -366,8 +372,7 @@ export function ReservationActionsCard({
 
           {canRequest && available.length > 0 ? (
             <div>
-              <p className="text-xs text-muted-foreground">{exceptionModeHint(approvalMode)}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                 {available.map((r) => (
                   <button
                     key={r.type}
@@ -677,16 +682,17 @@ export function PendingApprovalsCard({
       className="rounded-lg border bg-white p-5 shadow-sm"
       style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${NAVY}` }}
     >
-      <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-        Pending approvals ({pending.length})
-      </h2>
+      <div className="flex items-center gap-1.5">
+        <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+          Pending approvals ({pending.length})
+        </h2>
+        <CardInfoPopover label="About pending approvals">
+          Requests waiting for the Owner appear here. Completed decisions remain in the timeline.
+        </CardInfoPopover>
+      </div>
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading requests…</p>
-      ) : requests.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          No change requests have been raised for this reservation.
-        </p>
-      ) : (
+      ) : requests.length === 0 ? null : (
         <ul className="mt-3 space-y-2">
           {[...pending, ...history].map((r) => (
             <li

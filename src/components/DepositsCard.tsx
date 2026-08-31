@@ -3,8 +3,7 @@
 // The client request id is minted ONCE when the Owner opens the confirmation
 // flow so a safe HTTP retry cannot create a second N3 document.
 import { useState } from "react";
-import { Info } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import {
   depositErrorMessage,
   depositStatusLabel,
@@ -27,9 +26,8 @@ const ERR = "#C2413B";
  * there are zero deposits to summarise.
  */
 export function depositsCompactSummary(opts: { gateOpen: boolean }): string {
-  return opts.gateOpen
-    ? "Deposits: None"
-    : "Deposits: None · N3 posting disabled for this property";
+  void opts;
+  return "No deposit";
 }
 
 /**
@@ -177,23 +175,10 @@ export function DepositsCard({
           <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
             Deposits
           </h2>
-          <Popover>
-            <PopoverTrigger
-              type="button"
-              aria-label="About deposits"
-              className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-input bg-white"
-              style={{ color: TEAL }}
-            >
-              <Info className="h-3 w-3" aria-hidden />
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-80 text-xs">
-              <p>Money taken before the stay. Each deposit is saved in N3 as a payment received.</p>
-              <p className="mt-2">HotelHub never keeps a payment only on its own records.</p>
-              <p className="mt-2">
-                A payment entered straight into N3 will not appear here on its own.
-              </p>
-            </PopoverContent>
-          </Popover>
+          <CardInfoPopover label="About deposits">
+            Deposits are advance payments recorded through N3. Unconfirmed N3 results are always
+            shown for checking.
+          </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
           {q.isPending ? "Loading…" : headline}
@@ -207,15 +192,7 @@ export function DepositsCard({
 
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
-      ) : deposits.length === 0 ? (
-        <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-          <p className="font-medium" style={{ color: NAVY }}>
-            {depositsCompactSummary({ gateOpen })}
-          </p>
-          <p>No deposits recorded for this booking.</p>
-          {!gateOpen ? <p>Deposits are switched off for this property.</p> : null}
-        </div>
-      ) : (
+      ) : deposits.length === 0 ? null : (
         <ul className="mt-3 space-y-2">
           {deposits.map((d) => (
             <li
@@ -288,16 +265,10 @@ export function DepositsCard({
         </ul>
       )}
 
-      {!canCreate ? (
-        <p className="mt-4 border-t pt-4 text-xs text-muted-foreground">
-          Only the Owner can send a deposit to N3.
-        </p>
-      ) : (
+      {!canCreate ? null : (
         <div className="mt-4 border-t pt-4">
           {!gateOpen ? (
-            <p className="text-xs text-muted-foreground">
-              Deposits are not switched on for this property yet.
-            </p>
+            <p className="text-xs text-muted-foreground">Deposits are off.</p>
           ) : !eligible ? (
             <p className="text-xs text-muted-foreground">
               You can only take a deposit on a confirmed booking.

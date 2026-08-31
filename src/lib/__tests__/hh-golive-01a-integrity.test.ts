@@ -254,7 +254,11 @@ describe("completed operational UI", () => {
   it("completes the Owner charges and taxes configuration", () => {
     const panel = read("src/components/ChargesTaxesPanel.tsx");
     for (const needle of [
-      "Service Tax by class",
+      "Tax / charge type",
+      "Accommodation",
+      "Food & beverage",
+      "Parking",
+      "Other taxable service",
       "Effective from",
       "State / local levy",
       "Rounding",

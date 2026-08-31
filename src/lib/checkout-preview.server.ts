@@ -747,7 +747,9 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
         canManageCharges: false,
       },
     });
-    const prepared = dto.lines.length > 0;
+    // Projected room nights keep the read-only screen/print complete, but
+    // checkout readiness still requires the immutable persisted snapshots.
+    const prepared = dto.readiness.roomNightsPrepared;
     const grandTotalCents = dto.readiness.calculationComplete
       ? toCents(dto.totals.grandTotal)
       : null;

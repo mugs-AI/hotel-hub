@@ -1720,12 +1720,56 @@ export async function buildFolioView(
   ]);
   const { lines, rows } = linesResult;
 
-  const decorated: StoredFolioLine[] = lines.map((l) => ({
+  const persistedLines: StoredFolioLine[] = lines.map((l) => ({
     ...l,
     roomLabel: l.reservationRoomId
       ? (roomLabelByReservationRoom.get(l.reservationRoomId) ?? null)
       : null,
   }));
+
+  // Older checked-in reservations can pre-date the room-night snapshot hook,
+  // and a check-in is deliberately allowed to stand if folio preparation
+  // fails. Never let that erase the room charge from the on-screen or printed
+  // prepared statement: project only the missing room-nights from the
+  // reservation's agreed rates. The explicit refresh/check-in write remains
+  // the only way to persist them, so this GET stays read-only and idempotent.
+  const roomPlan: RoomNightPlanRoom[] = [];
+  for (const room of rooms) {
+    const rate = parseCents(room.agreed_rate);
+    if (rate === null) continue;
+    roomPlan.push({
+      reservationRoomId: room.id,
+      hotelRoomId: room.hotel_room_id,
+      roomLabel: roomLabelByReservationRoom.get(room.id) ?? "Room",
+      arrivalDate: room.arrival_date,
+      departureDate: room.departure_date,
+      nightlyRateCents: rate,
+    });
+  }
+  const missingRoomNights = planMissingRoomNights(
+    roomPlan,
+    persistedLines
+      .filter((l) => l.lineType === "room_night")
+      .map((l) => ({ reservationRoomId: l.reservationRoomId, stayDate: l.stayDate })),
+  );
+  const projectedLines: StoredFolioLine[] = missingRoomNights.map((night) => ({
+    id: `projected:${night.reservationRoomId}:${night.stayDate}`,
+    lineType: "room_night",
+    status: "draft",
+    taxClass: "accommodation",
+    description: `Room charge — ${night.roomLabel}`,
+    quantity: 1,
+    unitPriceCents: night.unitPriceCents,
+    subtotalCents: night.unitPriceCents,
+    reversesLineId: null,
+    reason: null,
+    stayDate: night.stayDate,
+    reservationRoomId: night.reservationRoomId,
+    roomLabel: night.roomLabel,
+    actorLabel: null,
+    createdAt: `${night.stayDate}T00:00:00.000Z`,
+  }));
+  const decorated = [...persistedLines, ...projectedLines];
 
   const usedCatalogueIds = new Set(
     rows.filter((r) => r.catalogue_id).map((r) => r.catalogue_id as string),
@@ -1840,6 +1884,8 @@ export async function buildFolioView(
     readiness: {
       ...folioReadinessProjection(settings),
       calculationComplete: computed.calculationComplete,
+      roomNightsPrepared: roomPlan.length > 0 && missingRoomNights.length === 0,
+      projectedRoomNights: missingRoomNights.length,
     },
     catalogue: catalogueOptions,
     capability: {

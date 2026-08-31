@@ -58,7 +58,7 @@ describe("D and F — money cards", () => {
 
   it("deposits explain themselves in a popover, with no Details/Hide toggle", () => {
     expect(deposits).toContain("About deposits");
-    expect(deposits).toContain("PopoverContent");
+    expect(deposits).toContain("CardInfoPopover");
     expect(deposits).not.toMatch(/>\s*(Details|Hide)\s*</);
     expect(deposits).not.toContain("setExpanded");
   });

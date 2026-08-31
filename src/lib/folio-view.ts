@@ -91,7 +91,13 @@ export type FolioViewDTO = {
   derived: FolioDerivedLineDTO[];
   totals: FolioTotalsDTO;
   blockers: FolioBlocker[];
-  readiness: FolioReadiness & { calculationComplete: boolean };
+  readiness: FolioReadiness & {
+    calculationComplete: boolean;
+    /** True only when every expected reservation room-night is persisted. */
+    roomNightsPrepared: boolean;
+    /** Missing persisted nights included read-only so screen and print stay complete. */
+    projectedRoomNights: number;
+  };
   catalogue: FolioCatalogueOptionDTO[];
   capability: FolioCapabilityDTO;
   /**
@@ -100,6 +106,42 @@ export type FolioViewDTO = {
    */
   preparationOnly: true;
 };
+
+export type VisibleFolioTotalRow = {
+  key: "charges" | "serviceCharge" | "serviceTax" | "tourismTax" | "localLevy" | "rounding";
+  label: string;
+  amount: number;
+};
+
+/**
+ * Screen and print share one visibility rule: core charges always show, while
+ * optional charge/tax rows follow the Owner's Settings on/off choices.
+ */
+export function visibleFolioTotalRows(dto: FolioViewDTO): VisibleFolioTotalRow[] {
+  const rows: VisibleFolioTotalRow[] = [
+    { key: "charges", label: "Charges", amount: dto.totals.charges },
+  ];
+  if (dto.readiness.serviceChargeEnabled) {
+    rows.push({ key: "serviceCharge", label: "Service charge", amount: dto.totals.serviceCharge });
+  }
+  if (dto.readiness.serviceTaxRegistered) {
+    rows.push({ key: "serviceTax", label: "Service Tax", amount: dto.totals.serviceTax });
+  }
+  if (dto.readiness.tourismTaxEnabled) {
+    rows.push({ key: "tourismTax", label: "Tourism Tax", amount: dto.totals.tourismTax });
+  }
+  if (dto.readiness.localLevyEnabled) {
+    rows.push({
+      key: "localLevy",
+      label: dto.readiness.localLevyLabel ?? "Local levy",
+      amount: dto.totals.localLevy,
+    });
+  }
+  if (dto.readiness.roundingMode !== "none") {
+    rows.push({ key: "rounding", label: "Rounding", amount: dto.totals.rounding });
+  }
+  return rows;
+}
 
 // ------------------------------------------------------------- guest folio
 

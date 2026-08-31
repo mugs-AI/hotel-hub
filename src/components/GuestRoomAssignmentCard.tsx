@@ -13,6 +13,7 @@ import {
   type ReservationDetailDTO,
 } from "@/lib/reservations-client";
 import { roomLabel } from "@/lib/reservations-ui";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 
 const NAVY = "#0F2748";
 const TEAL = "#0E7C86";
@@ -51,8 +52,6 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
   const allAssigned = data.guests.every((g) => Boolean(draft[g.id]));
   const canSave =
     dirty && allAssigned && !mutation.isPending && (!reasonRequired || reason.trim().length > 0);
-  const checkedIn = Boolean(data.checkedInAt);
-
   async function save() {
     try {
       const result = await mutation.mutateAsync({
@@ -80,19 +79,16 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
       style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${TEAL}` }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
-          Guest room assignment
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          Assign each guest to one of this reservation&rsquo;s rooms.
-        </p>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: NAVY }}>
+            Guest room assignments
+          </h2>
+          <CardInfoPopover label="About guest room assignments">
+            Assign every guest to a reserved room. After check-in, use Room Change for a physical
+            move; this card only corrects the guest assignment.
+          </CardInfoPopover>
+        </div>
       </div>
-      {checkedIn ? (
-        <p className="mt-2 text-xs text-muted-foreground">
-          To physically move a guest to another room, use Room Change. Guest Room Assignment only
-          corrects which reservation room this guest is attached to.
-        </p>
-      ) : null}
 
       <div className="mt-4 space-y-3">
         {data.guests.map((g) => (

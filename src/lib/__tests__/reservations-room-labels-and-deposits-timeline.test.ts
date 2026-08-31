@@ -34,14 +34,12 @@ describe("reservations list — room labels (privacy + formatting)", () => {
 });
 
 describe("DepositsCard — compact summary logic", () => {
-  it("shows a compact one-liner including the N3-disabled reason when the gate is closed", () => {
-    expect(depositsCompactSummary({ gateOpen: false })).toBe(
-      "Deposits: None · N3 posting disabled for this property",
-    );
+  it("shows the same single compact empty state when the gate is closed", () => {
+    expect(depositsCompactSummary({ gateOpen: false })).toBe("No deposit");
   });
 
-  it("omits the disabled reason when posting is enabled", () => {
-    expect(depositsCompactSummary({ gateOpen: true })).toBe("Deposits: None");
+  it("does not repeat an empty-state explanation when posting is enabled", () => {
+    expect(depositsCompactSummary({ gateOpen: true })).toBe("No deposit");
   });
 
   it("is a pure function of gate state only — it never summarises posted/unknown deposits away", () => {
