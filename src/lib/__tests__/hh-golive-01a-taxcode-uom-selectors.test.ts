@@ -263,7 +263,7 @@ describe("row normalization and eligibility", () => {
     const row = mapN3TaxCodeRow({
       id: "1",
       code: "SR",
-      rate: 6,
+      rate: 0.06,
       postingAccountId: "GL-SECRET",
       isActive: true,
       isOutputTax: true,
@@ -273,6 +273,15 @@ describe("row normalization and eligibility", () => {
     // The live N3 rate is normalized to basis points; it is a prefill only and
     // the server always re-reads and overwrites it on save.
     expect(row?.rateBp).toBe(600);
+    expect(
+      mapN3TaxCodeRow({
+        id: "2",
+        code: "ST-10%",
+        rate: 0.1,
+        isActive: true,
+        isOutputTax: true,
+      })?.rateBp,
+    ).toBe(1000);
   });
 
   it("rejects inactive or non-output tax codes and missing flags", () => {

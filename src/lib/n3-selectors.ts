@@ -115,20 +115,26 @@ export type N3SelectorRow = {
 /**
  * Normalize an N3-declared tax rate to basis points.
  *
- * N3 states an Output Tax rate as a PERCENTAGE (6 means 6%). Anything that is
- * not a finite number/numeric string in 0..100 returns null — an unknown rate
- * is never guessed, it simply stays unconfigured and blocks readiness.
+ * N3 states an Output Tax rate as a DECIMAL FRACTION (0.06 means 6% and 0.10
+ * means 10%). JSON numbers and numeric strings therefore have to be in 0..1.
+ * A string carrying an explicit percent sign is also accepted as an already
+ * human-readable percentage ("6%" means 6%). Values in an ambiguous shape,
+ * such as the bare number 6, are rejected instead of being guessed.
  */
 export function normalizeTaxRateToBp(v: unknown): number | null {
   let n: number;
+  let explicitPercent = false;
   if (typeof v === "number") n = v;
   else if (typeof v === "string") {
-    const t = v.trim().replace(/%$/, "").trim();
+    const trimmed = v.trim();
+    explicitPercent = trimmed.endsWith("%");
+    const t = explicitPercent ? trimmed.slice(0, -1).trim() : trimmed;
     if (!t) return null;
     n = Number(t);
   } else return null;
-  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
-  const bp = Math.round(n * 100);
+  const max = explicitPercent ? 100 : 1;
+  if (!Number.isFinite(n) || n < 0 || n > max) return null;
+  const bp = Math.round(n * (explicitPercent ? 100 : 10_000));
   return Number.isSafeInteger(bp) ? bp : null;
 }
 

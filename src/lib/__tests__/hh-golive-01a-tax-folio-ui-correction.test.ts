@@ -139,6 +139,37 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
     expect(result.totals.grandTotalCents).toBe(178_000);
   });
 
+  it("calculates an N3 0.10 rate as 10%, not 0.1%", () => {
+    const settings = defaultFinancialSettings("tenant");
+    settings.serviceTaxRegistered = true;
+    settings.serviceTax.accommodation = {
+      rateBp: 1_000,
+      n3TaxCodeId: "st-10",
+      n3TaxCodeSnapshot: "ST-10%",
+    };
+    const result = computeFolio({
+      currency: "MYR",
+      settings,
+      lines: [
+        storedLine({
+          id: "room-charge",
+          unitPriceCents: 100_000,
+          subtotalCents: 100_000,
+        }),
+      ],
+      guestTaxClass: "malaysian_citizen",
+      occupiedRoomNights: 1,
+      tourismTaxCollectedCents: 0,
+      propertyDate: "2026-09-01",
+      unmappedRoomLabels: [],
+      unmappedAddonNames: [],
+    });
+
+    expect(result.totals.chargesCents).toBe(100_000);
+    expect(result.totals.serviceTaxCents).toBe(10_000);
+    expect(result.totals.grandTotalCents).toBe(110_000);
+  });
+
   it("shows only enabled optional totals while always retaining core charges", () => {
     expect(visibleFolioTotalRows(folioDto()).map((row) => row.label)).toEqual(["Charges"]);
     expect(
@@ -170,6 +201,11 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
     expect(taxes).toContain("TAX_SETTINGS_SECTIONS.map");
     expect(taxes).toContain("Tax / charge type");
     expect(taxes).toContain("setActiveSection");
+    expect(taxes).toContain('discount: "Discount"');
+    expect(taxes).toContain('adjustment_positive: "Adjustment (increase)"');
+    expect(taxes).toContain('adjustment_negative: "Adjustment (reduction)"');
+    expect(taxes).not.toContain("PostingMappingsSection");
+    expect(taxes).not.toContain("POSTING_COMPONENTS.map");
     for (const file of [
       "src/components/FolioCard.tsx",
       "src/components/DepositsCard.tsx",

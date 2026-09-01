@@ -22,17 +22,35 @@ function loaderFor(
   return async () => ({ status: "ok", items: rows }) as N3SelectorLoad;
 }
 
-describe("normalizeTaxRateToBp — N3 states a percentage", () => {
-  it("converts plain and decimal percentages to basis points", () => {
-    expect(normalizeTaxRateToBp(6)).toBe(600);
-    expect(normalizeTaxRateToBp("8")).toBe(800);
-    expect(normalizeTaxRateToBp("6.5")).toBe(650);
+describe("normalizeTaxRateToBp — N3 states a decimal fraction", () => {
+  it("converts N3 decimal fractions and explicit percentages to basis points", () => {
+    expect(normalizeTaxRateToBp(0.1)).toBe(1000);
+    expect(normalizeTaxRateToBp("0.08")).toBe(800);
+    expect(normalizeTaxRateToBp(0.06)).toBe(600);
+    expect(normalizeTaxRateToBp(0.065)).toBe(650);
     expect(normalizeTaxRateToBp(" 10 % ")).toBe(1000);
     expect(normalizeTaxRateToBp(0)).toBe(0);
+    expect(normalizeTaxRateToBp(1)).toBe(10_000);
   });
 
-  it("never guesses a rate from unusable input", () => {
-    for (const bad of [null, undefined, "", "  ", "abc", {}, [], true, NaN, -1, 101, Infinity]) {
+  it("never guesses an ambiguous or unusable rate", () => {
+    for (const bad of [
+      null,
+      undefined,
+      "",
+      "  ",
+      "abc",
+      {},
+      [],
+      true,
+      NaN,
+      -1,
+      1.01,
+      6,
+      "6",
+      101,
+      Infinity,
+    ]) {
       expect(normalizeTaxRateToBp(bad)).toBeNull();
     }
   });
@@ -92,6 +110,7 @@ describe("server-authoritative Service Tax rate", () => {
   });
 
   it("formats a live rate for display and never invents one", () => {
+    expect(formatRateBpPercent(1000)).toBe("10%");
     expect(formatRateBpPercent(800)).toBe("8%");
     expect(formatRateBpPercent(650)).toBe("6.5%");
     expect(formatRateBpPercent(null)).toBe("no rate in N3");

@@ -43,17 +43,12 @@ import {
 } from "@/lib/charges-catalogue";
 import { type FinancialSettings, type TaxableClass } from "@/lib/financial-settings";
 import {
-  POSTING_COMPONENTS,
   POSTING_COMPONENT_HINTS,
   POSTING_COMPONENT_LABELS,
   type PostingComponent,
   type PostingMappings,
 } from "@/lib/posting-mappings";
-import {
-  MAPPING_ROW_STATUS_LABELS,
-  NOT_POSTED_NOTICE,
-  type PostingReadiness,
-} from "@/lib/posting-readiness";
+import { NOT_POSTED_NOTICE } from "@/lib/posting-readiness";
 import { isValidIsoDate } from "@/lib/malaysia-date";
 import { formatRateBpPercent } from "@/lib/n3-selectors";
 import { ROUNDING_MODES, type RoundingMode } from "@/lib/folio-money";
@@ -167,10 +162,11 @@ export function ChargesTaxesPanel() {
         style={{ borderColor: `${NAVY}1F` }}
       >
         <h2 className="text-base font-semibold" style={{ color: NAVY }}>
-          Malaysian taxes and levies
+          Charges, taxes and levies
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Tick a type on or off, then select it to configure the settings on the right.
+          The left switch is the only on/off control. Select a type to configure its details and N3
+          mapping on the right.
         </p>
         {settings.data?.settings ? (
           <TaxSettingsForm
@@ -200,20 +196,6 @@ export function ChargesTaxesPanel() {
           </ul>
         ) : null}
       </section>
-
-      {settings.data?.settings ? (
-        <PostingMappingsSection
-          settings={settings.data.settings}
-          posting={settings.data.posting ?? null}
-          disabled={!canManage || saveSettings.isPending}
-          onSave={(patch) =>
-            saveSettings.mutate(patch, {
-              onSuccess: () => toast.success("Accounting mapping saved."),
-              onError: (err) => toast.error(folioErrorMessage(err)),
-            })
-          }
-        />
-      ) : null}
 
       <section
         className="rounded-xl border bg-white p-5 shadow-sm"
@@ -487,150 +469,6 @@ function CatalogueRow({
   );
 }
 
-// ------------------------------------------------------- posting mappings UI
-
-function PostingMappingsSection({
-  settings,
-  posting,
-  disabled,
-  onSave,
-}: {
-  settings: FinancialSettings;
-  posting: PostingReadiness | null;
-  disabled: boolean;
-  onSave: (patch: Record<string, unknown>) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const mappings: PostingMappings = settings.postingMappings;
-
-  function patchComponent(component: PostingComponent, value: Record<string, unknown>) {
-    onSave({ postingMappings: { [component]: value } });
-  }
-
-  return (
-    <section
-      className="rounded-xl border bg-white p-5 shadow-sm"
-      style={{ borderColor: `${NAVY}1F` }}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold" style={{ color: NAVY }}>
-            Accounting mapping
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Tells the later posting milestone where each charge belongs in your accounts.{" "}
-            {NOT_POSTED_NOTICE}
-          </p>
-        </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>
-          {open ? "Hide details" : "Set up mappings"}
-        </Button>
-      </div>
-
-      {posting ? (
-        <>
-          <p
-            className="mt-3 text-sm font-medium"
-            style={{ color: posting.readyForFuturePosting ? NAVY : ERR }}
-            data-testid="posting-readiness"
-          >
-            {posting.readyForFuturePosting
-              ? "Every mapping is complete and verified."
-              : "Not ready for future posting."}
-          </p>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[36rem] text-left text-sm">
-              <caption className="sr-only">Accounting mapping summary</caption>
-              <thead>
-                <tr style={{ color: NAVY }}>
-                  <th scope="col" className="py-1 pr-3 font-semibold">
-                    Charge
-                  </th>
-                  <th scope="col" className="py-1 pr-3 font-semibold">
-                    N3 Stock
-                  </th>
-                  <th scope="col" className="py-1 pr-3 font-semibold">
-                    Tax Code
-                  </th>
-                  <th scope="col" className="py-1 pr-3 font-semibold">
-                    Resolved account
-                  </th>
-                  <th scope="col" className="py-1 font-semibold">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {posting.rows.map((row) => (
-                  <tr key={row.key} className="border-t align-top">
-                    <td className="py-1 pr-3">{row.charge}</td>
-                    <td className="py-1 pr-3 text-muted-foreground">{row.stock}</td>
-                    <td className="py-1 pr-3 text-muted-foreground">{row.taxCode}</td>
-                    <td className="py-1 pr-3 text-muted-foreground">{row.resolvedAccount}</td>
-                    <td className="py-1" style={{ color: row.status === "ready" ? NAVY : ERR }}>
-                      {MAPPING_ROW_STATUS_LABELS[row.status]}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {posting.blockedContracts.length ? (
-            <ul className="mt-3 space-y-1 text-sm" style={{ color: ERR }}>
-              {posting.blockedContracts.map((c) => (
-                <li key={c.kind}>
-                  {c.label}: N3 contract not yet verified. Still needed: {c.missingEvidence}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      ) : null}
-
-      {open ? (
-        <div className="mt-4 space-y-4">
-          {POSTING_COMPONENTS.map((component) => {
-            const mapping = mappings[component];
-            const forcedOn =
-              (component === "service_charge" && settings.serviceCharge.enabled) ||
-              (component === "tourism_tax" && settings.tourismTax.enabled) ||
-              (component === "local_levy" && settings.localLevy.enabled);
-            const isOn = forcedOn || mapping.enabled;
-            return (
-              <fieldset key={component} className="rounded-lg border p-3">
-                <legend className="px-1 text-sm font-semibold" style={{ color: NAVY }}>
-                  {POSTING_COMPONENT_LABELS[component]}
-                </legend>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={isOn}
-                    disabled={disabled || forcedOn}
-                    onChange={(e) => patchComponent(component, { enabled: e.target.checked })}
-                  />
-                  {forcedOn
-                    ? "In use (switched on above)"
-                    : `Use ${POSTING_COMPONENT_LABELS[component].toLowerCase()}`}
-                </label>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {POSTING_COMPONENT_HINTS[component]}
-                </p>
-                {isOn ? (
-                  <PostingMappingFields
-                    mapping={mapping}
-                    disabled={disabled}
-                    onPatch={(value) => patchComponent(component, value)}
-                  />
-                ) : null}
-              </fieldset>
-            );
-          })}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
 function PostingMappingFields({
   mapping,
   disabled,
@@ -689,6 +527,9 @@ type TaxSettingsSection =
   | "service_charge"
   | "tourism_tax"
   | "local_levy"
+  | "discount"
+  | "adjustment_positive"
+  | "adjustment_negative"
   | "rounding";
 
 const TAX_SETTINGS_SECTION_LABELS: Record<TaxSettingsSection, string> = {
@@ -696,10 +537,21 @@ const TAX_SETTINGS_SECTION_LABELS: Record<TaxSettingsSection, string> = {
   service_charge: "Service charge",
   tourism_tax: "Tourism Tax",
   local_levy: "State / local levy",
+  discount: "Discount",
+  adjustment_positive: "Adjustment (increase)",
+  adjustment_negative: "Adjustment (reduction)",
   rounding: "Rounding",
 };
 
 const TAX_SETTINGS_SECTIONS = Object.keys(TAX_SETTINGS_SECTION_LABELS) as TaxSettingsSection[];
+
+type StandalonePostingSection = "discount" | "adjustment_positive" | "adjustment_negative";
+
+const STANDALONE_POSTING_SECTIONS: readonly StandalonePostingSection[] = [
+  "discount",
+  "adjustment_positive",
+  "adjustment_negative",
+];
 
 function TaxSettingsForm({
   settings,
@@ -751,6 +603,11 @@ function TaxSettingsForm({
     id: string | null;
     text: string | null;
   }>({ id: null, text: null });
+  const [postingEnabled, setPostingEnabled] = useState<Record<StandalonePostingSection, boolean>>({
+    discount: false,
+    adjustment_positive: false,
+    adjustment_negative: false,
+  });
 
   useEffect(() => {
     setServiceTaxRegistered(settings.serviceTaxRegistered);
@@ -795,6 +652,11 @@ function TaxSettingsForm({
     setRoundingAccount({
       id: settings.rounding.n3RoundingAccountId,
       text: settings.rounding.n3RoundingAccountSnapshot,
+    });
+    setPostingEnabled({
+      discount: settings.postingMappings.discount.enabled,
+      adjustment_positive: settings.postingMappings.adjustment_positive.enabled,
+      adjustment_negative: settings.postingMappings.adjustment_negative.enabled,
     });
   }, [settings]);
 
@@ -852,6 +714,17 @@ function TaxSettingsForm({
         n3RoundingAccountId: roundingAccount.id,
         n3RoundingAccountSnapshot: roundingAccount.text,
       },
+      postingMappings: {
+        service_charge: { enabled: scEnabled },
+        tourism_tax: { enabled: ttEnabled },
+        local_levy: { enabled: levyEnabled },
+        ...Object.fromEntries(
+          STANDALONE_POSTING_SECTIONS.map((component) => [
+            component,
+            { enabled: postingEnabled[component] },
+          ]),
+        ),
+      },
     });
   }
 
@@ -865,6 +738,10 @@ function TaxSettingsForm({
         return ttEnabled;
       case "local_levy":
         return levyEnabled;
+      case "discount":
+      case "adjustment_positive":
+      case "adjustment_negative":
+        return postingEnabled[section];
       case "rounding":
         return rounding !== "none";
     }
@@ -874,18 +751,47 @@ function TaxSettingsForm({
     switch (section) {
       case "service_tax":
         setServiceTaxRegistered(enabled);
+        onSave({ serviceTaxRegistered: enabled });
         break;
       case "service_charge":
         setScEnabled(enabled);
+        onSave({
+          serviceCharge: { enabled },
+          postingMappings: { service_charge: { enabled } },
+        });
         break;
       case "tourism_tax":
         setTtEnabled(enabled);
+        onSave({
+          tourismTax: { enabled },
+          postingMappings: { tourism_tax: { enabled } },
+        });
         break;
       case "local_levy":
         setLevyEnabled(enabled);
+        onSave({
+          localLevy: { enabled },
+          postingMappings: { local_levy: { enabled } },
+        });
+        break;
+      case "discount":
+      case "adjustment_positive":
+      case "adjustment_negative":
+        setPostingEnabled((current) => ({ ...current, [section]: enabled }));
+        onSave({ postingMappings: { [section]: { enabled } } });
         break;
       case "rounding":
-        setRounding(enabled ? (rounding === "none" ? "nearest_5_cents" : rounding) : "none");
+        {
+          const mode = enabled ? (rounding === "none" ? "nearest_5_cents" : rounding) : "none";
+          setRounding(mode);
+          onSave({
+            rounding: {
+              mode,
+              n3RoundingAccountId: roundingAccount.id,
+              n3RoundingAccountSnapshot: roundingAccount.text,
+            },
+          });
+        }
         break;
     }
   }
@@ -897,7 +803,11 @@ function TaxSettingsForm({
         ? "tourism_tax"
         : activeSection === "local_levy"
           ? "local_levy"
-          : null;
+          : activeSection === "discount" ||
+              activeSection === "adjustment_positive" ||
+              activeSection === "adjustment_negative"
+            ? activeSection
+            : null;
 
   return (
     <div className="mt-4 space-y-4 text-sm">
@@ -964,10 +874,17 @@ function TaxSettingsForm({
             </span>
           </div>
 
+          {activePostingComponent ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {POSTING_COMPONENT_HINTS[activePostingComponent]}
+            </p>
+          ) : null}
+
           {activeSection === "service_tax" ? (
             <div className="mt-4 space-y-4">
               <p className="text-xs text-muted-foreground">
-                Map each class to a live N3 Output Tax code. Its N3 rate is used automatically.
+                Map each class separately because accommodation, food and beverage, parking and
+                other services may use different rates. The selected N3 rate is used automatically.
               </p>
               {TAXABLE_CLASSES.map((c) => (
                 <div key={c} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[11rem_1fr]">
@@ -1015,7 +932,7 @@ function TaxSettingsForm({
           {activeSection === "service_charge" ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div>
-                <Label htmlFor="sc-percent">Percentage</Label>
+                <Label htmlFor="sc-percent">Hotel service charge percentage</Label>
                 <Input
                   id="sc-percent"
                   inputMode="decimal"
@@ -1157,7 +1074,12 @@ function TaxSettingsForm({
           {activePostingComponent ? (
             <div className="mt-5 border-t pt-4">
               <p className="font-medium" style={{ color: NAVY }}>
-                N3 mapping
+                {POSTING_COMPONENT_LABELS[activePostingComponent]} — N3 mapping
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {sectionEnabled(activeSection)
+                  ? "This type is on. Its mapping must be complete before future N3 posting can be ready."
+                  : "This type is off. Its saved mapping is retained but it is not applied to the folio."}
               </p>
               <PostingMappingFields
                 mapping={settings.postingMappings[activePostingComponent]}
@@ -1172,7 +1094,7 @@ function TaxSettingsForm({
       </div>
 
       <Button type="button" disabled={disabled} style={{ backgroundColor: NAVY }} onClick={submit}>
-        Save tax settings
+        Save charges and taxes
       </Button>
     </div>
   );

@@ -266,10 +266,12 @@ describe("Charges & Taxes source contract", () => {
     expect(panel).toContain("NOT_POSTED_NOTICE");
   });
 
-  it("renders the Accounting Mapping Summary columns", () => {
-    for (const col of ["Charge", "N3 Stock", "Tax Code", "Resolved account", "Status"]) {
-      expect(panel).toContain(col);
+  it("keeps N3 mapping in the selected type panel without a duplicate editor", () => {
+    for (const field of ["N3 stock / service", "N3 UOM", "N3 Tax Code"]) {
+      expect(panel).toContain(field);
     }
+    expect(panel).not.toContain("PostingMappingsSection");
+    expect(panel).not.toContain("Set up mappings");
   });
 
   it("keeps the selector endpoint read-only and owner-gated", () => {
