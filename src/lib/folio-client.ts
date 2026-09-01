@@ -258,13 +258,18 @@ export function useChargeSettings(enabled = true) {
 
 export function useSaveChargeSettings() {
   const qc = useQueryClient();
+  const sessionKey = useSessionKey();
   return useMutation<ChargeSettingsResponse, FolioApiError, Record<string, unknown>>({
     mutationFn: (patch) =>
       folioFetch<ChargeSettingsResponse>("/api/hotel/charges/settings", {
         method: "PATCH",
         body: JSON.stringify(patch),
       }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["charge-settings"] }),
+    // The PATCH response is the authoritative, server-canonicalized settings
+    // plus its matching readiness projection. Replace the cache atomically so
+    // the Owner never sees a selected N3 code beside stale "Still to
+    // configure" warnings while a second GET is pending.
+    onSuccess: (data) => qc.setQueryData(["charge-settings", sessionKey], data),
   });
 }
 
@@ -304,6 +309,20 @@ export function folioErrorMessage(err: unknown, fallback = "Something went wrong
     n3_contract_unverified: "That N3 list is not available yet, so nothing was saved.",
     n3_reference_not_found: "That N3 record no longer exists. Choose it again from the list.",
     n3_validation_unavailable: "N3 could not be reached, so nothing was saved. Try again shortly.",
+    posting_mappings_storage_unavailable:
+      "The tax mapping database update is not ready. Nothing was saved.",
+    financial_settings_write_failed:
+      "Charges and taxes could not be saved. Nothing was changed. Please try again.",
+    folio_request_failed:
+      "Charges and taxes could not be saved. Nothing was changed. Please try again.",
+    request_failed: "Charges and taxes could not be saved. Nothing was changed. Please try again.",
+    invalid_service_tax:
+      "The Service Tax settings were invalid. Reload and choose the N3 Tax Code again.",
+    invalid_service_tax_class:
+      "The Service Tax class was invalid. Reload and choose the N3 Tax Code again.",
+    invalid_tax_code: "Choose the N3 Tax Code again, then save.",
+    invalid_tax_rate: "The selected N3 Tax Code has an invalid rate. Nothing was saved.",
+    invalid_exempt_mapping: "Choose the N3 Exempt Tax Code again, then save.",
   };
   return map[code] ?? fallback;
 }

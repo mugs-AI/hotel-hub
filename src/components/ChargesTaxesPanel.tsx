@@ -52,6 +52,7 @@ import { NOT_POSTED_NOTICE } from "@/lib/posting-readiness";
 import { isValidIsoDate } from "@/lib/malaysia-date";
 import { formatRateBpPercent } from "@/lib/n3-selectors";
 import { ROUNDING_MODES, type RoundingMode } from "@/lib/folio-money";
+import { buildN3TaxSelectionPatch, type TaxCodeDraft } from "@/lib/tax-settings-client";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -175,13 +176,25 @@ export function ChargesTaxesPanel() {
             onSave={(patch) =>
               saveSettings.mutate(patch, {
                 onSuccess: () => toast.success("Tax settings saved."),
-                onError: (err) => toast.error(folioErrorMessage(err)),
+                onError: (err) =>
+                  toast.error(
+                    folioErrorMessage(
+                      err,
+                      "Charges and taxes could not be saved. Nothing was changed.",
+                    ),
+                  ),
               })
             }
             onSaveMapping={(patch) =>
               saveSettings.mutate(patch, {
                 onSuccess: () => toast.success("N3 mapping saved."),
-                onError: (err) => toast.error(folioErrorMessage(err)),
+                onError: (err) =>
+                  toast.error(
+                    folioErrorMessage(
+                      err,
+                      "The N3 mapping could not be saved. Nothing was changed.",
+                    ),
+                  ),
               })
             }
           />
@@ -661,14 +674,9 @@ function TaxSettingsForm({
   }, [settings]);
 
   function submit() {
-    const serviceTax: Record<string, unknown> = {};
-    for (const c of TAXABLE_CLASSES) {
-      // No rate is sent: the server re-reads it from the chosen N3 tax code.
-      serviceTax[c] = {
-        n3TaxCodeId: codes[c].id,
-        n3TaxCodeSnapshot: codes[c].text,
-      };
-    }
+    // Only immutable ids leave the form. Browser display text and rates are
+    // excluded; the server re-reads both from N3.
+    const n3TaxSelections = buildN3TaxSelectionPatch(codes, exempt.id);
     const scBp = percentTextToBp(scPercent);
     if (scBp === undefined) {
       toast.error("Enter a valid service charge percentage.");
@@ -693,8 +701,7 @@ function TaxSettingsForm({
 
     onSave({
       serviceTaxRegistered,
-      serviceTax,
-      exempt: { n3TaxCodeId: exempt.id, n3TaxCodeSnapshot: exempt.text },
+      ...n3TaxSelections,
       serviceCharge: { enabled: scEnabled, percentBp: scBp ?? 0, serviceTaxApplies: scTaxed },
       tourismTax: {
         enabled: ttEnabled,

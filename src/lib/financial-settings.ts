@@ -282,10 +282,17 @@ export function validateSettingsPatch(input: unknown): PatchValidation {
   if ("exempt" in input) {
     if (!isObj(input.exempt)) return { ok: false, code: "invalid_exempt_mapping" };
     const id = idOrNull(input.exempt.n3TaxCodeId);
-    const snap = idOrNull(input.exempt.n3TaxCodeSnapshot);
-    if (id === undefined || snap === undefined)
-      return { ok: false, code: "invalid_exempt_mapping" };
-    patch.exempt = { n3TaxCodeId: id, n3TaxCodeSnapshot: snap };
+    if (id === undefined) return { ok: false, code: "invalid_exempt_mapping" };
+    const exempt: NonNullable<SettingsPatch["exempt"]> = { n3TaxCodeId: id };
+    // A browser snapshot is optional because it is never trusted: the server
+    // replaces it from the authoritative N3 row. Older clients may still send
+    // one, so retain strict validation when the field is present.
+    if ("n3TaxCodeSnapshot" in input.exempt) {
+      const snap = idOrNull(input.exempt.n3TaxCodeSnapshot);
+      if (snap === undefined) return { ok: false, code: "invalid_exempt_mapping" };
+      exempt.n3TaxCodeSnapshot = snap;
+    }
+    patch.exempt = exempt;
   }
 
   if ("serviceCharge" in input) {
