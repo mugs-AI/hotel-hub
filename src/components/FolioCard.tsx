@@ -3,7 +3,6 @@
 // The card is explicit that this is PREPARATION ONLY: nothing here posts to
 // N3, creates a CashMemo, matches a deposit or issues a refund.
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +26,12 @@ import {
   useSetGuestTaxClass,
   useUpdateFolioQuantity,
 } from "@/lib/folio-client";
-import { formatFolioMoney, visibleFolioTotalRows, type FolioLineDTO } from "@/lib/folio-view";
+import {
+  formatFolioMoney,
+  guestFacingFolioRows,
+  visibleFolioTotalRows,
+  type FolioLineDTO,
+} from "@/lib/folio-view";
 import { GUEST_TAX_CLASS_LABELS, GUEST_TAX_CLASSES, type GuestTaxClass } from "@/lib/folio";
 import { makeRequestId } from "@/lib/idempotency";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
@@ -59,6 +63,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
   const [discountReason, setDiscountReason] = useState("");
 
   const dto = q.data;
+  const guestRows = dto ? guestFacingFolioRows(dto) : [];
   const blocking = useMemo(
     () => (dto?.blockers ?? []).filter((b) => b.severity === "blocking"),
     [dto],
@@ -105,14 +110,15 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
             >
               {open ? "Hide details" : "Details"}
             </button>
-            <Link
-              to="/reservations/$id/folio-print"
-              params={{ id: reservationId }}
+            <a
+              href={`/reservations/${reservationId}/folio-print`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-sm font-medium underline underline-offset-2"
               style={{ color: NAVY }}
             >
               Print folio
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -178,81 +184,85 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 </tr>
               </thead>
               <tbody>
-                {dto.lines.map((l) => (
-                  <tr key={l.id} className="border-t border-border align-top">
-                    <td className="py-2">
-                      <span className={l.status === "reversed" ? "line-through" : undefined}>
-                        {l.description}
-                      </span>
-                      {l.roomLabel ? (
-                        <span className="block text-sm text-muted-foreground">
-                          {l.roomLabel}
-                          {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
-                        </span>
-                      ) : null}
-                      {l.reason ? (
-                        <span className="block text-sm text-muted-foreground">
-                          Reason: {l.reason}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="py-2 text-right">
-                      {l.canEditQuantity ? (
-                        <input
-                          type="number"
-                          min={1}
-                          defaultValue={l.quantity}
-                          className="w-16 rounded border px-2 py-1 text-right text-sm"
-                          onBlur={(e) => {
-                            const next = Number(e.target.value);
-                            if (next === l.quantity) return;
-                            setQuantity.mutate(
-                              { lineId: l.id, quantity: next, clientRequestId: makeRequestId() },
-                              {
-                                onError: (err) => toast.error(folioErrorMessage(err)),
-                              },
-                            );
-                          }}
-                        />
-                      ) : (
-                        l.quantity
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      {formatFolioMoney(l.unitPrice, dto.reservation.currency)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {formatFolioMoney(l.amount, dto.reservation.currency)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {l.canReverse ? (
-                        <button
-                          type="button"
-                          className="text-sm font-medium underline underline-offset-2"
-                          onClick={() => {
-                            setReverseTarget(l);
-                            setReverseReason("");
-                          }}
-                        >
-                          Reverse
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-                {dto.derived.map((d) => (
-                  <tr key={d.key} className="border-t border-border text-muted-foreground">
-                    <td className="py-2">{d.description}</td>
-                    <td className="py-2 text-right">{d.quantity}</td>
-                    <td className="py-2 text-right">
-                      {formatFolioMoney(d.unitPrice, dto.reservation.currency)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {formatFolioMoney(d.amount, dto.reservation.currency)}
-                    </td>
-                    <td />
-                  </tr>
-                ))}
+                {guestRows.map((row) => {
+                  if (row.kind === "derived") {
+                    const l = row.line;
+                    return (
+                      <tr key={row.key} className="border-t border-border text-muted-foreground">
+                        <td className="py-2">{l.description}</td>
+                        <td className="py-2 text-right">{l.quantity}</td>
+                        <td className="py-2 text-right">
+                          {formatFolioMoney(l.unitPrice, dto.reservation.currency)}
+                        </td>
+                        <td className="py-2 text-right">
+                          {formatFolioMoney(l.amount, dto.reservation.currency)}
+                        </td>
+                        <td />
+                      </tr>
+                    );
+                  }
+                  const l = row.line;
+                  return (
+                    <tr key={row.key} className="border-t border-border align-top">
+                      <td className="py-2">
+                        <span>{l.description}</span>
+                        {l.roomLabel ? (
+                          <span className="block text-sm text-muted-foreground">
+                            {l.roomLabel}
+                            {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
+                          </span>
+                        ) : null}
+                        {l.reason ? (
+                          <span className="block text-sm text-muted-foreground">
+                            Reason: {l.reason}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 text-right">
+                        {l.canEditQuantity ? (
+                          <input
+                            type="number"
+                            min={1}
+                            defaultValue={l.quantity}
+                            className="w-16 rounded border px-2 py-1 text-right text-sm"
+                            onBlur={(e) => {
+                              const next = Number(e.target.value);
+                              if (next === l.quantity) return;
+                              setQuantity.mutate(
+                                { lineId: l.id, quantity: next, clientRequestId: makeRequestId() },
+                                {
+                                  onError: (err) => toast.error(folioErrorMessage(err)),
+                                },
+                              );
+                            }}
+                          />
+                        ) : (
+                          l.quantity
+                        )}
+                      </td>
+                      <td className="py-2 text-right">
+                        {formatFolioMoney(l.unitPrice, dto.reservation.currency)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {formatFolioMoney(l.amount, dto.reservation.currency)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {l.canReverse ? (
+                          <button
+                            type="button"
+                            className="text-sm font-medium underline underline-offset-2"
+                            onClick={() => {
+                              setReverseTarget(l);
+                              setReverseReason("");
+                            }}
+                          >
+                            Reverse
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -448,7 +458,8 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
           <DialogHeader>
             <DialogTitle>Reverse this line</DialogTitle>
             <DialogDescription>
-              The line stays on the folio and a matching negative line is added. Nothing is deleted.
+              The correction remains in the audit history. The original and matching reversal are
+              hidden from the guest folio.
             </DialogDescription>
           </DialogHeader>
           <Label htmlFor="reverse-reason">Reason</Label>

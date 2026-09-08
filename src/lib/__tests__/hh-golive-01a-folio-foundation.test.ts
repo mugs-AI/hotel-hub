@@ -290,17 +290,17 @@ describe("correction is reversal-only", () => {
 
   it("excludes reversed lines from the taxable base", () => {
     const net = netByTaxClass([
-      line({ id: "a", subtotalCents: 10000 }),
-      line({ id: "b", subtotalCents: 5000, status: "reversed" }),
+      line({ id: "a", subtotalCents: 10000, status: "reversed" }),
+      line({ id: "b", subtotalCents: 5000 }),
       line({
         id: "c",
-        subtotalCents: -2000,
+        subtotalCents: -10000,
         lineType: "reversal",
         reversesLineId: "a",
         reason: "x",
       }),
     ]);
-    expect(net.get("accommodation")).toBe(8000);
+    expect(net.get("accommodation")).toBe(5000);
   });
 });
 

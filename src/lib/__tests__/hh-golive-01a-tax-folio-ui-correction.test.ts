@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { defaultFinancialSettings } from "../financial-settings";
 import { computeFolio, planMissingRoomNights, type StoredFolioLine } from "../folio";
-import { visibleFolioTotalRows, type FolioViewDTO } from "../folio-view";
+import {
+  guestFacingFolioRows,
+  visibleFolioTotalRows,
+  type FolioLineDTO,
+  type FolioViewDTO,
+} from "../folio-view";
 
 function storedLine(input: Partial<StoredFolioLine>): StoredFolioLine {
   return {
@@ -75,6 +80,27 @@ function folioDto(overrides: Partial<FolioViewDTO["readiness"]> = {}): FolioView
       canManageCharges: false,
     },
     preparationOnly: true,
+  };
+}
+
+function dtoLine(input: Partial<FolioLineDTO>): FolioLineDTO {
+  return {
+    id: input.id ?? "line",
+    lineType: input.lineType ?? "add_on",
+    status: input.status ?? "draft",
+    taxClass: input.taxClass ?? "non_taxable",
+    description: input.description ?? "Charge",
+    quantity: input.quantity ?? 1,
+    unitPrice: input.unitPrice ?? 0,
+    amount: input.amount ?? 0,
+    stayDate: input.stayDate ?? null,
+    roomLabel: input.roomLabel ?? null,
+    reason: input.reason ?? null,
+    reversesLineId: input.reversesLineId ?? null,
+    actorLabel: input.actorLabel ?? null,
+    createdAt: input.createdAt ?? "2026-09-02T00:00:00.000Z",
+    canEditQuantity: input.canEditQuantity ?? false,
+    canReverse: input.canReverse ?? false,
   };
 }
 
@@ -182,6 +208,82 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
         }),
       ).map((row) => row.label),
     ).toEqual(["Charges", "Service Tax", "Tourism Tax", "Perak Local Levy"]);
+  });
+
+  it("hides both sides of a reversal and puts discounts after tax rows", () => {
+    const dto = folioDto();
+    dto.lines = [
+      dtoLine({ id: "discount", lineType: "discount", description: "Discount", amount: -20 }),
+      dtoLine({
+        id: "old-extra",
+        status: "reversed",
+        description: "Old service charge",
+        amount: 30,
+      }),
+      dtoLine({
+        id: "reverse-old-extra",
+        lineType: "reversal",
+        status: "committed",
+        description: "Reversal — Old service charge",
+        amount: -30,
+        reversesLineId: "old-extra",
+      }),
+      dtoLine({ id: "room", lineType: "room_night", description: "Room charge", amount: 900 }),
+      dtoLine({ id: "active-extra", description: "Service charge", amount: 30 }),
+    ];
+    dto.derived = [
+      {
+        key: "service-tax",
+        lineType: "service_tax",
+        description: "Service Tax 8.00%",
+        quantity: 1,
+        unitPrice: 72,
+        amount: 72,
+      },
+    ];
+
+    expect(guestFacingFolioRows(dto).map((row) => row.line.description)).toEqual([
+      "Room charge",
+      "Service charge",
+      "Service Tax 8.00%",
+      "Discount",
+    ]);
+  });
+
+  it("opens Print Folio in a new tab and never waits for N3 checkout verification", () => {
+    const card = readFileSync("src/components/FolioCard.tsx", "utf8");
+    const print = readFileSync("src/routes/reservations.$id_.folio-print.tsx", "utf8");
+    expect(card).toContain('target="_blank"');
+    expect(card).toContain('rel="noopener noreferrer"');
+    expect(print).not.toContain("if (preview.isPending) return");
+    expect(print).toContain("guestFacingFolioRows(dto)");
+  });
+
+  it("keeps a new active charge after a reversed pair in the authoritative total", () => {
+    const result = computeFolio({
+      currency: "MYR",
+      settings: defaultFinancialSettings("tenant"),
+      lines: [
+        storedLine({ id: "old", status: "reversed", subtotalCents: 3_000 }),
+        storedLine({
+          id: "reversal",
+          lineType: "reversal",
+          status: "committed",
+          subtotalCents: -3_000,
+          reversesLineId: "old",
+        }),
+        storedLine({ id: "active", subtotalCents: 3_000 }),
+      ],
+      guestTaxClass: "malaysian_citizen",
+      occupiedRoomNights: 0,
+      tourismTaxCollectedCents: 0,
+      propertyDate: "2026-09-02",
+      unmappedRoomLabels: [],
+      unmappedAddonNames: [],
+    });
+
+    expect(result.totals.chargesCents).toBe(3_000);
+    expect(result.totals.grandTotalCents).toBe(3_000);
   });
 
   it("uses one read-only missing-night projection for screen, print and checkout safety", () => {

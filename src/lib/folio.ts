@@ -181,9 +181,13 @@ export function planMissingRoomNights(
   return out;
 }
 
-/** A line still counts towards totals unless it has been reversed. */
+/**
+ * Only live commercial lines count towards totals. The immutable reversal
+ * record is audit evidence for a line whose status is already `reversed`; it
+ * must not be counted a second time as a negative guest charge.
+ */
 export function isEffectiveLine(line: StoredFolioLine): boolean {
-  return line.status !== "reversed";
+  return line.status !== "reversed" && line.lineType !== "reversal";
 }
 
 /** Net signed subtotal per tax class across all effective stored lines. */

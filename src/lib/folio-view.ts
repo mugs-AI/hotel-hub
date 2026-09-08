@@ -152,6 +152,35 @@ export type GuestFolioRow = {
   amount: number;
 };
 
+export type GuestFacingFolioRow =
+  | { kind: "line"; key: string; line: FolioLineDTO }
+  | { kind: "derived"; key: string; line: FolioDerivedLineDTO };
+
+/**
+ * Guest statements show only live commercial activity. Reversed originals
+ * and their immutable negative audit records are both hidden, while the raw
+ * DTO remains untouched for the reservation timeline/audit trail. Discounts
+ * are deliberately placed after derived taxes and levies as the final detail
+ * rows before totals.
+ */
+export function guestFacingFolioRows(dto: FolioViewDTO): GuestFacingFolioRow[] {
+  const reversedTargetIds = new Set(
+    dto.lines.flatMap((line) => (line.reversesLineId ? [line.reversesLineId] : [])),
+  );
+  const visible = dto.lines.filter(
+    (line) =>
+      line.lineType !== "reversal" && line.status !== "reversed" && !reversedTargetIds.has(line.id),
+  );
+  const discounts = visible.filter((line) => line.lineType === "discount");
+  const charges = visible.filter((line) => line.lineType !== "discount");
+
+  return [
+    ...charges.map((line) => ({ kind: "line" as const, key: `line:${line.id}`, line })),
+    ...dto.derived.map((line) => ({ kind: "derived" as const, key: `derived:${line.key}`, line })),
+    ...discounts.map((line) => ({ kind: "line" as const, key: `line:${line.id}`, line })),
+  ];
+}
+
 export type GuestFolioDocument = {
   bookingReference: string;
   guestName: string | null;
@@ -168,30 +197,29 @@ export type GuestFolioDocument = {
 /**
  * Strip every internal artefact from the folio before showing it to a guest:
  * no row ids, no statuses, no blockers, no actor names, no reversal links and
- * no reversed lines. Reversals themselves stay visible as negative rows so the
- * printed total always reconciles with the server total.
+ * no reversed lines. Both sides of a reversal pair remain in audit history but
+ * are omitted from the guest document.
  */
 export function toGuestFolioDocument(dto: FolioViewDTO): GuestFolioDocument {
-  const rows: GuestFolioRow[] = [];
-  for (const line of dto.lines) {
-    if (line.status === "reversed") continue;
-    rows.push({
+  const rows: GuestFolioRow[] = guestFacingFolioRows(dto).map((row) => {
+    if (row.kind === "derived") {
+      return {
+        description: row.line.description,
+        quantity: row.line.quantity,
+        unitPrice: row.line.unitPrice,
+        amount: row.line.amount,
+      };
+    }
+    const line = row.line;
+    return {
       description: line.roomLabel
         ? `${line.description} — ${line.roomLabel}${line.stayDate ? ` (${line.stayDate})` : ""}`
         : line.description,
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       amount: line.amount,
-    });
-  }
-  for (const d of dto.derived) {
-    rows.push({
-      description: d.description,
-      quantity: d.quantity,
-      unitPrice: d.unitPrice,
-      amount: d.amount,
-    });
-  }
+    };
+  });
   return {
     bookingReference: dto.reservation.bookingReference,
     guestName: dto.reservation.primaryGuestName,

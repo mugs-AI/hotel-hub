@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
-import { formatFolioMoney, visibleFolioTotalRows } from "@/lib/folio-view";
+import { formatFolioMoney, guestFacingFolioRows, visibleFolioTotalRows } from "@/lib/folio-view";
 import { useCheckoutPreview } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 
@@ -37,12 +37,11 @@ function FolioPrintPage() {
   const preview = useCheckoutPreview(canView ? id : undefined);
 
   useEffect(() => {
-    if (preview.isPending) return;
     if (query.data && typeof window !== "undefined") {
       const t = window.setTimeout(() => window.print(), 300);
       return () => window.clearTimeout(t);
     }
-  }, [query.data, preview.isPending]);
+  }, [query.data]);
 
   if (data?.authenticated !== true) return null;
   if (!canView) {
@@ -62,6 +61,7 @@ function FolioPrintPage() {
   const dto = query.data;
   const currency = dto.reservation.currency;
   const settlement = preview.data ?? null;
+  const guestRows = guestFacingFolioRows(dto);
 
   return (
     <div className="print-root">
@@ -135,32 +135,36 @@ function FolioPrintPage() {
             </tr>
           </thead>
           <tbody>
-            {dto.lines.map((l) => (
-              <tr key={l.id}>
-                <td>
-                  <span style={l.status === "reversed" ? { textDecoration: "line-through" } : {}}>
-                    {l.description}
-                  </span>
-                  {l.roomLabel ? (
-                    <span style={{ display: "block", color: "#4a5568" }}>
-                      {l.roomLabel}
-                      {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="num">{l.quantity}</td>
-                <td className="num">{formatFolioMoney(l.unitPrice, currency)}</td>
-                <td className="num">{formatFolioMoney(l.amount, currency)}</td>
-              </tr>
-            ))}
-            {dto.derived.map((d) => (
-              <tr key={d.key}>
-                <td>{d.description}</td>
-                <td className="num">{d.quantity}</td>
-                <td className="num">{formatFolioMoney(d.unitPrice, currency)}</td>
-                <td className="num">{formatFolioMoney(d.amount, currency)}</td>
-              </tr>
-            ))}
+            {guestRows.map((row) => {
+              if (row.kind === "derived") {
+                const d = row.line;
+                return (
+                  <tr key={row.key}>
+                    <td>{d.description}</td>
+                    <td className="num">{d.quantity}</td>
+                    <td className="num">{formatFolioMoney(d.unitPrice, currency)}</td>
+                    <td className="num">{formatFolioMoney(d.amount, currency)}</td>
+                  </tr>
+                );
+              }
+              const l = row.line;
+              return (
+                <tr key={row.key}>
+                  <td>
+                    <span>{l.description}</span>
+                    {l.roomLabel ? (
+                      <span style={{ display: "block", color: "#4a5568" }}>
+                        {l.roomLabel}
+                        {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="num">{l.quantity}</td>
+                  <td className="num">{formatFolioMoney(l.unitPrice, currency)}</td>
+                  <td className="num">{formatFolioMoney(l.amount, currency)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
