@@ -27,7 +27,9 @@ import {
   useUpdateFolioQuantity,
 } from "@/lib/folio-client";
 import {
+  folioExtraAccent,
   formatFolioMoney,
+  formatFolioTaxRate,
   guestFacingFolioRows,
   visibleFolioTotalRows,
   type FolioLineDTO,
@@ -173,10 +175,11 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
           ) : null}
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="text-left uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="py-2">Description</th>
+                  <th className="py-2 text-right">Tax %</th>
                   <th className="py-2 text-right">Qty</th>
                   <th className="py-2 text-right">Unit</th>
                   <th className="py-2 text-right">Amount</th>
@@ -190,6 +193,9 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                     return (
                       <tr key={row.key} className="border-t border-border text-muted-foreground">
                         <td className="py-2">{l.description}</td>
+                        <td className="py-2 text-right tabular-nums">
+                          {formatFolioTaxRate(l.taxRateBp)}
+                        </td>
                         <td className="py-2 text-right">{l.quantity}</td>
                         <td className="py-2 text-right">
                           {formatFolioMoney(l.unitPrice, dto.reservation.currency)}
@@ -202,9 +208,20 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                     );
                   }
                   const l = row.line;
+                  const accent =
+                    l.lineType === "add_on" && l.catalogueId
+                      ? folioExtraAccent(l.catalogueId)
+                      : null;
                   return (
-                    <tr key={row.key} className="border-t border-border align-top">
-                      <td className="py-2">
+                    <tr
+                      key={row.key}
+                      className="border-t border-border align-top"
+                      style={accent ? { backgroundColor: accent.surface } : undefined}
+                    >
+                      <td
+                        className={accent ? "py-2 pl-2" : "py-2"}
+                        style={accent ? { borderLeft: `3px solid ${accent.border}` } : undefined}
+                      >
                         <span>{l.description}</span>
                         {l.roomLabel ? (
                           <span className="block text-sm text-muted-foreground">
@@ -217,6 +234,9 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                             Reason: {l.reason}
                           </span>
                         ) : null}
+                      </td>
+                      <td className="py-2 text-right tabular-nums">
+                        {formatFolioTaxRate(l.taxRateBp)}
                       </td>
                       <td className="py-2 text-right">
                         {l.canEditQuantity ? (
@@ -420,27 +440,36 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 Add an extra
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {dto.catalogue.map((c) => (
-                  <Button
-                    key={c.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      addItem.mutate(
-                        {
-                          catalogueId: c.id,
-                          quantity: 1,
-                          clientRequestId: makeRequestId(),
-                        },
-                        { onError: (err) => toast.error(folioErrorMessage(err)) },
-                      )
-                    }
-                  >
-                    {c.displayName} ·{" "}
-                    {formatFolioMoney(c.defaultUnitPrice, dto.reservation.currency)}
-                  </Button>
-                ))}
+                {dto.catalogue.map((c) => {
+                  const accent = folioExtraAccent(c.id);
+                  return (
+                    <Button
+                      key={c.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      style={{
+                        backgroundColor: accent.surface,
+                        borderColor: accent.border,
+                        color: accent.text,
+                        boxShadow: `inset 3px 0 0 ${accent.border}`,
+                      }}
+                      onClick={() =>
+                        addItem.mutate(
+                          {
+                            catalogueId: c.id,
+                            quantity: 1,
+                            clientRequestId: makeRequestId(),
+                          },
+                          { onError: (err) => toast.error(folioErrorMessage(err)) },
+                        )
+                      }
+                    >
+                      {c.displayName} ·{" "}
+                      {formatFolioMoney(c.defaultUnitPrice, dto.reservation.currency)}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           ) : null}

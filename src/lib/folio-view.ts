@@ -9,10 +9,13 @@ import type { FolioReadiness } from "./folio-readiness";
 
 export type FolioLineDTO = {
   id: string;
+  catalogueId: string | null;
   lineType: FolioLineType;
   status: FolioLineStatus;
   taxClass: TaxClass | null;
   description: string;
+  /** Applicable Service Tax rate from the authoritative server settings. */
+  taxRateBp: number | null;
   quantity: number;
   unitPrice: number;
   amount: number;
@@ -31,6 +34,8 @@ export type FolioDerivedLineDTO = {
   key: string;
   lineType: FolioLineType;
   description: string;
+  /** Percentage represented by this tax line; null for fixed-amount levies. */
+  taxRateBp: number | null;
   quantity: number;
   unitPrice: number;
   amount: number;
@@ -63,6 +68,37 @@ export type FolioCatalogueOptionDTO = {
   taxClass: TaxClass;
   defaultUnitPrice: number;
 };
+
+export type FolioExtraAccent = {
+  surface: string;
+  border: string;
+  text: string;
+};
+
+const FOLIO_EXTRA_ACCENTS: readonly FolioExtraAccent[] = [
+  { surface: "#ECFDF8", border: "#5BC4B4", text: "#155E54" },
+  { surface: "#EFF6FF", border: "#7DA8E8", text: "#294E86" },
+  { surface: "#F5F3FF", border: "#A99AE8", text: "#594795" },
+  { surface: "#FFF7E8", border: "#E8B968", text: "#76501B" },
+  { surface: "#FFF1F2", border: "#E7A0A8", text: "#8A3C49" },
+  { surface: "#F0FDF4", border: "#78C58C", text: "#28613A" },
+] as const;
+
+/** Stable, accessible colour identity shared by an extra's button and folio row. */
+export function folioExtraAccent(catalogueId: string): FolioExtraAccent {
+  let hash = 0;
+  for (let index = 0; index < catalogueId.length; index += 1) {
+    hash = (hash * 31 + catalogueId.charCodeAt(index)) >>> 0;
+  }
+  return FOLIO_EXTRA_ACCENTS[hash % FOLIO_EXTRA_ACCENTS.length];
+}
+
+/** Basis points are hundredths of one percent: 1,000bp displays as 10%, never 0.1%. */
+export function formatFolioTaxRate(rateBp: number | null): string {
+  if (rateBp === null) return "—";
+  const percent = rateBp / 100;
+  return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(2)}%`;
+}
 
 export type FolioCapabilityDTO = {
   canView: boolean;

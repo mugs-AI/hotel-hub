@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { defaultFinancialSettings } from "../financial-settings";
 import { computeFolio, planMissingRoomNights, type StoredFolioLine } from "../folio";
 import {
+  folioExtraAccent,
+  formatFolioTaxRate,
   guestFacingFolioRows,
   visibleFolioTotalRows,
   type FolioLineDTO,
@@ -86,10 +88,12 @@ function folioDto(overrides: Partial<FolioViewDTO["readiness"]> = {}): FolioView
 function dtoLine(input: Partial<FolioLineDTO>): FolioLineDTO {
   return {
     id: input.id ?? "line",
+    catalogueId: input.catalogueId ?? null,
     lineType: input.lineType ?? "add_on",
     status: input.status ?? "draft",
     taxClass: input.taxClass ?? "non_taxable",
     description: input.description ?? "Charge",
+    taxRateBp: input.taxRateBp ?? null,
     quantity: input.quantity ?? 1,
     unitPrice: input.unitPrice ?? 0,
     amount: input.amount ?? 0,
@@ -236,6 +240,7 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
         key: "service-tax",
         lineType: "service_tax",
         description: "Service Tax 8.00%",
+        taxRateBp: 800,
         quantity: 1,
         unitPrice: 72,
         amount: 72,
@@ -248,6 +253,22 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
       "Service Tax 8.00%",
       "Discount",
     ]);
+  });
+
+  it("uses one stable extra colour and displays basis-point tax rates at the correct scale", () => {
+    expect(folioExtraAccent("catalogue-room-service")).toEqual(
+      folioExtraAccent("catalogue-room-service"),
+    );
+    expect(formatFolioTaxRate(1_000)).toBe("10%");
+    expect(formatFolioTaxRate(825)).toBe("8.25%");
+    expect(formatFolioTaxRate(null)).toBe("—");
+
+    const card = readFileSync("src/components/FolioCard.tsx", "utf8");
+    const print = readFileSync("src/routes/reservations.$id_.folio-print.tsx", "utf8");
+    expect(card).toContain("folioExtraAccent(c.id)");
+    expect(card).toContain("formatFolioTaxRate(l.taxRateBp)");
+    expect(print).toContain("folioExtraAccent(l.catalogueId)");
+    expect(print).toContain(">Tax %</th>");
   });
 
   it("opens Print Folio in a new tab and never waits for N3 checkout verification", () => {

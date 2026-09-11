@@ -8,7 +8,13 @@ import { useEffect } from "react";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
-import { formatFolioMoney, guestFacingFolioRows, visibleFolioTotalRows } from "@/lib/folio-view";
+import {
+  folioExtraAccent,
+  formatFolioMoney,
+  formatFolioTaxRate,
+  guestFacingFolioRows,
+  visibleFolioTotalRows,
+} from "@/lib/folio-view";
 import { useCheckoutPreview } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 
@@ -89,6 +95,8 @@ function FolioPrintPage() {
         th { text-align: left; font-size: 11px; text-transform: uppercase; color: #4a5568;
              border-bottom: 1px solid #102A43; padding: 4px 0; }
         td { padding: 4px 0; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+        tr.extra-row { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+        tr.extra-row td:first-child { padding-left: 6px; }
         td.num, th.num { text-align: right; }
         .totals { margin-top: 10px; margin-left: auto; width: 70mm; }
         .totals dl { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 0; }
@@ -129,6 +137,7 @@ function FolioPrintPage() {
           <thead>
             <tr>
               <th>Description</th>
+              <th className="num">Tax %</th>
               <th className="num">Qty</th>
               <th className="num">Unit</th>
               <th className="num">Amount</th>
@@ -141,6 +150,7 @@ function FolioPrintPage() {
                 return (
                   <tr key={row.key}>
                     <td>{d.description}</td>
+                    <td className="num">{formatFolioTaxRate(d.taxRateBp)}</td>
                     <td className="num">{d.quantity}</td>
                     <td className="num">{formatFolioMoney(d.unitPrice, currency)}</td>
                     <td className="num">{formatFolioMoney(d.amount, currency)}</td>
@@ -148,10 +158,24 @@ function FolioPrintPage() {
                 );
               }
               const l = row.line;
+              const accent =
+                l.lineType === "add_on" && l.catalogueId ? folioExtraAccent(l.catalogueId) : null;
               return (
-                <tr key={row.key}>
+                <tr
+                  key={row.key}
+                  className={accent ? "extra-row" : undefined}
+                  style={accent ? { backgroundColor: accent.surface } : undefined}
+                >
                   <td>
-                    <span>{l.description}</span>
+                    <span
+                      style={
+                        accent
+                          ? { borderLeft: `3px solid ${accent.border}`, paddingLeft: 5 }
+                          : undefined
+                      }
+                    >
+                      {l.description}
+                    </span>
                     {l.roomLabel ? (
                       <span style={{ display: "block", color: "#4a5568" }}>
                         {l.roomLabel}
@@ -159,6 +183,7 @@ function FolioPrintPage() {
                       </span>
                     ) : null}
                   </td>
+                  <td className="num">{formatFolioTaxRate(l.taxRateBp)}</td>
                   <td className="num">{l.quantity}</td>
                   <td className="num">{formatFolioMoney(l.unitPrice, currency)}</td>
                   <td className="num">{formatFolioMoney(l.amount, currency)}</td>

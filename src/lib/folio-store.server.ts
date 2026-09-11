@@ -34,6 +34,7 @@ import {
 import {
   applySettingsPatch,
   defaultFinancialSettings,
+  resolveServiceTaxRate,
   settingsWindowError,
   validateSettingsPatch,
   type FinancialSettings,
@@ -1798,13 +1799,22 @@ export async function buildFolioView(
   const reversedTargets = new Set(
     decorated.filter((l) => l.reversesLineId).map((l) => l.reversesLineId as string),
   );
+  const catalogueIdByLineId = new Map(rows.map((row) => [row.id, row.catalogue_id]));
+
+  const serviceTaxRateFor = (taxClass: TaxClass | null): number | null => {
+    if (!taxClass) return null;
+    const rate = resolveServiceTaxRate(settings, taxClass);
+    return rate.ok && rate.source === "configured" ? rate.rateBp : null;
+  };
 
   const lineDTOs: FolioLineDTO[] = decorated.map((l) => ({
     id: l.id,
+    catalogueId: catalogueIdByLineId.get(l.id) ?? null,
     lineType: l.lineType,
     status: l.status,
     taxClass: l.taxClass,
     description: l.description,
+    taxRateBp: serviceTaxRateFor(l.taxClass),
     quantity: l.quantity,
     unitPrice: centsToAmount(l.unitPriceCents),
     amount: centsToAmount(l.subtotalCents),
@@ -1827,6 +1837,12 @@ export async function buildFolioView(
     key: d.key,
     lineType: d.lineType,
     description: d.description,
+    taxRateBp:
+      d.lineType === "service_tax"
+        ? serviceTaxRateFor(d.taxClass)
+        : d.lineType === "service_charge" && settings.serviceCharge.serviceTaxApplies
+          ? serviceTaxRateFor(d.taxClass)
+          : null,
     quantity: d.quantity,
     unitPrice: centsToAmount(d.unitPriceCents),
     amount: centsToAmount(d.amountCents),
