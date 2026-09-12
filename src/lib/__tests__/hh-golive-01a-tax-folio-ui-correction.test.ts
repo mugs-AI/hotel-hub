@@ -277,6 +277,12 @@ describe("HH-GOLIVE-01A Malaysia tax, folio and reservation UI correction", () =
     expect(card).toContain('target="_blank"');
     expect(card).toContain('rel="noopener noreferrer"');
     expect(print).not.toContain("if (preview.isPending) return");
+    expect(print).toContain(
+      "useCheckoutPreview(includeVerifiedSettlement && canView ? id : undefined)",
+    );
+    expect(print).not.toContain("useCheckoutPreview(canView ? id : undefined)");
+    expect(print).toContain("requestAnimationFrame(() => window.print())");
+    expect(print).toContain("Load verified deposit balance");
     expect(print).toContain("guestFacingFolioRows(dto)");
   });
 

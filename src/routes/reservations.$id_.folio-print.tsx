@@ -4,7 +4,7 @@
 // not compute a single financial figure here. Nothing is posted to accounting:
 // this is a guest-facing statement of the prepared folio, not an invoice.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
@@ -31,6 +31,8 @@ export const Route = createFileRoute("/reservations/$id_/folio-print")({
 
 function FolioPrintPage() {
   const { id } = Route.useParams();
+  const [includeVerifiedSettlement, setIncludeVerifiedSettlement] = useState(false);
+  const hasAutoPrinted = useRef(false);
   const session = useSessionMe();
   const data = session.data;
   const role = data && data.authenticated === true ? data.role : null;
@@ -38,15 +40,24 @@ function FolioPrintPage() {
   const companyName =
     data?.authenticated === true ? (data.tenant.companyName ?? data.tenant.tenantCode ?? "") : "";
   const query = useReservationFolio(id, canView);
-  // Deposits and the settlement balance are NEVER computed here: they come
-  // from the server checkout preview, which verifies each deposit in N3.
-  const preview = useCheckoutPreview(canView ? id : undefined);
+  // The default guest-folio print must stay independent of live N3 receipt
+  // verification. A reservation can have up to 20 deposits and each N3 read
+  // has a 20-second timeout, so starting that work while Chrome is building
+  // its print preview can hold "Preparing Preview" open for 90–120 seconds.
+  // Staff may explicitly load the verified settlement after the fast initial
+  // print; its money values still come only from the authoritative server DTO.
+  const preview = useCheckoutPreview(includeVerifiedSettlement && canView ? id : undefined);
 
   useEffect(() => {
-    if (query.data && typeof window !== "undefined") {
-      const t = window.setTimeout(() => window.print(), 300);
-      return () => window.clearTimeout(t);
-    }
+    if (!query.data || typeof window === "undefined" || hasAutoPrinted.current) return;
+    hasAutoPrinted.current = true;
+
+    // Two animation frames allow the committed A4 layout to paint without a
+    // fixed delay. No N3 request is running on this default path.
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => window.print());
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [query.data]);
 
   if (data?.authenticated !== true) return null;
@@ -66,7 +77,7 @@ function FolioPrintPage() {
 
   const dto = query.data;
   const currency = dto.reservation.currency;
-  const settlement = preview.data ?? null;
+  const settlement = includeVerifiedSettlement ? (preview.data ?? null) : null;
   const guestRows = guestFacingFolioRows(dto);
 
   return (
@@ -106,17 +117,30 @@ function FolioPrintPage() {
         .note { margin-top: 14px; font-size: 11px; color: #4a5568; }
       `}</style>
 
-      <div className="no-print mx-auto mb-4 flex max-w-3xl items-center justify-between text-sm">
+      <div className="no-print mx-auto mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 text-sm">
         <Link to="/reservations/$id" params={{ id }} className="text-blue-700 underline">
           ← Back to reservation
         </Link>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
-        >
-          Print again
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!includeVerifiedSettlement ? (
+            <button
+              type="button"
+              onClick={() => setIncludeVerifiedSettlement(true)}
+              className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
+            >
+              Load verified deposit balance
+            </button>
+          ) : preview.isPending ? (
+            <span className="text-xs text-slate-600">Verifying deposits in N3…</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-md border bg-white px-3 py-1.5 text-xs font-medium"
+          >
+            Print again
+          </button>
+        </div>
       </div>
 
       <section className="a4-page">
