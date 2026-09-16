@@ -3,7 +3,7 @@
 // Covers: Malaysian date handling, arbitrary-identifier rejection, snapshot
 // immutability/verification reset, fail-closed future-posting readiness,
 // unproven N3 contracts, and the source contracts of the corrected UI and the
-// staged migration.
+// canonical additive migration.
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -238,7 +238,7 @@ const panel = readFileSync("src/components/ChargesTaxesPanel.tsx", "utf8");
 const selectorRoute = readFileSync("src/routes/api/n3/selectors.$kind.ts", "utf8");
 const selectorServer = readFileSync("src/lib/n3-selectors.server.ts", "utf8");
 const migration = readFileSync(
-  "db/migrations-pending/20260904120000_hh_golive_01a_posting_mappings.sql",
+  "supabase/migrations/20260916120000_hh_golive_01c_posting_mappings_parity.sql",
   "utf8",
 );
 
@@ -282,12 +282,12 @@ describe("Charges & Taxes source contract", () => {
   });
 });
 
-describe("staged migration hygiene", () => {
-  it("is additive, idempotent and carries a rollback inventory", () => {
-    expect(migration).toContain("ADD COLUMN IF NOT EXISTS posting_mappings");
-    expect(migration).toMatch(/ROLLBACK INVENTORY/);
-    expect(migration).toMatch(/DROP COLUMN IF EXISTS posting_mappings/);
+describe("posting-mappings parity migration hygiene", () => {
+  it("is additive, idempotent and documents safe rollback considerations", () => {
+    expect(migration).toMatch(/ADD COLUMN IF NOT EXISTS posting_mappings/i);
+    expect(migration).toMatch(/Rollback consideration/i);
     expect(migration).not.toMatch(/DROP TABLE|TRUNCATE|ALTER COLUMN .* TYPE|DELETE FROM/i);
+    expect(migration).not.toMatch(/DROP COLUMN/i);
   });
 
   it("grants no browser access", () => {

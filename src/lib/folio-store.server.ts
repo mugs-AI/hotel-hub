@@ -378,14 +378,8 @@ type SettingsRow = {
   rounding_mode: string;
   n3_rounding_account_id: string | null;
   n3_rounding_account_snapshot: string | null;
-  /**
-   * HH-GOLIVE-01A UAT correction. Supplied by the STAGED migration under
-   * db/migrations-pending, which is intentionally NOT applied in this
-   * milestone. Until it is, the column is absent and this stays undefined —
-   * the model then falls back to unmapped defaults and readiness stays
-   * blocked, which is the correct fail-closed behaviour.
-   */
-  posting_mappings?: unknown;
+  /** HH-GOLIVE-01C: nullable JSONB recorded by the canonical migration. */
+  posting_mappings: unknown | null;
   updated_at: string | null;
 };
 
@@ -486,7 +480,7 @@ function settingsToRow(s: FinancialSettings): Record<string, unknown> {
   };
 }
 
-/** True when the write failed only because the staged column is not applied. */
+/** True when the write failed only because the parity migration is not applied. */
 function isMissingPostingMappingsColumn(error: unknown): boolean {
   const message =
     typeof error === "object" && error !== null && "message" in error
@@ -567,9 +561,9 @@ export async function patchFinancialSettings(
   let result = await write(row);
   if (result.error && isMissingPostingMappingsColumn(result.error)) {
     if (patch.postingMappings) {
-      // The request carries posting mappings but the staged migration has not
-      // been applied. Fail loudly and atomically — never report success while
-      // silently discarding the Owner's mapping.
+      // The request carries posting mappings but the parity migration has not
+      // been applied in this environment. Fail loudly and atomically — never
+      // report success while silently discarding the Owner's mapping.
       throw new FolioError("posting_mappings_storage_unavailable", 503);
     }
     // Tax-only save: persist everything else; mappings simply stay unstored so

@@ -128,6 +128,128 @@ export type Database = {
           },
         ]
       }
+      hotel_financial_settings: {
+        Row: {
+          created_at: string
+          local_levy_cents_per_room_night: number
+          local_levy_effective_from: string | null
+          local_levy_effective_to: string | null
+          local_levy_enabled: boolean
+          local_levy_label: string | null
+          n3_rounding_account_id: string | null
+          n3_rounding_account_snapshot: string | null
+          n3_tax_code_accommodation_id: string | null
+          n3_tax_code_accommodation_snapshot: string | null
+          n3_tax_code_exempt_id: string | null
+          n3_tax_code_exempt_snapshot: string | null
+          n3_tax_code_fnb_id: string | null
+          n3_tax_code_fnb_snapshot: string | null
+          n3_tax_code_other_id: string | null
+          n3_tax_code_other_snapshot: string | null
+          n3_tax_code_parking_id: string | null
+          n3_tax_code_parking_snapshot: string | null
+          posting_mappings: Json | null
+          rounding_mode: string
+          service_charge_enabled: boolean
+          service_charge_percent_bp: number
+          service_charge_service_tax_applies: boolean
+          service_tax_accommodation_rate_bp: number | null
+          service_tax_fnb_rate_bp: number | null
+          service_tax_other_rate_bp: number | null
+          service_tax_parking_rate_bp: number | null
+          service_tax_registered: boolean
+          tenant_id: string
+          tourism_tax_cents_per_room_night: number
+          tourism_tax_effective_from: string | null
+          tourism_tax_effective_to: string | null
+          tourism_tax_enabled: boolean
+          updated_at: string
+          updated_by_n3_user_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          local_levy_cents_per_room_night?: number
+          local_levy_effective_from?: string | null
+          local_levy_effective_to?: string | null
+          local_levy_enabled?: boolean
+          local_levy_label?: string | null
+          n3_rounding_account_id?: string | null
+          n3_rounding_account_snapshot?: string | null
+          n3_tax_code_accommodation_id?: string | null
+          n3_tax_code_accommodation_snapshot?: string | null
+          n3_tax_code_exempt_id?: string | null
+          n3_tax_code_exempt_snapshot?: string | null
+          n3_tax_code_fnb_id?: string | null
+          n3_tax_code_fnb_snapshot?: string | null
+          n3_tax_code_other_id?: string | null
+          n3_tax_code_other_snapshot?: string | null
+          n3_tax_code_parking_id?: string | null
+          n3_tax_code_parking_snapshot?: string | null
+          posting_mappings?: Json | null
+          rounding_mode?: string
+          service_charge_enabled?: boolean
+          service_charge_percent_bp?: number
+          service_charge_service_tax_applies?: boolean
+          service_tax_accommodation_rate_bp?: number | null
+          service_tax_fnb_rate_bp?: number | null
+          service_tax_other_rate_bp?: number | null
+          service_tax_parking_rate_bp?: number | null
+          service_tax_registered?: boolean
+          tenant_id: string
+          tourism_tax_cents_per_room_night?: number
+          tourism_tax_effective_from?: string | null
+          tourism_tax_effective_to?: string | null
+          tourism_tax_enabled?: boolean
+          updated_at?: string
+          updated_by_n3_user_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          local_levy_cents_per_room_night?: number
+          local_levy_effective_from?: string | null
+          local_levy_effective_to?: string | null
+          local_levy_enabled?: boolean
+          local_levy_label?: string | null
+          n3_rounding_account_id?: string | null
+          n3_rounding_account_snapshot?: string | null
+          n3_tax_code_accommodation_id?: string | null
+          n3_tax_code_accommodation_snapshot?: string | null
+          n3_tax_code_exempt_id?: string | null
+          n3_tax_code_exempt_snapshot?: string | null
+          n3_tax_code_fnb_id?: string | null
+          n3_tax_code_fnb_snapshot?: string | null
+          n3_tax_code_other_id?: string | null
+          n3_tax_code_other_snapshot?: string | null
+          n3_tax_code_parking_id?: string | null
+          n3_tax_code_parking_snapshot?: string | null
+          posting_mappings?: Json | null
+          rounding_mode?: string
+          service_charge_enabled?: boolean
+          service_charge_percent_bp?: number
+          service_charge_service_tax_applies?: boolean
+          service_tax_accommodation_rate_bp?: number | null
+          service_tax_fnb_rate_bp?: number | null
+          service_tax_other_rate_bp?: number | null
+          service_tax_parking_rate_bp?: number | null
+          service_tax_registered?: boolean
+          tenant_id?: string
+          tourism_tax_cents_per_room_night?: number
+          tourism_tax_effective_from?: string | null
+          tourism_tax_effective_to?: string | null
+          tourism_tax_enabled?: boolean
+          updated_at?: string
+          updated_by_n3_user_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_financial_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_guests: {
         Row: {
           address_line_1: string | null
