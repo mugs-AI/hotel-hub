@@ -93,6 +93,31 @@ export function folioExtraAccent(catalogueId: string): FolioExtraAccent {
   return FOLIO_EXTRA_ACCENTS[hash % FOLIO_EXTRA_ACCENTS.length];
 }
 
+/**
+ * Assign a distinct colour to every extra in one folio/catalogue view. The
+ * sorted identity list makes the assignment deterministic, while generated
+ * hues extend the six hand-tuned colours without wrapping back to a duplicate.
+ */
+export function folioExtraAccentMap(
+  catalogueIds: readonly (string | null | undefined)[],
+): ReadonlyMap<string, FolioExtraAccent> {
+  const ids = [...new Set(catalogueIds.filter((id): id is string => Boolean(id)))].sort();
+  const accents = new Map<string, FolioExtraAccent>();
+  ids.forEach((id, index) => {
+    if (index < FOLIO_EXTRA_ACCENTS.length) {
+      accents.set(id, FOLIO_EXTRA_ACCENTS[index]);
+      return;
+    }
+    const hue = Math.round(((index - FOLIO_EXTRA_ACCENTS.length) * 137.508 + 24) % 360);
+    accents.set(id, {
+      surface: `hsl(${hue} 70% 96%)`,
+      border: `hsl(${hue} 48% 58%)`,
+      text: `hsl(${hue} 58% 27%)`,
+    });
+  });
+  return accents;
+}
+
 /** Basis points are hundredths of one percent: 1,000bp displays as 10%, never 0.1%. */
 export function formatFolioTaxRate(rateBp: number | null): string {
   if (rateBp === null) return "—";

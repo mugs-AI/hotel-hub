@@ -48,6 +48,8 @@ export const OPERATION_ERROR_CODES = new Set([
   "early_check_in_required",
   "operation_pending",
   "operation_stale",
+  "check_in_failed",
+  "direct_operation_unavailable",
   "room_unavailable",
   "room_capacity_exceeded",
   "room_not_found",
@@ -568,9 +570,7 @@ export async function housekeepingCheckInBlocker(
  * three-way outcome below instead.
  */
 export type ReadOutcome<T> =
-  | { status: "ok"; value: T }
-  | { status: "missing" }
-  | { status: "error" };
+  { status: "ok"; value: T } | { status: "missing" } | { status: "error" };
 
 export type HandoffOperationDetail = {
   operationType: string;
@@ -658,6 +658,8 @@ export async function checkInReservation(input: {
   actorN3UserKey: string;
   expectedUpdatedAt: string | null;
   clientRequestId?: string | null;
+  /** True only for the authorised Early check-in action. */
+  allowEarly?: boolean;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
   // Housekeeping gate runs BEFORE the check-in RPC so a blocked attempt never
   // half-applies: nothing is written when a room is not verified clean.
@@ -670,7 +672,7 @@ export async function checkInReservation(input: {
     p_reservation_id: input.reservationId,
     p_actor_n3_user_key: input.actorN3UserKey,
     p_expected_updated_at: input.expectedUpdatedAt,
-    p_allow_early: false,
+    p_allow_early: input.allowEarly === true,
     p_operation_request_id: null,
     p_client_request_id: input.clientRequestId ?? null,
   });
@@ -740,7 +742,16 @@ export async function applyDirectOperation(input: {
     p_payload: input.payload,
     p_idempotency_key: input.idempotencyKey,
   });
-  if (res.error) throw mapRpcError(res.error.message, "operation_request_failed");
+  if (res.error) {
+    const message = String(res.error.message ?? "");
+    if (
+      /hotelhub_direct_operation_v2/i.test(message) &&
+      /(does not exist|not found|schema cache|undefined function)/i.test(message)
+    ) {
+      throw new OperationError("direct_operation_unavailable");
+    }
+    throw mapRpcError(message, "operation_request_failed");
+  }
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("operation_request_failed");
   return {

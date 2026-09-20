@@ -10,6 +10,7 @@ import { hasPermission } from "@/lib/rbac";
 import { folioErrorMessage, useReservationFolio } from "@/lib/folio-client";
 import {
   folioExtraAccent,
+  folioExtraAccentMap,
   formatFolioMoney,
   formatFolioTaxRate,
   guestFacingFolioRows,
@@ -79,6 +80,10 @@ function FolioPrintPage() {
   const currency = dto.reservation.currency;
   const settlement = includeVerifiedSettlement ? (preview.data ?? null) : null;
   const guestRows = guestFacingFolioRows(dto);
+  const extraAccents = folioExtraAccentMap([
+    ...dto.catalogue.map((item) => item.id),
+    ...dto.lines.map((line) => line.catalogueId),
+  ]);
 
   return (
     <div className="print-root">
@@ -183,7 +188,9 @@ function FolioPrintPage() {
               }
               const l = row.line;
               const accent =
-                l.lineType === "add_on" && l.catalogueId ? folioExtraAccent(l.catalogueId) : null;
+                l.lineType === "add_on" && l.catalogueId
+                  ? (extraAccents.get(l.catalogueId) ?? folioExtraAccent(l.catalogueId))
+                  : null;
               return (
                 <tr
                   key={row.key}

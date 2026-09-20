@@ -1069,7 +1069,7 @@ function TaxSettingsForm({
                 <N3SelectorField
                   kind="gl_account"
                   label="N3 rounding account"
-                  value={{ code: roundingAccount.text, name: null }}
+                  value={{ id: roundingAccount.id, code: roundingAccount.text, name: null }}
                   disabled={disabled}
                   onSelect={(row) => setRoundingAccount({ id: row.id, text: snapshotText(row) })}
                   onClear={() => setRoundingAccount({ id: null, text: null })}

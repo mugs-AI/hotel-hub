@@ -38,10 +38,7 @@ export type TaxMapping = {
 };
 
 export type TaxableClass =
-  | "accommodation"
-  | "food_and_beverage"
-  | "parking"
-  | "other_taxable_service";
+  "accommodation" | "food_and_beverage" | "parking" | "other_taxable_service";
 
 export type FinancialSettings = {
   tenantId: string;
@@ -200,6 +197,35 @@ export function serviceTaxKeyFor(taxClass: TaxClass): TaxableClass | null {
     default:
       return null;
   }
+}
+
+function sameConfiguredN3Id(left: string | null, right: string | null): boolean {
+  if (!left || !right) return false;
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+/**
+ * Resolve a discount's tax treatment from the Owner's verified N3 discount
+ * mapping. This is deliberately server-derived: the browser cannot choose a
+ * tax class that would change the tax calculation.
+ */
+export function discountTaxClassFromSettings(settings: FinancialSettings): TaxClass | null {
+  const discountTaxCodeId = settings.postingMappings.discount.taxCode.id;
+  if (!discountTaxCodeId) return null;
+  for (const taxClass of [
+    "accommodation",
+    "food_and_beverage",
+    "parking",
+    "other_taxable_service",
+  ] as const) {
+    if (sameConfiguredN3Id(discountTaxCodeId, settings.serviceTax[taxClass].n3TaxCodeId)) {
+      return taxClass;
+    }
+  }
+  if (sameConfiguredN3Id(discountTaxCodeId, settings.exempt.n3TaxCodeId)) {
+    return "non_taxable";
+  }
+  return null;
 }
 
 export type SettingsPatch = Partial<{

@@ -92,28 +92,36 @@ export type RoundingGlDecision = {
  * Financial Verification console: money settlement accounts are exactly what a
  * rounding difference must NOT be posted to. Requirements:
  *   * an immutable identifier and a human-readable code;
- *   * an explicit active flag that is true;
- *   * an explicit posting/leaf flag that is true;
+ *   * no explicit inactive flag;
+ *   * posting/leaf status proven either by the row or by N3's Leaf query;
  *   * not flagged as a bank or cash special account.
- * A missing flag is never assumed — it is ineligible.
+ * Outside the proven Leaf-query context, missing flags remain ineligible.
  */
-export function evaluateRoundingGlAccount(row: unknown): RoundingGlDecision {
+export function evaluateRoundingGlAccount(
+  row: unknown,
+  context: { fromLeafQuery?: boolean } = {},
+): RoundingGlDecision {
   if (!isObj(row)) return { eligibility: "ineligible", reasons: ["row_not_object"] };
   const reasons: string[] = [];
   if (!pick(row, ID_KEYS)) reasons.push("missing_immutable_id");
   if (!pick(row, CODE_KEYS)) reasons.push("missing_account_code");
   const active = bool(row, ACTIVE_KEYS);
-  if (active === null) reasons.push("missing_active_flag");
-  else if (!active) reasons.push("account_inactive");
+  if (active === null && !context.fromLeafQuery) reasons.push("missing_active_flag");
+  else if (active === false) reasons.push("account_inactive");
   const posting = bool(row, POSTING_KEYS);
-  if (posting === null) reasons.push("missing_posting_or_leaf_flag");
-  else if (!posting) reasons.push("account_not_posting");
+  if (posting === null && !context.fromLeafQuery) reasons.push("missing_posting_or_leaf_flag");
+  else if (posting === false) reasons.push("account_not_posting");
   const special = (pick(row, SPECIAL_KEYS) ?? "").toLowerCase();
   if (special.includes("bank") || special.includes("cash")) {
     reasons.push("settlement_account_not_eligible_for_rounding");
   }
   return reasons.length === 0
-    ? { eligibility: "eligible", reasons: ["active", "posting", "not_settlement"] }
+    ? {
+        eligibility: "eligible",
+        reasons: context.fromLeafQuery
+          ? ["leaf_query", "not_explicitly_inactive", "not_settlement"]
+          : ["active", "posting", "not_settlement"],
+      }
     : { eligibility: "ineligible", reasons };
 }
 
@@ -268,7 +276,8 @@ export async function loadN3Selector(
 
   const rows: N3SelectorRow[] = [];
   for (const raw of unwrapped.items) {
-    if (evaluateRoundingGlAccount(raw).eligibility !== "eligible") continue;
+    if (evaluateRoundingGlAccount(raw, { fromLeafQuery: true }).eligibility !== "eligible")
+      continue;
     const row = toSelectorRow(raw);
     if (row) rows.push(row);
   }

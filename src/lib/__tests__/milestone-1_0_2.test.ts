@@ -358,7 +358,18 @@ describe("/api/hotel/rooms POST", () => {
         code: "0000",
         data: {
           count: 1,
-          value: [{ id: "s1", code: "R-101", description: "Deluxe Twin", isActive: true }],
+          value: [
+            {
+              id: "s1",
+              code: "R-101",
+              description: "Deluxe Twin",
+              isActive: true,
+              stockCategory: "deluxe",
+              stockGroup: "1",
+              stockClass: "2",
+              listPrice: 180,
+            },
+          ],
         },
       },
     });
@@ -409,7 +420,20 @@ describe("/api/hotel/rooms POST", () => {
       status: 200,
       body: {
         code: "0000",
-        data: { count: 1, value: [{ id: "s1", code: "R-101", description: "T" }] },
+        data: {
+          count: 1,
+          value: [
+            {
+              id: "s1",
+              code: "R-101",
+              description: "T",
+              stockCategory: "standard",
+              stockGroup: "1",
+              stockClass: "2",
+              listPrice: 100,
+            },
+          ],
+        },
       },
     });
     supaEnqueue("hotel_rooms", {

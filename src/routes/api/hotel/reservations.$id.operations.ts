@@ -10,6 +10,7 @@ import { effectiveDirectExecution, executeDirectOperation } from "@/lib/operatio
 import {
   isOperationType,
   listOperationRequests,
+  checkInReservation,
   OperationError,
   OPERATION_ERROR_CODES,
   requestOperation,
@@ -121,7 +122,35 @@ export async function handleOperationCreate({
       idempotencyKey: clientRequestId as string,
       statusForOperationError,
     });
-    if (!outcome.ok) return deny(outcome.status, outcome.code);
+    if (!outcome.ok) {
+      // Compatibility path only when the database explicitly reports that
+      // the newer generic direct-operation function is unavailable. The
+      // existing idempotent check-in RPC still enforces housekeeping and
+      // records the early check-in without any schema change.
+      if (type === "early_check_in" && outcome.code === "direct_operation_unavailable") {
+        try {
+          const result = await checkInReservation({
+            tenantId: ctx.session.tenantId!,
+            reservationId: id,
+            actorN3UserKey: ctx.session.n3UserKey,
+            expectedUpdatedAt: null,
+            clientRequestId: clientRequestId as string,
+            allowEarly: true,
+          });
+          return Response.json(
+            { ...result, requestId: null, state: "applied", direct: true, outcome: "applied" },
+            { headers: { "cache-control": "no-store" } },
+          );
+        } catch (err) {
+          const code =
+            err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code)
+              ? err.code
+              : "check_in_failed";
+          return deny(statusForOperationError(code), code);
+        }
+      }
+      return deny(outcome.status, outcome.code);
+    }
     return Response.json(
       { ...outcome.result, direct: true, outcome: "applied" },
       { headers: { "cache-control": "no-store" } },

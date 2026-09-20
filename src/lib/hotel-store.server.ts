@@ -253,24 +253,25 @@ export type CreateRoomInput = {
   // Verified from N3 server-side; caller MUST pass values returned by
   // verifyN3StockByCode, never browser-supplied.
   n3Stock: { id: string; code: string; name: string | null };
-  displayName?: string | null;
-  roomType?: string;
-  floor?: string | null;
-  maxOccupancy?: number;
-  baseRate?: number;
+  displayName: string;
+  roomType: string;
+  floor: string;
+  maxOccupancy: number;
+  baseRate: number;
 };
 
 export async function createRoom(input: CreateRoomInput): Promise<HotelRoom> {
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };
-  const baseRate =
-    typeof input.baseRate === "number" && input.baseRate >= 0 && Number.isFinite(input.baseRate)
-      ? input.baseRate
-      : 0;
-  const maxOccupancy =
-    typeof input.maxOccupancy === "number" && input.maxOccupancy >= 1
-      ? Math.floor(input.maxOccupancy)
-      : 2;
+  if (!input.displayName.trim() || !input.roomType.trim() || !input.floor.trim()) {
+    throw new Error("verified N3 room fields are incomplete");
+  }
+  if (!Number.isSafeInteger(input.maxOccupancy) || input.maxOccupancy < 1) {
+    throw new Error("verified N3 StockClass is invalid");
+  }
+  if (!Number.isFinite(input.baseRate) || input.baseRate < 0) {
+    throw new Error("verified N3 ListPrice is invalid");
+  }
   const res = await supabaseAdmin
     .from("hotel_rooms" as never)
     .insert({
@@ -281,11 +282,11 @@ export async function createRoom(input: CreateRoomInput): Promise<HotelRoom> {
       // room_number ALWAYS equals the verified N3 stock code. Browser
       // input for room_number is not accepted anywhere in this module.
       room_number: input.n3Stock.code,
-      display_name: input.displayName ?? null,
-      room_type: input.roomType ?? "standard",
-      floor: input.floor ?? null,
-      max_occupancy: maxOccupancy,
-      base_rate: baseRate,
+      display_name: input.displayName,
+      room_type: input.roomType,
+      floor: input.floor,
+      max_occupancy: input.maxOccupancy,
+      base_rate: input.baseRate,
       is_active: true,
     } as never)
     .select(ROOM_COLS)

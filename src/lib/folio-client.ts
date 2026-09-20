@@ -302,6 +302,8 @@ export function folioErrorMessage(err: unknown, fallback = "Something went wrong
     folio_not_found: "Prepare the folio first.",
     unknown_field: "That request contained a field this action does not accept.",
     invalid_tax_class: "Choose a valid tax treatment.",
+    discount_tax_mapping_unmatched:
+      "Map the Discount to the same N3 Tax Code used by its charge class, then try again.",
     invalid_source_label: "Give the collecting party a name of 2 to 60 characters.",
     invalid_collected_on: "Enter the collection date as dd/mm/yyyy.",
     n3_tax_rate_unavailable:

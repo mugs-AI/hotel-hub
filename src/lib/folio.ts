@@ -21,7 +21,12 @@ import {
   sumCents,
 } from "./folio-money";
 import { isTaxableClass, type TaxClass } from "./charges-catalogue";
-import { isEffectiveOn, resolveServiceTaxRate, type FinancialSettings } from "./financial-settings";
+import {
+  discountTaxClassFromSettings,
+  isEffectiveOn,
+  resolveServiceTaxRate,
+  type FinancialSettings,
+} from "./financial-settings";
 
 export type FolioLineType =
   | "room_night"
@@ -37,11 +42,7 @@ export type FolioLineType =
 export type FolioLineStatus = "draft" | "committed" | "reversed";
 
 export type GuestTaxClass =
-  | "malaysian_citizen"
-  | "malaysian_pr"
-  | "foreign_tourist"
-  | "other_exemption"
-  | "unknown";
+  "malaysian_citizen" | "malaysian_pr" | "foreign_tourist" | "other_exemption" | "unknown";
 
 export const GUEST_TAX_CLASSES: readonly GuestTaxClass[] = [
   "malaysian_citizen",
@@ -190,12 +191,23 @@ export function isEffectiveLine(line: StoredFolioLine): boolean {
   return line.status !== "reversed" && line.lineType !== "reversal";
 }
 
+/** Effective tax class, including migration-free treatment for older discounts. */
+export function effectiveTaxClassForLine(
+  line: StoredFolioLine,
+  unclassifiedDiscountTaxClass: TaxClass | null,
+): TaxClass | null {
+  return line.taxClass ?? (line.lineType === "discount" ? unclassifiedDiscountTaxClass : null);
+}
+
 /** Net signed subtotal per tax class across all effective stored lines. */
-export function netByTaxClass(lines: readonly StoredFolioLine[]): Map<TaxClass, number> {
+export function netByTaxClass(
+  lines: readonly StoredFolioLine[],
+  unclassifiedDiscountTaxClass: TaxClass | null = null,
+): Map<TaxClass, number> {
   const map = new Map<TaxClass, number>();
   for (const l of lines) {
     if (!isEffectiveLine(l)) continue;
-    const cls = l.taxClass;
+    const cls = effectiveTaxClassForLine(l, unclassifiedDiscountTaxClass);
     if (!cls) continue;
     map.set(cls, (map.get(cls) ?? 0) + l.subtotalCents);
   }
@@ -348,7 +360,23 @@ export function computeFolio(input: FolioComputationInput): FolioComputation {
     };
   }
 
-  const net = netByTaxClass(input.lines);
+  // Older draft discounts may predate server-derived tax classification.
+  // Resolve those in-memory from the verified N3 discount mapping so the
+  // current folio immediately reverses the matching Service Tax without a
+  // data migration. New discounts are also persisted with this class.
+  const discountTaxClass = discountTaxClassFromSettings(settings);
+  const hasUnclassifiedDiscount = input.lines.some(
+    (line) => isEffectiveLine(line) && line.lineType === "discount" && line.taxClass === null,
+  );
+  if (settings.serviceTaxRegistered && hasUnclassifiedDiscount && discountTaxClass === null) {
+    blockers.push({
+      code: "discount_tax_mapping_unmatched",
+      severity: "blocking",
+      message:
+        "Map the Discount to the same N3 Tax Code used by its charge class before finalising the folio.",
+    });
+  }
+  const net = netByTaxClass(input.lines, discountTaxClass);
 
   // --- commercial service charge (not a government tax) -------------------
   let serviceCharge = 0;
@@ -495,17 +523,9 @@ export function computeFolio(input: FolioComputationInput): FolioComputation {
       });
     } else {
       rounding = delta;
-      if (delta !== 0) {
-        derived.push({
-          key: "rounding",
-          lineType: "manual_adjustment",
-          taxClass: "non_taxable",
-          description: "Rounding adjustment",
-          quantity: 1,
-          unitPriceCents: delta,
-          amountCents: delta,
-        });
-      }
+      // Rounding is a document total, not a guest-purchased item. It remains
+      // visible in the totals/footer and is intentionally omitted from the
+      // itemised folio lines.
       if (delta !== 0 && !settings.rounding.n3RoundingAccountId) {
         blockers.push({
           code: "rounding_account_unmapped",

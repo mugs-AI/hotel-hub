@@ -143,6 +143,44 @@ function pickString(row: Record<string, unknown>, keys: string[]): string | null
   return null;
 }
 
+/**
+ * Stock-master classifications can be returned either as a scalar label or
+ * as a small lookup object. Keep only the human-readable value HotelHub needs
+ * and never expose the upstream object.
+ */
+function pickMasterLabel(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const direct = safeString(row[k]);
+    if (direct) return direct;
+    const nested = row[k];
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    const label = pickString(nested as Record<string, unknown>, [
+      "Name",
+      "name",
+      "Description",
+      "description",
+      "Code",
+      "code",
+      "Value",
+      "value",
+    ]);
+    if (label) return label;
+  }
+  return null;
+}
+
+function pickNumber(row: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    const value = row[k];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value.replace(/,/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return null;
+}
+
 function pickBool(row: Record<string, unknown>, keys: string[]): boolean | null {
   for (const k of keys) {
     const v = row[k];
@@ -206,6 +244,11 @@ export type N3StockSummary = {
   code: string;
   name: string | null;
   isActive: boolean | null;
+  /** Sanitized Stock Master fields used to seed a new HotelHub room. */
+  category: string | null;
+  group: string | null;
+  stockClass: string | null;
+  listPrice: number | null;
 };
 
 export type N3ListPage<T> = {
@@ -281,11 +324,23 @@ export async function listN3Stocks(
     if (!id || !code) continue;
     const name = pickString(row, ["Description", "description", "Name", "name", "StockName"]);
     const isActive = pickBool(row, ["IsActive", "isActive", "Active", "active"]);
+    const category = pickMasterLabel(row, [
+      "StockCategory",
+      "stockCategory",
+      "Category",
+      "category",
+    ]);
+    const group = pickMasterLabel(row, ["StockGroup", "stockGroup", "Group", "group"]);
+    const stockClass = pickMasterLabel(row, ["StockClass", "stockClass", "Class", "class"]);
+    // Deliberately List Price only. Purchase Price, Last Selling Price and
+    // other N3 prices are different accounting concepts and are never used as
+    // a silent fallback for a room's opening rate.
+    const listPrice = pickNumber(row, ["ListPrice", "listPrice", "list_price"]);
     if (filterStr) {
       const hay = `${code} ${name ?? ""}`.toLowerCase();
       if (!hay.includes(filterStr)) continue;
     }
-    items.push({ id, code, name, isActive });
+    items.push({ id, code, name, isActive, category, group, stockClass, listPrice });
   }
   return {
     status: res.status,
@@ -355,11 +410,7 @@ export function verifyN3StockByCode(
 // through Owner-authorized fixed endpoints.
 
 export type N3GlobalError =
-  | "unauthorized"
-  | "forbidden"
-  | "unavailable"
-  | "incomplete"
-  | "limit_reached";
+  "unauthorized" | "forbidden" | "unavailable" | "incomplete" | "limit_reached";
 export class N3ListError extends Error {
   constructor(public code: N3GlobalError) {
     super(code);

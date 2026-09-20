@@ -13,6 +13,7 @@ import { centsToAmount, parseCents, type RoundingMode } from "./folio-money";
 import {
   canReverseLine,
   computeFolio,
+  effectiveTaxClassForLine,
   isEffectiveLine,
   isGuestTaxClass,
   planMissingRoomNights,
@@ -34,6 +35,7 @@ import {
 import {
   applySettingsPatch,
   defaultFinancialSettings,
+  discountTaxClassFromSettings,
   resolveServiceTaxRate,
   settingsWindowError,
   validateSettingsPatch,
@@ -1543,13 +1545,28 @@ export async function addOwnerAdjustment(
   if (input.lineType === "discount" && amount > 0) throw new FolioError("invalid_amount", 400);
   const reason = typeof input.reason === "string" ? input.reason.trim() : "";
   if (reason.length < 3 || reason.length > 240) throw new FolioError("reason_required", 400);
-  // A tax class is an enum, never free text.
-  const taxClass = input.taxClass === undefined || input.taxClass === null ? null : input.taxClass;
-  if (taxClass !== null && !isTaxClass(taxClass)) {
+  // A tax class is an enum, never free text. Discounts are stricter: their
+  // class is resolved below from the verified N3 discount tax-code mapping,
+  // never accepted from the browser.
+  const suppliedTaxClass =
+    input.taxClass === undefined || input.taxClass === null ? null : input.taxClass;
+  if (suppliedTaxClass !== null && !isTaxClass(suppliedTaxClass)) {
     throw new FolioError("invalid_tax_class", 400);
   }
+  let taxClass: TaxClass | null = suppliedTaxClass as TaxClass | null;
 
   const db = await resolveDb(sb);
+  if (input.lineType === "discount") {
+    const settings = await readFinancialSettings(input.tenantId, db);
+    if (settings.serviceTaxRegistered) {
+      taxClass = discountTaxClassFromSettings(settings);
+      if (taxClass === null) {
+        throw new FolioError("discount_tax_mapping_unmatched", 409);
+      }
+    } else {
+      taxClass = null;
+    }
+  }
   const reservation = await readReservation(input.tenantId, input.reservationId, db);
   const folio = await ensureFolio(input.tenantId, input.reservationId, reservation.currency, db);
 
@@ -1800,32 +1817,37 @@ export async function buildFolioView(
     const rate = resolveServiceTaxRate(settings, taxClass);
     return rate.ok && rate.source === "configured" ? rate.rateBp : null;
   };
+  const legacyDiscountTaxClass = discountTaxClassFromSettings(settings);
 
-  const lineDTOs: FolioLineDTO[] = decorated.map((l) => ({
-    id: l.id,
-    catalogueId: catalogueIdByLineId.get(l.id) ?? null,
-    lineType: l.lineType,
-    status: l.status,
-    taxClass: l.taxClass,
-    description: l.description,
-    taxRateBp: serviceTaxRateFor(l.taxClass),
-    quantity: l.quantity,
-    unitPrice: centsToAmount(l.unitPriceCents),
-    amount: centsToAmount(l.subtotalCents),
-    stayDate: l.stayDate,
-    roomLabel: l.roomLabel,
-    reason: l.reason,
-    reversesLineId: l.reversesLineId,
-    actorLabel: l.actorLabel,
-    createdAt: l.createdAt,
-    canEditQuantity: input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
-    canReverse:
-      input.capability.canAdjust &&
-      l.lineType !== "room_night" &&
-      l.lineType !== "reversal" &&
-      l.status !== "reversed" &&
-      !reversedTargets.has(l.id),
-  }));
+  const lineDTOs: FolioLineDTO[] = decorated.map((l) => {
+    const effectiveTaxClass = effectiveTaxClassForLine(l, legacyDiscountTaxClass);
+    return {
+      id: l.id,
+      catalogueId: catalogueIdByLineId.get(l.id) ?? null,
+      lineType: l.lineType,
+      status: l.status,
+      taxClass: effectiveTaxClass,
+      description: l.description,
+      taxRateBp: serviceTaxRateFor(effectiveTaxClass),
+      quantity: l.quantity,
+      unitPrice: centsToAmount(l.unitPriceCents),
+      amount: centsToAmount(l.subtotalCents),
+      stayDate: l.stayDate,
+      roomLabel: l.roomLabel,
+      reason: l.reason,
+      reversesLineId: l.reversesLineId,
+      actorLabel: l.actorLabel,
+      createdAt: l.createdAt,
+      canEditQuantity:
+        input.capability.canAddItem && l.lineType === "add_on" && l.status === "draft",
+      canReverse:
+        input.capability.canAdjust &&
+        l.lineType !== "room_night" &&
+        l.lineType !== "reversal" &&
+        l.status !== "reversed" &&
+        !reversedTargets.has(l.id),
+    };
+  });
 
   const derived: FolioDerivedLineDTO[] = computed.derived.map((d) => ({
     key: d.key,

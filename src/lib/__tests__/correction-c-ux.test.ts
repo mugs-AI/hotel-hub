@@ -276,7 +276,20 @@ describe("POST /api/hotel/rooms — server duplicate protection", () => {
       status: 200,
       body: {
         code: "0000",
-        data: { count: 1, value: [{ id: "s1", code: "R-101", description: "Deluxe" }] },
+        data: {
+          count: 1,
+          value: [
+            {
+              id: "s1",
+              code: "R-101",
+              description: "Deluxe",
+              stockCategory: "Deluxe",
+              stockGroup: "1",
+              stockClass: "2",
+              listPrice: 180,
+            },
+          ],
+        },
       },
     });
     // Unique-constraint violation from the DB

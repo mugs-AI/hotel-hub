@@ -3,11 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type OperationType =
-  | "early_check_in"
-  | "late_checkout"
-  | "room_change"
-  | "stay_extension"
-  | "rate_change";
+  "early_check_in" | "late_checkout" | "room_change" | "stay_extension" | "rate_change";
 
 export type OperationState = "pending" | "approved" | "rejected" | "applied" | "cancelled";
 
@@ -125,6 +121,8 @@ export function operationErrorMessage(code: string, operationType?: string): str
       return "The reservation changed while you were working. Reload and try again.";
     case "early_check_in_required":
       return "It is before the standard check-in time — request an early check-in instead.";
+    case "check_in_failed":
+      return "Early check-in could not be saved. Reload the reservation and try again.";
     case "room_unavailable":
       return "The room is not available for that period.";
     case "room_capacity_exceeded":

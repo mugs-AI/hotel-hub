@@ -3,12 +3,68 @@
 //                            Server verifies `code` against N3 stock list; room_number always = verified code.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission, destroySession } from "@/lib/session-context.server";
-import { verifyN3StockByCode } from "@/lib/n3-gateway.server";
+import { verifyN3StockByCode, type N3StockSummary } from "@/lib/n3-gateway.server";
 import { createRoom, listRooms } from "@/lib/hotel-store.server";
 import { logAudit } from "@/lib/audit.server";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
+}
+
+export type RoomImportSeed = {
+  displayName: string;
+  roomType: string;
+  floor: string;
+  maxOccupancy: number;
+  baseRate: number;
+};
+
+export type RoomImportSeedResult =
+  { ok: true; value: RoomImportSeed } | { ok: false; code: string };
+
+/**
+ * Translate only server-verified N3 Stock Master values into the opening HH
+ * room values. Missing or non-numeric Group/Class data fails closed so a bad
+ * N3 master can never become a plausible-looking local default.
+ */
+export function roomImportSeed(stock: N3StockSummary): RoomImportSeedResult {
+  const displayName = stock.name?.trim() ?? "";
+  if (!displayName) return { ok: false, code: "n3_stock_name_missing" };
+  const roomType = stock.category?.trim() ?? "";
+  if (!roomType) return { ok: false, code: "n3_stock_category_missing" };
+
+  const rawFloor = stock.group?.trim() ?? "";
+  if (!/^-?\d+$/.test(rawFloor)) {
+    return { ok: false, code: "n3_stock_group_must_be_numeric" };
+  }
+  const floorNumber = Number(rawFloor);
+  if (!Number.isSafeInteger(floorNumber)) {
+    return { ok: false, code: "n3_stock_group_must_be_numeric" };
+  }
+
+  const rawCapacity = stock.stockClass?.trim() ?? "";
+  if (!/^\d+$/.test(rawCapacity)) {
+    return { ok: false, code: "n3_stock_class_must_be_positive_integer" };
+  }
+  const maxOccupancy = Number(rawCapacity);
+  if (!Number.isSafeInteger(maxOccupancy) || maxOccupancy < 1) {
+    return { ok: false, code: "n3_stock_class_must_be_positive_integer" };
+  }
+
+  if (stock.listPrice === null || !Number.isFinite(stock.listPrice) || stock.listPrice < 0) {
+    return { ok: false, code: "n3_stock_list_price_invalid" };
+  }
+
+  return {
+    ok: true,
+    value: {
+      displayName,
+      roomType,
+      floor: String(floorNumber),
+      maxOccupancy,
+      baseRate: stock.listPrice,
+    },
+  };
 }
 
 export async function handleListRooms(): Promise<Response> {
@@ -53,26 +109,13 @@ export async function handleCreateRoom({ request }: { request: Request }): Promi
   if (result.status === "limit_reached") return deny(504, "n3_verification_limit_reached");
   if (result.status === "not_found") return deny(404, "stock_code_not_found_in_n3");
   const verified = result.item;
-
-  const displayName = typeof body.displayName === "string" ? body.displayName.trim() || null : null;
-  const roomType =
-    typeof body.roomType === "string" && body.roomType.trim() ? body.roomType.trim() : "standard";
-  const floor = typeof body.floor === "string" ? body.floor.trim() || null : null;
-  const maxOccupancy =
-    typeof body.maxOccupancy === "number" && body.maxOccupancy >= 1 ? body.maxOccupancy : 2;
-  const baseRate =
-    typeof body.baseRate === "number" && body.baseRate >= 0 && Number.isFinite(body.baseRate)
-      ? body.baseRate
-      : 0;
+  const seed = roomImportSeed(verified);
+  if (!seed.ok) return deny(422, seed.code);
   try {
     const room = await createRoom({
       tenantId: ctx.session.tenantId!,
       n3Stock: verified,
-      displayName,
-      roomType,
-      floor,
-      maxOccupancy,
-      baseRate,
+      ...seed.value,
     });
     await logAudit({
       tenantId: ctx.session.tenantId,

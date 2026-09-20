@@ -54,6 +54,21 @@ async function j<T>(url: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
+function roomImportErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    n3_stock_name_missing: "This N3 Stock needs a Stock Name before it can become a room.",
+    n3_stock_category_missing:
+      "This N3 Stock needs a Stock Category before it can become a room Type.",
+    n3_stock_group_must_be_numeric:
+      "This N3 Stock Group must be a number before it can become the room Floor.",
+    n3_stock_class_must_be_positive_integer:
+      "This N3 Stock Class must be a positive whole number before it can become Max guests.",
+    n3_stock_list_price_invalid:
+      "This N3 Stock needs a valid non-negative List Price before it can become the Base rate.",
+  };
+  return messages[code] ?? code;
+}
+
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
@@ -84,7 +99,7 @@ function RoomsRatesPage() {
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">Rooms &amp; Rates</h1>
           <p className="mt-1 max-w-2xl text-sm text-white/85">
             Configure the default N3 walk-in customer and map N3 stock codes to hotel rooms. Base
-            rates are maintained locally in HotelHub (MYR).
+            room details start from the verified N3 Stock Master and remain editable locally.
           </p>
         </section>
         {!authed ? null : !canView ? (
@@ -268,8 +283,8 @@ function RoomsCard({
         <div>
           <SectionHeader label="Rooms" accent={TEAL} tag="Inventory" />
           <p className="mt-1 text-xs text-muted-foreground">
-            Room number equals the verified N3 stock code. Different rooms may carry different local
-            base rates.
+            Room number equals the verified N3 stock code. Type, floor, max guests, display name and
+            base rate start from N3 Category, Group, Class, Stock Name and List Price.
           </p>
         </div>
         {canSetup ? (
@@ -307,8 +322,9 @@ function RoomsCard({
                 setAdding(false);
                 onChange();
               } catch (e) {
-                if ((e as Error).message === "n3_unauthorized") onN3Unauthorized();
-                alert((e as Error).message);
+                const code = (e as Error).message;
+                if (code === "n3_unauthorized") onN3Unauthorized();
+                alert(roomImportErrorMessage(code));
               }
             }}
           />

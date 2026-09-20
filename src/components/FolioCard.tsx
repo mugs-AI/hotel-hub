@@ -28,6 +28,7 @@ import {
 } from "@/lib/folio-client";
 import {
   folioExtraAccent,
+  folioExtraAccentMap,
   formatFolioMoney,
   formatFolioTaxRate,
   guestFacingFolioRows,
@@ -66,6 +67,14 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
 
   const dto = q.data;
   const guestRows = dto ? guestFacingFolioRows(dto) : [];
+  const extraAccents = useMemo(
+    () =>
+      folioExtraAccentMap([
+        ...(dto?.catalogue.map((item) => item.id) ?? []),
+        ...(dto?.lines.map((line) => line.catalogueId) ?? []),
+      ]),
+    [dto],
+  );
   const blocking = useMemo(
     () => (dto?.blockers ?? []).filter((b) => b.severity === "blocking"),
     [dto],
@@ -210,7 +219,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                   const l = row.line;
                   const accent =
                     l.lineType === "add_on" && l.catalogueId
-                      ? folioExtraAccent(l.catalogueId)
+                      ? (extraAccents.get(l.catalogueId) ?? folioExtraAccent(l.catalogueId))
                       : null;
                   return (
                     <tr
@@ -441,7 +450,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {dto.catalogue.map((c) => {
-                  const accent = folioExtraAccent(c.id);
+                  const accent = extraAccents.get(c.id) ?? folioExtraAccent(c.id);
                   return (
                     <Button
                       key={c.id}
