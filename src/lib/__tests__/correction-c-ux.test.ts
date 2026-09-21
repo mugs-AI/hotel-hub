@@ -292,6 +292,18 @@ describe("POST /api/hotel/rooms — server duplicate protection", () => {
         },
       },
     });
+    enqFetch({
+      status: 200,
+      body: {
+        id: "s1",
+        code: "R-101",
+        name: "Deluxe",
+        category: "Deluxe",
+        group: "1",
+        class: "2",
+        listPrice: 180,
+      },
+    });
     // Unique-constraint violation from the DB
     supaEnqueue("hotel_rooms", {
       data: null,

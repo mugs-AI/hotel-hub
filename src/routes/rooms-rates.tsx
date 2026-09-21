@@ -65,6 +65,12 @@ function roomImportErrorMessage(code: string): string {
       "This N3 Stock Class must be a positive whole number before it can become Max guests.",
     n3_stock_list_price_invalid:
       "This N3 Stock needs a valid non-negative List Price before it can become the Base rate.",
+    n3_stock_detail_not_found:
+      "N3 could not find this StockMaster detail. Refresh the stock list and try again.",
+    n3_stock_detail_unavailable:
+      "N3 StockMaster detail is temporarily unavailable. Please try again.",
+    n3_stock_detail_mismatch:
+      "N3 returned a different StockMaster record. Nothing was imported; refresh and try again.",
   };
   return messages[code] ?? code;
 }

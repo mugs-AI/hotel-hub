@@ -251,6 +251,45 @@ export type N3StockSummary = {
   listPrice: number | null;
 };
 
+function sanitizeN3Stock(raw: unknown): N3StockSummary | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  const id = pickString(row, ["Id", "id", "StockId", "stockId", "Guid", "guid"]);
+  const code = pickString(row, ["Code", "code", "StockCode", "stockCode"]);
+  if (!id || !code) return null;
+
+  // The StockMaster detail contract uses `name`; list responses seen in older
+  // tenants may expose the same value as `description` instead.
+  const name = pickString(row, [
+    "Name",
+    "name",
+    "StockName",
+    "stockName",
+    "Description",
+    "description",
+  ]);
+  const isActive = pickBool(row, ["IsActive", "isActive", "Active", "active"]);
+  const category = pickMasterLabel(row, ["StockCategory", "stockCategory", "Category", "category"]);
+  const group = pickMasterLabel(row, ["StockGroup", "stockGroup", "Group", "group"]);
+  const stockClass = pickMasterLabel(row, ["StockClass", "stockClass", "Class", "class"]);
+  // Deliberately List Price only. Purchase Price, Last Selling Price and
+  // other N3 prices are different accounting concepts and are never used as
+  // a silent fallback for a room's opening rate.
+  const listPrice = pickNumber(row, ["ListPrice", "listPrice", "list_price"]);
+  return { id, code, name, isActive, category, group, stockClass, listPrice };
+}
+
+function extractDetailRecord(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const outer = body as Record<string, unknown>;
+  if (sanitizeN3Stock(outer)) return outer;
+  for (const key of ["data", "Data", "value", "Value", "item", "Item"]) {
+    const nested = outer[key];
+    if (sanitizeN3Stock(nested)) return nested;
+  }
+  return null;
+}
+
 export type N3ListPage<T> = {
   status: number;
   items: T[];
@@ -317,30 +356,13 @@ export async function listN3Stocks(
   const filterStr = typeof opts.filter === "string" ? opts.filter.trim().toLowerCase() : "";
   const items: N3StockSummary[] = [];
   for (const raw of page.items) {
-    if (!raw || typeof raw !== "object") continue;
-    const row = raw as Record<string, unknown>;
-    const id = pickString(row, ["Id", "id", "StockId", "stockId", "Guid", "guid"]);
-    const code = pickString(row, ["Code", "code", "StockCode", "stockCode"]);
-    if (!id || !code) continue;
-    const name = pickString(row, ["Description", "description", "Name", "name", "StockName"]);
-    const isActive = pickBool(row, ["IsActive", "isActive", "Active", "active"]);
-    const category = pickMasterLabel(row, [
-      "StockCategory",
-      "stockCategory",
-      "Category",
-      "category",
-    ]);
-    const group = pickMasterLabel(row, ["StockGroup", "stockGroup", "Group", "group"]);
-    const stockClass = pickMasterLabel(row, ["StockClass", "stockClass", "Class", "class"]);
-    // Deliberately List Price only. Purchase Price, Last Selling Price and
-    // other N3 prices are different accounting concepts and are never used as
-    // a silent fallback for a room's opening rate.
-    const listPrice = pickNumber(row, ["ListPrice", "listPrice", "list_price"]);
+    const stock = sanitizeN3Stock(raw);
+    if (!stock) continue;
     if (filterStr) {
-      const hay = `${code} ${name ?? ""}`.toLowerCase();
+      const hay = `${stock.code} ${stock.name ?? ""}`.toLowerCase();
       if (!hay.includes(filterStr)) continue;
     }
-    items.push({ id, code, name, isActive, category, group, stockClass, listPrice });
+    items.push(stock);
   }
   return {
     status: res.status,
@@ -402,6 +424,32 @@ export function verifyN3StockByCode(
   code: string,
 ): Promise<VerifyResult<N3StockSummary>> {
   return verifyByCodePaged<N3StockSummary>((o) => listN3Stocks(token, o), code);
+}
+
+/**
+ * Read the full N3 StockMaster record after its code and immutable ID have
+ * already been obtained from the verified stock list. N3's list contract is a
+ * summary and does not reliably include Category, Group, Class or List Price.
+ */
+export async function getN3StockDetailById(
+  token: string,
+  id: string,
+): Promise<VerifyResult<N3StockSummary>> {
+  const safeId = id.trim();
+  // IDs come only from the server-read N3 list, never directly from the
+  // browser. Still constrain the path segment so it cannot widen the allowlist.
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(safeId)) return { status: "not_found" };
+  let res: Awaited<ReturnType<typeof callN3Path>>;
+  try {
+    res = await callN3Path(token, `/api/stocks/${encodeURIComponent(safeId)}`);
+  } catch {
+    return { status: "unavailable" };
+  }
+  if (res.status === 401) return { status: "unauthorized" };
+  if (res.status === 404) return { status: "not_found" };
+  if (res.status < 200 || res.status >= 300) return { status: "unavailable" };
+  const item = sanitizeN3Stock(extractDetailRecord(res.body));
+  return item ? { status: "found", item } : { status: "unavailable" };
 }
 
 // ---- Global list access (Milestone 1.0.2 — Correction B) ---------------

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { computeFolio, effectiveTaxClassForLine, type StoredFolioLine } from "../folio";
 import { defaultFinancialSettings, discountTaxClassFromSettings } from "../financial-settings";
 import { folioExtraAccentMap } from "../folio-view";
-import { listN3Stocks } from "../n3-gateway.server";
+import { getN3StockDetailById, listN3Stocks } from "../n3-gateway.server";
 import { evaluateRoundingGlAccount } from "../n3-selectors.server";
 import { roomImportSeed } from "@/routes/api/hotel/rooms";
 
@@ -37,6 +37,45 @@ function line(input: Partial<StoredFolioLine>): StoredFolioLine {
 }
 
 describe("HH-GOLIVE-01E UAT corrections", () => {
+  it("reads the full N3 StockMaster detail contract by immutable stock ID", async () => {
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            code: "0000",
+            data: {
+              id: 2092687,
+              code: "777-ROOM-502",
+              name: "HOTEL ROOM 502 - Presidential / Penthouse",
+              active: true,
+              category: { id: 1, name: "Presidential" },
+              group: { id: 5, name: "5" },
+              class: { id: 8, name: "8" },
+              listPrice: 990,
+              purchasePrice: 990,
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    globalThis.fetch = fetchSpy as typeof fetch;
+
+    await expect(getN3StockDetailById("token", "2092687")).resolves.toEqual({
+      status: "found",
+      item: {
+        id: "2092687",
+        code: "777-ROOM-502",
+        name: "HOTEL ROOM 502 - Presidential / Penthouse",
+        isActive: true,
+        category: "Presidential",
+        group: "5",
+        stockClass: "8",
+        listPrice: 990,
+      },
+    });
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/stocks\/2092687$/);
+  });
+
   it("sanitizes the N3 Stock Master fields and seeds the exact requested HH room values", async () => {
     globalThis.fetch = vi.fn(
       async () =>

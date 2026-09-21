@@ -363,13 +363,26 @@ describe("/api/hotel/rooms POST", () => {
               id: "s1",
               code: "R-101",
               description: "Deluxe Twin",
-              isActive: true,
-              stockCategory: "deluxe",
-              stockGroup: "1",
-              stockClass: "2",
-              listPrice: 180,
             },
           ],
+        },
+      },
+    });
+    // N3 list rows are summaries. Room defaults come from the verified detail
+    // contract at GET /api/stocks/{id}.
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: {
+          id: "s1",
+          code: "R-101",
+          name: "Deluxe Twin",
+          active: true,
+          category: { name: "deluxe" },
+          group: { name: "1" },
+          class: { name: "2" },
+          listPrice: 180,
         },
       },
     });
@@ -410,6 +423,7 @@ describe("/api/hotel/rooms POST", () => {
     expect(body.room.roomNumber).toBe("R-101");
     expect(body.room.n3StockCode).toBe("R-101");
     expect(body.room.baseRate).toBe(180);
+    expect(fetchCalls[1]?.url).toMatch(/\/api\/stocks\/s1$/);
     const insert = supaCalls.find((c) => c.table === "hotel_rooms" && c.op === "insert");
     expect(insert).toBeTruthy();
     expect((insert!.payload as Record<string, unknown>).room_number).toBe("R-101");
@@ -436,6 +450,18 @@ describe("/api/hotel/rooms POST", () => {
         },
       },
     });
+    enqFetch({
+      status: 200,
+      body: {
+        id: "s1",
+        code: "R-101",
+        name: "T",
+        category: "standard",
+        group: "1",
+        class: "2",
+        listPrice: 100,
+      },
+    });
     supaEnqueue("hotel_rooms", {
       data: null,
       error: { message: "duplicate key value violates unique constraint" },
@@ -449,6 +475,38 @@ describe("/api/hotel/rooms POST", () => {
       }),
     });
     expect(res.status).toBe(409);
+  });
+  it("owner: mismatched StockMaster detail fails closed before any DB write", async () => {
+    await seedAuthed("owner");
+    enqFetch({
+      status: 200,
+      body: {
+        code: "0000",
+        data: { count: 1, value: [{ id: "s1", code: "R-101", description: "Room" }] },
+      },
+    });
+    enqFetch({
+      status: 200,
+      body: {
+        id: "s2",
+        code: "R-999",
+        name: "Wrong room",
+        category: "standard",
+        group: "1",
+        class: "2",
+        listPrice: 100,
+      },
+    });
+    const { handleCreateRoom } = await import("@/routes/api/hotel/rooms");
+    const res = await handleCreateRoom({
+      request: new Request("http://x.test/x", {
+        method: "POST",
+        body: JSON.stringify({ code: "R-101" }),
+      }),
+    });
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({ error: "n3_stock_detail_mismatch" });
+    expect(supaCalls.some((c) => c.table === "hotel_rooms" && c.op === "insert")).toBe(false);
   });
   it("owner: unverified stock code → 404, no DB write", async () => {
     await seedAuthed("owner");
