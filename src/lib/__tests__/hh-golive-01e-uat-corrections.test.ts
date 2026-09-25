@@ -49,8 +49,10 @@ describe("HH-GOLIVE-01E UAT corrections", () => {
               name: "HOTEL ROOM 502 - Presidential / Penthouse",
               active: true,
               category: { id: 1, name: "Presidential" },
-              group: { id: 5, name: "5" },
-              class: { id: 8, name: "8" },
+              stockGroupCode: "5",
+              group: { id: 5, name: "LEVEL 5" },
+              stockClassCode: "8",
+              class: { id: 8, name: "Double" },
               listPrice: 990,
               purchasePrice: 990,
             },
@@ -68,8 +70,8 @@ describe("HH-GOLIVE-01E UAT corrections", () => {
         name: "HOTEL ROOM 502 - Presidential / Penthouse",
         isActive: true,
         category: "Presidential",
-        group: "5",
-        stockClass: "8",
+        groupCode: "5",
+        stockClassCode: "8",
         listPrice: 990,
       },
     });
@@ -90,7 +92,9 @@ describe("HH-GOLIVE-01E UAT corrections", () => {
                   Code: "777-ROOM-101",
                   Description: "HOTEL ROOM 101 - Essential",
                   StockCategory: { Name: "Essential" },
+                  StockGroupCode: "1",
                   StockGroup: { Name: "1" },
+                  StockClassCode: "2",
                   StockClass: { Name: "2" },
                   ListPrice: "188.00",
                   IsActive: true,
@@ -116,22 +120,28 @@ describe("HH-GOLIVE-01E UAT corrections", () => {
     });
   });
 
-  it("refuses nonnumeric N3 Group/Class values instead of inventing HH defaults", () => {
+  it("preserves a string Group Code as Floor and validates only Class Code for MaxGuest", () => {
     const base = {
       id: "stock-101",
       code: "777-ROOM-101",
       name: "HOTEL ROOM 101 - Essential",
       isActive: true,
       category: "Essential",
-      group: "First Floor",
-      stockClass: "2",
+      groupCode: "LEVEL-1",
+      stockClassCode: "2",
       listPrice: 188,
     };
     expect(roomImportSeed(base)).toEqual({
-      ok: false,
-      code: "n3_stock_group_must_be_numeric",
+      ok: true,
+      value: {
+        displayName: "HOTEL ROOM 101 - Essential",
+        roomType: "Essential",
+        floor: "LEVEL-1",
+        maxOccupancy: 2,
+        baseRate: 188,
+      },
     });
-    expect(roomImportSeed({ ...base, group: "1", stockClass: "Double" })).toEqual({
+    expect(roomImportSeed({ ...base, stockClassCode: "Double" })).toEqual({
       ok: false,
       code: "n3_stock_class_must_be_positive_integer",
     });

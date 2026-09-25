@@ -79,6 +79,8 @@ export function statusForOperationError(code: string): number {
     case "operation_stale":
     case "operation_pending":
     case "early_check_in_required":
+    case "early_check_in_not_required":
+    case "property_timezone_invalid":
     case "room_unavailable":
     case "room_capacity_exceeded":
     case "primary_guest_required":

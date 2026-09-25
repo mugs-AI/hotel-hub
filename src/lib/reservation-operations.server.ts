@@ -46,6 +46,8 @@ export const OPERATION_ERROR_CODES = new Set([
   "invalid_transition",
   "reservation_changed",
   "early_check_in_required",
+  "early_check_in_not_required",
+  "property_timezone_invalid",
   "operation_pending",
   "operation_stale",
   "check_in_failed",
@@ -300,6 +302,56 @@ export function zonedLocalToUtcMs(local: string, timeZone: string): number | nul
     ts = next;
   }
   return Number.isFinite(ts) ? ts : null;
+}
+
+export type CheckInAction = "early_check_in" | "check_in" | null;
+
+/**
+ * Decide the one truthful check-in action using server time in the property's
+ * configured IANA timezone. Browsers must never decide this from their own
+ * clock. A bad timezone/check-in contract fails closed with null.
+ */
+export function checkInActionFor(input: {
+  status: string;
+  arrivalDate: string;
+  standardCheckInTime: string;
+  timezone: string;
+  now?: Date;
+}): CheckInAction {
+  if (input.status !== "confirmed") return null;
+  const timeMatch = /^(\d{2}):(\d{2})$/.exec(input.standardCheckInTime);
+  if (
+    !isIsoDate(input.arrivalDate) ||
+    !timeMatch ||
+    Number(timeMatch[1]) > 23 ||
+    Number(timeMatch[2]) > 59
+  ) {
+    return null;
+  }
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: input.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(input.now ?? new Date());
+  } catch {
+    return null;
+  }
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((entry) => entry.type === type)?.value ?? "";
+  const propertyDate = `${part("year")}-${part("month")}-${part("day")}`;
+  const propertyTime = `${part("hour")}:${part("minute")}`;
+  if (!isIsoDate(propertyDate) || !/^\d{2}:\d{2}$/.test(propertyTime)) return null;
+
+  return propertyDate < input.arrivalDate ||
+    (propertyDate === input.arrivalDate && propertyTime < input.standardCheckInTime)
+    ? "early_check_in"
+    : "check_in";
 }
 
 /**

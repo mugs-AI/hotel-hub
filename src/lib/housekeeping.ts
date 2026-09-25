@@ -499,8 +499,8 @@ export const DND_SETUP_HINT_SHORT = "Set condition before DND";
 /** Short, safety-only label for the mid-clean DND block. */
 export const DND_CLEANING_HINT_SHORT = "Return to Dirty before DND";
 
-/** Short card label when only the Owner may set a room up. */
-export const SETUP_OWNER_ONLY_SHORT = "Owner only";
+/** Short card label for the one-time initialization reserved to the Owner. */
+export const SETUP_OWNER_ONLY_SHORT = "Owner setup required";
 
 /** The single DND control label, shared by the enabled and disabled states. */
 export const DND_SET_LABEL = "Set Do Not Disturb";

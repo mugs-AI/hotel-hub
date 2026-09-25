@@ -169,6 +169,30 @@ function pickMasterLabel(row: Record<string, unknown>, keys: string[]): string |
   return null;
 }
 
+/**
+ * Stock Group/Class are N3 master CODES, not numeric JSON fields and not
+ * display labels. Prefer the explicit scalar Code field, then a nested lookup
+ * object's Code. A scalar lookup field is retained as a compatibility form,
+ * but a nested Name/Description is never mistaken for the code.
+ */
+function pickMasterCode(
+  row: Record<string, unknown>,
+  codeKeys: string[],
+  lookupKeys: string[],
+): string | null {
+  const explicit = pickString(row, codeKeys);
+  if (explicit) return explicit;
+  for (const key of lookupKeys) {
+    const direct = safeString(row[key]);
+    if (direct) return direct;
+    const nested = row[key];
+    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
+    const code = pickString(nested as Record<string, unknown>, ["Code", "code", "Value", "value"]);
+    if (code) return code;
+  }
+  return null;
+}
+
 function pickNumber(row: Record<string, unknown>, keys: string[]): number | null {
   for (const k of keys) {
     const value = row[k];
@@ -246,8 +270,8 @@ export type N3StockSummary = {
   isActive: boolean | null;
   /** Sanitized Stock Master fields used to seed a new HotelHub room. */
   category: string | null;
-  group: string | null;
-  stockClass: string | null;
+  groupCode: string | null;
+  stockClassCode: string | null;
   listPrice: number | null;
 };
 
@@ -270,13 +294,21 @@ function sanitizeN3Stock(raw: unknown): N3StockSummary | null {
   ]);
   const isActive = pickBool(row, ["IsActive", "isActive", "Active", "active"]);
   const category = pickMasterLabel(row, ["StockCategory", "stockCategory", "Category", "category"]);
-  const group = pickMasterLabel(row, ["StockGroup", "stockGroup", "Group", "group"]);
-  const stockClass = pickMasterLabel(row, ["StockClass", "stockClass", "Class", "class"]);
+  const groupCode = pickMasterCode(
+    row,
+    ["StockGroupCode", "stockGroupCode", "GroupCode", "groupCode"],
+    ["StockGroup", "stockGroup", "Group", "group"],
+  );
+  const stockClassCode = pickMasterCode(
+    row,
+    ["StockClassCode", "stockClassCode", "ClassCode", "classCode"],
+    ["StockClass", "stockClass", "Class", "class"],
+  );
   // Deliberately List Price only. Purchase Price, Last Selling Price and
   // other N3 prices are different accounting concepts and are never used as
   // a silent fallback for a room's opening rate.
   const listPrice = pickNumber(row, ["ListPrice", "listPrice", "list_price"]);
-  return { id, code, name, isActive, category, group, stockClass, listPrice };
+  return { id, code, name, isActive, category, groupCode, stockClassCode, listPrice };
 }
 
 function extractDetailRecord(body: unknown): unknown {

@@ -28,8 +28,9 @@ export type RoomImportSeedResult =
 
 /**
  * Translate only server-verified N3 Stock Master values into the opening HH
- * room values. Missing or non-numeric Group/Class data fails closed so a bad
- * N3 master can never become a plausible-looking local default.
+ * room values. Group Code stays a string because HH Floor is a string. Class
+ * Code arrives as a string too, but must contain a positive whole number
+ * before it can become HH MaxGuest.
  */
 export function roomImportSeed(stock: N3StockSummary): RoomImportSeedResult {
   const displayName = stock.name?.trim() ?? "";
@@ -37,16 +38,10 @@ export function roomImportSeed(stock: N3StockSummary): RoomImportSeedResult {
   const roomType = stock.category?.trim() ?? "";
   if (!roomType) return { ok: false, code: "n3_stock_category_missing" };
 
-  const rawFloor = stock.group?.trim() ?? "";
-  if (!/^-?\d+$/.test(rawFloor)) {
-    return { ok: false, code: "n3_stock_group_must_be_numeric" };
-  }
-  const floorNumber = Number(rawFloor);
-  if (!Number.isSafeInteger(floorNumber)) {
-    return { ok: false, code: "n3_stock_group_must_be_numeric" };
-  }
+  const floor = stock.groupCode?.trim() ?? "";
+  if (!floor) return { ok: false, code: "n3_stock_group_code_missing" };
 
-  const rawCapacity = stock.stockClass?.trim() ?? "";
+  const rawCapacity = stock.stockClassCode?.trim() ?? "";
   if (!/^\d+$/.test(rawCapacity)) {
     return { ok: false, code: "n3_stock_class_must_be_positive_integer" };
   }
@@ -64,7 +59,7 @@ export function roomImportSeed(stock: N3StockSummary): RoomImportSeedResult {
     value: {
       displayName,
       roomType,
-      floor: String(floorNumber),
+      floor,
       maxOccupancy,
       baseRate: stock.listPrice,
     },

@@ -59,8 +59,8 @@ function roomImportErrorMessage(code: string): string {
     n3_stock_name_missing: "This N3 Stock needs a Stock Name before it can become a room.",
     n3_stock_category_missing:
       "This N3 Stock needs a Stock Category before it can become a room Type.",
-    n3_stock_group_must_be_numeric:
-      "This N3 Stock Group must be a number before it can become the room Floor.",
+    n3_stock_group_code_missing:
+      "This N3 Stock needs a Stock Group Code before it can become the room Floor.",
     n3_stock_class_must_be_positive_integer:
       "This N3 Stock Class must be a positive whole number before it can become Max guests.",
     n3_stock_list_price_invalid:

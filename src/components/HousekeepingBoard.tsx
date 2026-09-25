@@ -319,6 +319,12 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         <span>
           Property date {board.data!.propertyDate} · {board.data!.timezone}
         </span>
+        {!canInitialize && tally.not_set_up > 0 ? (
+          <span>
+            Not set up rooms need one-time Owner setup. After that, Housekeeping can complete the
+            workflow through Mark Ready.
+          </span>
+        ) : null}
         {filter !== "needs_action" && (
           <button
             type="button"

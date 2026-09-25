@@ -8,6 +8,7 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { useSessionMe } from "@/lib/session-client";
 import { buildListQuery, type ListFilters, type ReservationSort } from "@/lib/reservations-ui";
+import type { CheckInAction } from "@/lib/reservation-operations.server";
 
 export class ReservationApiError extends Error {
   status: number;
@@ -341,6 +342,8 @@ export type ReservationEditCapabilitiesDTO = {
 type ReservationDetailResponse = {
   reservation: ReservationDetailDTO;
   editCapabilities: ReservationEditCapabilitiesDTO;
+  /** The one truthful action, derived from server time in the property timezone. */
+  checkInAction: CheckInAction;
 };
 
 export function useReservationDetail(id: string) {

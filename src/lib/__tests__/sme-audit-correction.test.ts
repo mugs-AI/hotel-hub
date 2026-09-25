@@ -86,12 +86,17 @@ vi.mock("@/lib/audit.server", () => ({
 
 vi.mock("@/lib/reservations-store.server", () => ({
   isUuid: (v: unknown) => typeof v === "string" && UUID_RE.test(v),
-  getReservationById: async () => ({ departureDate: "2026-08-10" }),
+  getReservationById: async () => ({
+    status: "confirmed",
+    arrivalDate: "2026-08-10",
+    departureDate: "2026-08-10",
+  }),
 }));
 
 vi.mock("@/lib/hotel-store.server", () => ({
   getOrCreateHotelSettings: async () => ({
     exceptionApprovalMode: settings.exceptionApprovalMode,
+    standardCheckInTime: "15:00",
     standardCheckOutTime: "12:00",
     timezone: "Asia/Kuala_Lumpur",
   }),
@@ -159,6 +164,7 @@ vi.mock("@/lib/reservation-operations.server", () => ({
     payload: { ...((p as Record<string, unknown>) ?? {}) },
   }),
   validateLateCheckoutWindow: () => ({ ok: true, utcIso: "2026-08-10T08:00:00.000Z" }),
+  checkInActionFor: () => "early_check_in",
   listOperationRequests: async () => [],
   requestOperation: async (i: any) => {
     calls.request.push(i);

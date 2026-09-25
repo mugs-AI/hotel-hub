@@ -108,6 +108,7 @@ function ReservationDetailPage() {
           <Detail
             data={query.data.reservation}
             capabilities={query.data.editCapabilities}
+            checkInAction={query.data.checkInAction}
             canEdit={canEdit}
             role={role}
           />
@@ -258,11 +259,13 @@ function ErrorState({ code, onRetry }: { code: string; onRetry: () => void }) {
 function Detail({
   data,
   capabilities,
+  checkInAction,
   canEdit,
   role,
 }: {
   data: ReservationDetailDTO;
   capabilities: ReservationEditCapabilitiesDTO;
+  checkInAction: "early_check_in" | "check_in" | null;
   canEdit: boolean;
   role: Parameters<typeof hasPermission>[0];
 }) {
@@ -411,6 +414,7 @@ function Detail({
         updatedAt={data.updatedAt}
         status={data.status}
         checkedInAt={data.checkedInAt ?? null}
+        checkInAction={checkInAction}
         canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
         canRequest={hasPermission(role, "hotel:operations:request")}
         rooms={data.rooms.map((r) => ({

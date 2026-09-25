@@ -121,8 +121,18 @@ export function operationErrorMessage(code: string, operationType?: string): str
       return "The reservation changed while you were working. Reload and try again.";
     case "early_check_in_required":
       return "It is before the standard check-in time — request an early check-in instead.";
+    case "early_check_in_not_required":
+      return "Standard check-in time has arrived. Reload the reservation and use Check in.";
+    case "property_timezone_invalid":
+      return "The property timezone or standard check-in time is not configured correctly. Ask the Owner to check Settings.";
+    case "primary_guest_required":
+      return "Select exactly one primary guest before check-in.";
+    case "guest_assignment_required":
+      return "Assign every guest to one of this reservation's rooms before check-in.";
+    case "idempotency_conflict":
+      return "This action no longer matches the saved reservation. Reload and try again.";
     case "check_in_failed":
-      return "Early check-in could not be saved. Reload the reservation and try again.";
+      return "Check-in could not be saved. Reload the reservation and try again.";
     case "room_unavailable":
       return "The room is not available for that period.";
     case "room_capacity_exceeded":

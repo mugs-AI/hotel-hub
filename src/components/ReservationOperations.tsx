@@ -204,6 +204,7 @@ export function ReservationActionsCard({
   updatedAt,
   status,
   checkedInAt,
+  checkInAction,
   canCheckIn,
   canRequest,
   rooms,
@@ -212,6 +213,7 @@ export function ReservationActionsCard({
   updatedAt: string;
   status: string;
   checkedInAt: string | null;
+  checkInAction: "early_check_in" | "check_in" | null;
   canCheckIn: boolean;
   canRequest: boolean;
   rooms: ActionRoom[];
@@ -249,8 +251,12 @@ export function ReservationActionsCard({
   // Terminal stays only are globally read-only; a checked-in stay keeps its
   // applicable request actions.
   const readOnly = TERMINAL_STATUSES.has(status);
-  const available = REQUESTABLE.filter((r) => r.statuses.includes(status));
-  const showCheckIn = canCheckIn && status === "confirmed";
+  const available = REQUESTABLE.filter(
+    (r) =>
+      r.statuses.includes(status) &&
+      (r.type !== "early_check_in" || checkInAction === "early_check_in"),
+  );
+  const showCheckIn = canCheckIn && status === "confirmed" && checkInAction === "check_in";
 
   const close = () => {
     setFlow(null);

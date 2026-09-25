@@ -14,6 +14,7 @@ import {
   OperationError,
   OPERATION_ERROR_CODES,
   requestOperation,
+  checkInActionFor,
   validateLateCheckoutWindow,
   validateOperationPayload,
 } from "@/lib/reservation-operations.server";
@@ -72,6 +73,32 @@ export async function handleOperationCreate({
   if (!isUuid(clientRequestId)) return deny(400, "validation_failed");
   const payload = validateOperationPayload(type, parsed.body.payload);
   if (!payload.ok) return deny(statusForOperationError(payload.code), payload.code);
+
+  // A stale browser must not apply an "early" check-in after the property's
+  // normal check-in window has opened. The same server-derived decision also
+  // powers the reservation page, using property timezone rather than the
+  // workstation clock.
+  if (type === "early_check_in") {
+    let reservation, settings;
+    try {
+      [reservation, settings] = await Promise.all([
+        getReservationById(ctx.session.tenantId!, id),
+        getOrCreateHotelSettings(ctx.session.tenantId!),
+      ]);
+    } catch {
+      return deny(500, "operation_request_failed");
+    }
+    if (!reservation) return deny(404, "reservation_not_found");
+    if (reservation.status !== "confirmed") return deny(409, "invalid_transition");
+    const action = checkInActionFor({
+      status: reservation.status,
+      arrivalDate: reservation.arrivalDate,
+      standardCheckInTime: settings.standardCheckInTime,
+      timezone: settings.timezone,
+    });
+    if (action === null) return deny(409, "property_timezone_invalid");
+    if (action !== "early_check_in") return deny(409, "early_check_in_not_required");
+  }
 
   // Late checkout is bounded by the property's own departure date and
   // standard checkout time, evaluated in the property's timezone. The browser
