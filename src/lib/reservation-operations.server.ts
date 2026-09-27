@@ -130,17 +130,27 @@ export function destinationBlockerCode(blocker: string): string {
 
 export class OperationError extends Error {
   code: string;
-  constructor(code: string) {
+  /** SQLSTATE only. Never include the database message or guest payload. */
+  sqlState: string | null;
+  constructor(code: string, sqlState: string | null = null) {
     super(code);
     this.code = code;
+    this.sqlState = sqlState;
     this.name = "OperationError";
   }
 }
 
-function mapRpcError(message: string | null | undefined, fallback: string): OperationError {
+function mapRpcError(
+  message: string | null | undefined,
+  fallback: string,
+  sqlState?: string | null,
+): OperationError {
   const msg = (message ?? "").toString();
   const hit = msg.match(/[a-z_]+/g)?.find((w) => OPERATION_ERROR_CODES.has(w));
-  return new OperationError(hit ?? fallback);
+  return new OperationError(
+    hit ?? fallback,
+    /^[A-Z0-9]{5}$/.test(sqlState ?? "") ? sqlState! : null,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -802,7 +812,7 @@ export async function applyDirectOperation(input: {
     ) {
       throw new OperationError("direct_operation_unavailable");
     }
-    throw mapRpcError(message, "operation_request_failed");
+    throw mapRpcError(message, "operation_request_failed", res.error.code);
   }
   const row = Array.isArray(res.data) ? res.data[0] : res.data;
   if (!row) throw new OperationError("operation_request_failed");

@@ -33,10 +33,12 @@ export type ReservationEventDTO = {
 export class OperationApiError extends Error {
   code: string;
   status: number;
-  constructor(code: string, status: number) {
+  reference: string | null;
+  constructor(code: string, status: number, reference: string | null = null) {
     super(code);
     this.code = code;
     this.status = status;
+    this.reference = reference;
     this.name = "OperationApiError";
   }
 }
@@ -58,7 +60,13 @@ async function opFetch<T>(url: string, init?: RequestInit): Promise<T> {
       body && typeof body === "object" && typeof (body as { error?: unknown }).error === "string"
         ? (body as { error: string }).error
         : "request_failed";
-    throw new OperationApiError(code, res.status);
+    const reference =
+      body &&
+      typeof body === "object" &&
+      typeof (body as { reference?: unknown }).reference === "string"
+        ? (body as { reference: string }).reference
+        : null;
+    throw new OperationApiError(code, res.status, reference);
   }
   return body as T;
 }

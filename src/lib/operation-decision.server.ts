@@ -273,7 +273,7 @@ export type DirectOutcome =
       result: { requestId: string; state: string };
       housekeepingHandoff: { applied: boolean; pending: boolean } | null;
     }
-  | { ok: false; status: number; code: string };
+  | { ok: false; status: number; code: string; reference?: string };
 
 /**
  * Carry out one exception immediately, atomically.
@@ -337,13 +337,21 @@ export async function executeDirectOperation(input: {
   } catch (err) {
     const known = err instanceof OperationError && OPERATION_ERROR_CODES.has(err.code);
     const code = known ? (err as OperationError).code : "operation_request_failed";
+    const reference = input.idempotencyKey;
     await logAudit({
       tenantId,
       n3UserKey: actor,
       eventType: "hotel.reservation.operation_request_failed",
-      detail: { reservationId: id, operationType, code, direct: true },
+      detail: {
+        reservationId: id,
+        operationType,
+        code,
+        direct: true,
+        reference,
+        sqlState: err instanceof OperationError ? err.sqlState : null,
+      },
     });
-    return { ok: false, status: statusForOperationError(code), code };
+    return { ok: false, status: statusForOperationError(code), code, reference };
   }
 
   await logAudit({

@@ -304,14 +304,10 @@ describe("Direct room change — one transaction owns the handover", () => {
 const MIGRATIONS = resolve(process.cwd(), "supabase/migrations");
 
 function correctiveMigration(): string {
-  const file = readdirSync(MIGRATIONS)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .reverse()
-    .map((f) => readFileSync(resolve(MIGRATIONS, f), "utf8"))
-    .find((sql) => sql.includes("hotelhub_direct_operation_v2"));
-  if (!file) throw new Error("corrective migration not found");
-  return file;
+  return readFileSync(
+    resolve(MIGRATIONS, "20260824101612_377147fe-20e0-41ad-bc0c-d3d0f7536272.sql"),
+    "utf8",
+  );
 }
 
 describe("hotelhub_direct_operation_v2 — gates live in the database routine", () => {

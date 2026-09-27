@@ -27,7 +27,7 @@ import {
   roomLabel,
   setPrimaryGuest,
   UNASSIGNED_FLOOR,
-  validateGuests,
+  validateGuestsForNewReservation,
   validateGuestAssignments,
   reconcileGuestAssignments,
   validateRoom,
@@ -306,7 +306,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
   const stayComplete = stayValid.ok && !!bookingSource && extRefCheck.ok;
   const roomsComplete = rooms.length > 0 && rooms.every((r) => validateRoom(r).ok);
   const assignmentsValid = validateGuestAssignments(guests, rooms);
-  const guestsComplete = validateGuests(guests).ok && assignmentsValid.ok;
+  const guestsComplete = validateGuestsForNewReservation(guests).ok && assignmentsValid.ok;
 
   const canSubmit = stayComplete && roomsComplete && guestsComplete && !create.isPending;
 
@@ -320,7 +320,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
       const v = validateRoom(r);
       if (!v.ok) return setFormError(friendlyError(v.code));
     }
-    const g = validateGuests(guests);
+    const g = validateGuestsForNewReservation(guests);
     if (!g.ok) return setFormError(friendlyError(g.code));
     const a = validateGuestAssignments(guests, rooms);
     if (!a.ok) return setFormError(friendlyError(a.code));
@@ -360,7 +360,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
       if (!roomsComplete) return setFormError(friendlyError("room_required"));
       setStep(3);
     } else if (step === 3) {
-      const v = validateGuests(guests);
+      const v = validateGuestsForNewReservation(guests);
       if (!v.ok) return setFormError(friendlyError(v.code));
       const a = validateGuestAssignments(guests, rooms);
       if (!a.ok) return setFormError(friendlyError(a.code));
@@ -1592,6 +1592,8 @@ function GuestForm({
       </Field>
       <Field label="Mobile">
         <input
+          required
+          type="tel"
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.mobile}
           onChange={(e) => onChange({ ...guest, mobile: e.target.value })}
@@ -1599,6 +1601,7 @@ function GuestForm({
       </Field>
       <Field label="Email">
         <input
+          required
           type="email"
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.email}
@@ -1608,6 +1611,7 @@ function GuestForm({
       <Field label="Nationality">
         <CountryCombobox
           id={`nat-${index}`}
+          required
           value={guest.nationalityCode}
           onChange={(v) => onChange({ ...guest, nationalityCode: v })}
           placeholder="Search country…"
@@ -1615,6 +1619,7 @@ function GuestForm({
       </Field>
       <Field label="Identity type">
         <select
+          required
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.identityType}
           onChange={(e) =>
@@ -1641,6 +1646,7 @@ function GuestForm({
         hint="Never saved in browser draft — please re-enter each session."
       >
         <input
+          required
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.identityNumber}
           onChange={(e) => onChange({ ...guest, identityNumber: e.target.value })}
@@ -1650,6 +1656,7 @@ function GuestForm({
       </Field>
       <Field label="Address line 1">
         <input
+          required
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.addressLine1}
           onChange={(e) => onChange({ ...guest, addressLine1: e.target.value })}
@@ -1671,6 +1678,7 @@ function GuestForm({
       </Field>
       <Field label="City">
         <input
+          required
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.city}
           onChange={(e) => onChange({ ...guest, city: e.target.value })}
@@ -1678,6 +1686,7 @@ function GuestForm({
       </Field>
       <Field label="Postcode">
         <input
+          required
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           value={guest.postcode}
           onChange={(e) => onChange({ ...guest, postcode: e.target.value })}
@@ -1687,6 +1696,7 @@ function GuestForm({
       <Field label="Country">
         <CountryCombobox
           id={`country-${index}`}
+          required
           value={guest.countryCode}
           onChange={(v) => onChange(applyGuestCountryChange(guest, v))}
           placeholder="Search country…"
@@ -1695,6 +1705,7 @@ function GuestForm({
       {isMY ? (
         <Field label="State">
           <select
+            required
             className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
             value={guest.stateCode}
             onChange={(e) => onChange({ ...guest, stateCode: e.target.value, stateProvince: "" })}
@@ -1710,6 +1721,7 @@ function GuestForm({
       ) : guest.countryCode ? (
         <Field label="State / Province">
           <input
+            required
             className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
             value={guest.stateProvince}
             onChange={(e) => onChange({ ...guest, stateProvince: e.target.value, stateCode: "" })}

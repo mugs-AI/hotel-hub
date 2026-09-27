@@ -263,13 +263,27 @@ describe("GET /api/hotel/availability", () => {
 describe("POST /api/hotel/reservations", () => {
   const ROOM_UUID_1 = "11111111-1111-4111-8111-111111111111";
   const ROOM_UUID_2 = "22222222-2222-4222-8222-222222222222";
+  const validGuest = (fullName: string, isPrimary: boolean) => ({
+    fullName,
+    isPrimary,
+    mobile: "0123456789",
+    email: "guest@example.com",
+    nationalityCode: "MYS",
+    identityType: "passport",
+    identityNumber: "A1234567",
+    addressLine1: "12 Jalan Hotel",
+    city: "Ipoh",
+    postcode: "30000",
+    countryCode: "MYS",
+    stateCode: "08",
+  });
   const validBody = () => ({
     bookingSource: "walk_in",
     arrivalDate: "2027-07-20",
     departureDate: "2027-07-22",
     notes: "VIP",
     rooms: [{ hotelRoomId: ROOM_UUID_1, agreedRate: 200, adults: 2, children: 0 }],
-    guests: [{ fullName: "John Doe", isPrimary: true }],
+    guests: [validGuest("John Doe", true)],
   });
   const post = (body: unknown) =>
     new Request("http://x.test/api/hotel/reservations", {
@@ -325,6 +339,36 @@ describe("POST /api/hotel/reservations", () => {
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
     expect((await handleCreateReservation({ request: post(validBody()) })).status).toBe(201);
   });
+  it("rejects incomplete guest intake before invoking the create RPC", async () => {
+    const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
+    let createCalls = 0;
+    setRpcHandler(async () => {
+      createCalls++;
+      return { data: null, error: null };
+    });
+    const cases = [
+      ["mobile", "guest_mobile_required"],
+      ["email", "guest_email_required"],
+      ["nationalityCode", "guest_nationality_required"],
+      ["identityType", "guest_identity_type_required"],
+      ["identityNumber", "guest_identity_number_required"],
+      ["addressLine1", "guest_address_required"],
+      ["city", "guest_city_required"],
+      ["postcode", "guest_postcode_required"],
+      ["countryCode", "guest_country_required"],
+      ["stateCode", "guest_state_required"],
+    ] as const;
+    for (const [field, expected] of cases) {
+      await seedAuthenticated("front_desk");
+      const guest = { ...validGuest("A", true), [field]: "" };
+      const res = await handleCreateReservation({
+        request: post({ ...validBody(), guests: [guest] }),
+      });
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toBe(expected);
+    }
+    expect(createCalls).toBe(0);
+  });
   it("rejects invalid booking source", async () => {
     await seedAuthenticated("owner");
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
@@ -360,10 +404,7 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({
       request: post({
         ...validBody(),
-        guests: [
-          { fullName: "A", isPrimary: false },
-          { fullName: "B", isPrimary: false },
-        ],
+        guests: [validGuest("A", false), validGuest("B", false)],
       }),
     });
     expect((await res.json()).error).toBe("primary_guest_required");
@@ -374,10 +415,7 @@ describe("POST /api/hotel/reservations", () => {
     const res = await handleCreateReservation({
       request: post({
         ...validBody(),
-        guests: [
-          { fullName: "A", isPrimary: true },
-          { fullName: "B", isPrimary: true },
-        ],
+        guests: [validGuest("A", true), validGuest("B", true)],
       }),
     });
     expect((await res.json()).error).toBe("multiple_primary_guests");
@@ -424,8 +462,8 @@ describe("POST /api/hotel/reservations", () => {
         },
       ],
       guests: [
-        { fullName: "Primary", isPrimary: true, assignedHotelRoomId: ROOM_UUID_1 },
-        { fullName: "Companion", isPrimary: false, assignedHotelRoomId: ROOM_UUID_2 },
+        { ...validGuest("Primary", true), assignedHotelRoomId: ROOM_UUID_1 },
+        { ...validGuest("Companion", false), assignedHotelRoomId: ROOM_UUID_2 },
       ],
     };
     const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");

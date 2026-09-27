@@ -489,16 +489,13 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   if (guests.length === 0) return { ok: false, code: "guest_required" };
   for (const g of guests) {
     if (!g.fullName.trim()) return { ok: false, code: "guest_full_name_required" };
-    // Optional identity pair — validate only when either side is set.
+    // Existing reservation edits retain the historical optional field rules.
     const identity = normalizeIdentity(g.identityType || "", g.identityNumber || "");
     if (!identity.ok) return { ok: false, code: identity.code, field: "identityNumber" };
-    // Optional nationality.
     if (g.nationalityCode && !isValidCountryCode(g.nationalityCode))
       return { ok: false, code: "invalid_nationality", field: "nationalityCode" };
-    // Optional address country.
     if (g.countryCode && !isValidCountryCode(g.countryCode))
       return { ok: false, code: "invalid_address_country", field: "countryCode" };
-    // Malaysian address: if a stateCode is set, it must be one of the 16.
     if (g.countryCode === "MYS" && g.stateCode && !isValidMalaysianStateCode(g.stateCode))
       return { ok: false, code: "invalid_state", field: "stateCode" };
   }
@@ -506,6 +503,29 @@ export function validateGuests(guests: GuestDraft[]): ValidationResult {
   if (primaries === 0) return { ok: false, code: "primary_guest_required" };
   if (primaries > 1) return { ok: false, code: "multiple_primary_guests" };
   return { ok: true };
+}
+
+/** Intake-only completeness gate. Historical bookings are not retroactively
+ * invalidated when staff edit an existing reservation. */
+export function validateGuestsForNewReservation(guests: GuestDraft[]): ValidationResult {
+  if (guests.length === 0) return { ok: false, code: "guest_required" };
+  for (const g of guests) {
+    if (!g.fullName.trim()) return { ok: false, code: "guest_full_name_required" };
+    if (!g.mobile.trim()) return { ok: false, code: "guest_mobile_required" };
+    if (!g.email.trim()) return { ok: false, code: "guest_email_required" };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email.trim()))
+      return { ok: false, code: "invalid_guest_email" };
+    if (!g.nationalityCode) return { ok: false, code: "guest_nationality_required" };
+    if (!g.identityType) return { ok: false, code: "guest_identity_type_required" };
+    if (!g.identityNumber.trim()) return { ok: false, code: "guest_identity_number_required" };
+    if (!g.addressLine1.trim()) return { ok: false, code: "guest_address_required" };
+    if (!g.city.trim()) return { ok: false, code: "guest_city_required" };
+    if (!g.postcode.trim()) return { ok: false, code: "guest_postcode_required" };
+    if (!g.countryCode) return { ok: false, code: "guest_country_required" };
+    if (g.countryCode === "MYS" ? !g.stateCode : !g.stateProvince.trim())
+      return { ok: false, code: "guest_state_required" };
+  }
+  return validateGuests(guests);
 }
 
 // ---------- Error labels ----------
@@ -516,6 +536,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   room_required: "Select at least one room.",
   guest_required: "Add at least one guest.",
   guest_full_name_required: "Every guest needs a full name.",
+  guest_mobile_required: "Enter a mobile number for every guest.",
+  guest_email_required: "Enter an email address for every guest.",
+  invalid_guest_email: "Enter a valid guest email address.",
+  guest_nationality_required: "Select a nationality for every guest.",
+  guest_identity_type_required: "Select an identity type for every guest.",
+  guest_identity_number_required: "Enter an identity number for every guest.",
+  guest_address_required: "Enter address line 1 for every guest.",
+  guest_city_required: "Enter a city for every guest.",
+  guest_postcode_required: "Enter a postcode for every guest.",
+  guest_country_required: "Select an address country for every guest.",
+  guest_state_required: "Enter a state or province for every guest.",
   primary_guest_required: "Select a primary guest.",
   multiple_primary_guests: "Only one guest can be marked as primary.",
   invalid_occupancy: "Adults and children must be whole numbers.",

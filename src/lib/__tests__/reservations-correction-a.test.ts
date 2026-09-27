@@ -176,7 +176,22 @@ const validBody = () => ({
   arrivalDate: "2027-07-20",
   departureDate: "2027-07-22",
   rooms: [{ hotelRoomId: ROOM_UUID, agreedRate: 200, adults: 2, children: 0 }],
-  guests: [{ fullName: "John Doe", isPrimary: true }],
+  guests: [
+    {
+      fullName: "John Doe",
+      isPrimary: true,
+      mobile: "0123456789",
+      email: "john@example.com",
+      nationalityCode: "MYS",
+      identityType: "passport",
+      identityNumber: "A1234567",
+      addressLine1: "12 Jalan Hotel",
+      city: "Ipoh",
+      postcode: "30000",
+      countryCode: "MYS",
+      stateCode: "08",
+    },
+  ],
 });
 
 // =========================================================================
@@ -541,7 +556,7 @@ describe("Correction A / Defect 6 — no duplicate success audits from API", () 
           rateOverrideReason: "discount",
         },
       ],
-      guests: [{ fullName: "John Doe", isPrimary: true, assignedHotelRoomId: ROOM_UUID }],
+      guests: [{ ...validBody().guests[0], assignedHotelRoomId: ROOM_UUID }],
     };
     const res = await handleCreateReservation({ request: post(body) });
     expect(res.status).toBe(201);

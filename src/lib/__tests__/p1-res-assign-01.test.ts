@@ -152,6 +152,23 @@ function futureDates() {
 function baseBody(extra: Record<string, unknown>) {
   return { bookingSource: "walk_in", ...futureDates(), notes: null, ...extra };
 }
+function completeGuest(fullName: string, isPrimary: boolean, extra: Record<string, unknown> = {}) {
+  return {
+    fullName,
+    isPrimary,
+    mobile: "0123456789",
+    email: "guest@example.com",
+    nationalityCode: "MYS",
+    identityType: "passport",
+    identityNumber: "A1234567",
+    addressLine1: "12 Jalan Hotel",
+    city: "Ipoh",
+    postcode: "30000",
+    countryCode: "MYS",
+    stateCode: "08",
+    ...extra,
+  };
+}
 
 beforeEach(() => {
   sessionState.data = {};
@@ -318,7 +335,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
-          guests: [{ fullName: "Primary", isPrimary: true }],
+          guests: [completeGuest("Primary", true)],
         }),
       ),
     });
@@ -338,7 +355,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
             { hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 },
             { hotelRoomId: ROOM_B, agreedRate: 200, adults: 1, children: 0 },
           ],
-          guests: [{ fullName: "Primary", isPrimary: true }],
+          guests: [completeGuest("Primary", true)],
         }),
       ),
     });
@@ -360,8 +377,8 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
             { hotelRoomId: ROOM_B, agreedRate: 200, adults: 1, children: 0 },
           ],
           guests: [
-            { fullName: "Primary", isPrimary: true, assignedHotelRoomId: ROOM_A },
-            { fullName: "Companion", isPrimary: false, assignedHotelRoomId: ROOM_B },
+            completeGuest("Primary", true, { assignedHotelRoomId: ROOM_A }),
+            completeGuest("Companion", false, { assignedHotelRoomId: ROOM_B }),
           ],
         }),
       ),
@@ -379,7 +396,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
-          guests: [{ fullName: "Primary", isPrimary: true, assignedHotelRoomId: OTHER_ROOM }],
+          guests: [completeGuest("Primary", true, { assignedHotelRoomId: OTHER_ROOM })],
         }),
       ),
     });
@@ -396,7 +413,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
-          guests: [{ fullName: "Primary", isPrimary: true, assignedHotelRoomId: "not-a-uuid" }],
+          guests: [completeGuest("Primary", true, { assignedHotelRoomId: "not-a-uuid" })],
         }),
       ),
     });
@@ -412,9 +429,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
-          guests: [
-            { fullName: "Primary", isPrimary: true, reservationRoomId: OTHER_ROOM },
-          ] as unknown,
+          guests: [completeGuest("Primary", true, { reservationRoomId: OTHER_ROOM })] as unknown,
         }),
       ),
     });
@@ -435,7 +450,7 @@ describe("P1-RES-ASSIGN-01 — create API", () => {
       request: post(
         baseBody({
           rooms: [{ hotelRoomId: ROOM_A, agreedRate: 200, adults: 1, children: 0 }],
-          guests: [{ fullName: "Primary", isPrimary: true }],
+          guests: [completeGuest("Primary", true)],
         }),
       ),
     });

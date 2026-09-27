@@ -59,7 +59,14 @@ const ERR = "#C2413B";
 function errText(err: unknown, operationType?: string): string {
   const code =
     err && typeof err === "object" && "code" in err ? String((err as { code: string }).code) : "";
-  return operationErrorMessage(code, operationType);
+  const message = operationErrorMessage(code, operationType);
+  const reference =
+    err && typeof err === "object" && "reference" in err
+      ? String((err as { reference: unknown }).reference ?? "")
+      : "";
+  return reference && /^(operation_request_failed|request_failed)$/.test(code)
+    ? `${message} Support reference: ${reference}.`
+    : message;
 }
 
 /** Safe-only readiness blocker codes that can surface on a pending decision. */

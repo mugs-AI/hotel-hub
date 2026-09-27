@@ -297,6 +297,11 @@ export async function handleCreateReservation({
     const fullNameRaw = gg.fullName;
     if (typeof fullNameRaw !== "string" || fullNameRaw.trim().length === 0)
       return deny(400, "guest_full_name_required");
+    const mobile = normStr(gg.mobile);
+    if (!mobile) return deny(400, "guest_mobile_required");
+    const email = normStr(gg.email);
+    if (!email) return deny(400, "guest_email_required");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return deny(400, "invalid_guest_email");
     const primary = toStrictBoolean(gg.isPrimary, false);
     if (primary === null) return deny(400, "invalid_primary_flag");
 
@@ -319,6 +324,7 @@ export async function handleCreateReservation({
 
     // Nationality — controlled ISO alpha-3.
     let nationalityCode: string | null = null;
+    if (!normStr(gg.nationalityCode)) return deny(400, "guest_nationality_required");
     if (
       gg.nationalityCode !== undefined &&
       gg.nationalityCode !== null &&
@@ -332,6 +338,8 @@ export async function handleCreateReservation({
 
     const identityType = normStr(gg.identityType);
     const identityNumberRaw = normStr(gg.identityNumber);
+    if (!identityType) return deny(400, "guest_identity_type_required");
+    if (!identityNumberRaw) return deny(400, "guest_identity_number_required");
     if ((identityType === null) !== (identityNumberRaw === null))
       return deny(400, "identity_pair_required");
     let identityNumber: string | null = identityNumberRaw;
@@ -347,6 +355,13 @@ export async function handleCreateReservation({
       }
     }
 
+    const addressLine1 = normStr(gg.addressLine1);
+    const city = normStr(gg.city);
+    const postcode = normStr(gg.postcode);
+    if (!addressLine1) return deny(400, "guest_address_required");
+    if (!city) return deny(400, "guest_city_required");
+    if (!postcode) return deny(400, "guest_postcode_required");
+    if (!normStr(gg.countryCode)) return deny(400, "guest_country_required");
     let countryCode: string | null = null;
     if (gg.countryCode !== undefined && gg.countryCode !== null && gg.countryCode !== "") {
       if (typeof gg.countryCode !== "string") return deny(400, "invalid_address_country");
@@ -362,15 +377,17 @@ export async function handleCreateReservation({
       stateProvince = null;
       if (stateCode !== null && !isValidMalaysianStateCode(stateCode))
         return deny(400, "invalid_state");
+      if (stateCode === null) return deny(400, "guest_state_required");
     } else {
       // Non-Malaysian: only stateProvince is allowed; ignore any stray stateCode.
       stateCode = null;
+      if (!stateProvince) return deny(400, "guest_state_required");
     }
 
     guests.push({
       fullName: fullNameRaw.trim(),
-      mobile: typeof gg.mobile === "string" ? gg.mobile.trim() || null : null,
-      email: typeof gg.email === "string" ? gg.email.trim() || null : null,
+      mobile,
+      email,
       nationality: null, // legacy field never accepted for new guests
       notes: typeof gg.notes === "string" ? gg.notes.trim() || null : null,
       isPrimary: primary,
@@ -378,11 +395,11 @@ export async function handleCreateReservation({
       identityType,
       identityNumber,
       nationalityCode,
-      addressLine1: normStr(gg.addressLine1),
+      addressLine1,
       addressLine2: normStr(gg.addressLine2),
       addressLine3: normStr(gg.addressLine3),
-      city: normStr(gg.city),
-      postcode: normStr(gg.postcode),
+      city,
+      postcode,
       countryCode,
       stateCode,
       stateProvince,

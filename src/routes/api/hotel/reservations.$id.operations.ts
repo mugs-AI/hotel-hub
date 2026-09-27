@@ -176,7 +176,10 @@ export async function handleOperationCreate({
           return deny(statusForOperationError(code), code);
         }
       }
-      return deny(outcome.status, outcome.code);
+      return Response.json(
+        { error: outcome.code, ...(outcome.reference ? { reference: outcome.reference } : {}) },
+        { status: outcome.status, headers: { "cache-control": "no-store" } },
+      );
     }
     return Response.json(
       { ...outcome.result, direct: true, outcome: "applied" },
