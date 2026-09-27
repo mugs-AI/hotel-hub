@@ -89,6 +89,7 @@ export function isRealN3Id(v: unknown): v is string {
 
 export type N3ReceiptsClient = {
   getNew(token: string): Promise<N3Outcome>;
+  listPaymentAccounts(token: string, skip: number): Promise<N3Outcome>;
   getAccountById(token: string, id: string): Promise<N3Outcome>;
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
   getById(token: string, id: string): Promise<N3Outcome>;
@@ -98,6 +99,11 @@ export type N3ReceiptsClient = {
 export const n3Receipts: N3ReceiptsClient = {
   getNew(token) {
     return n3Request(token, "GET", "/api/ARReceipts/New");
+  },
+  listPaymentAccounts(token, skip) {
+    if (!Number.isSafeInteger(skip) || skip < 0 || skip > 900)
+      throw new Error("unsafe account page");
+    return n3Request(token, "GET", `/api/AccountCodes/Leaf/Query?$top=100&$skip=${skip}`);
   },
   getAccountById(token, id) {
     if (!isRealN3Id(id)) throw new Error("getAccountById: unsafe id");

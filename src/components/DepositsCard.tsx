@@ -10,6 +10,8 @@ import {
   isRecoverableDeposit,
   useCreateDeposit,
   useDepositPreview,
+  usePaymentAccounts,
+  type PaymentLine,
   useReconcileDeposit,
   useReservationDeposits,
 } from "@/lib/deposits-client";
@@ -110,10 +112,19 @@ export function DepositsCard({
   const create = useCreateDeposit(reservationId);
   const reconcile = useReconcileDeposit(reservationId);
   const preview = useDepositPreview(reservationId);
+  const accounts = usePaymentAccounts(canCreate && eligible);
   const [amount, setAmount] = useState("");
+  const [lines, setLines] = useState<Array<{ accountId: string; amount: string }>>([
+    { accountId: "", amount: "" },
+  ]);
+  const [formError, setFormError] = useState("");
   // Stable per-confirmation-attempt identity. Minted on "Add deposit",
   // cleared only on cancel or a completed server result.
-  const [attempt, setAttempt] = useState<{ clientRequestId: string; amount: number } | null>(null);
+  const [attempt, setAttempt] = useState<{
+    clientRequestId: string;
+    amount: number;
+    paymentLines: PaymentLine[];
+  } | null>(null);
 
   if (!canView) return null;
   const deposits = q.data?.deposits ?? [];
@@ -122,11 +133,35 @@ export function DepositsCard({
 
   const openConfirm = () => {
     const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) return;
+    if (
+      !Number.isFinite(value) ||
+      value <= 0 ||
+      Math.abs(value * 100 - Math.round(value * 100)) > 1e-6
+    ) {
+      setFormError("Enter a positive amount with at most 2 decimals.");
+      return;
+    }
     const rounded = Math.round(value * 100) / 100;
-    setAttempt({ clientRequestId: crypto.randomUUID(), amount: rounded });
+    const paymentLines = lines.map((l) => ({ accountId: l.accountId, amount: Number(l.amount) }));
+    const valid =
+      paymentLines.every(
+        (l) =>
+          l.accountId &&
+          Number.isFinite(l.amount) &&
+          l.amount > 0 &&
+          Math.abs(l.amount * 100 - Math.round(l.amount * 100)) < 1e-6,
+      ) &&
+      new Set(paymentLines.map((l) => l.accountId)).size === paymentLines.length &&
+      paymentLines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0) ===
+        Math.round(rounded * 100);
+    if (!valid) {
+      setFormError("Choose distinct accounts and enter amounts that total the deposit exactly.");
+      return;
+    }
+    setFormError("");
+    setAttempt({ clientRequestId: crypto.randomUUID(), amount: rounded, paymentLines });
     preview.reset();
-    preview.mutate({ amount: rounded });
+    preview.mutate({ amount: rounded, paymentLines });
   };
 
   const cancelConfirm = () => {
@@ -138,10 +173,15 @@ export function DepositsCard({
   const submit = () => {
     if (!attempt) return;
     create.mutate(
-      { amount: attempt.amount, clientRequestId: attempt.clientRequestId },
+      {
+        amount: attempt.amount,
+        clientRequestId: attempt.clientRequestId,
+        paymentLines: attempt.paymentLines,
+      },
       {
         onSuccess: () => {
           setAmount("");
+          setLines([{ accountId: "", amount: "" }]);
           setAttempt(null);
           preview.reset();
         },
@@ -231,7 +271,13 @@ export function DepositsCard({
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Account</dt>
-                  <dd>{d.accountLabel ?? "—"}</dd>
+                  <dd>
+                    {d.paymentLines?.length
+                      ? d.paymentLines
+                          .map((l) => `${l.accountLabel} (${d.currency} ${l.amount.toFixed(2)})`)
+                          .join("; ")
+                      : (d.accountLabel ?? "—")}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Recorded by</dt>
@@ -279,26 +325,102 @@ export function DepositsCard({
               You can only take a deposit on a confirmed booking.
             </p>
           ) : !attempt ? (
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="text-xs">
-                <span className="block text-muted-foreground">Deposit amount</span>
-                <input
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="mt-1 w-40 rounded-md border border-input px-2 py-1 text-sm tabular-nums"
-                  placeholder="0.00"
-                />
-              </label>
-              <button
-                type="button"
-                disabled={!canPost || !amount.trim()}
-                onClick={openConfirm}
-                className="rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50"
-                style={{ backgroundColor: GOLD, color: NAVY }}
-              >
-                Add deposit
-              </button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-xs">
+                  <span className="block text-muted-foreground">Deposit amount</span>
+                  <input
+                    inputMode="decimal"
+                    value={amount}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      if (lines.length === 1) setLines([{ ...lines[0]!, amount: e.target.value }]);
+                    }}
+                    className="mt-1 w-40 rounded-md border border-input px-2 py-1 text-sm tabular-nums"
+                    placeholder="0.00"
+                  />
+                </label>
+              </div>
+              {lines.map((line, index) => (
+                <div key={index} className="flex flex-wrap items-end gap-2">
+                  <label className="text-xs">
+                    <span className="block text-muted-foreground">
+                      {index === 0 ? "Deposit to N3 account" : `Payment ${index + 1} account`}
+                    </span>
+                    <select
+                      className="mt-1 rounded-md border border-input bg-white px-2 py-1 text-sm"
+                      value={line.accountId}
+                      onChange={(e) =>
+                        setLines((current) =>
+                          current.map((l, i) =>
+                            i === index ? { ...l, accountId: e.target.value } : l,
+                          ),
+                        )
+                      }
+                    >
+                      <option value="">Choose bank or cash account</option>
+                      {accounts.data?.accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.label} ({a.code})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs">
+                    <span className="block text-muted-foreground">Amount</span>
+                    <input
+                      inputMode="decimal"
+                      className="mt-1 w-32 rounded-md border border-input px-2 py-1 text-sm"
+                      value={line.amount}
+                      onChange={(e) =>
+                        setLines((current) =>
+                          current.map((l, i) =>
+                            i === index ? { ...l, amount: e.target.value } : l,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  {lines.length > 1 ? (
+                    <button
+                      type="button"
+                      className="rounded-md border px-2 py-1 text-xs"
+                      onClick={() => setLines((current) => current.filter((_, i) => i !== index))}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {accounts.error ? (
+                <p className="text-xs" style={{ color: ERR }}>
+                  {depositErrorMessage(accounts.error.code)}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border px-2 py-1 text-xs"
+                  disabled={lines.length >= 10}
+                  onClick={() => setLines((current) => [...current, { accountId: "", amount: "" }])}
+                >
+                  Add another payment method
+                </button>
+                <button
+                  type="button"
+                  disabled={!canPost || !amount.trim() || !accounts.data?.accounts.length}
+                  onClick={openConfirm}
+                  className="rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  style={{ backgroundColor: GOLD, color: NAVY }}
+                >
+                  Add deposit
+                </button>
+              </div>
+              {formError ? (
+                <p className="text-xs" style={{ color: ERR }}>
+                  {formError}
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="rounded-md border p-3 text-xs" style={{ borderColor: `${GOLD}55` }}>
@@ -324,7 +446,11 @@ export function DepositsCard({
                   </div>
                   <div>
                     <dt className="text-muted-foreground">Payment account</dt>
-                    <dd>{p.accountLabel ?? "—"}</dd>
+                    <dd>
+                      {p.paymentLines
+                        .map((l) => `${l.accountLabel}: ${p.currency} ${l.amount.toFixed(2)}`)
+                        .join("; ")}
+                    </dd>
                   </div>
                 </dl>
               ) : null}

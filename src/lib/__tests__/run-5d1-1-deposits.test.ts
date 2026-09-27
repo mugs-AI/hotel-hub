@@ -117,6 +117,8 @@ const {
   reconcileDeposit,
   isRecoverableDepositStatus,
   DepositError,
+  validatePaymentChoices,
+  listEligiblePaymentAccounts,
 } = await import("@/lib/deposits-store.server");
 
 // ---------- N3 fake ----------
@@ -219,6 +221,7 @@ function baseInput(clientRequestId: string) {
     n3Token: "tok",
     amount: 100,
     clientRequestId,
+    paymentLines: [{ accountId: ACCOUNT_ID, amount: 100 }],
   };
 }
 
@@ -237,6 +240,86 @@ beforeEach(() => {
 });
 
 describe("N3 Cloud receipt contract and Deposit To account", () => {
+  it("requires distinct positive account lines whose cents total the receipt", () => {
+    const second = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    expect(
+      validatePaymentChoices(100.01, [
+        { accountId: ACCOUNT_ID, amount: 60.01 },
+        { accountId: second, amount: 40 },
+      ]),
+    ).toHaveLength(2);
+    for (const lines of [
+      [
+        { accountId: ACCOUNT_ID, amount: 60 },
+        { accountId: second, amount: 40 },
+      ],
+      [
+        { accountId: ACCOUNT_ID, amount: 60.01 },
+        { accountId: ACCOUNT_ID, amount: 40 },
+      ],
+      [
+        { accountId: ACCOUNT_ID, amount: 60.001 },
+        { accountId: second, amount: 40.009 },
+      ],
+    ])
+      expect(() => validatePaymentChoices(100.01, lines)).toThrowError("invalid_payment_lines");
+  });
+
+  it("forms one split AR receipt with exact bank/cash amounts and no header account", () => {
+    const defaults = parseNewReceiptDefaults(newDefaults() as N3Outcome)!;
+    const second = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const payload = buildDepositPayload({
+      defaults,
+      customerId: "1",
+      amount: 150,
+      referenceNo: "HH-0123456789abcdef01234567",
+      description: "DEPOSIT",
+      docDate: "2026-09-27",
+      paymentLines: [
+        { id: ACCOUNT_ID, code: "700-0310", name: "Maybank", kind: "bank", amount: 70 },
+        { id: second, code: "700-0400", name: "Cash", kind: "cash", amount: 80 },
+      ],
+    });
+    expect(payload).toMatchObject({
+      docType: "AROR",
+      totalAmount: 150,
+      isMultiPayment: true,
+      multiPayments: [
+        { accountId: ACCOUNT_ID, amount: 70 },
+        { accountId: second, amount: 80 },
+      ],
+      knockoff: [],
+    });
+    expect(payload).not.toHaveProperty("accountId");
+  });
+
+  it("only offers active Current Assets bank/cash leaf accounts in receipt currency", async () => {
+    const row = accountResult().body.data;
+    const accounts = await listEligiblePaymentAccounts(
+      {
+        listPaymentAccounts: async () => ({
+          kind: "response",
+          status: 200,
+          durationMs: 1,
+          body: {
+            code: "0000",
+            success: true,
+            data: {
+              value: [
+                row,
+                { ...row, id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", specialCode: "DAC" },
+                { ...row, id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", specialCode: "CAC" },
+              ],
+            },
+          },
+        }),
+      } as unknown as N3ReceiptsClient,
+      "token",
+      "1",
+    );
+    expect(accounts.map((a) => a.kind)).toEqual(["bank", "cash"]);
+  });
+
   it("sends a numeric customer/currency and top-level total without details", () => {
     const defaults = parseNewReceiptDefaults(newDefaults() as N3Outcome);
     expect(defaults).not.toBeNull();
@@ -534,13 +617,14 @@ describe("5D1.1 confirmation preview", () => {
         reservationId: RESERVATION_ID,
         n3Token: "tok",
         amount: 100,
+        paymentLines: [{ accountId: ACCOUNT_ID, amount: 100 }],
       },
       { n3: client, env: ENV },
     );
     expect(calls.create).toBe(0);
     expect(preview.bookingReference).toBe("BK-0001");
     expect(preview.customerLabel).toBe("Walk In Guest");
-    expect(preview.accountLabel).toBe("700-0310 — Maybank Current");
+    expect(preview.accountLabel).toBe("Maybank Current (700-0310)");
     expect(preview.warning).toContain("real accounting document");
     const serialized = JSON.stringify(preview);
     expect(serialized).not.toContain(ACCOUNT_ID);
@@ -648,6 +732,7 @@ describe("5D1.1.1 N3 403 is never session expiry", () => {
           reservationId: RESERVATION_ID,
           n3Token: "tok",
           amount: 100,
+          paymentLines: [{ accountId: ACCOUNT_ID, amount: 100 }],
         },
         { n3: client, env: ENV },
       ),

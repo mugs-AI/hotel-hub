@@ -50,7 +50,7 @@ export async function handleDepositPreview({
   }
   const body = parsed as Record<string, unknown>;
   for (const k of Object.keys(body)) {
-    if (k !== "amount") return deny(400, "unknown_field");
+    if (k !== "amount" && k !== "paymentLines") return deny(400, "unknown_field");
   }
 
   try {
@@ -60,6 +60,7 @@ export async function handleDepositPreview({
       reservationId: id,
       n3Token: ctx.session.n3Token,
       amount: body.amount as number,
+      paymentLines: body.paymentLines as Array<{ accountId: string; amount: number }>,
     });
     return Response.json({ preview }, { headers: { "cache-control": "no-store" } });
   } catch (err) {

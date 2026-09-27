@@ -1,6 +1,5 @@
 // Browser-side deposit queries/mutations. Same-origin, cookie-authenticated,
-// no direct Supabase or N3 access. Amounts and a client request id are the
-// only values the browser may send.
+// no direct Supabase or N3 access. Server re-verifies selected account IDs.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSessionMe } from "./session-client";
 
@@ -13,12 +12,31 @@ export type DepositDTO = {
   n3ReceiptId: string | null;
   customerLabel: string | null;
   accountLabel: string | null;
+  paymentLines: Array<{ accountLabel: string; amount: number }>;
   description: string | null;
   /** Safe staff label, or null when no real directory name/email exists. */
   createdByLabel: string | null;
   createdAt: string;
   errorCode: string | null;
 };
+
+export type PaymentLine = { accountId: string; amount: number };
+export type PaymentAccountChoice = {
+  id: string;
+  code: string;
+  name: string;
+  kind: "bank" | "cash";
+  label: string;
+};
+
+export function usePaymentAccounts(enabled: boolean) {
+  return useQuery<{ accounts: PaymentAccountChoice[] }, DepositApiError>({
+    queryKey: ["payment-accounts"],
+    queryFn: () => depositFetch("/api/hotel/payment-accounts"),
+    enabled,
+    retry: false,
+  });
+}
 
 export type DepositsResponse = {
   deposits: DepositDTO[];
@@ -82,7 +100,7 @@ export function useCreateDeposit(reservationId: string) {
   return useMutation<
     { deposit: DepositDTO },
     DepositApiError,
-    { amount: number; clientRequestId: string }
+    { amount: number; clientRequestId: string; paymentLines: PaymentLine[] }
   >({
     mutationFn: (payload) =>
       depositFetch<{ deposit: DepositDTO }>(`/api/hotel/reservations/${reservationId}/deposits`, {
@@ -101,12 +119,17 @@ export type DepositPreview = {
   amount: number;
   currency: string;
   accountLabel: string | null;
+  paymentLines: Array<{ accountLabel: string; amount: number }>;
   warning: string;
 };
 
 /** Owner-triggered read-only confirmation preview (no N3 write). */
 export function useDepositPreview(reservationId: string) {
-  return useMutation<{ preview: DepositPreview }, DepositApiError, { amount: number }>({
+  return useMutation<
+    { preview: DepositPreview },
+    DepositApiError,
+    { amount: number; paymentLines: PaymentLine[] }
+  >({
     mutationFn: (payload) =>
       depositFetch<{ preview: DepositPreview }>(
         `/api/hotel/reservations/${reservationId}/deposits/preview`,
@@ -173,6 +196,10 @@ export function depositErrorMessage(code: string | null | undefined): string {
       return "HotelHub could not confirm the N3 result. Check N3 before doing anything else.";
     case "invalid_amount":
       return "Enter a positive amount with at most 2 decimals.";
+    case "invalid_payment_lines":
+      return "Choose distinct N3 bank or cash accounts. Payment lines must total the deposit exactly.";
+    case "multi_payment_contract_unverified":
+      return "Split payment posting is awaiting N3 API verification for this property.";
     case "deposit_not_recoverable":
       return "This deposit is already resolved.";
     case "unauthorized":

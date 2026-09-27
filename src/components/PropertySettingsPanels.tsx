@@ -1,7 +1,7 @@
 // Owner-only Settings panels: property basics, guest-editing controls and the
 // N3 integration mapping. All writes go through same-origin, cookie
 // authenticated API routes — never Supabase or N3 from the browser.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { resetHousekeepingBoardCache } from "@/lib/housekeeping-client";
@@ -9,6 +9,7 @@ import { SESSION_QUERY_KEY } from "@/lib/session-client";
 import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
+import type { PaymentAccountChoice } from "@/lib/deposits-client";
 import {
   applyDisplaySize,
   coerceDisplaySize,
@@ -829,6 +830,12 @@ export function N3IntegrationPanel({
         ) : null}
       </section>
 
+      <PaymentAccountAliasesPanel
+        settings={settings}
+        onChange={onChange}
+        onN3Unauthorized={onN3Unauthorized}
+      />
+
       <section
         className={CARD}
         style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${NAVY}` }}
@@ -850,5 +857,102 @@ export function N3IntegrationPanel({
         </a>
       </section>
     </div>
+  );
+}
+
+function PaymentAccountAliasesPanel({
+  settings,
+  onChange,
+  onN3Unauthorized,
+}: {
+  settings: HotelSettingsDTO;
+  onChange: (s: HotelSettingsDTO) => void;
+  onN3Unauthorized: () => void;
+}) {
+  const [accounts, setAccounts] = useState<PaymentAccountChoice[]>([]);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const unauthorizedRef = useRef(onN3Unauthorized);
+  unauthorizedRef.current = onN3Unauthorized;
+
+  useEffect(() => {
+    let cancelled = false;
+    void hotelJson<{ accounts: PaymentAccountChoice[] }>("/api/hotel/payment-accounts")
+      .then((r) => {
+        if (!cancelled) setAccounts(r.accounts);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        if ((e as Error).message === "unauthorized") unauthorizedRef.current();
+        setError("Could not load N3 bank and cash accounts.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async (account: PaymentAccountChoice) => {
+    const label = (
+      editing[account.id] ??
+      settings.paymentAccountAliases?.[account.id] ??
+      ""
+    ).trim();
+    setSaving(account.id);
+    try {
+      const r = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/payment-accounts", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accountId: account.id, label }),
+      });
+      onChange(r.settings);
+      toast.success("Payment name saved");
+    } catch (e) {
+      if ((e as Error).message === "unauthorized") onN3Unauthorized();
+      toast.error("Could not save payment name.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  return (
+    <section className={CARD}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Payment method names
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Name each N3 bank or cash account for the front desk, such as QR DuitNow or CashNote. Its N3
+        account code stays the same.
+      </p>
+      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+      <div className="mt-3 space-y-2">
+        {accounts.map((account) => (
+          <div key={account.id} className="flex flex-wrap items-end gap-2">
+            <label className="text-xs">
+              <span className="block font-mono">
+                {account.code} — {account.name}
+              </span>
+              <input
+                className={INPUT}
+                maxLength={40}
+                placeholder={account.name}
+                value={editing[account.id] ?? settings.paymentAccountAliases?.[account.id] ?? ""}
+                onChange={(e) =>
+                  setEditing((current) => ({ ...current, [account.id]: e.target.value }))
+                }
+              />
+            </label>
+            <button
+              type="button"
+              className="rounded-md border px-3 py-2 text-xs"
+              disabled={saving !== null}
+              onClick={() => void save(account)}
+            >
+              {saving === account.id ? "Saving…" : "Save name"}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

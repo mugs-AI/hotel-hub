@@ -12,6 +12,7 @@ export type HotelSettingsDTO = {
   housekeepingMode: "simple" | "dedicated";
   exceptionApprovalMode: "owner_approval" | "direct";
   displaySize: 7 | 8 | 9;
+  paymentAccountAliases: Record<string, string>;
   walkInCustomer: { n3Id: string; n3Code: string; n3Name: string | null } | null;
 };
 

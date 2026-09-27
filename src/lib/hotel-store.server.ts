@@ -25,6 +25,7 @@ export type HotelSettings = {
    * 9 = largest). A display LEVEL, never a literal pixel size.
    */
   displaySize: 7 | 8 | 9;
+  paymentAccountAliases: Record<string, string>;
 
   walkInCustomer: {
     n3Id: string;
@@ -59,12 +60,23 @@ type SettingsRow = {
   housekeeping_mode: string;
   exception_approval_mode?: string | null;
   display_size?: number | null;
+  payment_account_aliases?: unknown;
   n3_walk_in_customer_id: string | null;
   n3_walk_in_customer_code: string | null;
   n3_walk_in_customer_name: string | null;
 };
 
 function toSettings(row: SettingsRow): HotelSettings {
+  const aliases: Record<string, string> = {};
+  if (
+    row.payment_account_aliases &&
+    typeof row.payment_account_aliases === "object" &&
+    !Array.isArray(row.payment_account_aliases)
+  ) {
+    for (const [id, label] of Object.entries(row.payment_account_aliases)) {
+      if (typeof label === "string" && label.trim()) aliases[id] = label;
+    }
+  }
   return {
     tenantId: row.tenant_id,
     currency: row.currency,
@@ -73,6 +85,7 @@ function toSettings(row: SettingsRow): HotelSettings {
     standardCheckOutTime: row.standard_check_out_time,
     exceptionApprovalMode: row.exception_approval_mode === "direct" ? "direct" : "owner_approval",
     displaySize: row.display_size === 8 ? 8 : row.display_size === 9 ? 9 : 7,
+    paymentAccountAliases: aliases,
 
     postCheckInGuestEditPolicy:
       row.post_check_in_guest_edit_policy === "locked" ? "locked" : "contact_only",
@@ -92,7 +105,7 @@ function toSettings(row: SettingsRow): HotelSettings {
 }
 
 const SETTINGS_COLS =
-  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, payment_account_aliases, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -175,6 +188,28 @@ export async function updateHotelSettings(
   if (res.error || !res.data) {
     throw new Error(`hotel_settings update failed: ${res.error?.message ?? "unknown"}`);
   }
+  return toSettings(res.data as SettingsRow);
+}
+
+/** Caller verifies eligibility against N3 and enforces Owner permission. */
+export async function setPaymentAccountAlias(
+  tenantId: string,
+  accountId: string,
+  label: string,
+): Promise<HotelSettings> {
+  const current = await getOrCreateHotelSettings(tenantId);
+  const aliases = { ...current.paymentAccountAliases };
+  if (label) aliases[accountId] = label;
+  else delete aliases[accountId];
+  const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
+  const sb = _sa as unknown as { from: (t: string) => any };
+  const res = await sb
+    .from("hotel_settings" as never)
+    .update({ payment_account_aliases: aliases } as never)
+    .eq("tenant_id", tenantId)
+    .select(SETTINGS_COLS)
+    .single();
+  if (res.error || !res.data) throw new Error("payment account alias save failed");
   return toSettings(res.data as SettingsRow);
 }
 

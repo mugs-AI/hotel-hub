@@ -54,6 +54,7 @@ export function statusForDepositError(code: string): number {
     case "deposit_not_uncertain":
     case "deposit_not_recoverable":
     case "reference_conflict":
+    case "multi_payment_contract_unverified":
       return 409;
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
@@ -63,6 +64,7 @@ export function statusForDepositError(code: string): number {
     case "n3_preflight_unavailable":
       return 502;
     case "invalid_amount":
+    case "invalid_payment_lines":
     case "invalid_client_request_id":
       return 400;
     default:
@@ -144,7 +146,8 @@ export async function handleDepositCreate({
   }
   const body = parsed as Record<string, unknown>;
   for (const k of Object.keys(body)) {
-    if (k !== "amount" && k !== "clientRequestId") return deny(400, "unknown_field");
+    if (k !== "amount" && k !== "clientRequestId" && k !== "paymentLines")
+      return deny(400, "unknown_field");
   }
 
   try {
@@ -155,6 +158,7 @@ export async function handleDepositCreate({
       actorN3UserKey: ctx.session.n3UserKey,
       n3Token: ctx.session.n3Token,
       amount: body.amount as number,
+      paymentLines: body.paymentLines as Array<{ accountId: string; amount: number }>,
       clientRequestId: String(body.clientRequestId ?? ""),
     });
     return Response.json(

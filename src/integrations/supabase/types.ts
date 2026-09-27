@@ -501,6 +501,7 @@ export type Database = {
       hotel_reservation_deposits: {
         Row: {
           amount: number
+          payment_lines: Json | null
           created_at: string
           created_by_n3_user_key: string
           currency_code: string
@@ -524,6 +525,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          payment_lines?: Json | null
           created_at?: string
           created_by_n3_user_key: string
           currency_code: string
@@ -547,6 +549,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          payment_lines?: Json | null
           created_at?: string
           created_by_n3_user_key?: string
           currency_code?: string
@@ -1052,6 +1055,7 @@ export type Database = {
       hotel_settings: {
         Row: {
           allow_owner_primary_guest_change_after_check_in: boolean
+          payment_account_aliases: Json
           created_at: string
           currency: string
           display_size: number
@@ -1070,6 +1074,7 @@ export type Database = {
         }
         Insert: {
           allow_owner_primary_guest_change_after_check_in?: boolean
+          payment_account_aliases?: Json
           created_at?: string
           currency?: string
           display_size?: number
@@ -1088,6 +1093,7 @@ export type Database = {
         }
         Update: {
           allow_owner_primary_guest_change_after_check_in?: boolean
+          payment_account_aliases?: Json
           created_at?: string
           currency?: string
           display_size?: number

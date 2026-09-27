@@ -4,7 +4,7 @@
 //
 // Invariants:
 // - Tenant id, N3 token, actor key and role come from the HttpOnly session only.
-// - The browser may supply `amount` and `clientRequestId` and nothing else.
+// - The browser supplies amount, immutable N3 payment account IDs and a client request ID.
 // - Exactly one N3 create call per idempotency key, enforced by a unique
 //   database claim taken BEFORE the outbound POST.
 // - Ambiguous outcomes become `unknown` and are never auto-retried.
@@ -55,6 +55,8 @@ export function isDepositWriteEnabled(
 export const DEPOSIT_ERROR_CODES = new Set([
   "invalid_amount",
   "invalid_client_request_id",
+  "invalid_payment_lines",
+  "multi_payment_contract_unverified",
   "deposit_writes_disabled",
   "reservation_not_found",
   "reservation_not_eligible",
@@ -248,17 +250,96 @@ async function verifyDepositAccount(
   n3: N3ReceiptsClient,
   token: string,
   defaults: N3ReceiptDefaults,
+  selectedId: string = defaults.accountId,
 ): Promise<VerifiedDepositAccount> {
-  const outcome = await n3.getAccountById(token, defaults.accountId);
+  if (!isRealN3Id(selectedId)) throw new DepositError("invalid_payment_lines");
+  const outcome = await n3.getAccountById(token, selectedId);
   if (outcome.kind === "response" && outcome.status === 401) {
     throw new DepositError("unauthorized");
   }
   if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) {
     throw new DepositError("n3_deposit_account_unavailable");
   }
-  const account = parseDepositAccount(outcome, defaults.accountId, defaults.currencyId);
+  const account = parseDepositAccount(outcome, selectedId, defaults.currencyId);
   if (!account) throw new DepositError("n3_deposit_account_invalid");
   return account;
+}
+
+export type PaymentChoice = { accountId: string; amount: number };
+export type VerifiedPaymentLine = VerifiedDepositAccount & { amount: number };
+
+export function validatePaymentChoices(amount: number, choices: unknown): PaymentChoice[] {
+  if (!Array.isArray(choices) || choices.length < 1 || choices.length > 10)
+    throw new DepositError("invalid_payment_lines");
+  const seen = new Set<string>();
+  let cents = 0;
+  const result: PaymentChoice[] = [];
+  for (const choice of choices) {
+    if (!choice || typeof choice !== "object" || Array.isArray(choice))
+      throw new DepositError("invalid_payment_lines");
+    const id = (choice as Record<string, unknown>).accountId;
+    const value = normalizeAmount((choice as Record<string, unknown>).amount);
+    if (!isRealN3Id(id) || value === null || seen.has(id.toLowerCase()))
+      throw new DepositError("invalid_payment_lines");
+    seen.add(id.toLowerCase());
+    cents += Math.round(value * 100);
+    result.push({ accountId: id, amount: value });
+  }
+  if (cents !== Math.round(amount * 100)) throw new DepositError("invalid_payment_lines");
+  return result;
+}
+
+export async function verifyPaymentLines(
+  n3: N3ReceiptsClient,
+  token: string,
+  defaults: N3ReceiptDefaults,
+  amount: number,
+  choices: unknown,
+): Promise<VerifiedPaymentLine[]> {
+  const valid = validatePaymentChoices(amount, choices);
+  const verified: VerifiedPaymentLine[] = [];
+  for (const line of valid)
+    verified.push({
+      ...(await verifyDepositAccount(n3, token, defaults, line.accountId)),
+      amount: line.amount,
+    });
+  return verified;
+}
+
+/** Read-only account choices; final selection is independently verified by detail ID. */
+export async function listEligiblePaymentAccounts(
+  n3: N3ReceiptsClient,
+  token: string,
+  currencyId: string,
+): Promise<VerifiedDepositAccount[]> {
+  const result: VerifiedDepositAccount[] = [];
+  for (let skip = 0; skip <= 900; skip += 100) {
+    const outcome = await n3.listPaymentAccounts(token, skip);
+    if (outcome.kind === "response" && outcome.status === 401)
+      throw new DepositError("unauthorized");
+    if (
+      outcome.kind !== "response" ||
+      outcome.status < 200 ||
+      outcome.status >= 300 ||
+      !successfulEnvelope(outcome.body)
+    )
+      throw new DepositError("n3_deposit_account_unavailable");
+    if (!Array.isArray((outcome.body as any)?.data?.value))
+      throw new DepositError("n3_deposit_account_unavailable");
+    const page = rows(outcome.body);
+    for (const row of page) {
+      const id = str(pick(row, ["id"]));
+      if (!isRealN3Id(id)) continue;
+      const account = parseDepositAccount(
+        { kind: "response", status: 200, body: { code: "0000", data: row }, durationMs: 0 },
+        id,
+        currencyId,
+      );
+      if (account) result.push(account);
+    }
+    if (page.length < 100) return result;
+  }
+  throw new DepositError("n3_deposit_account_unavailable");
 }
 
 export type DepositPayloadInput = {
@@ -268,6 +349,7 @@ export type DepositPayloadInput = {
   referenceNo: string;
   description: string;
   docDate: string;
+  paymentLines?: VerifiedPaymentLine[];
 };
 
 /**
@@ -282,13 +364,25 @@ export function buildDepositPayload(input: DepositPayloadInput): Record<string, 
   if (customerNumber === null || currencyNumber === null) {
     throw new DepositError("n3_defaults_invalid");
   }
+  const lines = input.paymentLines;
+  if (lines?.length)
+    validatePaymentChoices(
+      amount,
+      lines.map((l) => ({ accountId: l.id, amount: l.amount })),
+    );
+  const multi = Boolean(lines && lines.length > 1);
   return {
     docType: "AROR",
     docDate,
     customerId: customerNumber,
     currencyId: currencyNumber,
     currencyRate: defaults.currencyRate,
-    accountId: defaults.accountId,
+    ...(multi
+      ? {
+          isMultiPayment: true,
+          multiPayments: lines!.map((l) => ({ accountId: l.id, amount: l.amount })),
+        }
+      : { accountId: lines?.[0]?.id ?? defaults.accountId }),
     totalAmount: amount,
     referenceNo,
     description,
@@ -460,6 +554,7 @@ export type DepositRecord = {
   n3CustomerName: string | null;
   n3AccountCode: string | null;
   n3AccountName: string | null;
+  paymentLines: VerifiedPaymentLine[];
   description: string | null;
   createdByN3UserKey: string;
   lastErrorCode: string | null;
@@ -481,6 +576,7 @@ function toRecord(row: any): DepositRecord {
     n3CustomerName: row.n3_customer_name ?? null,
     n3AccountCode: row.n3_account_code ?? null,
     n3AccountName: row.n3_account_name ?? null,
+    paymentLines: Array.isArray(row.payment_lines) ? row.payment_lines : [],
     description: row.description ?? null,
     createdByN3UserKey: row.created_by_n3_user_key,
     lastErrorCode: row.last_error_code ?? null,
@@ -490,7 +586,7 @@ function toRecord(row: any): DepositRecord {
 }
 
 const SELECT_COLS =
-  "id, reservation_id, amount, currency_code, status, n3_reference_no, n3_receipt_id, n3_doc_code, n3_customer_code, n3_customer_name, n3_account_code, n3_account_name, description, created_by_n3_user_key, last_error_code, created_at, updated_at";
+  "id, reservation_id, amount, currency_code, status, n3_reference_no, n3_receipt_id, n3_doc_code, n3_customer_code, n3_customer_name, n3_account_code, n3_account_name, payment_lines, description, created_by_n3_user_key, last_error_code, created_at, updated_at";
 
 export async function listDeposits(
   tenantId: string,
@@ -559,6 +655,7 @@ export type CreateDepositInput = {
   n3Token: string;
   amount: number;
   clientRequestId: string;
+  paymentLines?: PaymentChoice[];
 };
 
 export type DepositDeps = {
@@ -592,13 +689,27 @@ export async function createDeposit(
   }
   const amount = normalizeAmount(input.amount);
   if (amount === null) throw new DepositError("invalid_amount");
+  const choices = validatePaymentChoices(amount, input.paymentLines);
   if (!isUuidLike(input.clientRequestId)) throw new DepositError("invalid_client_request_id");
   if (!isUuidLike(input.reservationId)) throw new DepositError("reservation_not_found");
 
   // A repeat of the same client request returns the existing result and
   // never issues a second N3 create call.
   const existing = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
-  if (existing) return { deposit: existing, reused: true };
+  if (existing) {
+    if (
+      existing.amount !== amount ||
+      JSON.stringify(existing.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==
+        JSON.stringify(choices)
+    )
+      throw new DepositError("invalid_payment_lines");
+    return { deposit: existing, reused: true };
+  }
+  if (
+    choices.length > 1 &&
+    (env ?? process.env).HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED !== "true"
+  )
+    throw new DepositError("multi_payment_contract_unverified");
 
   const reservation = await loadEligibleReservation(input.tenantId, input.reservationId);
   const settings = await getOrCreateHotelSettings(input.tenantId);
@@ -626,7 +737,8 @@ export async function createDeposit(
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");
   }
-  const account = await verifyDepositAccount(n3, input.n3Token, defaults);
+  const paymentLines = await verifyPaymentLines(n3, input.n3Token, defaults, amount, choices);
+  const account = paymentLines.length === 1 ? paymentLines[0] : null;
 
   const description = buildDepositDescription(reservation.booking_reference);
 
@@ -650,9 +762,10 @@ export async function createDeposit(
       n3_customer_id: settings.walkInCustomer.n3Id,
       n3_customer_code: settings.walkInCustomer.n3Code,
       n3_customer_name: settings.walkInCustomer.n3Name,
-      n3_account_id: account.id,
-      n3_account_code: account.code,
-      n3_account_name: account.name,
+      n3_account_id: account?.id ?? null,
+      n3_account_code: account?.code ?? null,
+      n3_account_name: account?.name ?? null,
+      payment_lines: paymentLines,
       description,
       created_by_n3_user_key: input.actorN3UserKey,
     })
@@ -662,7 +775,15 @@ export async function createDeposit(
   if (claim.error || !claim.data) {
     // Lost the race with a concurrent duplicate: return that row, no POST.
     const raced = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
-    if (raced) return { deposit: raced, reused: true };
+    if (raced) {
+      if (
+        raced.amount !== amount ||
+        JSON.stringify(raced.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==
+          JSON.stringify(choices)
+      )
+        throw new DepositError("invalid_payment_lines");
+      return { deposit: raced, reused: true };
+    }
     throw new DepositError("deposit_claim_failed");
   }
   let deposit = toRecord(claim.data);
@@ -779,6 +900,7 @@ export async function createDeposit(
     referenceNo,
     description,
     docDate: todayInKualaLumpurIso(),
+    paymentLines,
   });
 
   const created = await n3.create(input.n3Token, payload);
@@ -949,6 +1071,7 @@ export type DepositPreview = {
   amount: number;
   currency: string;
   accountLabel: string | null;
+  paymentLines: Array<{ accountLabel: string; amount: number }>;
   warning: string;
 };
 
@@ -961,6 +1084,7 @@ export async function buildDepositPreview(
     reservationId: string;
     n3Token: string;
     amount: number;
+    paymentLines?: PaymentChoice[];
   },
   deps: DepositDeps = {},
 ): Promise<DepositPreview> {
@@ -971,7 +1095,14 @@ export async function buildDepositPreview(
   }
   const amount = normalizeAmount(input.amount);
   if (amount === null) throw new DepositError("invalid_amount");
+  const choices = validatePaymentChoices(amount, input.paymentLines);
   if (!isUuidLike(input.reservationId)) throw new DepositError("reservation_not_found");
+  if (
+    choices.length > 1 &&
+    (env ?? process.env).HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED !== "true"
+  ) {
+    throw new DepositError("multi_payment_contract_unverified");
+  }
 
   const reservation = await loadEligibleReservation(input.tenantId, input.reservationId);
   const settings = await getOrCreateHotelSettings(input.tenantId);
@@ -996,14 +1127,20 @@ export async function buildDepositPreview(
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");
   }
-  const account = await verifyDepositAccount(n3, input.n3Token, defaults);
+  const paymentLines = await verifyPaymentLines(n3, input.n3Token, defaults, amount, choices);
 
+  const displayAccount = (line: VerifiedPaymentLine) =>
+    `${settings.paymentAccountAliases?.[line.id] ?? line.name} (${line.code})`;
   return {
     bookingReference: reservation.booking_reference,
     customerLabel: settings.walkInCustomer.n3Name ?? settings.walkInCustomer.n3Code,
     amount,
     currency: settings.currency,
-    accountLabel: `${account.code} — ${account.name}`,
+    accountLabel: paymentLines.length === 1 ? displayAccount(paymentLines[0]!) : null,
+    paymentLines: paymentLines.map((l) => ({
+      accountLabel: displayAccount(l),
+      amount: l.amount,
+    })),
     warning: DEPOSIT_CREATE_WARNING,
   };
 }
@@ -1022,6 +1159,10 @@ export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, stri
       d.n3AccountCode && d.n3AccountName
         ? `${d.n3AccountCode} — ${d.n3AccountName}`
         : (d.n3AccountCode ?? d.n3AccountName),
+    paymentLines: d.paymentLines.map((l) => ({
+      accountLabel: `${l.code} — ${l.name}`,
+      amount: l.amount,
+    })),
     description: d.description,
     // Run 5D2.1 privacy: the raw N3 user key is NEVER a display value.
     createdByLabel: labels?.get(d.createdByN3UserKey) ?? null,
