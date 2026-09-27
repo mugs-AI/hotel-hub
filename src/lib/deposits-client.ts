@@ -157,6 +157,10 @@ export function depositErrorMessage(code: string | null | undefined): string {
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
       return "N3 did not return valid receipt defaults. Nothing was posted.";
+    case "n3_deposit_account_unavailable":
+      return "HotelHub could not verify the N3 Deposit To account. Nothing was posted.";
+    case "n3_deposit_account_invalid":
+      return "The N3 Deposit To account must be an active Current Assets bank or cash account. Nothing was posted.";
     case "n3_preflight_unavailable":
       return "HotelHub could not verify N3 before posting, so nothing was created. Try again later.";
     case "reservation_not_eligible":

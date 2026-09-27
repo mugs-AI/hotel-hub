@@ -89,6 +89,7 @@ export function isRealN3Id(v: unknown): v is string {
 
 export type N3ReceiptsClient = {
   getNew(token: string): Promise<N3Outcome>;
+  getAccountById(token: string, id: string): Promise<N3Outcome>;
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
   getById(token: string, id: string): Promise<N3Outcome>;
   create(token: string, payload: unknown): Promise<N3Outcome>;
@@ -97,6 +98,10 @@ export type N3ReceiptsClient = {
 export const n3Receipts: N3ReceiptsClient = {
   getNew(token) {
     return n3Request(token, "GET", "/api/ARReceipts/New");
+  },
+  getAccountById(token, id) {
+    if (!isRealN3Id(id)) throw new Error("getAccountById: unsafe id");
+    return n3Request(token, "GET", `/api/AccountCodes/${encodeURIComponent(id)}`);
   },
   listByReference(token, referenceNo) {
     // Server-owned, validated, encoded query. Never browser input.

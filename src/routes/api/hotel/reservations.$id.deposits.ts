@@ -58,6 +58,8 @@ export function statusForDepositError(code: string): number {
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
+    case "n3_deposit_account_unavailable":
+    case "n3_deposit_account_invalid":
     case "n3_preflight_unavailable":
       return 502;
     case "invalid_amount":

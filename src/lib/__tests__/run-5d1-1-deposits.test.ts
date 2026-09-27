@@ -22,7 +22,7 @@ vi.mock("@/lib/audit.server", () => ({
 vi.mock("@/lib/hotel-store.server", () => ({
   getOrCreateHotelSettings: async () => ({
     currency: "MYR",
-    walkInCustomer: { n3Id: "cust-guid-1", n3Code: "WALKIN", n3Name: "Walk In Guest" },
+    walkInCustomer: { n3Id: "1", n3Code: "WALKIN", n3Name: "Walk In Guest" },
   }),
 }));
 
@@ -108,8 +108,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 const {
   classifyPreflight,
+  classifyCreateOutcome,
   createDeposit,
   buildDepositPreview,
+  buildDepositPayload,
+  parseDepositAccount,
+  parseNewReceiptDefaults,
   reconcileDeposit,
   isRecoverableDepositStatus,
   DepositError,
@@ -122,20 +126,45 @@ const ENV = {
   HOTELHUB_N3_DEPOSIT_WRITE_TENANT_ALLOWLIST: "tenant-key-1",
 };
 const TENANT = "22222222-2222-4222-8222-222222222222";
+const ACCOUNT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function accountResult(overrides: Record<string, unknown> = {}) {
+  return {
+    kind: "response" as const,
+    status: 200,
+    body: {
+      code: "0000",
+      success: true,
+      data: {
+        id: ACCOUNT_ID,
+        code: "700-0310",
+        name: "Maybank Current",
+        accountType: { typeCode: "BCA", name: "Current Assets" },
+        specialCode: "BAC",
+        currencyId: 1,
+        isActive: true,
+        hasChildren: false,
+        ...overrides,
+      },
+    },
+  };
+}
 
 function newDefaults() {
   return {
     kind: "response" as const,
     status: 200,
     body: {
+      code: "0000",
+      success: true,
       data: {
         id: "rcpt-new",
         docType: "AROR",
         currencyRate: 1,
-        accountId: "acc-guid-1",
-        accountCode: "3000-000",
+        accountId: ACCOUNT_ID,
+        accountCode: "700-0310",
         accountName: "Maybank Current",
-        currencyId: "cur-myr",
+        currencyId: 1,
         docDate: "2026-01-01",
       },
     },
@@ -148,13 +177,19 @@ type TestOutcome =
   | { kind: "transport_error"; reason: "timeout" | "network" | "too_large"; durationMs?: number };
 
 function makeN3(
-  overrides: Partial<Record<"getNew" | "listByReference" | "create", TestOutcome>> = {},
+  overrides: Partial<
+    Record<"getNew" | "getAccountById" | "listByReference" | "create", TestOutcome>
+  > = {},
 ) {
-  const calls = { getNew: 0, listByReference: 0, create: 0 };
+  const calls = { getNew: 0, getAccountById: 0, listByReference: 0, create: 0 };
   const client = {
     async getNew(): Promise<TestOutcome> {
       calls.getNew++;
       return overrides.getNew ?? newDefaults();
+    },
+    async getAccountById(): Promise<TestOutcome> {
+      calls.getAccountById++;
+      return overrides.getAccountById ?? accountResult();
     },
     async listByReference(): Promise<TestOutcome> {
       calls.listByReference++;
@@ -162,7 +197,7 @@ function makeN3(
         overrides.listByReference ?? {
           kind: "response",
           status: 200,
-          body: { data: { value: [] } },
+          body: { code: "0000", success: true, data: { value: [] } },
         }
       );
     },
@@ -201,6 +236,100 @@ beforeEach(() => {
   ];
 });
 
+describe("N3 Cloud receipt contract and Deposit To account", () => {
+  it("sends a numeric customer/currency and top-level total without details", () => {
+    const defaults = parseNewReceiptDefaults(newDefaults() as N3Outcome);
+    expect(defaults).not.toBeNull();
+    const payload = buildDepositPayload({
+      defaults: defaults!,
+      customerId: "1",
+      amount: 100.01,
+      referenceNo: "HH-0123456789abcdef01234567",
+      description: "HOTELHUB DEPOSIT BK-1",
+      docDate: "2026-09-26",
+    });
+    expect(payload).toMatchObject({
+      customerId: 1,
+      currencyId: 1,
+      accountId: ACCOUNT_ID,
+      totalAmount: 100.01,
+      knockoff: [],
+    });
+    expect(payload).not.toHaveProperty("details");
+    expect(payload).not.toHaveProperty("paymentAmount");
+  });
+
+  it("accepts only active Current Assets leaf bank or cash special accounts", () => {
+    expect(parseDepositAccount(accountResult() as N3Outcome, ACCOUNT_ID, "1")?.kind).toBe("bank");
+    expect(
+      parseDepositAccount(accountResult({ specialCode: "CAC" }) as N3Outcome, ACCOUNT_ID, "1")
+        ?.kind,
+    ).toBe("cash");
+    for (const fields of [
+      { accountType: { typeCode: "EXP" } },
+      { specialCode: "DAC" },
+      { isActive: false },
+      { hasChildren: true },
+      { currencyId: 2 },
+      { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+    ]) {
+      expect(parseDepositAccount(accountResult(fields) as N3Outcome, ACCOUNT_ID, "1")).toBeNull();
+    }
+    expect(
+      parseDepositAccount(
+        {
+          kind: "response",
+          status: 200,
+          body: { ...accountResult().body, code: "E001" },
+        } as N3Outcome,
+        ACCOUNT_ID,
+        "1",
+      ),
+    ).toBeNull();
+  });
+
+  it("blocks N3 Create when Deposit To cannot be verified", async () => {
+    const { client, calls } = makeN3({ getAccountById: accountResult({ specialCode: "DAC" }) });
+    await expect(
+      createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({
+      code: "n3_deposit_account_invalid",
+    });
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+
+  it("does not treat HTTP 200 plus a non-success business code as posted", () => {
+    const outcome = {
+      kind: "response",
+      status: 200,
+      body: { code: "E001", success: true, data: { id: ACCOUNT_ID, docCode: "OR-1" } },
+    } as N3Outcome;
+    expect(
+      classifyCreateOutcome(outcome, {
+        customerId: "1",
+        referenceNo: "HH-0123456789abcdef01234567",
+        amount: 100,
+      }).verdict,
+    ).toBe("unknown");
+    expect(
+      classifyPreflight(
+        {
+          kind: "response",
+          status: 200,
+          body: { code: "E001", data: { value: [] } },
+        } as N3Outcome,
+        {
+          customerId: "1",
+          referenceNo: "HH-0123456789abcdef01234567",
+          amount: 100,
+          currencyId: "1",
+        },
+      ).kind,
+    ).toBe("unavailable");
+  });
+});
+
 describe("5D1.1 RBAC", () => {
   it("Owner may view and create deposits", () => {
     expect(hasPermission("owner", "hotel:deposits:view")).toBe(true);
@@ -218,10 +347,10 @@ describe("5D1.1 RBAC", () => {
 
 describe("5D1.1 preflight fail-closed", () => {
   const expected = {
-    customerId: "cust-guid-1",
+    customerId: "1",
     referenceNo: "HH-ABC",
     amount: 100,
-    currencyId: "cur-myr",
+    currencyId: "1",
   };
 
   it("transport failure is unavailable", () => {
@@ -250,7 +379,7 @@ describe("5D1.1 preflight fail-closed", () => {
   it("readable empty page is a zero match", () => {
     expect(
       classifyPreflight(
-        { kind: "response", status: 200, body: { data: { value: [] } } } as N3Outcome,
+        { kind: "response", status: 200, body: { code: "0000", data: { value: [] } } } as N3Outcome,
         expected,
       ).kind,
     ).toBe("none");
@@ -295,7 +424,11 @@ describe("5D1.1 preflight fail-closed", () => {
 describe("5D1.1 idempotency", () => {
   it("the same client request id causes at most one N3 create", async () => {
     const { client, calls } = makeN3({
-      create: { kind: "response", status: 200, body: { data: { id: "r1", docNo: "OR-1" } } },
+      create: {
+        kind: "response",
+        status: 200,
+        body: { code: "0000", data: { id: "r1", docNo: "OR-1" } },
+      },
     });
     const id = crypto.randomUUID();
     await createDeposit(baseInput(id), { n3: client, env: ENV });
@@ -306,7 +439,11 @@ describe("5D1.1 idempotency", () => {
 
   it("concurrent duplicates still result in one N3 create", async () => {
     const { client, calls } = makeN3({
-      create: { kind: "response", status: 200, body: { data: { id: "r1", docNo: "OR-1" } } },
+      create: {
+        kind: "response",
+        status: 200,
+        body: { code: "0000", data: { id: "r1", docNo: "OR-1" } },
+      },
     });
     const id = crypto.randomUUID();
     await Promise.all([
@@ -335,7 +472,7 @@ describe("5D1.1 recovery", () => {
       currency_code: "MYR",
       status: "submitting",
       n3_reference_no: "HH-XYZ",
-      n3_customer_id: "cust-guid-1",
+      n3_customer_id: "1",
       created_by_n3_user_key: "user-1",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
@@ -403,11 +540,10 @@ describe("5D1.1 confirmation preview", () => {
     expect(calls.create).toBe(0);
     expect(preview.bookingReference).toBe("BK-0001");
     expect(preview.customerLabel).toBe("Walk In Guest");
-    expect(preview.accountLabel).toBe("3000-000 — Maybank Current");
+    expect(preview.accountLabel).toBe("700-0310 — Maybank Current");
     expect(preview.warning).toContain("real accounting document");
     const serialized = JSON.stringify(preview);
-    expect(serialized).not.toContain("cust-guid-1");
-    expect(serialized).not.toContain("acc-guid-1");
+    expect(serialized).not.toContain(ACCOUNT_ID);
     expect(serialized).not.toContain("tok");
   });
 });
@@ -527,7 +663,7 @@ describe("5D1.1.1 N3 403 is never session expiry", () => {
       currency_code: "MYR",
       status: "unknown",
       n3_reference_no: "HH-0123456789abcdef01234567",
-      n3_customer_id: "cust-guid-1",
+      n3_customer_id: "1",
       created_by_n3_user_key: "user-1",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",

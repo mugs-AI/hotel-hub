@@ -61,6 +61,8 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "walk_in_customer_not_mapped",
   "n3_defaults_unavailable",
   "n3_defaults_invalid",
+  "n3_deposit_account_unavailable",
+  "n3_deposit_account_invalid",
   "n3_preflight_unavailable",
   "n3_rejected",
   "n3_result_uncertain",
@@ -160,6 +162,17 @@ function num(v: unknown): number | null {
   return null;
 }
 
+function positiveInt(v: unknown): number | null {
+  const n = num(v);
+  return n !== null && Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+/** N3 OpenAPI JSON responses carry a business code even when HTTP is 200. */
+function successfulEnvelope(body: unknown): boolean {
+  const b: any = body;
+  return !!b && typeof b === "object" && b.code === "0000" && b.success !== false;
+}
+
 export type N3ReceiptDefaults = {
   docType: string;
   currencyId: string;
@@ -167,7 +180,6 @@ export type N3ReceiptDefaults = {
   accountId: string;
   accountCode: string | null;
   accountName: string | null;
-  detailTemplate: Record<string, unknown> | null;
 };
 
 /**
@@ -176,21 +188,18 @@ export type N3ReceiptDefaults = {
  */
 export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults | null {
   if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
+  if (!successfulEnvelope(outcome.body)) return null;
   const v = unwrap(outcome.body);
   if (!v || typeof v !== "object") return null;
   const docType = str(pick(v, ["docType", "DocType"]));
   if (docType !== "AROR") return null;
-  const currencyId = str(pick(v, ["currencyId", "CurrencyId"]));
+  const currencyIdNumber = positiveInt(pick(v, ["currencyId", "CurrencyId"]));
+  const currencyId = currencyIdNumber === null ? null : String(currencyIdNumber);
   const currencyRate = num(pick(v, ["currencyRate", "CurrencyRate"]));
   const accountId = str(pick(v, ["accountId", "AccountId"]));
-  if (!currencyId || !accountId) return null;
+  if (!currencyId || !isRealN3Id(accountId)) return null;
   if (currencyRate === null || currencyRate <= 0) return null;
   const accountObj = pick(v, ["account", "Account"]);
-  const details = pick(v, ["details", "Details"]);
-  const detailTemplate =
-    Array.isArray(details) && details.length > 0 && typeof details[0] === "object"
-      ? (details[0] as Record<string, unknown>)
-      : null;
   return {
     docType,
     currencyId,
@@ -198,8 +207,58 @@ export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults |
     accountId,
     accountCode: str(pick(v, ["accountCode", "AccountCode"])) ?? str(pick(accountObj, ["code"])),
     accountName: str(pick(v, ["accountName", "AccountName"])) ?? str(pick(accountObj, ["name"])),
-    detailTemplate,
   };
+}
+
+export type VerifiedDepositAccount = {
+  id: string;
+  code: string;
+  name: string;
+  kind: "bank" | "cash";
+};
+
+/** Verify the selected default against this tenant's authoritative account DTO. */
+export function parseDepositAccount(
+  outcome: N3Outcome,
+  expectedId: string,
+  currencyId: string,
+): VerifiedDepositAccount | null {
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
+  if (!successfulEnvelope(outcome.body)) return null;
+  const v = unwrap(outcome.body);
+  if (!v || typeof v !== "object") return null;
+  const id = str(pick(v, ["id", "Id"]));
+  const code = str(pick(v, ["code", "Code"]));
+  const name = str(pick(v, ["name", "Name"]));
+  const accountType = pick(v, ["accountType", "AccountType"]);
+  const typeCode = str(pick(accountType, ["typeCode", "TypeCode"]));
+  const specialCode = str(pick(v, ["specialCode", "SpecialCode"]));
+  const isActive = pick(v, ["isActive", "IsActive"]);
+  const hasChildren = pick(v, ["hasChildren", "HasChildren"]);
+  const accountCurrencyId = positiveInt(pick(v, ["currencyId", "CurrencyId"]));
+  if (!isRealN3Id(id) || id.toLowerCase() !== expectedId.toLowerCase()) return null;
+  if (!code || !name || typeCode !== "BCA") return null;
+  if (specialCode !== "BAC" && specialCode !== "CAC") return null;
+  if (isActive !== true || hasChildren !== false) return null;
+  if (accountCurrencyId !== positiveInt(currencyId)) return null;
+  return { id, code, name, kind: specialCode === "BAC" ? "bank" : "cash" };
+}
+
+async function verifyDepositAccount(
+  n3: N3ReceiptsClient,
+  token: string,
+  defaults: N3ReceiptDefaults,
+): Promise<VerifiedDepositAccount> {
+  const outcome = await n3.getAccountById(token, defaults.accountId);
+  if (outcome.kind === "response" && outcome.status === 401) {
+    throw new DepositError("unauthorized");
+  }
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) {
+    throw new DepositError("n3_deposit_account_unavailable");
+  }
+  const account = parseDepositAccount(outcome, defaults.accountId, defaults.currencyId);
+  if (!account) throw new DepositError("n3_deposit_account_invalid");
+  return account;
 }
 
 export type DepositPayloadInput = {
@@ -218,28 +277,21 @@ export type DepositPayloadInput = {
  */
 export function buildDepositPayload(input: DepositPayloadInput): Record<string, unknown> {
   const { defaults, customerId, amount, referenceNo, description, docDate } = input;
-  const detail: Record<string, unknown> = {
-    ...(defaults.detailTemplate ?? {}),
-    customerId,
-    accountId: defaults.accountId,
-    currencyId: defaults.currencyId,
-    currencyRate: defaults.currencyRate,
-    paymentAmount: amount,
-    amount,
-    referenceNo,
-    description,
-  };
+  const customerNumber = positiveInt(customerId);
+  const currencyNumber = positiveInt(defaults.currencyId);
+  if (customerNumber === null || currencyNumber === null) {
+    throw new DepositError("n3_defaults_invalid");
+  }
   return {
     docType: "AROR",
     docDate,
-    customerId,
-    currencyId: defaults.currencyId,
+    customerId: customerNumber,
+    currencyId: currencyNumber,
     currencyRate: defaults.currencyRate,
     accountId: defaults.accountId,
-    isMultiPayment: false,
+    totalAmount: amount,
     referenceNo,
     description,
-    details: [detail],
     knockoff: [],
   };
 }
@@ -250,13 +302,6 @@ export type CreateOutcomeVerdict =
   | { verdict: "posted"; identity: ReceiptIdentity }
   | { verdict: "failed"; code: string }
   | { verdict: "unknown"; code: string };
-
-function envelopeRejected(body: unknown): boolean {
-  const b: any = body;
-  if (!b || typeof b !== "object") return false;
-  if (b.success === false || b.isSuccess === false) return true;
-  return false;
-}
 
 /**
  * A create is only `posted` with hard identity evidence that does not
@@ -280,7 +325,11 @@ export function classifyCreateOutcome(
     return { verdict: "failed", code: "n3_rejected" };
   }
   if (status < 200 || status >= 300) return { verdict: "unknown", code: "n3_unexpected_status" };
-  if (envelopeRejected(body)) return { verdict: "failed", code: "n3_rejected" };
+  if (!successfulEnvelope(body)) {
+    // A 2xx with a contradictory business code is not evidence that a
+    // document was never created. Keep the claim for GET-only reconciliation.
+    return { verdict: "unknown", code: "n3_business_result_uncertain" };
+  }
   const v = unwrap(body);
   if (!v || typeof v !== "object") return { verdict: "unknown", code: "n3_malformed_success" };
   const id = str(pick(v, ["id", "Id", "receiptId"]));
@@ -320,6 +369,7 @@ export function matchExistingReceipt(
   },
 ): { match: ReceiptIdentity } | { conflict: true } | null {
   if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
+  if (!successfulEnvelope(outcome.body)) return null;
   const list = rows(outcome.body);
   const sameRef = list.filter(
     (r) => str(pick(r, ["referenceNo", "ReferenceNo"])) === expected.referenceNo,
@@ -376,7 +426,7 @@ export function classifyPreflight(
   if (outcome.status < 200 || outcome.status >= 300) {
     return { kind: "unavailable", code: "n3_preflight_status" };
   }
-  if (envelopeRejected(outcome.body)) {
+  if (!successfulEnvelope(outcome.body)) {
     return { kind: "unavailable", code: "n3_preflight_rejected" };
   }
   // The contract must be readable: a list envelope is required. A null /
@@ -573,6 +623,11 @@ export async function createDeposit(
     );
   }
 
+  if (positiveInt(settings.walkInCustomer.n3Id) === null) {
+    throw new DepositError("walk_in_customer_not_mapped");
+  }
+  const account = await verifyDepositAccount(n3, input.n3Token, defaults);
+
   const description = buildDepositDescription(reservation.booking_reference);
 
   // Atomically claim the idempotency key BEFORE any outbound call.
@@ -595,9 +650,9 @@ export async function createDeposit(
       n3_customer_id: settings.walkInCustomer.n3Id,
       n3_customer_code: settings.walkInCustomer.n3Code,
       n3_customer_name: settings.walkInCustomer.n3Name,
-      n3_account_id: defaults.accountId,
-      n3_account_code: defaults.accountCode,
-      n3_account_name: defaults.accountName,
+      n3_account_id: account.id,
+      n3_account_code: account.code,
+      n3_account_name: account.name,
       description,
       created_by_n3_user_key: input.actorN3UserKey,
     })
@@ -938,15 +993,17 @@ export async function buildDepositPreview(
     );
   }
 
+  if (positiveInt(settings.walkInCustomer.n3Id) === null) {
+    throw new DepositError("walk_in_customer_not_mapped");
+  }
+  const account = await verifyDepositAccount(n3, input.n3Token, defaults);
+
   return {
     bookingReference: reservation.booking_reference,
     customerLabel: settings.walkInCustomer.n3Name ?? settings.walkInCustomer.n3Code,
     amount,
     currency: settings.currency,
-    accountLabel:
-      defaults.accountCode && defaults.accountName
-        ? `${defaults.accountCode} — ${defaults.accountName}`
-        : (defaults.accountCode ?? defaults.accountName),
+    accountLabel: `${account.code} — ${account.name}`,
     warning: DEPOSIT_CREATE_WARNING,
   };
 }
