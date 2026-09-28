@@ -43,6 +43,7 @@ const domain = vi.hoisted(() => ({
   apply: { ok: true, n3UserKey: "u-admin", from: "none", to: "front_desk", changed: true } as any,
   listArgs: [] as any[],
   applyArgs: [] as any[],
+  nameArgs: [] as any[],
 }));
 vi.mock("@/lib/user-control.server", () => ({
   listUserControl: async (input: unknown) => {
@@ -53,9 +54,13 @@ vi.mock("@/lib/user-control.server", () => ({
     domain.applyArgs.push(input);
     return domain.apply;
   },
+  updateUserDisplayName: async (input: unknown) => {
+    domain.nameArgs.push(input);
+    return { ok: true, n3UserKey: "u-owner", displayName: "MUGS Owner" };
+  },
 }));
 
-const { handleAssignUserControl, handleListUserControl } =
+const { handleAssignUserControl, handleListUserControl, handleUpdateUserDisplayName } =
   await import("@/routes/api/hotel/user-control");
 const { UserControlPanel, accessLabel } = await import("@/components/UserControlPanel");
 const { visibleSettingsTabs } = await import("@/routes/settings");
@@ -81,6 +86,7 @@ beforeEach(() => {
   };
   domain.listArgs = [];
   domain.applyArgs = [];
+  domain.nameArgs = [];
   domain.list = {
     status: "ok",
     rows: [],
@@ -88,6 +94,46 @@ beforeEach(() => {
     actorKeyAlignsWithN3Id: true,
   };
   domain.apply = { ok: true, n3UserKey: "u-admin", from: "none", to: "front_desk", changed: true };
+});
+
+describe("PUT /api/hotel/user-control display name", () => {
+  const request = (body: unknown, origin = "https://hotel.example") =>
+    new Request("https://hotel.example/api/hotel/user-control", {
+      method: "PUT",
+      headers: { origin, host: "hotel.example", "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  it("denies cross-origin, non-Owner and forged tenant before any write", async () => {
+    const body = { targetN3UserKey: "u-owner", displayName: "MUGS Owner" };
+    expect(
+      (await handleUpdateUserDisplayName({ request: request(body, "https://evil.example") }))
+        .status,
+    ).toBe(403);
+    perm.ok = false;
+    perm.reason = "role_denied";
+    expect((await handleUpdateUserDisplayName({ request: request(body) })).status).toBe(403);
+    perm.ok = true;
+    expect(
+      (await handleUpdateUserDisplayName({ request: request({ ...body, tenantId: "other" }) }))
+        .status,
+    ).toBe(400);
+    expect(domain.nameArgs).toEqual([]);
+  });
+
+  it("passes only the server session tenant and N3 actor", async () => {
+    const res = await handleUpdateUserDisplayName({
+      request: request({ targetN3UserKey: "u-owner", displayName: "MUGS Owner" }),
+    });
+    expect(res.status).toBe(200);
+    expect(domain.nameArgs[0]).toMatchObject({
+      tenantId: "tenant-1",
+      actorN3UserKey: "u-owner",
+      targetN3UserKey: "u-owner",
+      displayName: "MUGS Owner",
+    });
+    expect(await res.json()).not.toHaveProperty("token");
+  });
 });
 
 describe("GET /api/hotel/user-control", () => {

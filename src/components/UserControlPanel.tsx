@@ -5,6 +5,7 @@
 // Desk, Housekeeper. Authorization always uses the immutable N3 identifier,
 // which is never rendered. The current N3 Owner row is locked.
 import { AlertTriangle, Check, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,8 +32,17 @@ export function accessLabel(access: UserControlRow["access"]): string {
 }
 
 export function UserControlPanel() {
-  const { data, errorCode, isLoading, savingKey, savedKey, rowErrors, refresh, setAccess } =
-    useUserControl(true);
+  const {
+    data,
+    errorCode,
+    isLoading,
+    savingKey,
+    savedKey,
+    rowErrors,
+    refresh,
+    setAccess,
+    setDisplayName,
+  } = useUserControl(true);
 
   return (
     <section
@@ -48,6 +58,10 @@ export function UserControlPanel() {
           <p className="mt-1 text-sm text-muted-foreground">
             Give individual N3 users access to HotelHub. Users come from this property&apos;s N3
             user directory — access follows the N3 account, not the email address.
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Set a name shown in HotelHub when N3 supplies only an email. This does not change the N3
+            account.
           </p>
         </div>
         <Button
@@ -109,6 +123,12 @@ export function UserControlPanel() {
                     {row.email ? (
                       <p className="truncate text-sm text-muted-foreground">{row.email}</p>
                     ) : null}
+                    <DisplayNameEditor
+                      key={row.n3UserKey}
+                      name={row.displayName}
+                      busy={savingKey === row.n3UserKey}
+                      save={(name) => void setDisplayName(row.n3UserKey, name)}
+                    />
                     {row.staleLocalRole === "owner" ? (
                       <p className="mt-1 text-sm text-muted-foreground">
                         An old Owner record exists for this user. It grants nothing.
@@ -177,5 +197,39 @@ export function UserControlPanel() {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function DisplayNameEditor({
+  name,
+  busy,
+  save,
+}: {
+  name: string | null;
+  busy: boolean;
+  save: (name: string) => void;
+}) {
+  const [draft, setDraft] = useState(name ?? "");
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <input
+        type="text"
+        aria-label="HotelHub display name"
+        placeholder="Name shown in HotelHub"
+        value={draft}
+        maxLength={100}
+        onChange={(event) => setDraft(event.target.value)}
+        className="w-48 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={busy || !draft.trim() || draft.trim() === (name ?? "")}
+        onClick={() => save(draft)}
+      >
+        {busy ? "Saving…" : "Save name"}
+      </Button>
+    </div>
   );
 }

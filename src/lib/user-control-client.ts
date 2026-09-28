@@ -2,6 +2,8 @@
 // Same-origin, cookie-authenticated. Never talks to N3 or Supabase directly.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AccessChoice, UserControlRow } from "./user-control";
+import { useQueryClient } from "@tanstack/react-query";
+import { SESSION_QUERY_KEY } from "./session-client";
 
 export type UserControlListDTO = {
   rows: UserControlRow[];
@@ -34,6 +36,8 @@ export function userControlErrorText(code: string | null | undefined): string {
     case "invalid_role":
     case "unknown_field":
       return "That request was not valid.";
+    case "invalid_display_name":
+      return "Enter a name of up to 100 characters, without an email address.";
     case "forbidden":
     case "role_denied":
       return "Your HotelHub role cannot manage user access.";
@@ -52,6 +56,7 @@ async function callJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function useUserControl(enabled: boolean) {
+  const queryClient = useQueryClient();
   const [data, setData] = useState<UserControlListDTO | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,5 +125,49 @@ export function useUserControl(enabled: boolean) {
     }
   }, []);
 
-  return { data, errorCode, isLoading, savingKey, savedKey, rowErrors, refresh, setAccess };
+  const setDisplayName = useCallback(
+    async (n3UserKey: string, displayName: string) => {
+      setSavingKey(n3UserKey);
+      setSavedKey(null);
+      setRowErrors((prev) => ({ ...prev, [n3UserKey]: "" }));
+      try {
+        const saved = await callJson<{ displayName: string }>("/api/hotel/user-control", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ targetN3UserKey: n3UserKey, displayName }),
+        });
+        if (!alive.current) return;
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                rows: prev.rows.map((row) =>
+                  row.n3UserKey === n3UserKey ? { ...row, displayName: saved.displayName } : row,
+                ),
+              }
+            : prev,
+        );
+        setSavedKey(n3UserKey);
+        await queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+      } catch (err) {
+        if (alive.current)
+          setRowErrors((prev) => ({ ...prev, [n3UserKey]: (err as Error).message }));
+      } finally {
+        if (alive.current) setSavingKey(null);
+      }
+    },
+    [queryClient],
+  );
+
+  return {
+    data,
+    errorCode,
+    isLoading,
+    savingKey,
+    savedKey,
+    rowErrors,
+    refresh,
+    setAccess,
+    setDisplayName,
+  };
 }

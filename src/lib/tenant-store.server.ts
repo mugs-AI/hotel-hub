@@ -71,13 +71,24 @@ export async function saveUserDisplayName(
   const displayName = humanDisplayName(name);
   if (!displayName) return;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin
+  // Update the one field only: an Owner's chosen label must not clear the
+  // email stored for the [i] panel or rewrite N3 identity/account metadata.
+  const { data, error } = await supabaseAdmin
     .from("hotel_user_directory")
-    .upsert(
-      { tenant_id: tenantId, n3_user_key: n3UserKey, display_name: displayName },
-      { onConflict: "tenant_id,n3_user_key" },
-    );
+    .update({ display_name: displayName })
+    .eq("tenant_id", tenantId)
+    .eq("n3_user_key", n3UserKey)
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error("User display name save failed");
+  if (!data) {
+    const inserted = await supabaseAdmin.from("hotel_user_directory").insert({
+      tenant_id: tenantId,
+      n3_user_key: n3UserKey,
+      display_name: displayName,
+    });
+    if (inserted.error) throw new Error("User display name save failed");
+  }
 }
 
 /**
@@ -160,16 +171,13 @@ export async function upsertUserDirectory(input: {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const newName = humanDisplayName(input.displayName);
-    // A fresh N3 token may carry only an email. Preserve any earlier verified
-    // name for this exact user when that happens.
-    const previousName = newName
-      ? null
-      : await readUserDisplayName(input.tenantId, input.n3UserKey);
+    // Preserve an Owner-chosen HotelHub label across later N3 launches.
+    const previousName = await readUserDisplayName(input.tenantId, input.n3UserKey);
     await supabaseAdmin.from("hotel_user_directory").upsert(
       {
         tenant_id: input.tenantId,
         n3_user_key: input.n3UserKey,
-        display_name: newName ?? previousName,
+        display_name: previousName ?? newName,
         email: input.email ? input.email.slice(0, 320) : null,
       },
       { onConflict: "tenant_id,n3_user_key" },

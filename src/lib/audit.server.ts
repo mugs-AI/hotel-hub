@@ -14,6 +14,7 @@ export type AuditEventType =
   | "role.revoked"
   | "hotel.settings.updated"
   | "hotel.company_name.synced"
+  | "hotel.user_display_name.updated"
   | "hotel.payment_account.alias_updated"
   | "hotel.walk_in_customer.mapped"
   | "hotel.room.created"

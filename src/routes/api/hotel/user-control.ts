@@ -12,10 +12,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { deny, isSameOriginWrite, readJsonBody, rejectUnknown } from "@/lib/operations-api.server";
-import { applyUserAccess, listUserControl } from "@/lib/user-control.server";
+import { applyUserAccess, listUserControl, updateUserDisplayName } from "@/lib/user-control.server";
 
 /** Only these two fields are ever honoured. tenantId/actor are refused. */
 const ALLOWED_WRITE_KEYS = new Set(["targetN3UserKey", "access"]);
+const ALLOWED_NAME_KEYS = new Set(["targetN3UserKey", "displayName"]);
 
 export async function handleListUserControl(): Promise<Response> {
   const { ctx, decision } = await requirePermission("roles:manage");
@@ -76,8 +77,34 @@ export async function handleAssignUserControl({
   );
 }
 
+export async function handleUpdateUserDisplayName({
+  request,
+}: {
+  request: Request;
+}): Promise<Response> {
+  if (!isSameOriginWrite(request)) return deny(403, "forbidden");
+  const { ctx, decision } = await requirePermission("roles:manage");
+  if (!decision.ok) return deny(decision.reason === "unauthenticated" ? 401 : 403, decision.reason);
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return deny(400, parsed.code);
+  if (rejectUnknown(parsed.body, ALLOWED_NAME_KEYS) !== null) return deny(400, "unknown_field");
+  const result = await updateUserDisplayName({
+    tenantId: ctx.session.tenantId!,
+    actorN3UserKey: ctx.session.n3UserKey,
+    token: ctx.session.n3Token,
+    targetN3UserKey: parsed.body.targetN3UserKey,
+    displayName: parsed.body.displayName,
+  });
+  if (!result.ok) return deny(result.status, result.code);
+  return Response.json(result, { headers: { "cache-control": "no-store" } });
+}
+
 export const Route = createFileRoute("/api/hotel/user-control")({
   server: {
-    handlers: { GET: handleListUserControl, POST: handleAssignUserControl },
+    handlers: {
+      GET: handleListUserControl,
+      POST: handleAssignUserControl,
+      PUT: handleUpdateUserDisplayName,
+    },
   },
 });

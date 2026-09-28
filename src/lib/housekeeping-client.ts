@@ -2,6 +2,7 @@
 // direct database or N3 access, and no tokens ever touch this module.
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useSessionMe } from "@/lib/session-client";
 import type {
   HousekeepingBoardDTO,
   HousekeepingEventDTO,
@@ -38,9 +39,11 @@ async function readError(res: Response): Promise<never> {
 }
 
 export function useHousekeepingBoard(enabled = true) {
+  const session = useSessionMe();
+  const tenantId = session.data?.authenticated === true ? session.data.tenant.tenantId : null;
   return useQuery({
-    queryKey: HOUSEKEEPING_QUERY_KEY,
-    enabled,
+    queryKey: [...HOUSEKEEPING_QUERY_KEY, tenantId],
+    enabled: enabled && Boolean(tenantId),
     queryFn: async (): Promise<HousekeepingBoardDTO> => {
       const res = await fetch("/api/hotel/housekeeping", {
         credentials: "same-origin",
@@ -117,7 +120,7 @@ export function patchBoardWithRoom(
  * client — remains the source of mode, authority and actions.
  */
 export function resetHousekeepingBoardCache(qc: QueryClient): void {
-  qc.removeQueries({ queryKey: HOUSEKEEPING_QUERY_KEY, exact: true });
+  qc.removeQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
   void qc.invalidateQueries({ queryKey: ["housekeeping"] });
 }
 
@@ -126,6 +129,9 @@ export const BOARD_RESYNC_DELAY_MS = 1500;
 
 export function useHousekeepingAction() {
   const qc = useQueryClient();
+  const session = useSessionMe();
+  const tenantId = session.data?.authenticated === true ? session.data.tenant.tenantId : null;
+  const boardKey = [...HOUSEKEEPING_QUERY_KEY, tenantId] as const;
   const resync = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -156,10 +162,10 @@ export function useHousekeepingAction() {
       if (!room) {
         // No authoritative room DTO: refetch immediately rather than show a
         // card the server never confirmed.
-        void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+        void qc.invalidateQueries({ queryKey: boardKey });
         return;
       }
-      qc.setQueryData<HousekeepingBoardDTO>(HOUSEKEEPING_QUERY_KEY, (prev) =>
+      qc.setQueryData<HousekeepingBoardDTO>(boardKey, (prev) =>
         prev ? patchBoardWithRoom(prev, room) : prev,
       );
       // Do NOT race a competing full-board fetch against the repaint. The
@@ -169,13 +175,13 @@ export function useHousekeepingAction() {
       if (resync.current) clearTimeout(resync.current);
       resync.current = setTimeout(() => {
         resync.current = null;
-        void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+        void qc.invalidateQueries({ queryKey: boardKey });
       }, BOARD_RESYNC_DELAY_MS);
     },
     // A failed action changes nothing locally; resync immediately so the board
     // reflects authoritative server state.
     onError: () => {
-      void qc.invalidateQueries({ queryKey: HOUSEKEEPING_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: boardKey });
     },
   });
 }

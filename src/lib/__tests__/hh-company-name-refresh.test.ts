@@ -52,6 +52,7 @@ vi.mock("@/lib/n3-owner.server", () => ({
   }),
 }));
 vi.mock("@/lib/tenant-store.server", () => ({
+  readUserDisplayName: async () => null,
   saveTenantCompanyName: async (tenant: string, key: string, name: string) => {
     state.saved.push([tenant, key, name]);
   },

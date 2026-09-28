@@ -7,7 +7,11 @@ import { deny, isSameOriginWrite } from "@/lib/operations-api.server";
 import { callN3Path } from "@/lib/n3-gateway.server";
 import { normalizeBasicInfo } from "@/lib/n3-basicinfo";
 import { decodeJwtClaims } from "@/lib/jwt-claims.server";
-import { saveTenantCompanyName, saveUserDisplayName } from "@/lib/tenant-store.server";
+import {
+  readUserDisplayName,
+  saveTenantCompanyName,
+  saveUserDisplayName,
+} from "@/lib/tenant-store.server";
 import { readN3Users } from "@/lib/n3-owner.server";
 import { humanDisplayName } from "@/lib/header-display";
 import { logAudit } from "@/lib/audit.server";
@@ -68,7 +72,8 @@ export async function handleRefreshCompanyName({
         ? users.users.find((user) => user.id?.toLowerCase() === ctx.session.n3UserKey.toLowerCase())
         : null;
     const userName = humanDisplayName(current?.userName) ?? humanDisplayName(info.userName);
-    if (userName) {
+    // Do not overwrite an explicit HotelHub display name on later refreshes.
+    if (userName && !(await readUserDisplayName(ctx.session.tenantId!, ctx.session.n3UserKey))) {
       try {
         await saveUserDisplayName(ctx.session.tenantId!, ctx.session.n3UserKey, userName);
       } catch {

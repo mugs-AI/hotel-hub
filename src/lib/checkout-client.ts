@@ -4,6 +4,7 @@
 // calculated it.
 import { useQuery } from "@tanstack/react-query";
 import type { CheckoutPreviewDTO, DeparturesResponseDTO } from "./checkout-preview";
+import { useSessionMe } from "./session-client";
 
 export type { CheckoutPreviewDTO, DeparturesResponseDTO };
 
@@ -45,14 +46,17 @@ export type DeparturesFilter = {
   offset?: number;
 };
 
-export function useDepartures(filter: DeparturesFilter) {
+export function useDepartures(filter: DeparturesFilter, enabled = true) {
+  const session = useSessionMe();
+  const tenantId = session.data?.authenticated === true ? session.data.tenant.tenantId : null;
   const params = new URLSearchParams({ bucket: filter.bucket });
   if (filter.limit) params.set("limit", String(filter.limit));
   if (filter.offset) params.set("offset", String(filter.offset));
   const qs = params.toString();
   return useQuery({
-    queryKey: ["departures", qs],
+    queryKey: ["departures", tenantId, qs],
     queryFn: () => getJson<DeparturesResponseDTO>(`/api/hotel/departures?${qs}`),
+    enabled: enabled && Boolean(tenantId),
     staleTime: 15_000,
   });
 }

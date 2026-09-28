@@ -27,6 +27,8 @@ import {
 } from "./user-control";
 import { isHotelRole } from "./rbac";
 import { logAudit } from "./audit.server";
+import { humanDisplayName } from "./header-display";
+import { saveUserDisplayName } from "./tenant-store.server";
 
 export type UserControlListResult =
   | {
@@ -90,11 +92,79 @@ export async function listUserControl(
 
   const built = buildUserControlRows({ users: read.users, localRoles });
 
+  // Tenant-scoped HotelHub labels override N3 login IDs that may be emails.
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("hotel_user_directory")
+      .select("n3_user_key, display_name")
+      .eq("tenant_id", input.tenantId);
+    if (error) throw new Error("directory_read_failed");
+    const names = new Map(
+      (data ?? []).map((row) => [
+        row.n3_user_key.toLowerCase(),
+        humanDisplayName(row.display_name),
+      ]),
+    );
+    for (const row of built.rows) {
+      row.displayName = names.get(row.n3UserKey.toLowerCase()) ?? humanDisplayName(row.displayName);
+    }
+  } catch {
+    for (const row of built.rows) row.displayName = humanDisplayName(row.displayName);
+  }
+
   return {
     status: "ok",
     rows: built.rows,
     skippedWithoutIdentifier: built.skippedWithoutIdentifier,
   };
+}
+
+/** Owner-defined display text; never changes N3 login, email, ID or access. */
+export async function updateUserDisplayName(
+  input: {
+    tenantId: string;
+    actorN3UserKey: string;
+    token: string;
+    targetN3UserKey: unknown;
+    displayName: unknown;
+  },
+  deps: UserControlDeps & {
+    saveName?: (tenantId: string, userKey: string, name: string) => Promise<void>;
+  } = {},
+): Promise<
+  { ok: true; n3UserKey: string; displayName: string } | { ok: false; status: number; code: string }
+> {
+  const owner = await confirmActorIsCurrentN3Owner(
+    { token: input.token, identity: { n3UserKey: input.actorN3UserKey } },
+    deps,
+  );
+  if (!owner.ok) return { ok: false, status: 403, code: "owner_check_failed" };
+  const target = typeof input.targetN3UserKey === "string" ? input.targetN3UserKey.trim() : "";
+  const matches = owner.users.filter((user) => user.isActive && user.id === target);
+  if (!target || matches.length !== 1) {
+    return { ok: false, status: 404, code: "unknown_target" };
+  }
+  const name = typeof input.displayName === "string" ? humanDisplayName(input.displayName) : null;
+  if (
+    !name ||
+    name.length > 100 ||
+    [...name].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+  ) {
+    return { ok: false, status: 400, code: "invalid_display_name" };
+  }
+  try {
+    await (deps.saveName ?? saveUserDisplayName)(input.tenantId, target, name);
+  } catch {
+    return { ok: false, status: 503, code: "store_unavailable" };
+  }
+  await logAudit({
+    tenantId: input.tenantId,
+    n3UserKey: input.actorN3UserKey,
+    eventType: "hotel.user_display_name.updated",
+    detail: { target },
+  });
+  return { ok: true, n3UserKey: target, displayName: name };
 }
 
 /**

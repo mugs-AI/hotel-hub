@@ -1,70 +1,238 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { useSessionMe } from "@/lib/session-client";
+import { hasPermission } from "@/lib/rbac";
+import { housekeepingAuthority } from "@/lib/housekeeping";
+import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
+import { useHousekeepingBoard, housekeepingMessage } from "@/lib/housekeeping-client";
+import { useReservationList } from "@/lib/reservations-client";
+import { EMPTY_FILTERS } from "@/lib/reservations-ui";
+import { isoToMyDate } from "@/lib/malaysia-date";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "HotelHub — Boutique Hotel System" },
-      {
-        name: "description",
-        content:
-          "Front-desk operations for a boutique hotel, integrated with N3 AI Cloud Accounting.",
-      },
+      { title: "Dashboard — HotelHub" },
+      { name: "description", content: "Property operations for the current hotel day." },
     ],
   }),
-  component: Home,
+  component: Dashboard,
 });
 
-function Home() {
+const card = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
+
+function Dashboard() {
+  const session = useSessionMe();
+  const role = session.data?.authenticated === true ? session.data.role : null;
+  const canReservations = hasPermission(role, "hotel:reservations:view");
+  const canDepartures = hasPermission(role, "hotel:checkout:view");
+  const canHousekeeping =
+    hasPermission(role, "hotel:housekeeping:view") &&
+    housekeepingAuthority(
+      session.data?.authenticated === true ? (session.data.housekeepingMode ?? "simple") : "simple",
+      role,
+    ).canViewBoard;
+  const departures = useDepartures({ bucket: "today", limit: 5 }, canDepartures);
+  const housekeeping = useHousekeepingBoard(canHousekeeping);
+  // The property date is server-derived. The browser clock may be in another timezone.
+  const propertyDate = departures.data?.propertyDate ?? housekeeping.data?.propertyDate;
+  const arrivals = useReservationList(
+    {
+      ...EMPTY_FILTERS,
+      status: "confirmed",
+      arrivalFrom: propertyDate ?? "",
+      arrivalTo: propertyDate ?? "",
+    },
+    { limit: 5, offset: 0 },
+    { enabled: canReservations && Boolean(propertyDate), sort: { key: "arrivalDate", dir: "asc" } },
+  );
+
   return (
     <AppShell>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome to HotelHub</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Boutique hotel operations, integrated with N3 AI Cloud Accounting.
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#102A43]">Dashboard</h1>
+            <p className="mt-1 text-sm text-slate-600">Today’s property operations</p>
+          </div>
+          {propertyDate ? (
+            <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-800">
+              {isoToMyDate(propertyDate)}
+            </span>
+          ) : null}
         </div>
 
-        <section className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">Available today</h2>
-          <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-            <li>· Rooms &amp; Rates — N3 Stock Code mapping with local base rates</li>
-            <li>· Reservations — create, edit, cancel, calendar and registration print</li>
-            <li>· Guest and room editing with capacity-aware assignment</li>
-            <li>· Deposit ledger with controlled Owner-only N3 deposit write</li>
-            <li>· Check-in and in-stay operations with Owner approvals</li>
-            <li>· Departures and read-only Prepare Checkout preview</li>
-          </ul>
-        </section>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {canReservations ? (
+            <Metric label="Confirmed arrivals" value={arrivals.data?.total} to="/reservations" />
+          ) : null}
+          {canDepartures ? (
+            <>
+              <Metric
+                label="Departures today"
+                value={departures.data?.counts.today}
+                to="/departures"
+              />
+              <Metric
+                label="Overdue occupied"
+                value={departures.data?.counts.overdue}
+                to="/departures"
+                tone="alert"
+              />
+            </>
+          ) : null}
+          {canHousekeeping ? (
+            <Metric
+              label="Rooms needing attention"
+              value={housekeeping.data?.counts.needs_attention}
+              to="/housekeeping"
+              tone="alert"
+            />
+          ) : null}
+        </div>
 
-        <section className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">Planned next</h2>
-          <ul className="mt-3 grid grid-cols-1 gap-2 text-sm text-muted-foreground sm:grid-cols-2">
-            <li>· CashMemo posting and deposit matching</li>
-            <li>· Final balance collection and checkout completion</li>
-            <li>· Housekeeping &amp; maintenance workflow</li>
-            <li>· Refund approvals</li>
-            <li>· Dashboard &amp; reports</li>
-          </ul>
-        </section>
+        {canDepartures && departures.error ? (
+          <ErrorCard label={checkoutErrorMessage(departures.error)} />
+        ) : null}
+        {canHousekeeping && housekeeping.error ? (
+          <ErrorCard label={housekeepingMessage((housekeeping.error as Error).message)} />
+        ) : null}
+        {canReservations && arrivals.error ? (
+          <ErrorCard label="Confirmed arrivals could not be loaded. Please refresh." />
+        ) : null}
 
-        <section className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-semibold">Platform foundations</h2>
-          <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-            <li>
-              · Secure N3 launch/auth (Path A: <code>?token=</code> from My Apps)
-            </li>
-            <li>· Dev-only API-key sign-in (Path B), stripped from production</li>
-            <li>· Same-origin gateway — browser never calls N3 hosts directly</li>
-            <li>
-              · Sign-in details (company, hotel, user) captured at launch and read from the
-              encrypted HttpOnly session cookie on each page load — not re-fetched from N3.
-            </li>
-            <li>· N3 verification console (Owner-only) for capability probing</li>
-          </ul>
-        </section>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {canReservations ? (
+            <section className={card}>
+              <SectionTitle title="Confirmed arrivals" to="/reservations" />
+              {!propertyDate || arrivals.isPending ? (
+                <Placeholder text="Loading arrivals…" />
+              ) : null}
+              {arrivals.data && arrivals.data.items.length === 0 ? (
+                <Placeholder text="No confirmed arrivals today." />
+              ) : null}
+              <ul className="mt-3 divide-y divide-slate-100">
+                {arrivals.data?.items.map((item) => (
+                  <li key={item.id} className="py-3">
+                    <Link
+                      to="/reservations/$id"
+                      params={{ id: item.id }}
+                      className="font-medium text-teal-800 hover:underline"
+                    >
+                      {item.bookingReference}
+                    </Link>
+                    <p className="text-xs text-slate-600">
+                      {item.primaryGuestName || "Guest pending"} ·{" "}
+                      {item.roomLabels.join(", ") || `${item.roomCount} room(s)`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {canDepartures ? (
+            <section className={card}>
+              <SectionTitle title="Departing today" to="/departures" />
+              {departures.isPending ? <Placeholder text="Loading departures…" /> : null}
+              {departures.data && departures.data.items.length === 0 ? (
+                <Placeholder text="No departures today." />
+              ) : null}
+              <ul className="mt-3 divide-y divide-slate-100">
+                {departures.data?.items.map((item) => (
+                  <li key={item.reservationId} className="py-3">
+                    <Link
+                      to="/reservations/$id"
+                      params={{ id: item.reservationId }}
+                      className="font-medium text-teal-800 hover:underline"
+                    >
+                      {item.bookingReference}
+                    </Link>
+                    <p className="text-xs text-slate-600">
+                      {item.primaryGuestName || "Guest pending"} ·{" "}
+                      {item.roomLabels.join(", ") || "Room pending"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {canHousekeeping ? (
+            <section className={card}>
+              <SectionTitle title="Room readiness" to="/housekeeping" />
+              {housekeeping.isPending ? <Placeholder text="Loading room status…" /> : null}
+              {housekeeping.data ? (
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <Status label="Ready" value={housekeeping.data.counts.ready} />
+                  <Status label="In progress" value={housekeeping.data.counts.in_progress} />
+                  <Status
+                    label="Needs attention"
+                    value={housekeeping.data.counts.needs_attention}
+                  />
+                  <Status label="Do Not Disturb" value={housekeeping.data.counts.dnd} />
+                  <Status label="Not set up" value={housekeeping.data.counts.not_set_up} />
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </div>
       </div>
     </AppShell>
+  );
+}
+
+type DashboardPath = "/reservations" | "/departures" | "/housekeeping";
+
+function Metric({
+  label,
+  value,
+  to,
+  tone,
+}: {
+  label: string;
+  value: number | undefined;
+  to: DashboardPath;
+  tone?: "alert";
+}) {
+  return (
+    <Link to={to} className={`${card} block hover:border-teal-600`}>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
+      <p
+        className={`mt-3 text-3xl font-semibold ${tone && value ? "text-amber-700" : "text-[#102A43]"}`}
+      >
+        {value ?? "—"}
+      </p>
+    </Link>
+  );
+}
+
+function SectionTitle({ title, to }: { title: string; to: DashboardPath }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="font-semibold text-[#102A43]">{title}</h2>
+      <Link to={to} className="text-xs font-medium text-teal-800 hover:underline">
+        View all →
+      </Link>
+    </div>
+  );
+}
+
+function Status({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-slate-50 p-3">
+      <span className="text-slate-600">{label}</span>
+      <strong className="mt-1 block text-xl text-[#102A43]">{value}</strong>
+    </div>
+  );
+}
+
+function Placeholder({ text }: { text: string }) {
+  return <p className="mt-4 text-sm text-slate-500">{text}</p>;
+}
+
+function ErrorCard({ label }: { label: string }) {
+  return (
+    <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+      {label}
+    </p>
   );
 }
