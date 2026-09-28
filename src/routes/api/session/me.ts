@@ -8,6 +8,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { readRequestContext } from "@/lib/session-context.server";
 import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
+import { readTenantCompanyName, readUserDisplayName } from "@/lib/tenant-store.server";
+import { humanDisplayName } from "@/lib/header-display";
 
 export type SessionMeResponse =
   | {
@@ -51,6 +53,25 @@ export async function handleSessionMe(): Promise<Response> {
     return Response.json(body, { headers: { "cache-control": "no-store" } });
   }
   const s = ctx.session;
+  // Company name is display metadata. Staff sessions can predate the Owner's
+  // optional N3 profile sync, so read the latest tenant-scoped value here.
+  // A failed display read must never revoke a valid N3 session.
+  let companyName = s.companyName;
+  if (!companyName && s.tenantId && s.n3TenantKey) {
+    try {
+      companyName = await readTenantCompanyName(s.tenantId, s.n3TenantKey);
+    } catch {
+      // Header stays blank until the next session refresh.
+    }
+  }
+  let userName = humanDisplayName(s.userName);
+  if (s.tenantId && s.n3UserKey) {
+    try {
+      userName = (await readUserDisplayName(s.tenantId, s.n3UserKey)) ?? userName;
+    } catch {
+      // A missing display name never interrupts the authenticated session.
+    }
+  }
   // Read-only: never creates a settings row as a side effect of loading.
   let housekeepingMode: "simple" | "dedicated" = "simple";
   let exceptionApprovalMode: "owner_approval" | "direct" = "owner_approval";
@@ -70,12 +91,12 @@ export async function handleSessionMe(): Promise<Response> {
     tenant: {
       tenantId: s.tenantId!,
       tenantCode: s.tenantCode,
-      companyName: s.companyName,
+      companyName,
       n3TenantKey: s.n3TenantKey,
     },
     user: {
       userEmail: s.userEmail,
-      userName: s.userName,
+      userName,
       n3UserKey: s.n3UserKey,
     },
     role: ctx.role,

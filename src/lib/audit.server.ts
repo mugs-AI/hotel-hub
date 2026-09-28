@@ -13,6 +13,7 @@ export type AuditEventType =
   | "role.assigned"
   | "role.revoked"
   | "hotel.settings.updated"
+  | "hotel.company_name.synced"
   | "hotel.payment_account.alias_updated"
   | "hotel.walk_in_customer.mapped"
   | "hotel.room.created"

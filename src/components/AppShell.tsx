@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
@@ -7,6 +7,8 @@ import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
+import { Info } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type NavItem = {
   to:
@@ -51,11 +53,42 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
+  const [companySyncState, setCompanySyncState] = useState<"idle" | "syncing" | "failed">("idle");
+  const attemptedCompanyTenant = useRef<string | null>(null);
 
   // Property-wide display size. The authoritative value arrives with the
   // session, so a confirmed Owner save applies as soon as the session cache
   // refreshes — no hard refresh, no sign-out.
   const sessionData = sessionQuery.data;
+  const refetchSession = sessionQuery.refetch;
+  const refreshCompanyName = useCallback(async () => {
+    setCompanySyncState("syncing");
+    try {
+      const res = await fetch("/api/hotel/company-name/refresh", {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!res.ok) throw new Error("company_name_refresh_failed");
+      await refetchSession();
+      setCompanySyncState("idle");
+    } catch {
+      setCompanySyncState("failed");
+    }
+  }, [refetchSession]);
+
+  // Only the N3 Owner may read Company Profile. This optional background
+  // refresh never delays the neutral launch or a staff member's page load.
+  useEffect(() => {
+    if (
+      sessionData?.authenticated !== true ||
+      sessionData.role !== "owner" ||
+      (sessionData.tenant.companyName && sessionData.user.userName) ||
+      attemptedCompanyTenant.current === sessionData.tenant.tenantId
+    )
+      return;
+    attemptedCompanyTenant.current = sessionData.tenant.tenantId;
+    void refreshCompanyName();
+  }, [sessionData, refreshCompanyName]);
   const displaySize =
     sessionData && sessionData.authenticated === true
       ? coerceDisplaySize(sessionData.displaySize)
@@ -124,6 +157,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               session={session}
               onSignOut={() => signOut.mutate()}
               signingOut={signOut.isPending}
+              onRefreshCompany={() => void refreshCompanyName()}
+              companySyncState={companySyncState}
             />
           </div>
         </div>
@@ -319,41 +354,120 @@ function SessionBadge({
   session,
   onSignOut,
   signingOut,
+  onRefreshCompany,
+  companySyncState,
 }: {
   session: Extract<SessionMe, { authenticated: true }>;
   onSignOut: () => void;
   signingOut: boolean;
+  onRefreshCompany: () => void;
+  companySyncState: "idle" | "syncing" | "failed";
 }) {
   return (
     <div className="flex items-center gap-4">
-      <dl className="grid grid-cols-4 gap-x-4 gap-y-0.5 text-xs">
-        <dt className="text-muted-foreground">Company</dt>
-        <dt className="text-muted-foreground">Tenant</dt>
-        <dt className="text-muted-foreground">User</dt>
-        <dt className="text-muted-foreground">Role</dt>
-        <dd
-          className="font-medium text-foreground truncate max-w-[160px]"
-          title={session.tenant.companyName ?? undefined}
-        >
-          {session.tenant.companyName ?? "—"}
-        </dd>
-        <dd
-          className="font-medium text-foreground truncate max-w-[120px]"
-          title={session.tenant.tenantCode ?? undefined}
-        >
-          {session.tenant.tenantCode ?? "—"}
-        </dd>
-        <dd
-          className="font-medium text-foreground truncate max-w-[180px]"
-          title={session.user.userEmail ?? undefined}
-          data-testid="session-user-email"
-        >
-          {session.user.userEmail ?? "—"}
-        </dd>
-        <dd className="font-medium text-foreground truncate max-w-[120px]">
-          {session.role ?? <span className="text-amber-500">unassigned</span>}
-        </dd>
-      </dl>
+      <div className="flex items-center gap-4 text-xs">
+        <div className="min-w-0">
+          <div className="text-muted-foreground">Company</div>
+          <div className="flex items-center gap-1 font-medium text-foreground">
+            <span
+              className="max-w-[220px] truncate"
+              title={session.tenant.companyName ?? undefined}
+            >
+              {session.tenant.companyName ??
+                (session.role === "owner" ? (
+                  <button
+                    type="button"
+                    onClick={onRefreshCompany}
+                    disabled={companySyncState === "syncing"}
+                    className="text-left underline decoration-dotted underline-offset-2 disabled:opacity-60"
+                    title="Read this property's company name from N3"
+                  >
+                    {companySyncState === "syncing"
+                      ? "Syncing N3 name…"
+                      : companySyncState === "failed"
+                        ? "Retry N3 name"
+                        : "Sync N3 name"}
+                  </button>
+                ) : (
+                  "—"
+                ))}
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Tenant information"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 space-y-2 text-xs">
+                <div className="font-semibold">Tenant information</div>
+                <div>
+                  Tenant ID:{" "}
+                  <span className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</span>
+                </div>
+                <div>
+                  N3 tenant key:{" "}
+                  <span className="font-mono break-all">{session.tenant.n3TenantKey}</span>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-muted-foreground">User</div>
+          <div className="flex items-center gap-1 font-medium text-foreground">
+            <span
+              className="max-w-[140px] truncate"
+              title={session.user.userName ?? undefined}
+              data-testid="session-user-name"
+            >
+              {session.user.userName ??
+                (session.role === "owner" ? (
+                  <button
+                    type="button"
+                    onClick={onRefreshCompany}
+                    disabled={companySyncState === "syncing"}
+                    className="text-left underline decoration-dotted underline-offset-2 disabled:opacity-60"
+                  >
+                    {companySyncState === "syncing"
+                      ? "Syncing N3 name…"
+                      : companySyncState === "failed"
+                        ? "Retry N3 name"
+                        : "Sync N3 name"}
+                  </button>
+                ) : (
+                  "—"
+                ))}
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="User information"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                >
+                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 space-y-2 text-xs">
+                <div className="font-semibold">User information</div>
+                <div>
+                  Email: <span className="break-all">{session.user.userEmail ?? "—"}</span>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+        <div>
+          <div className="text-muted-foreground">Role</div>
+          <div className="font-medium text-foreground">
+            {session.role ?? <span className="text-amber-500">unassigned</span>}
+          </div>
+        </div>
+      </div>
       <button
         onClick={onSignOut}
         disabled={signingOut}

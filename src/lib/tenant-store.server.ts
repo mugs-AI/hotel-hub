@@ -2,6 +2,7 @@
 // HotelHub does not use Supabase Auth — identity comes from N3.
 import type { HotelRole } from "./rbac";
 import { isHotelRole } from "./rbac";
+import { humanDisplayName } from "./header-display";
 
 export type TenantRecord = {
   id: string;
@@ -11,8 +12,73 @@ export type TenantRecord = {
 };
 
 export type RoleLookup =
-  | { status: "assigned"; role: HotelRole; isActive: boolean }
-  | { status: "role_unassigned" };
+  { status: "assigned"; role: HotelRole; isActive: boolean } | { status: "role_unassigned" };
+
+/** Display-only name, read through for staff whose session predates an Owner sync. */
+export async function readTenantCompanyName(
+  tenantId: string,
+  n3TenantKey: string,
+): Promise<string | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("hotel_tenants")
+    .select("company_name")
+    .eq("id", tenantId)
+    .eq("n3_tenant_key", n3TenantKey)
+    .maybeSingle();
+  if (error) throw new Error(`Tenant company name read failed: ${error.message}`);
+  return data?.company_name ?? null;
+}
+
+/** A verified current N3 Owner may update display metadata for this exact tenant. */
+export async function saveTenantCompanyName(
+  tenantId: string,
+  n3TenantKey: string,
+  companyName: string,
+): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("hotel_tenants")
+    .update({ company_name: companyName })
+    .eq("id", tenantId)
+    .eq("n3_tenant_key", n3TenantKey)
+    .select("id")
+    .single();
+  if (error || !data) throw new Error("Tenant company name save failed");
+}
+
+/** A name belonging to the exact current N3 user, never an email substitute. */
+export async function readUserDisplayName(
+  tenantId: string,
+  n3UserKey: string,
+): Promise<string | null> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("hotel_user_directory")
+    .select("display_name")
+    .eq("tenant_id", tenantId)
+    .eq("n3_user_key", n3UserKey)
+    .maybeSingle();
+  if (error) throw new Error("User display name read failed");
+  return humanDisplayName(data?.display_name);
+}
+
+export async function saveUserDisplayName(
+  tenantId: string,
+  n3UserKey: string,
+  name: string,
+): Promise<void> {
+  const displayName = humanDisplayName(name);
+  if (!displayName) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin
+    .from("hotel_user_directory")
+    .upsert(
+      { tenant_id: tenantId, n3_user_key: n3UserKey, display_name: displayName },
+      { onConflict: "tenant_id,n3_user_key" },
+    );
+  if (error) throw new Error("User display name save failed");
+}
 
 /**
  * Upsert the tenant row keyed by the immutable N3 tenant key.
@@ -93,11 +159,17 @@ export async function upsertUserDirectory(input: {
 }): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const newName = humanDisplayName(input.displayName);
+    // A fresh N3 token may carry only an email. Preserve any earlier verified
+    // name for this exact user when that happens.
+    const previousName = newName
+      ? null
+      : await readUserDisplayName(input.tenantId, input.n3UserKey);
     await supabaseAdmin.from("hotel_user_directory").upsert(
       {
         tenant_id: input.tenantId,
         n3_user_key: input.n3UserKey,
-        display_name: input.displayName ? input.displayName.slice(0, 200) : null,
+        display_name: newName ?? previousName,
         email: input.email ? input.email.slice(0, 320) : null,
       },
       { onConflict: "tenant_id,n3_user_key" },
