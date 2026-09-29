@@ -3,6 +3,12 @@
 // All operations require an explicit tenantId and only run under the
 // service-role client. Callers MUST enforce role/tenant server-side before
 // calling any function here — this module never trusts request input.
+import {
+  folioBodyPt,
+  folioNotePt,
+  type FolioBodyPt,
+  type FolioNotePt,
+} from "./folio-print-options";
 
 export type HotelSettings = {
   tenantId: string;
@@ -25,6 +31,11 @@ export type HotelSettings = {
    * 9 = largest). A display LEVEL, never a literal pixel size.
    */
   displaySize: 7 | 8 | 9;
+  folioBodyPt: FolioBodyPt;
+  folioNotePt: FolioNotePt;
+  folioContactAddress: string;
+  folioContactPhone: string;
+  folioContactEmail: string;
   paymentAccountAliases: Record<string, string>;
 
   walkInCustomer: {
@@ -60,6 +71,11 @@ type SettingsRow = {
   housekeeping_mode: string;
   exception_approval_mode?: string | null;
   display_size?: number | null;
+  folio_body_pt: number | string;
+  folio_note_pt: number | string;
+  folio_contact_address: string;
+  folio_contact_phone: string;
+  folio_contact_email: string;
   payment_account_aliases?: unknown;
   n3_walk_in_customer_id: string | null;
   n3_walk_in_customer_code: string | null;
@@ -85,6 +101,11 @@ function toSettings(row: SettingsRow): HotelSettings {
     standardCheckOutTime: row.standard_check_out_time,
     exceptionApprovalMode: row.exception_approval_mode === "direct" ? "direct" : "owner_approval",
     displaySize: row.display_size === 8 ? 8 : row.display_size === 9 ? 9 : 7,
+    folioBodyPt: folioBodyPt(Number(row.folio_body_pt)),
+    folioNotePt: folioNotePt(Number(row.folio_note_pt)),
+    folioContactAddress: row.folio_contact_address,
+    folioContactPhone: row.folio_contact_phone,
+    folioContactEmail: row.folio_contact_email,
     paymentAccountAliases: aliases,
 
     postCheckInGuestEditPolicy:
@@ -105,7 +126,7 @@ function toSettings(row: SettingsRow): HotelSettings {
 }
 
 const SETTINGS_COLS =
-  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, payment_account_aliases, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, folio_body_pt, folio_note_pt, folio_contact_address, folio_contact_phone, folio_contact_email, payment_account_aliases, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -160,6 +181,11 @@ export async function updateHotelSettings(
     housekeepingMode: "simple" | "dedicated";
     exceptionApprovalMode: "owner_approval" | "direct";
     displaySize: 7 | 8 | 9;
+    folioBodyPt: FolioBodyPt;
+    folioNotePt: FolioNotePt;
+    folioContactAddress: string;
+    folioContactPhone: string;
+    folioContactEmail: string;
   }>,
 ): Promise<HotelSettings> {
   await getOrCreateHotelSettings(tenantId); // ensure row exists
@@ -176,6 +202,12 @@ export async function updateHotelSettings(
   if (patch.housekeepingMode) update.housekeeping_mode = patch.housekeepingMode;
   if (patch.exceptionApprovalMode) update.exception_approval_mode = patch.exceptionApprovalMode;
   if (patch.displaySize) update.display_size = patch.displaySize;
+  if (patch.folioBodyPt !== undefined) update.folio_body_pt = patch.folioBodyPt;
+  if (patch.folioNotePt !== undefined) update.folio_note_pt = patch.folioNotePt;
+  if (patch.folioContactAddress !== undefined)
+    update.folio_contact_address = patch.folioContactAddress;
+  if (patch.folioContactPhone !== undefined) update.folio_contact_phone = patch.folioContactPhone;
+  if (patch.folioContactEmail !== undefined) update.folio_contact_email = patch.folioContactEmail;
 
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
   const supabaseAdmin = _sa as unknown as { from: (t: string) => any };

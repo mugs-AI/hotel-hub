@@ -51,6 +51,7 @@ import {
 import { friendlyError } from "@/lib/reservations-ui";
 import {
   DisplaySizePanel,
+  FolioPrintPanel,
   ExceptionApprovalPanel,
   GuestControlsPanel,
   HousekeepingPanel,
@@ -126,14 +127,7 @@ function SettingsInner() {
 }
 
 type SettingsTab =
-  | "property"
-  | "guests"
-  | "operations"
-  | "charges"
-  | "system"
-  | "users"
-  | "n3"
-  | "sources";
+  "property" | "guests" | "operations" | "charges" | "system" | "users" | "n3" | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },
@@ -300,6 +294,9 @@ function SystemScreen({
       </header>
       <section aria-label="Application display size">
         <DisplaySizePanel settings={settings} onChange={onChange} />
+      </section>
+      <section aria-label="Folio print sizes">
+        <FolioPrintPanel settings={settings} onChange={onChange} />
       </section>
       <section aria-label="Housekeeping workflow">
         <HousekeepingPanel settings={settings} onChange={onChange} />

@@ -11,6 +11,12 @@ import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import type { PaymentAccountChoice } from "@/lib/deposits-client";
 import {
+  FOLIO_BODY_PT,
+  FOLIO_NOTE_PT,
+  type FolioBodyPt,
+  type FolioNotePt,
+} from "@/lib/folio-print-options";
+import {
   applyDisplaySize,
   coerceDisplaySize,
   DISPLAY_SIZE_OPTIONS,
@@ -461,6 +467,131 @@ export function DisplaySizePanel({
         style={{ backgroundColor: NAVY }}
       >
         {saving ? "Saving…" : "Save display size"}
+      </button>
+    </section>
+  );
+}
+
+/** Shared by the Owner's print settings and every staff folio printout. */
+export function FolioPrintPanel({
+  settings,
+  onChange,
+}: {
+  settings: HotelSettingsDTO;
+  onChange: (s: HotelSettingsDTO) => void;
+}) {
+  const [bodyPt, setBodyPt] = useState<FolioBodyPt>(settings.folioBodyPt);
+  const [notePt, setNotePt] = useState<FolioNotePt>(settings.folioNotePt);
+  const [address, setAddress] = useState(settings.folioContactAddress);
+  const [phone, setPhone] = useState(settings.folioContactPhone);
+  const [email, setEmail] = useState(settings.folioContactEmail);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const response = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          folioBodyPt: bodyPt,
+          folioNotePt: notePt,
+          folioContactAddress: address,
+          folioContactPhone: phone,
+          folioContactEmail: email,
+        }),
+      });
+      onChange(response.settings);
+      toast.success("Folio print sizes saved");
+    } catch (error) {
+      toast.error(friendlyError((error as Error).message, "Unable to save folio print sizes."));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
+      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+        Folio print
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        A4 paper text sizes for every staff member. These are independent of the application display
+        size. In the printer dialog use A4 and 100% scale to match the on-screen paper preview.
+      </p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="Itemized body size (pt)">
+          <select
+            className={INPUT}
+            value={bodyPt}
+            onChange={(e) => setBodyPt(Number(e.target.value) as FolioBodyPt)}
+          >
+            {FOLIO_BODY_PT.map((size) => (
+              <option key={size} value={size}>
+                {size} pt
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Footer note size (pt)">
+          <select
+            className={INPUT}
+            value={notePt}
+            onChange={(e) => setNotePt(Number(e.target.value) as FolioNotePt)}
+          >
+            {FOLIO_NOTE_PT.map((size) => (
+              <option key={size} value={size}>
+                {size} pt
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Field label="Company address on folio">
+          <textarea
+            className={INPUT}
+            value={address}
+            maxLength={500}
+            rows={2}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </Field>
+        <div className="grid gap-4">
+          <Field label="Company phone">
+            <input
+              className={INPUT}
+              value={phone}
+              maxLength={60}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
+          <Field label="Company email">
+            <input
+              className={INPUT}
+              type="email"
+              value={email}
+              maxLength={254}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={save}
+        disabled={
+          saving ||
+          (bodyPt === settings.folioBodyPt &&
+            notePt === settings.folioNotePt &&
+            address === settings.folioContactAddress &&
+            phone === settings.folioContactPhone &&
+            email === settings.folioContactEmail)
+        }
+        className="mt-4 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        style={{ backgroundColor: NAVY }}
+      >
+        {saving ? "Saving…" : "Save folio print settings"}
       </button>
     </section>
   );

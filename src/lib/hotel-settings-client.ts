@@ -1,5 +1,6 @@
 // Browser-side shared helpers for hotel settings and N3 lookup rows.
 // Same-origin, cookie-authenticated; never talks to Supabase or N3 directly.
+import type { FolioBodyPt, FolioNotePt } from "./folio-print-options";
 
 export type HotelSettingsDTO = {
   tenantId: string;
@@ -12,6 +13,11 @@ export type HotelSettingsDTO = {
   housekeepingMode: "simple" | "dedicated";
   exceptionApprovalMode: "owner_approval" | "direct";
   displaySize: 7 | 8 | 9;
+  folioBodyPt: FolioBodyPt;
+  folioNotePt: FolioNotePt;
+  folioContactAddress: string;
+  folioContactPhone: string;
+  folioContactEmail: string;
   paymentAccountAliases: Record<string, string>;
   walkInCustomer: { n3Id: string; n3Code: string; n3Name: string | null } | null;
 };

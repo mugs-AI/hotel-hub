@@ -8,6 +8,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { getOrCreateHotelSettings, updateHotelSettings } from "@/lib/hotel-store.server";
 import { logAudit } from "@/lib/audit.server";
+import {
+  isFolioBodyPt,
+  isFolioNotePt,
+  type FolioBodyPt,
+  type FolioNotePt,
+} from "@/lib/folio-print-options";
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -35,6 +41,21 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
   } catch {
     return deny(400, "invalid_json");
   }
+  if (
+    ("folioBodyPt" in body && !isFolioBodyPt(body.folioBodyPt)) ||
+    ("folioNotePt" in body && !isFolioNotePt(body.folioNotePt)) ||
+    ("folioContactAddress" in body &&
+      (typeof body.folioContactAddress !== "string" ||
+        body.folioContactAddress.trim().length > 500)) ||
+    ("folioContactPhone" in body &&
+      (typeof body.folioContactPhone !== "string" || body.folioContactPhone.trim().length > 60)) ||
+    ("folioContactEmail" in body &&
+      (typeof body.folioContactEmail !== "string" ||
+        body.folioContactEmail.trim().length > 254 ||
+        (body.folioContactEmail.trim() !== "" &&
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.folioContactEmail.trim()))))
+  )
+    return deny(400, "invalid_folio_print_settings");
   const patch: {
     currency?: string;
     timezone?: string;
@@ -45,6 +66,11 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
     housekeepingMode?: "simple" | "dedicated";
     exceptionApprovalMode?: "owner_approval" | "direct";
     displaySize?: 7 | 8 | 9;
+    folioBodyPt?: FolioBodyPt;
+    folioNotePt?: FolioNotePt;
+    folioContactAddress?: string;
+    folioContactPhone?: string;
+    folioContactEmail?: string;
   } = {};
 
   if (typeof body.currency === "string" && /^[A-Z]{3}$/.test(body.currency)) {
@@ -77,6 +103,14 @@ export async function handlePatchSettings({ request }: { request: Request }): Pr
   if (body.displaySize === 7 || body.displaySize === 8 || body.displaySize === 9) {
     patch.displaySize = body.displaySize;
   }
+  if (isFolioBodyPt(body.folioBodyPt)) patch.folioBodyPt = body.folioBodyPt;
+  if (isFolioNotePt(body.folioNotePt)) patch.folioNotePt = body.folioNotePt;
+  if (typeof body.folioContactAddress === "string")
+    patch.folioContactAddress = body.folioContactAddress.trim();
+  if (typeof body.folioContactPhone === "string")
+    patch.folioContactPhone = body.folioContactPhone.trim();
+  if (typeof body.folioContactEmail === "string")
+    patch.folioContactEmail = body.folioContactEmail.trim();
   if (Object.keys(patch).length === 0) return deny(400, "no_valid_fields");
   const settings = await updateHotelSettings(ctx.session.tenantId!, patch);
   if (patch.housekeepingMode) {

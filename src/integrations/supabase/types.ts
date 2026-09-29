@@ -1055,6 +1055,11 @@ export type Database = {
       hotel_settings: {
         Row: {
           allow_owner_primary_guest_change_after_check_in: boolean
+          folio_body_pt: number
+          folio_note_pt: number
+          folio_contact_address: string
+          folio_contact_phone: string
+          folio_contact_email: string
           payment_account_aliases: Json
           created_at: string
           currency: string
@@ -1074,6 +1079,11 @@ export type Database = {
         }
         Insert: {
           allow_owner_primary_guest_change_after_check_in?: boolean
+          folio_body_pt?: number
+          folio_note_pt?: number
+          folio_contact_address?: string
+          folio_contact_phone?: string
+          folio_contact_email?: string
           payment_account_aliases?: Json
           created_at?: string
           currency?: string
@@ -1093,6 +1103,11 @@ export type Database = {
         }
         Update: {
           allow_owner_primary_guest_change_after_check_in?: boolean
+          folio_body_pt?: number
+          folio_note_pt?: number
+          folio_contact_address?: string
+          folio_contact_phone?: string
+          folio_contact_email?: string
           payment_account_aliases?: Json
           created_at?: string
           currency?: string
