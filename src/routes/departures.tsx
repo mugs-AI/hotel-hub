@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 
 export const Route = createFileRoute("/departures")({
+  validateSearch: z.object({
+    bucket: z.enum(["today", "overdue", "upcoming", "all"]).catch("today").default("today"),
+  }),
   head: () => ({
     meta: [
       { title: "Departures — HotelHub" },
@@ -33,7 +37,8 @@ const BUCKETS = [
 ] as const;
 
 function DeparturesPage() {
-  const [bucket, setBucket] = useState<(typeof BUCKETS)[number]["key"]>("today");
+  const { bucket } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const q = useDepartures({ bucket, limit: 50 });
   const [contact, setContact] = useState<GuestContactInfo | null>(null);
 
@@ -57,7 +62,7 @@ function DeparturesPage() {
               <button
                 key={b.key}
                 type="button"
-                onClick={() => setBucket(b.key)}
+                onClick={() => navigate({ search: { bucket: b.key } })}
                 className="rounded-md border border-border px-3 py-1.5 text-sm font-medium transition-colors"
                 style={{
                   backgroundColor: active ? (b.key === "overdue" ? "#9B1C1C" : "#0F9D8A") : "white",
@@ -91,7 +96,16 @@ function DeparturesPage() {
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-border bg-card">
-              <table className="w-full min-w-[820px] text-sm">
+              <table className="w-full min-w-[760px] table-fixed text-sm">
+                <colgroup>
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "21%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "13%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "13%" }} />
+                </colgroup>
                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2">Booking</th>
@@ -114,7 +128,16 @@ function DeparturesPage() {
                           : undefined
                       }
                     >
-                      <td className="px-4 py-2 font-mono text-xs">{it.bookingReference}</td>
+                      <td className="px-3 py-3 font-mono text-xs">
+                        <Link
+                          to="/reservations/$id"
+                          params={{ id: it.reservationId }}
+                          title="Open reservation"
+                          className="font-semibold text-teal-800 underline-offset-2 hover:underline focus-visible:underline"
+                        >
+                          {it.bookingReference}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2">
                         {it.primaryGuestName ? (
                           <SheetTrigger
@@ -133,9 +156,18 @@ function DeparturesPage() {
                           "—"
                         )}
                       </td>
-                      <td className="px-4 py-2">{it.roomLabels.join(", ") || "—"}</td>
+                      <td className="px-3 py-3">
+                        <span className="block font-medium">{it.roomLabels[0] || "—"}</span>
+                        {it.roomLabels.length > 1 ? (
+                          <span className="block text-xs text-slate-600">
+                            +{it.roomLabels.length - 1} more room(s)
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2">{it.guestCount}</td>
-                      <td className="px-4 py-2">{isoToMyDate(it.departureDate)}</td>
+                      <td className="px-3 py-3 whitespace-nowrap font-medium">
+                        {isoToMyDate(it.departureDate)}
+                      </td>
                       <td className="px-4 py-2">
                         <span
                           className="rounded px-2 py-0.5 text-xs font-semibold"
@@ -149,17 +181,23 @@ function DeparturesPage() {
                             color: it.bucket === "overdue" ? "#FFFFFF" : "#102A43",
                           }}
                         >
-                          {it.bucket === "overdue" ? "Occupied · Departure overdue" : it.bucket}
+                          {it.bucket === "overdue"
+                            ? "Overdue"
+                            : it.bucket === "today"
+                              ? "Today"
+                              : "Upcoming"}
                         </span>
+                        <span className="mt-1 block text-xs text-slate-600">Checked in</span>
                       </td>
                       <td className="px-4 py-2 text-right">
                         <Link
                           to="/reservations/$id/checkout"
                           params={{ id: it.reservationId }}
-                          className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
+                          title="Prepare checkout preview"
+                          className="inline-flex whitespace-nowrap rounded-md px-2 py-1.5 text-xs font-semibold text-white shadow-sm hover:underline hover:brightness-125 focus-visible:underline"
                           style={{ backgroundColor: "#102A43" }}
                         >
-                          Prepare Checkout
+                          Preview →
                         </Link>
                       </td>
                     </tr>

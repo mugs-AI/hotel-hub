@@ -20,6 +20,8 @@ import {
 import { useCheckoutPreview } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
+import { folioLineTitle } from "@/lib/folio-presentation";
+import { useFolioBillTo } from "@/lib/folio-bill-to-client";
 
 function paperNumber(value: number): string {
   return `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
@@ -47,6 +49,7 @@ function FolioPrintPage() {
   const companyName =
     data?.authenticated === true ? (data.tenant.companyName ?? data.tenant.tenantCode ?? "") : "";
   const query = useReservationFolio(id, canView);
+  const billTo = useFolioBillTo(id, canView);
   const printSettings = useQuery({
     queryKey: ["folio-print-settings", data?.authenticated === true ? data.tenant.tenantId : null],
     queryFn: () => hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/settings"),
@@ -65,6 +68,7 @@ function FolioPrintPage() {
     if (
       !query.data ||
       !printSettings.data ||
+      !billTo.data ||
       typeof window === "undefined" ||
       hasAutoPrinted.current
     )
@@ -77,7 +81,7 @@ function FolioPrintPage() {
       frame = window.requestAnimationFrame(() => window.print());
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [query.data, printSettings.data]);
+  }, [query.data, printSettings.data, billTo.data]);
 
   if (data?.authenticated !== true) return null;
   if (!canView) {
@@ -87,7 +91,7 @@ function FolioPrintPage() {
       </main>
     );
   }
-  if (query.isPending || printSettings.isPending)
+  if (query.isPending || printSettings.isPending || billTo.isPending)
     return <main className="p-8 text-sm">Loading folio…</main>;
   if (query.error || !query.data) {
     return (
@@ -99,6 +103,12 @@ function FolioPrintPage() {
       <main className="p-8 text-sm">Unable to load folio print settings. Reload to try again.</main>
     );
   }
+  if (billTo.error || !billTo.data)
+    return (
+      <main className="p-8 text-sm">
+        Unable to load guest billing details. Reload to try again.
+      </main>
+    );
 
   const dto = query.data;
   const currency = dto.reservation.currency;
@@ -137,32 +147,34 @@ function FolioPrintPage() {
           thead { display: table-header-group; }
           tr, .totals, .signature-block { break-inside: avoid; page-break-inside: avoid; }
         }
-        .letterhead { border-bottom: 1px solid #102A43; padding-bottom: 3mm; margin-bottom: 4mm; }
-        .letterhead .company { font-size: 10pt; font-weight: 700; color: #0F9D8A; margin: 0 0 1mm; }
-        .letterhead h1 { font-size: 12pt; font-weight: 700; margin: 0; }
+        .letterhead { border-bottom: 2px solid #102A43; padding-bottom: 3mm; margin-bottom: 4mm; }
+        .letterhead .company { font-size: 14pt; font-weight: 800; color: #102A43; margin: 0 0 1mm; }
+        .letterhead h1 { font-size: 13pt; font-weight: 700; margin: 4mm 0 1mm; }
         .letterhead p { margin: 1mm 0 0; color: #4a5568; }
         .letterhead .contact { white-space: pre-line; font-size: 7.5pt; }
-        .folio-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 6mm; margin: 0 0 4mm; }
+        .folio-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1mm 6mm; margin: 0 0 5mm; }
+        .folio-meta > div { background: #f4f6f8; padding: 2mm; min-height: 14mm; }
         .folio-meta dt { color: #4a5568; }
         .folio-meta dd { margin: 0; font-weight: 600; }
         h2.section { font-size: 9pt; font-weight: 700; text-transform: uppercase;
-                     color: #0F9D8A; margin: 0 0 2mm; }
+                     color: #102A43; margin: 0 0 2mm; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th { text-align: left; font-size: 7.5pt; text-transform: uppercase; color: #4a5568;
-             border-top: 1px solid #102A43; border-bottom: 1px solid #102A43; padding: 1.5mm 1mm; }
+        th { text-align: left; font-size: 7.5pt; text-transform: uppercase; color: #102A43;
+             border-top: 1px solid #102A43; border-bottom: 1px solid #102A43; background: #eef1f4; padding: 1.5mm 1mm; }
         td { padding: 1.5mm 1mm; border-bottom: 1px solid #E2E8F0; vertical-align: top; overflow-wrap: anywhere; }
         tr.extra-row { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
         tr.extra-row td:first-child { padding-left: 2mm; }
         td.num, th.num { text-align: right; }
         .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .line-meta { display: block; margin-top: .5mm; color: #4a5568; font-size: 7pt; }
+        .stay-date { display: inline-block; font-weight: 700; border: 1px solid #a9b8c5; border-radius: 1mm; padding: .4mm 1mm; margin-right: 2mm; white-space: nowrap; }
         .totals { margin-top: 3mm; margin-left: auto; width: 75mm; }
         .totals dl { display: grid; grid-template-columns: 1fr auto; gap: 1mm 4mm; margin: 0; }
         .totals dt { color: #4a5568; }
         .totals dd { margin: 0; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .grand { font-weight: 700; font-size: 9pt; border-top: 1px solid #102A43; padding-top: 1.5mm; }
+        .grand { font-weight: 800; font-size: 12pt; color: #102A43; border-top: 2px solid #102A43; padding-top: 2mm; }
         .signature-block { display: grid; grid-template-columns: 1fr 1fr; gap: 16mm; margin-top: 12mm; }
         .signature { border-top: 1px solid #102A43; padding-top: 1.5mm; }
+        .guest-name { margin-top: 5mm; }
         .note { margin-top: 6mm; font-size: var(--folio-note-pt); line-height: 1.25; color: #4a5568; }
       `}</style>
 
@@ -213,7 +225,7 @@ function FolioPrintPage() {
                 .join(" · ")}
             </p>
           ) : null}
-          <h1>Guest Folio — Prepared Statement</h1>
+          <h1>Guest Folio · Prepared Statement</h1>
           <p>
             Booking {dto.reservation.bookingReference} · {isoToMyDate(dto.propertyDate)}
           </p>
@@ -221,8 +233,20 @@ function FolioPrintPage() {
 
         <dl className="folio-meta">
           <div>
-            <dt>Guest</dt>
-            <dd>{dto.reservation.primaryGuestName || "—"}</dd>
+            <dt>Bill to</dt>
+            {billTo.data.billTo.company ? <dd>{billTo.data.billTo.company}</dd> : null}
+            <dd>{billTo.data.billTo.name || dto.reservation.primaryGuestName || "—"}</dd>
+            {billTo.data.billTo.address ? (
+              <dd className="whitespace-pre-line" style={{ fontWeight: 400 }}>
+                {billTo.data.billTo.address}
+              </dd>
+            ) : null}
+            {billTo.data.billTo.phone ? (
+              <dd style={{ fontWeight: 400 }}>{billTo.data.billTo.phone}</dd>
+            ) : null}
+            {billTo.data.billTo.email ? (
+              <dd style={{ fontWeight: 400 }}>{billTo.data.billTo.email}</dd>
+            ) : null}
           </div>
           <div>
             <dt>Stay</dt>
@@ -284,13 +308,11 @@ function FolioPrintPage() {
                           : undefined
                       }
                     >
-                      {l.lineType === "room_night" && l.roomLabel
-                        ? `Room charge — ${l.roomLabel}`
-                        : l.description}
+                      {l.stayDate ? (
+                        <span className="stay-date">{isoToMyDate(l.stayDate)}</span>
+                      ) : null}
+                      {folioLineTitle(l)}
                     </span>
-                    {l.stayDate ? (
-                      <span className="line-meta">{isoToMyDate(l.stayDate)}</span>
-                    ) : null}
                   </td>
                   <td className="num">{formatFolioTaxRate(l.taxRateBp)}</td>
                   <td className="num">{l.quantity}</td>
@@ -339,8 +361,10 @@ function FolioPrintPage() {
         </div>
 
         <div className="signature-block" aria-label="Signatures">
-          <div className="signature">Guest signature</div>
           <div className="signature">Hotel representative signature</div>
+          <div className="signature">
+            Guest signature<div className="guest-name">Guest name: __________________________</div>
+          </div>
         </div>
 
         <p className="note">

@@ -486,6 +486,7 @@ export function FolioPrintPanel({
   const [phone, setPhone] = useState(settings.folioContactPhone);
   const [email, setEmail] = useState(settings.folioContactEmail);
   const [saving, setSaving] = useState(false);
+  const emailInvalid = email.trim() !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   async function save() {
     setSaving(true);
@@ -502,9 +503,9 @@ export function FolioPrintPanel({
         }),
       });
       onChange(response.settings);
-      toast.success("Folio print sizes saved");
+      toast.success("Folio print settings saved");
     } catch (error) {
-      toast.error(friendlyError((error as Error).message, "Unable to save folio print sizes."));
+      toast.error(friendlyError((error as Error).message, "Unable to save folio print settings."));
     } finally {
       setSaving(false);
     }
@@ -574,6 +575,12 @@ export function FolioPrintPanel({
               maxLength={254}
               onChange={(e) => setEmail(e.target.value)}
             />
+            {emailInvalid ? (
+              <p className="mt-1 text-xs text-red-700">
+                Enter one email address here. Put website or social media details in the address
+                field.
+              </p>
+            ) : null}
           </Field>
         </div>
       </div>
@@ -582,6 +589,7 @@ export function FolioPrintPanel({
         onClick={save}
         disabled={
           saving ||
+          emailInvalid ||
           (bodyPt === settings.folioBodyPt &&
             notePt === settings.folioNotePt &&
             address === settings.folioContactAddress &&

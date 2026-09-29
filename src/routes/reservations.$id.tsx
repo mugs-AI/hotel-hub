@@ -17,6 +17,7 @@ import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
 import { FolioCard } from "@/components/FolioCard";
+import { FolioBillToCard } from "@/components/FolioBillToCard";
 import {
   PendingApprovalsCard,
   ReservationActionsCard,
@@ -400,6 +401,12 @@ function Detail({
         </div>
       </section>
 
+      {hasPermission(role, "hotel:folio:view") ? (
+        <FolioBillToCard
+          reservationId={data.id}
+          canEdit={canEdit && (data.status === "confirmed" || data.status === "checked_in")}
+        />
+      ) : null}
       <FolioCard reservationId={data.id} canView={hasPermission(role, "hotel:folio:view")} />
 
       <DepositsCard

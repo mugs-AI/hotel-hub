@@ -849,6 +849,45 @@ export type Database = {
           },
         ]
       }
+      hotel_folio_bill_to: {
+        Row: {
+          tenant_id: string
+          reservation_id: string
+          name: string
+          company: string
+          address: string
+          phone: string
+          email: string
+          updated_at: string
+        }
+        Insert: {
+          tenant_id: string
+          reservation_id: string
+          name?: string
+          company?: string
+          address?: string
+          phone?: string
+          email?: string
+          updated_at?: string
+        }
+        Update: {
+          tenant_id?: string
+          reservation_id?: string
+          name?: string
+          company?: string
+          address?: string
+          phone?: string
+          email?: string
+          updated_at?: string
+        }
+        Relationships: [{
+          foreignKeyName: "hotel_folio_bill_to_tenant_id_reservation_id_fkey"
+          columns: ["tenant_id", "reservation_id"]
+          isOneToOne: true
+          referencedRelation: "hotel_reservations"
+          referencedColumns: ["tenant_id", "id"]
+        }]
+      }
       hotel_reservations: {
         Row: {
           arrival_date: string

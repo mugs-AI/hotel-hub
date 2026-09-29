@@ -77,6 +77,7 @@ function Dashboard() {
                 label="Overdue occupied"
                 value={departures.data?.counts.overdue}
                 to="/departures"
+                departureBucket="overdue"
                 tone="alert"
               />
             </>
@@ -187,14 +188,20 @@ function Metric({
   value,
   to,
   tone,
+  departureBucket,
 }: {
   label: string;
   value: number | undefined;
   to: DashboardPath;
   tone?: "alert";
+  departureBucket?: "overdue";
 }) {
   return (
-    <Link to={to} className={`${card} block hover:border-teal-600`}>
+    <Link
+      to={to}
+      search={to === "/departures" ? { bucket: departureBucket ?? "today" } : undefined}
+      className={`${card} block hover:border-teal-600`}
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
       <p
         className={`mt-3 text-3xl font-semibold ${tone && value ? "text-amber-700" : "text-[#102A43]"}`}

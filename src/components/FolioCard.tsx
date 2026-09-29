@@ -40,6 +40,7 @@ import { makeRequestId } from "@/lib/idempotency";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { isoToMyDate } from "@/lib/malaysia-date";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
+import { folioLineTitle } from "@/lib/folio-presentation";
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -231,13 +232,12 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                         className={accent ? "py-2 pl-2" : "py-2"}
                         style={accent ? { borderLeft: `3px solid ${accent.border}` } : undefined}
                       >
-                        <span>{l.description}</span>
-                        {l.roomLabel ? (
-                          <span className="block text-sm text-muted-foreground">
-                            {l.roomLabel}
-                            {l.stayDate ? ` · ${isoToMyDate(l.stayDate)}` : ""}
+                        {l.stayDate ? (
+                          <span className="mr-2 inline-block rounded border border-amber-300 bg-white px-1.5 py-0.5 text-xs font-bold tabular-nums">
+                            {isoToMyDate(l.stayDate)}
                           </span>
                         ) : null}
+                        <span className="font-medium">{folioLineTitle(l)}</span>
                         {l.reason ? (
                           <span className="block text-sm text-muted-foreground">
                             Reason: {l.reason}
@@ -305,10 +305,10 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
                 </dd>
               </div>
             ))}
-            <dt className="font-semibold" style={{ color: NAVY }}>
+            <dt className="border-t pt-2 text-base font-bold" style={{ color: NAVY }}>
               Prepared total
             </dt>
-            <dd className="text-right text-base font-semibold" style={{ color: NAVY }}>
+            <dd className="border-t pt-2 text-right text-xl font-bold" style={{ color: NAVY }}>
               {formatFolioMoney(dto.totals.grandTotal, dto.reservation.currency)}
             </dd>
           </dl>

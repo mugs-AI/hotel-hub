@@ -1,6 +1,9 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { FolioCard } from "@/components/FolioCard";
+import { FolioBillToCard } from "@/components/FolioBillToCard";
+import { useSessionMe } from "@/lib/session-client";
+import { hasPermission } from "@/lib/rbac";
 import { useCheckoutPreview, checkoutErrorMessage, formatMoney } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
 
@@ -28,6 +31,8 @@ function CheckoutPreviewPage() {
   const { id } = useParams({ from: "/reservations/$id_/checkout" });
   const q = useCheckoutPreview(id);
   const d = q.data;
+  const session = useSessionMe();
+  const role = session.data?.authenticated === true ? session.data.role : null;
 
   return (
     <AppShell>
@@ -57,6 +62,12 @@ function CheckoutPreviewPage() {
           </div>
         </div>
 
+        {hasPermission(role, "hotel:folio:view") ? (
+          <FolioBillToCard
+            reservationId={id}
+            canEdit={hasPermission(role, "hotel:reservations:edit")}
+          />
+        ) : null}
         {q.isLoading ? <p className="text-sm text-muted-foreground">Preparing preview…</p> : null}
         {q.error ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
