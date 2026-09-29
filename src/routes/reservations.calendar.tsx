@@ -644,7 +644,7 @@ function RoomRow({
           >
             {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
           </SheetTrigger>
-          <span className="block text-xs text-muted-foreground">Max {room.maxGuests} guests</span>
+          <span className="block text-sm text-muted-foreground">Max {room.maxGuests} guests</span>
         </div>
         {dates.map((d) => {
           const dow = dayOfWeek(d);

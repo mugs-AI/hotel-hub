@@ -688,7 +688,7 @@ function ResultsCard(props: {
                     </span>
                     {isPastDateConfirmed(r.status, r.departureDate, propertyDate) ? (
                       <span
-                        className="mt-1 block w-fit rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900"
+                        className="mt-1 block w-fit rounded bg-amber-100 px-2 py-0.5 text-sm font-semibold text-amber-900"
                         title="This confirmed reservation has past stay dates. Review its status."
                       >
                         Past dates · review
