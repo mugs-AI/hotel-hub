@@ -284,6 +284,17 @@ export function DepositsCard({
                   <dd>{d.createdByLabel ?? "System"}</dd>
                 </div>
               </dl>
+              {d.status === "posted" && d.n3ReceiptId ? (
+                <a
+                  href={`/reservations/${encodeURIComponent(reservationId)}/deposits/${encodeURIComponent(d.id)}/receipt-print`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block rounded-md border border-input bg-white px-2 py-1 font-medium hover:underline"
+                  style={{ color: NAVY }}
+                >
+                  Print N3 receipt
+                </a>
+              ) : null}
               {isRecoverableDeposit(d.status) ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span style={{ color: GOLD }}>

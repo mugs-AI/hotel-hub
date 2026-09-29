@@ -43,6 +43,34 @@ export type DepositsResponse = {
   capability: { canCreate: boolean };
 };
 
+export type PrintableDepositReceipt = {
+  bookingReference: string;
+  n3DocCode: string;
+  amount: number;
+  currency: string;
+  customerLabel: string | null;
+  accountLabel: string | null;
+  recordedAt: string;
+  verifiedAt: string;
+};
+
+/** Always re-read N3 when opening the receipt; never cache money evidence. */
+export function usePrintableDepositReceipt(
+  reservationId: string,
+  depositId: string,
+  enabled: boolean,
+) {
+  return useQuery<{ receipt: PrintableDepositReceipt }, DepositApiError>({
+    queryKey: ["deposit-receipt", reservationId, depositId],
+    queryFn: () =>
+      depositFetch(`/api/hotel/reservations/${reservationId}/deposits/${depositId}/receipt`),
+    enabled,
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
 export class DepositApiError extends Error {
   code: string;
   status: number;

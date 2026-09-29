@@ -9,95 +9,77 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VerificationRouteImport } from './routes/verification'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
-import { Route as LaunchErrorRouteImport } from './routes/launch-error'
-import { Route as HousekeepingRouteImport } from './routes/housekeeping'
-import { Route as DeparturesRouteImport } from './routes/departures'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DeparturesRouteImport } from './routes/departures'
+import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as LaunchErrorRouteImport } from './routes/launch-error'
+import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations.index'
-import { Route as SettingsN3FinancialVerificationRouteImport } from './routes/settings_.n3-financial-verification'
-import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
-import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
 import { Route as ReservationsIdRouteImport } from './routes/reservations.$id'
-import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
-import { Route as ReservationsIdFolioPrintRouteImport } from './routes/reservations.$id_.folio-print'
-import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$id_.edit'
-import { Route as ReservationsIdCheckoutRouteImport } from './routes/reservations.$id_.checkout'
-import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
-import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
-import { Route as ApiN3FinancialVerificationRouteImport } from './routes/api/n3/financial-verification'
-import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
-import { Route as ApiHotelWalkInCustomerRouteImport } from './routes/api/hotel/walk-in-customer'
-import { Route as ApiHotelUserControlRouteImport } from './routes/api/hotel/user-control'
-import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/settings'
-import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
-import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
-import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
-import { Route as ApiHotelPaymentAccountsRouteImport } from './routes/api/hotel/payment-accounts'
-import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/housekeeping'
-import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
-import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
-import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
-import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
-import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
+import { Route as ReservationsCalendarRouteImport } from './routes/reservations.calendar'
+import { Route as ReservationsNewRouteImport } from './routes/reservations.new'
+import { Route as SettingsN3FinancialVerificationRouteImport } from './routes/settings_.n3-financial-verification'
 import { Route as ApiAuthConnectRouteImport } from './routes/api/auth/connect'
-import { Route as ApiN3ProbeIndexRouteImport } from './routes/api/n3/probe/index'
-import { Route as ApiN3StocksAllRouteImport } from './routes/api/n3/stocks.all'
-import { Route as ApiN3SelectorsKindRouteImport } from './routes/api/n3/selectors.$kind'
-import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$probe'
-import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
-import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
-import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
-import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
-import { Route as ApiHotelCompanyNameRefreshRouteImport } from './routes/api/hotel/company-name.refresh'
-import { Route as ApiHotelChargesSettingsRouteImport } from './routes/api/hotel/charges.settings'
-import { Route as ApiHotelChargesCatalogueRouteImport } from './routes/api/hotel/charges.catalogue'
+import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
+import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
+import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
+import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/housekeeping'
+import { Route as ApiHotelPaymentAccountsRouteImport } from './routes/api/hotel/payment-accounts'
+import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
+import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
+import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
+import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/settings'
+import { Route as ApiHotelUserControlRouteImport } from './routes/api/hotel/user-control'
+import { Route as ApiHotelWalkInCustomerRouteImport } from './routes/api/hotel/walk-in-customer'
+import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
+import { Route as ApiN3FinancialVerificationRouteImport } from './routes/api/n3/financial-verification'
+import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
+import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
+import { Route as ReservationsIdCheckoutRouteImport } from './routes/reservations.$id_.checkout'
+import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$id_.edit'
+import { Route as ReservationsIdFolioPrintRouteImport } from './routes/reservations.$id_.folio-print'
+import { Route as ReservationsIdPrintRouteImport } from './routes/reservations.$id_.print'
 import { Route as ApiHotelBookingSourcesIdRouteImport } from './routes/api/hotel/booking-sources.$id'
-import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
-import { Route as ApiHotelReservationsIdTaxProfileRouteImport } from './routes/api/hotel/reservations.$id.tax-profile'
-import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
-import { Route as ApiHotelReservationsIdGuestAssignmentsRouteImport } from './routes/api/hotel/reservations.$id.guest-assignments'
-import { Route as ApiHotelReservationsIdFolioRouteImport } from './routes/api/hotel/reservations.$id.folio'
-import { Route as ApiHotelReservationsIdDepositsRouteImport } from './routes/api/hotel/reservations.$id.deposits'
-import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './routes/api/hotel/reservations.$id.checkout-preview'
-import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
-import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
+import { Route as ApiHotelChargesCatalogueRouteImport } from './routes/api/hotel/charges.catalogue'
+import { Route as ApiHotelChargesSettingsRouteImport } from './routes/api/hotel/charges.settings'
+import { Route as ApiHotelCompanyNameRefreshRouteImport } from './routes/api/hotel/company-name.refresh'
+import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
+import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
+import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
+import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
+import { Route as ApiN3ProbeIndexRouteImport } from './routes/api/n3/probe/index'
+import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$probe'
+import { Route as ApiN3SelectorsKindRouteImport } from './routes/api/n3/selectors.$kind'
+import { Route as ApiN3StocksAllRouteImport } from './routes/api/n3/stocks.all'
 import { Route as ApiHotelChargesCatalogueItemIdRouteImport } from './routes/api/hotel/charges.catalogue.$itemId'
-import { Route as ApiHotelReservationsIdFolioRefreshRouteImport } from './routes/api/hotel/reservations.$id.folio.refresh'
-import { Route as ApiHotelReservationsIdFolioLinesRouteImport } from './routes/api/hotel/reservations.$id.folio.lines'
-import { Route as ApiHotelReservationsIdFolioBillToRouteImport } from './routes/api/hotel/reservations.$id.folio.bill-to'
-import { Route as ApiHotelReservationsIdFolioAdjustmentsRouteImport } from './routes/api/hotel/reservations.$id.folio.adjustments'
+import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
+import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
+import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './routes/api/hotel/reservations.$id.checkout-preview'
+import { Route as ApiHotelReservationsIdDepositsRouteImport } from './routes/api/hotel/reservations.$id.deposits'
+import { Route as ApiHotelReservationsIdFolioRouteImport } from './routes/api/hotel/reservations.$id.folio'
+import { Route as ApiHotelReservationsIdGuestAssignmentsRouteImport } from './routes/api/hotel/reservations.$id.guest-assignments'
+import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
+import { Route as ApiHotelReservationsIdTaxProfileRouteImport } from './routes/api/hotel/reservations.$id.tax-profile'
+import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api/hotel/reservations.$id.timeline'
+import { Route as ReservationsIdDepositsDepositIdReceiptPrintRouteImport } from './routes/reservations.$id_.deposits.$depositId.receipt-print'
 import { Route as ApiHotelReservationsIdDepositsPreviewRouteImport } from './routes/api/hotel/reservations.$id.deposits.preview'
-import { Route as ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport } from './routes/api/hotel/reservations.$id.operations.$requestId.decision'
-import { Route as ApiHotelReservationsIdFolioLinesLineIdRouteImport } from './routes/api/hotel/reservations.$id.folio.lines.$lineId'
+import { Route as ApiHotelReservationsIdFolioAdjustmentsRouteImport } from './routes/api/hotel/reservations.$id.folio.adjustments'
+import { Route as ApiHotelReservationsIdFolioBillToRouteImport } from './routes/api/hotel/reservations.$id.folio.bill-to'
+import { Route as ApiHotelReservationsIdFolioLinesRouteImport } from './routes/api/hotel/reservations.$id.folio.lines'
+import { Route as ApiHotelReservationsIdFolioRefreshRouteImport } from './routes/api/hotel/reservations.$id.folio.refresh'
+import { Route as ApiHotelReservationsIdDepositsDepositIdReceiptRouteImport } from './routes/api/hotel/reservations.$id.deposits.$depositId.receipt'
 import { Route as ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport } from './routes/api/hotel/reservations.$id.deposits.$depositId.reconcile'
+import { Route as ApiHotelReservationsIdFolioLinesLineIdRouteImport } from './routes/api/hotel/reservations.$id.folio.lines.$lineId'
+import { Route as ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport } from './routes/api/hotel/reservations.$id.operations.$requestId.decision'
 import { Route as ApiHotelReservationsIdFolioLinesLineIdReverseRouteImport } from './routes/api/hotel/reservations.$id.folio.lines.$lineId.reverse'
 
-const VerificationRoute = VerificationRouteImport.update({
-  id: '/verification',
-  path: '/verification',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomsRatesRoute = RoomsRatesRouteImport.update({
-  id: '/rooms-rates',
-  path: '/rooms-rates',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LaunchErrorRoute = LaunchErrorRouteImport.update({
-  id: '/launch-error',
-  path: '/launch-error',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HousekeepingRoute = HousekeepingRouteImport.update({
-  id: '/housekeeping',
-  path: '/housekeeping',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeparturesRoute = DeparturesRouteImport.update({
@@ -105,14 +87,49 @@ const DeparturesRoute = DeparturesRouteImport.update({
   path: '/departures',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const HousekeepingRoute = HousekeepingRouteImport.update({
+  id: '/housekeeping',
+  path: '/housekeeping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaunchErrorRoute = LaunchErrorRouteImport.update({
+  id: '/launch-error',
+  path: '/launch-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomsRatesRoute = RoomsRatesRouteImport.update({
+  id: '/rooms-rates',
+  path: '/rooms-rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerificationRoute = VerificationRouteImport.update({
+  id: '/verification',
+  path: '/verification',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReservationsIndexRoute = ReservationsIndexRouteImport.update({
   id: '/reservations/',
   path: '/reservations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdRoute = ReservationsIdRouteImport.update({
+  id: '/reservations/$id',
+  path: '/reservations/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsCalendarRoute = ReservationsCalendarRouteImport.update({
+  id: '/reservations/calendar',
+  path: '/reservations/calendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsNewRoute = ReservationsNewRouteImport.update({
+  id: '/reservations/new',
+  path: '/reservations/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsN3FinancialVerificationRoute =
@@ -121,86 +138,44 @@ const SettingsN3FinancialVerificationRoute =
     path: '/settings/n3-financial-verification',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ReservationsNewRoute = ReservationsNewRouteImport.update({
-  id: '/reservations/new',
-  path: '/reservations/new',
+const ApiAuthConnectRoute = ApiAuthConnectRouteImport.update({
+  id: '/api/auth/connect',
+  path: '/api/auth/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservationsCalendarRoute = ReservationsCalendarRouteImport.update({
-  id: '/reservations/calendar',
-  path: '/reservations/calendar',
+const ApiAuthLaunchRoute = ApiAuthLaunchRouteImport.update({
+  id: '/api/auth/launch',
+  path: '/api/auth/launch',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservationsIdRoute = ReservationsIdRouteImport.update({
-  id: '/reservations/$id',
-  path: '/reservations/$id',
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
-  id: '/reservations/$id_/print',
-  path: '/reservations/$id/print',
+const ApiHotelAvailabilityRoute = ApiHotelAvailabilityRouteImport.update({
+  id: '/api/hotel/availability',
+  path: '/api/hotel/availability',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservationsIdFolioPrintRoute =
-  ReservationsIdFolioPrintRouteImport.update({
-    id: '/reservations/$id_/folio-print',
-    path: '/reservations/$id/folio-print',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ReservationsIdEditRoute = ReservationsIdEditRouteImport.update({
-  id: '/reservations/$id_/edit',
-  path: '/reservations/$id/edit',
+const ApiHotelBookingSourcesRoute = ApiHotelBookingSourcesRouteImport.update({
+  id: '/api/hotel/booking-sources',
+  path: '/api/hotel/booking-sources',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservationsIdCheckoutRoute = ReservationsIdCheckoutRouteImport.update({
-  id: '/reservations/$id_/checkout',
-  path: '/reservations/$id/checkout',
+const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
+  id: '/api/hotel/departures',
+  path: '/api/hotel/departures',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
-  id: '/api/session/me',
-  path: '/api/session/me',
+const ApiHotelHousekeepingRoute = ApiHotelHousekeepingRouteImport.update({
+  id: '/api/hotel/housekeeping',
+  path: '/api/hotel/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiN3StocksRoute = ApiN3StocksRouteImport.update({
-  id: '/api/n3/stocks',
-  path: '/api/n3/stocks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiN3FinancialVerificationRoute =
-  ApiN3FinancialVerificationRouteImport.update({
-    id: '/api/n3/financial-verification',
-    path: '/api/n3/financial-verification',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiN3CustomersRoute = ApiN3CustomersRouteImport.update({
-  id: '/api/n3/customers',
-  path: '/api/n3/customers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHotelWalkInCustomerRoute = ApiHotelWalkInCustomerRouteImport.update({
-  id: '/api/hotel/walk-in-customer',
-  path: '/api/hotel/walk-in-customer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHotelUserControlRoute = ApiHotelUserControlRouteImport.update({
-  id: '/api/hotel/user-control',
-  path: '/api/hotel/user-control',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHotelSettingsRoute = ApiHotelSettingsRouteImport.update({
-  id: '/api/hotel/settings',
-  path: '/api/hotel/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHotelRoomsRoute = ApiHotelRoomsRouteImport.update({
-  id: '/api/hotel/rooms',
-  path: '/api/hotel/rooms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiHotelReservationsRoute = ApiHotelReservationsRouteImport.update({
-  id: '/api/hotel/reservations',
-  path: '/api/hotel/reservations',
+const ApiHotelPaymentAccountsRoute = ApiHotelPaymentAccountsRouteImport.update({
+  id: '/api/hotel/payment-accounts',
+  path: '/api/hotel/payment-accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHotelReservationCalendarRoute =
@@ -209,91 +184,83 @@ const ApiHotelReservationCalendarRoute =
     path: '/api/hotel/reservation-calendar',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiHotelPaymentAccountsRoute = ApiHotelPaymentAccountsRouteImport.update({
-  id: '/api/hotel/payment-accounts',
-  path: '/api/hotel/payment-accounts',
+const ApiHotelReservationsRoute = ApiHotelReservationsRouteImport.update({
+  id: '/api/hotel/reservations',
+  path: '/api/hotel/reservations',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHotelHousekeepingRoute = ApiHotelHousekeepingRouteImport.update({
-  id: '/api/hotel/housekeeping',
-  path: '/api/hotel/housekeeping',
+const ApiHotelRoomsRoute = ApiHotelRoomsRouteImport.update({
+  id: '/api/hotel/rooms',
+  path: '/api/hotel/rooms',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
-  id: '/api/hotel/departures',
-  path: '/api/hotel/departures',
+const ApiHotelSettingsRoute = ApiHotelSettingsRouteImport.update({
+  id: '/api/hotel/settings',
+  path: '/api/hotel/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHotelBookingSourcesRoute = ApiHotelBookingSourcesRouteImport.update({
-  id: '/api/hotel/booking-sources',
-  path: '/api/hotel/booking-sources',
+const ApiHotelUserControlRoute = ApiHotelUserControlRouteImport.update({
+  id: '/api/hotel/user-control',
+  path: '/api/hotel/user-control',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHotelAvailabilityRoute = ApiHotelAvailabilityRouteImport.update({
-  id: '/api/hotel/availability',
-  path: '/api/hotel/availability',
+const ApiHotelWalkInCustomerRoute = ApiHotelWalkInCustomerRouteImport.update({
+  id: '/api/hotel/walk-in-customer',
+  path: '/api/hotel/walk-in-customer',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
-  id: '/api/auth/logout',
-  path: '/api/auth/logout',
+const ApiN3CustomersRoute = ApiN3CustomersRouteImport.update({
+  id: '/api/n3/customers',
+  path: '/api/n3/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthLaunchRoute = ApiAuthLaunchRouteImport.update({
-  id: '/api/auth/launch',
-  path: '/api/auth/launch',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthConnectRoute = ApiAuthConnectRouteImport.update({
-  id: '/api/auth/connect',
-  path: '/api/auth/connect',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiN3ProbeIndexRoute = ApiN3ProbeIndexRouteImport.update({
-  id: '/api/n3/probe/',
-  path: '/api/n3/probe/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiN3StocksAllRoute = ApiN3StocksAllRouteImport.update({
-  id: '/all',
-  path: '/all',
-  getParentRoute: () => ApiN3StocksRoute,
-} as any)
-const ApiN3SelectorsKindRoute = ApiN3SelectorsKindRouteImport.update({
-  id: '/api/n3/selectors/$kind',
-  path: '/api/n3/selectors/$kind',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
-  id: '/api/n3/probe/$probe',
-  path: '/api/n3/probe/$probe',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiN3CustomersAllRoute = ApiN3CustomersAllRouteImport.update({
-  id: '/all',
-  path: '/all',
-  getParentRoute: () => ApiN3CustomersRoute,
-} as any)
-const ApiHotelRoomsIdRoute = ApiHotelRoomsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiHotelRoomsRoute,
-} as any)
-const ApiHotelReservationsIdRoute = ApiHotelReservationsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiHotelReservationsRoute,
-} as any)
-const ApiHotelHousekeepingPurgeRoute =
-  ApiHotelHousekeepingPurgeRouteImport.update({
-    id: '/purge',
-    path: '/purge',
-    getParentRoute: () => ApiHotelHousekeepingRoute,
+const ApiN3FinancialVerificationRoute =
+  ApiN3FinancialVerificationRouteImport.update({
+    id: '/api/n3/financial-verification',
+    path: '/api/n3/financial-verification',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const ApiHotelCompanyNameRefreshRoute =
-  ApiHotelCompanyNameRefreshRouteImport.update({
-    id: '/api/hotel/company-name/refresh',
-    path: '/api/hotel/company-name/refresh',
+const ApiN3StocksRoute = ApiN3StocksRouteImport.update({
+  id: '/api/n3/stocks',
+  path: '/api/n3/stocks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionMeRoute = ApiSessionMeRouteImport.update({
+  id: '/api/session/me',
+  path: '/api/session/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdCheckoutRoute = ReservationsIdCheckoutRouteImport.update({
+  id: '/reservations/$id_/checkout',
+  path: '/reservations/$id/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdEditRoute = ReservationsIdEditRouteImport.update({
+  id: '/reservations/$id_/edit',
+  path: '/reservations/$id/edit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservationsIdFolioPrintRoute =
+  ReservationsIdFolioPrintRouteImport.update({
+    id: '/reservations/$id_/folio-print',
+    path: '/reservations/$id/folio-print',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ReservationsIdPrintRoute = ReservationsIdPrintRouteImport.update({
+  id: '/reservations/$id_/print',
+  path: '/reservations/$id/print',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelBookingSourcesIdRoute =
+  ApiHotelBookingSourcesIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiHotelBookingSourcesRoute,
+  } as any)
+const ApiHotelChargesCatalogueRoute =
+  ApiHotelChargesCatalogueRouteImport.update({
+    id: '/api/hotel/charges/catalogue',
+    path: '/api/hotel/charges/catalogue',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiHotelChargesSettingsRoute = ApiHotelChargesSettingsRouteImport.update({
@@ -301,52 +268,69 @@ const ApiHotelChargesSettingsRoute = ApiHotelChargesSettingsRouteImport.update({
   path: '/api/hotel/charges/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiHotelChargesCatalogueRoute =
-  ApiHotelChargesCatalogueRouteImport.update({
-    id: '/api/hotel/charges/catalogue',
-    path: '/api/hotel/charges/catalogue',
+const ApiHotelCompanyNameRefreshRoute =
+  ApiHotelCompanyNameRefreshRouteImport.update({
+    id: '/api/hotel/company-name/refresh',
+    path: '/api/hotel/company-name/refresh',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiHotelBookingSourcesIdRoute =
-  ApiHotelBookingSourcesIdRouteImport.update({
-    id: '/$id',
-    path: '/$id',
-    getParentRoute: () => ApiHotelBookingSourcesRoute,
+const ApiHotelHousekeepingPurgeRoute =
+  ApiHotelHousekeepingPurgeRouteImport.update({
+    id: '/purge',
+    path: '/purge',
+    getParentRoute: () => ApiHotelHousekeepingRoute,
   } as any)
-const ApiHotelReservationsIdTimelineRoute =
-  ApiHotelReservationsIdTimelineRouteImport.update({
-    id: '/timeline',
-    path: '/timeline',
-    getParentRoute: () => ApiHotelReservationsIdRoute,
+const ApiHotelReservationsIdRoute = ApiHotelReservationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiHotelReservationsRoute,
+} as any)
+const ApiHotelRoomsIdRoute = ApiHotelRoomsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiHotelRoomsRoute,
+} as any)
+const ApiN3CustomersAllRoute = ApiN3CustomersAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => ApiN3CustomersRoute,
+} as any)
+const ApiN3ProbeIndexRoute = ApiN3ProbeIndexRouteImport.update({
+  id: '/api/n3/probe/',
+  path: '/api/n3/probe/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiN3ProbeProbeRoute = ApiN3ProbeProbeRouteImport.update({
+  id: '/api/n3/probe/$probe',
+  path: '/api/n3/probe/$probe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiN3SelectorsKindRoute = ApiN3SelectorsKindRouteImport.update({
+  id: '/api/n3/selectors/$kind',
+  path: '/api/n3/selectors/$kind',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiN3StocksAllRoute = ApiN3StocksAllRouteImport.update({
+  id: '/all',
+  path: '/all',
+  getParentRoute: () => ApiN3StocksRoute,
+} as any)
+const ApiHotelChargesCatalogueItemIdRoute =
+  ApiHotelChargesCatalogueItemIdRouteImport.update({
+    id: '/$itemId',
+    path: '/$itemId',
+    getParentRoute: () => ApiHotelChargesCatalogueRoute,
   } as any)
-const ApiHotelReservationsIdTaxProfileRoute =
-  ApiHotelReservationsIdTaxProfileRouteImport.update({
-    id: '/tax-profile',
-    path: '/tax-profile',
-    getParentRoute: () => ApiHotelReservationsIdRoute,
+const ApiHotelHousekeepingRoomsRoomIdRoute =
+  ApiHotelHousekeepingRoomsRoomIdRouteImport.update({
+    id: '/rooms/$roomId',
+    path: '/rooms/$roomId',
+    getParentRoute: () => ApiHotelHousekeepingRoute,
   } as any)
-const ApiHotelReservationsIdOperationsRoute =
-  ApiHotelReservationsIdOperationsRouteImport.update({
-    id: '/operations',
-    path: '/operations',
-    getParentRoute: () => ApiHotelReservationsIdRoute,
-  } as any)
-const ApiHotelReservationsIdGuestAssignmentsRoute =
-  ApiHotelReservationsIdGuestAssignmentsRouteImport.update({
-    id: '/guest-assignments',
-    path: '/guest-assignments',
-    getParentRoute: () => ApiHotelReservationsIdRoute,
-  } as any)
-const ApiHotelReservationsIdFolioRoute =
-  ApiHotelReservationsIdFolioRouteImport.update({
-    id: '/folio',
-    path: '/folio',
-    getParentRoute: () => ApiHotelReservationsIdRoute,
-  } as any)
-const ApiHotelReservationsIdDepositsRoute =
-  ApiHotelReservationsIdDepositsRouteImport.update({
-    id: '/deposits',
-    path: '/deposits',
+const ApiHotelReservationsIdCheckInRoute =
+  ApiHotelReservationsIdCheckInRouteImport.update({
+    id: '/check-in',
+    path: '/check-in',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
 const ApiHotelReservationsIdCheckoutPreviewRoute =
@@ -355,34 +339,58 @@ const ApiHotelReservationsIdCheckoutPreviewRoute =
     path: '/checkout-preview',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
-const ApiHotelReservationsIdCheckInRoute =
-  ApiHotelReservationsIdCheckInRouteImport.update({
-    id: '/check-in',
-    path: '/check-in',
+const ApiHotelReservationsIdDepositsRoute =
+  ApiHotelReservationsIdDepositsRouteImport.update({
+    id: '/deposits',
+    path: '/deposits',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
-const ApiHotelHousekeepingRoomsRoomIdRoute =
-  ApiHotelHousekeepingRoomsRoomIdRouteImport.update({
-    id: '/rooms/$roomId',
-    path: '/rooms/$roomId',
-    getParentRoute: () => ApiHotelHousekeepingRoute,
+const ApiHotelReservationsIdFolioRoute =
+  ApiHotelReservationsIdFolioRouteImport.update({
+    id: '/folio',
+    path: '/folio',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
-const ApiHotelChargesCatalogueItemIdRoute =
-  ApiHotelChargesCatalogueItemIdRouteImport.update({
-    id: '/$itemId',
-    path: '/$itemId',
-    getParentRoute: () => ApiHotelChargesCatalogueRoute,
+const ApiHotelReservationsIdGuestAssignmentsRoute =
+  ApiHotelReservationsIdGuestAssignmentsRouteImport.update({
+    id: '/guest-assignments',
+    path: '/guest-assignments',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
-const ApiHotelReservationsIdFolioRefreshRoute =
-  ApiHotelReservationsIdFolioRefreshRouteImport.update({
-    id: '/refresh',
-    path: '/refresh',
-    getParentRoute: () => ApiHotelReservationsIdFolioRoute,
+const ApiHotelReservationsIdOperationsRoute =
+  ApiHotelReservationsIdOperationsRouteImport.update({
+    id: '/operations',
+    path: '/operations',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
-const ApiHotelReservationsIdFolioLinesRoute =
-  ApiHotelReservationsIdFolioLinesRouteImport.update({
-    id: '/lines',
-    path: '/lines',
+const ApiHotelReservationsIdTaxProfileRoute =
+  ApiHotelReservationsIdTaxProfileRouteImport.update({
+    id: '/tax-profile',
+    path: '/tax-profile',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
+  } as any)
+const ApiHotelReservationsIdTimelineRoute =
+  ApiHotelReservationsIdTimelineRouteImport.update({
+    id: '/timeline',
+    path: '/timeline',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
+  } as any)
+const ReservationsIdDepositsDepositIdReceiptPrintRoute =
+  ReservationsIdDepositsDepositIdReceiptPrintRouteImport.update({
+    id: '/reservations/$id_/deposits/$depositId/receipt-print',
+    path: '/reservations/$id/deposits/$depositId/receipt-print',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHotelReservationsIdDepositsPreviewRoute =
+  ApiHotelReservationsIdDepositsPreviewRouteImport.update({
+    id: '/preview',
+    path: '/preview',
+    getParentRoute: () => ApiHotelReservationsIdDepositsRoute,
+  } as any)
+const ApiHotelReservationsIdFolioAdjustmentsRoute =
+  ApiHotelReservationsIdFolioAdjustmentsRouteImport.update({
+    id: '/adjustments',
+    path: '/adjustments',
     getParentRoute: () => ApiHotelReservationsIdFolioRoute,
   } as any)
 const ApiHotelReservationsIdFolioBillToRoute =
@@ -391,23 +399,29 @@ const ApiHotelReservationsIdFolioBillToRoute =
     path: '/bill-to',
     getParentRoute: () => ApiHotelReservationsIdFolioRoute,
   } as any)
-const ApiHotelReservationsIdFolioAdjustmentsRoute =
-  ApiHotelReservationsIdFolioAdjustmentsRouteImport.update({
-    id: '/adjustments',
-    path: '/adjustments',
+const ApiHotelReservationsIdFolioLinesRoute =
+  ApiHotelReservationsIdFolioLinesRouteImport.update({
+    id: '/lines',
+    path: '/lines',
     getParentRoute: () => ApiHotelReservationsIdFolioRoute,
   } as any)
-const ApiHotelReservationsIdDepositsPreviewRoute =
-  ApiHotelReservationsIdDepositsPreviewRouteImport.update({
-    id: '/preview',
-    path: '/preview',
+const ApiHotelReservationsIdFolioRefreshRoute =
+  ApiHotelReservationsIdFolioRefreshRouteImport.update({
+    id: '/refresh',
+    path: '/refresh',
+    getParentRoute: () => ApiHotelReservationsIdFolioRoute,
+  } as any)
+const ApiHotelReservationsIdDepositsDepositIdReceiptRoute =
+  ApiHotelReservationsIdDepositsDepositIdReceiptRouteImport.update({
+    id: '/$depositId/receipt',
+    path: '/$depositId/receipt',
     getParentRoute: () => ApiHotelReservationsIdDepositsRoute,
   } as any)
-const ApiHotelReservationsIdOperationsRequestIdDecisionRoute =
-  ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport.update({
-    id: '/$requestId/decision',
-    path: '/$requestId/decision',
-    getParentRoute: () => ApiHotelReservationsIdOperationsRoute,
+const ApiHotelReservationsIdDepositsDepositIdReconcileRoute =
+  ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport.update({
+    id: '/$depositId/reconcile',
+    path: '/$depositId/reconcile',
+    getParentRoute: () => ApiHotelReservationsIdDepositsRoute,
   } as any)
 const ApiHotelReservationsIdFolioLinesLineIdRoute =
   ApiHotelReservationsIdFolioLinesLineIdRouteImport.update({
@@ -415,11 +429,11 @@ const ApiHotelReservationsIdFolioLinesLineIdRoute =
     path: '/$lineId',
     getParentRoute: () => ApiHotelReservationsIdFolioLinesRoute,
   } as any)
-const ApiHotelReservationsIdDepositsDepositIdReconcileRoute =
-  ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport.update({
-    id: '/$depositId/reconcile',
-    path: '/$depositId/reconcile',
-    getParentRoute: () => ApiHotelReservationsIdDepositsRoute,
+const ApiHotelReservationsIdOperationsRequestIdDecisionRoute =
+  ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport.update({
+    id: '/$requestId/decision',
+    path: '/$requestId/decision',
+    getParentRoute: () => ApiHotelReservationsIdOperationsRoute,
   } as any)
 const ApiHotelReservationsIdFolioLinesLineIdReverseRoute =
   ApiHotelReservationsIdFolioLinesLineIdReverseRouteImport.update({
@@ -485,11 +499,13 @@ export interface FileRoutesByFullPath {
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
+  '/reservations/$id/deposits/$depositId/receipt-print': typeof ReservationsIdDepositsDepositIdReceiptPrintRoute
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/bill-to': typeof ApiHotelReservationsIdFolioBillToRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
   '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
+  '/api/hotel/reservations/$id/deposits/$depositId/receipt': typeof ApiHotelReservationsIdDepositsDepositIdReceiptRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -552,11 +568,13 @@ export interface FileRoutesByTo {
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
+  '/reservations/$id/deposits/$depositId/receipt-print': typeof ReservationsIdDepositsDepositIdReceiptPrintRoute
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/bill-to': typeof ApiHotelReservationsIdFolioBillToRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
   '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
+  '/api/hotel/reservations/$id/deposits/$depositId/receipt': typeof ApiHotelReservationsIdDepositsDepositIdReceiptRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -620,11 +638,13 @@ export interface FileRoutesById {
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
   '/api/hotel/reservations/$id/timeline': typeof ApiHotelReservationsIdTimelineRoute
+  '/reservations/$id_/deposits/$depositId/receipt-print': typeof ReservationsIdDepositsDepositIdReceiptPrintRoute
   '/api/hotel/reservations/$id/deposits/preview': typeof ApiHotelReservationsIdDepositsPreviewRoute
   '/api/hotel/reservations/$id/folio/adjustments': typeof ApiHotelReservationsIdFolioAdjustmentsRoute
   '/api/hotel/reservations/$id/folio/bill-to': typeof ApiHotelReservationsIdFolioBillToRoute
   '/api/hotel/reservations/$id/folio/lines': typeof ApiHotelReservationsIdFolioLinesRouteWithChildren
   '/api/hotel/reservations/$id/folio/refresh': typeof ApiHotelReservationsIdFolioRefreshRoute
+  '/api/hotel/reservations/$id/deposits/$depositId/receipt': typeof ApiHotelReservationsIdDepositsDepositIdReceiptRoute
   '/api/hotel/reservations/$id/deposits/$depositId/reconcile': typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
   '/api/hotel/reservations/$id/folio/lines/$lineId': typeof ApiHotelReservationsIdFolioLinesLineIdRouteWithChildren
   '/api/hotel/reservations/$id/operations/$requestId/decision': typeof ApiHotelReservationsIdOperationsRequestIdDecisionRoute
@@ -689,11 +709,13 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/tax-profile'
     | '/api/hotel/reservations/$id/timeline'
+    | '/reservations/$id/deposits/$depositId/receipt-print'
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/bill-to'
     | '/api/hotel/reservations/$id/folio/lines'
     | '/api/hotel/reservations/$id/folio/refresh'
+    | '/api/hotel/reservations/$id/deposits/$depositId/receipt'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -756,11 +778,13 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/tax-profile'
     | '/api/hotel/reservations/$id/timeline'
+    | '/reservations/$id/deposits/$depositId/receipt-print'
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/bill-to'
     | '/api/hotel/reservations/$id/folio/lines'
     | '/api/hotel/reservations/$id/folio/refresh'
+    | '/api/hotel/reservations/$id/deposits/$depositId/receipt'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -823,11 +847,13 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/operations'
     | '/api/hotel/reservations/$id/tax-profile'
     | '/api/hotel/reservations/$id/timeline'
+    | '/reservations/$id_/deposits/$depositId/receipt-print'
     | '/api/hotel/reservations/$id/deposits/preview'
     | '/api/hotel/reservations/$id/folio/adjustments'
     | '/api/hotel/reservations/$id/folio/bill-to'
     | '/api/hotel/reservations/$id/folio/lines'
     | '/api/hotel/reservations/$id/folio/refresh'
+    | '/api/hotel/reservations/$id/deposits/$depositId/receipt'
     | '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
     | '/api/hotel/reservations/$id/folio/lines/$lineId'
     | '/api/hotel/reservations/$id/operations/$requestId/decision'
@@ -875,43 +901,16 @@ export interface RootRouteChildren {
   ApiN3ProbeProbeRoute: typeof ApiN3ProbeProbeRoute
   ApiN3SelectorsKindRoute: typeof ApiN3SelectorsKindRoute
   ApiN3ProbeIndexRoute: typeof ApiN3ProbeIndexRoute
+  ReservationsIdDepositsDepositIdReceiptPrintRoute: typeof ReservationsIdDepositsDepositIdReceiptPrintRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/verification': {
-      id: '/verification'
-      path: '/verification'
-      fullPath: '/verification'
-      preLoaderRoute: typeof VerificationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rooms-rates': {
-      id: '/rooms-rates'
-      path: '/rooms-rates'
-      fullPath: '/rooms-rates'
-      preLoaderRoute: typeof RoomsRatesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/launch-error': {
-      id: '/launch-error'
-      path: '/launch-error'
-      fullPath: '/launch-error'
-      preLoaderRoute: typeof LaunchErrorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/housekeeping': {
-      id: '/housekeeping'
-      path: '/housekeeping'
-      fullPath: '/housekeeping'
-      preLoaderRoute: typeof HousekeepingRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/departures': {
@@ -921,11 +920,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeparturesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/housekeeping': {
+      id: '/housekeeping'
+      path: '/housekeeping'
+      fullPath: '/housekeeping'
+      preLoaderRoute: typeof HousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/launch-error': {
+      id: '/launch-error'
+      path: '/launch-error'
+      fullPath: '/launch-error'
+      preLoaderRoute: typeof LaunchErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rooms-rates': {
+      id: '/rooms-rates'
+      path: '/rooms-rates'
+      fullPath: '/rooms-rates'
+      preLoaderRoute: typeof RoomsRatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verification': {
+      id: '/verification'
+      path: '/verification'
+      fullPath: '/verification'
+      preLoaderRoute: typeof VerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reservations/': {
@@ -935,18 +962,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReservationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings_/n3-financial-verification': {
-      id: '/settings_/n3-financial-verification'
-      path: '/settings/n3-financial-verification'
-      fullPath: '/settings/n3-financial-verification'
-      preLoaderRoute: typeof SettingsN3FinancialVerificationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reservations/new': {
-      id: '/reservations/new'
-      path: '/reservations/new'
-      fullPath: '/reservations/new'
-      preLoaderRoute: typeof ReservationsNewRouteImport
+    '/reservations/$id': {
+      id: '/reservations/$id'
+      path: '/reservations/$id'
+      fullPath: '/reservations/$id'
+      preLoaderRoute: typeof ReservationsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reservations/calendar': {
@@ -956,158 +976,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReservationsCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reservations/$id': {
-      id: '/reservations/$id'
-      path: '/reservations/$id'
-      fullPath: '/reservations/$id'
-      preLoaderRoute: typeof ReservationsIdRouteImport
+    '/reservations/new': {
+      id: '/reservations/new'
+      path: '/reservations/new'
+      fullPath: '/reservations/new'
+      preLoaderRoute: typeof ReservationsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reservations/$id_/print': {
-      id: '/reservations/$id_/print'
-      path: '/reservations/$id/print'
-      fullPath: '/reservations/$id/print'
-      preLoaderRoute: typeof ReservationsIdPrintRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reservations/$id_/folio-print': {
-      id: '/reservations/$id_/folio-print'
-      path: '/reservations/$id/folio-print'
-      fullPath: '/reservations/$id/folio-print'
-      preLoaderRoute: typeof ReservationsIdFolioPrintRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reservations/$id_/edit': {
-      id: '/reservations/$id_/edit'
-      path: '/reservations/$id/edit'
-      fullPath: '/reservations/$id/edit'
-      preLoaderRoute: typeof ReservationsIdEditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reservations/$id_/checkout': {
-      id: '/reservations/$id_/checkout'
-      path: '/reservations/$id/checkout'
-      fullPath: '/reservations/$id/checkout'
-      preLoaderRoute: typeof ReservationsIdCheckoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/session/me': {
-      id: '/api/session/me'
-      path: '/api/session/me'
-      fullPath: '/api/session/me'
-      preLoaderRoute: typeof ApiSessionMeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/n3/stocks': {
-      id: '/api/n3/stocks'
-      path: '/api/n3/stocks'
-      fullPath: '/api/n3/stocks'
-      preLoaderRoute: typeof ApiN3StocksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/n3/financial-verification': {
-      id: '/api/n3/financial-verification'
-      path: '/api/n3/financial-verification'
-      fullPath: '/api/n3/financial-verification'
-      preLoaderRoute: typeof ApiN3FinancialVerificationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/n3/customers': {
-      id: '/api/n3/customers'
-      path: '/api/n3/customers'
-      fullPath: '/api/n3/customers'
-      preLoaderRoute: typeof ApiN3CustomersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/walk-in-customer': {
-      id: '/api/hotel/walk-in-customer'
-      path: '/api/hotel/walk-in-customer'
-      fullPath: '/api/hotel/walk-in-customer'
-      preLoaderRoute: typeof ApiHotelWalkInCustomerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/user-control': {
-      id: '/api/hotel/user-control'
-      path: '/api/hotel/user-control'
-      fullPath: '/api/hotel/user-control'
-      preLoaderRoute: typeof ApiHotelUserControlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/settings': {
-      id: '/api/hotel/settings'
-      path: '/api/hotel/settings'
-      fullPath: '/api/hotel/settings'
-      preLoaderRoute: typeof ApiHotelSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/rooms': {
-      id: '/api/hotel/rooms'
-      path: '/api/hotel/rooms'
-      fullPath: '/api/hotel/rooms'
-      preLoaderRoute: typeof ApiHotelRoomsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/reservations': {
-      id: '/api/hotel/reservations'
-      path: '/api/hotel/reservations'
-      fullPath: '/api/hotel/reservations'
-      preLoaderRoute: typeof ApiHotelReservationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/reservation-calendar': {
-      id: '/api/hotel/reservation-calendar'
-      path: '/api/hotel/reservation-calendar'
-      fullPath: '/api/hotel/reservation-calendar'
-      preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/payment-accounts': {
-      id: '/api/hotel/payment-accounts'
-      path: '/api/hotel/payment-accounts'
-      fullPath: '/api/hotel/payment-accounts'
-      preLoaderRoute: typeof ApiHotelPaymentAccountsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/housekeeping': {
-      id: '/api/hotel/housekeeping'
-      path: '/api/hotel/housekeeping'
-      fullPath: '/api/hotel/housekeeping'
-      preLoaderRoute: typeof ApiHotelHousekeepingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/departures': {
-      id: '/api/hotel/departures'
-      path: '/api/hotel/departures'
-      fullPath: '/api/hotel/departures'
-      preLoaderRoute: typeof ApiHotelDeparturesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/booking-sources': {
-      id: '/api/hotel/booking-sources'
-      path: '/api/hotel/booking-sources'
-      fullPath: '/api/hotel/booking-sources'
-      preLoaderRoute: typeof ApiHotelBookingSourcesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/hotel/availability': {
-      id: '/api/hotel/availability'
-      path: '/api/hotel/availability'
-      fullPath: '/api/hotel/availability'
-      preLoaderRoute: typeof ApiHotelAvailabilityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/logout': {
-      id: '/api/auth/logout'
-      path: '/api/auth/logout'
-      fullPath: '/api/auth/logout'
-      preLoaderRoute: typeof ApiAuthLogoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/launch': {
-      id: '/api/auth/launch'
-      path: '/api/auth/launch'
-      fullPath: '/api/auth/launch'
-      preLoaderRoute: typeof ApiAuthLaunchRouteImport
+    '/settings_/n3-financial-verification': {
+      id: '/settings_/n3-financial-verification'
+      path: '/settings/n3-financial-verification'
+      fullPath: '/settings/n3-financial-verification'
+      preLoaderRoute: typeof SettingsN3FinancialVerificationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/connect': {
@@ -1117,81 +997,151 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/n3/probe/': {
-      id: '/api/n3/probe/'
-      path: '/api/n3/probe'
-      fullPath: '/api/n3/probe/'
-      preLoaderRoute: typeof ApiN3ProbeIndexRouteImport
+    '/api/auth/launch': {
+      id: '/api/auth/launch'
+      path: '/api/auth/launch'
+      fullPath: '/api/auth/launch'
+      preLoaderRoute: typeof ApiAuthLaunchRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/n3/stocks/all': {
-      id: '/api/n3/stocks/all'
-      path: '/all'
-      fullPath: '/api/n3/stocks/all'
-      preLoaderRoute: typeof ApiN3StocksAllRouteImport
-      parentRoute: typeof ApiN3StocksRoute
-    }
-    '/api/n3/selectors/$kind': {
-      id: '/api/n3/selectors/$kind'
-      path: '/api/n3/selectors/$kind'
-      fullPath: '/api/n3/selectors/$kind'
-      preLoaderRoute: typeof ApiN3SelectorsKindRouteImport
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/n3/probe/$probe': {
-      id: '/api/n3/probe/$probe'
-      path: '/api/n3/probe/$probe'
-      fullPath: '/api/n3/probe/$probe'
-      preLoaderRoute: typeof ApiN3ProbeProbeRouteImport
+    '/api/hotel/availability': {
+      id: '/api/hotel/availability'
+      path: '/api/hotel/availability'
+      fullPath: '/api/hotel/availability'
+      preLoaderRoute: typeof ApiHotelAvailabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/n3/customers/all': {
-      id: '/api/n3/customers/all'
-      path: '/all'
-      fullPath: '/api/n3/customers/all'
-      preLoaderRoute: typeof ApiN3CustomersAllRouteImport
-      parentRoute: typeof ApiN3CustomersRoute
-    }
-    '/api/hotel/rooms/$id': {
-      id: '/api/hotel/rooms/$id'
-      path: '/$id'
-      fullPath: '/api/hotel/rooms/$id'
-      preLoaderRoute: typeof ApiHotelRoomsIdRouteImport
-      parentRoute: typeof ApiHotelRoomsRoute
-    }
-    '/api/hotel/reservations/$id': {
-      id: '/api/hotel/reservations/$id'
-      path: '/$id'
-      fullPath: '/api/hotel/reservations/$id'
-      preLoaderRoute: typeof ApiHotelReservationsIdRouteImport
-      parentRoute: typeof ApiHotelReservationsRoute
-    }
-    '/api/hotel/housekeeping/purge': {
-      id: '/api/hotel/housekeeping/purge'
-      path: '/purge'
-      fullPath: '/api/hotel/housekeeping/purge'
-      preLoaderRoute: typeof ApiHotelHousekeepingPurgeRouteImport
-      parentRoute: typeof ApiHotelHousekeepingRoute
-    }
-    '/api/hotel/company-name/refresh': {
-      id: '/api/hotel/company-name/refresh'
-      path: '/api/hotel/company-name/refresh'
-      fullPath: '/api/hotel/company-name/refresh'
-      preLoaderRoute: typeof ApiHotelCompanyNameRefreshRouteImport
+    '/api/hotel/booking-sources': {
+      id: '/api/hotel/booking-sources'
+      path: '/api/hotel/booking-sources'
+      fullPath: '/api/hotel/booking-sources'
+      preLoaderRoute: typeof ApiHotelBookingSourcesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/hotel/charges/settings': {
-      id: '/api/hotel/charges/settings'
-      path: '/api/hotel/charges/settings'
-      fullPath: '/api/hotel/charges/settings'
-      preLoaderRoute: typeof ApiHotelChargesSettingsRouteImport
+    '/api/hotel/departures': {
+      id: '/api/hotel/departures'
+      path: '/api/hotel/departures'
+      fullPath: '/api/hotel/departures'
+      preLoaderRoute: typeof ApiHotelDeparturesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/hotel/charges/catalogue': {
-      id: '/api/hotel/charges/catalogue'
-      path: '/api/hotel/charges/catalogue'
-      fullPath: '/api/hotel/charges/catalogue'
-      preLoaderRoute: typeof ApiHotelChargesCatalogueRouteImport
+    '/api/hotel/housekeeping': {
+      id: '/api/hotel/housekeeping'
+      path: '/api/hotel/housekeeping'
+      fullPath: '/api/hotel/housekeeping'
+      preLoaderRoute: typeof ApiHotelHousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/payment-accounts': {
+      id: '/api/hotel/payment-accounts'
+      path: '/api/hotel/payment-accounts'
+      fullPath: '/api/hotel/payment-accounts'
+      preLoaderRoute: typeof ApiHotelPaymentAccountsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/reservation-calendar': {
+      id: '/api/hotel/reservation-calendar'
+      path: '/api/hotel/reservation-calendar'
+      fullPath: '/api/hotel/reservation-calendar'
+      preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/reservations': {
+      id: '/api/hotel/reservations'
+      path: '/api/hotel/reservations'
+      fullPath: '/api/hotel/reservations'
+      preLoaderRoute: typeof ApiHotelReservationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/rooms': {
+      id: '/api/hotel/rooms'
+      path: '/api/hotel/rooms'
+      fullPath: '/api/hotel/rooms'
+      preLoaderRoute: typeof ApiHotelRoomsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/settings': {
+      id: '/api/hotel/settings'
+      path: '/api/hotel/settings'
+      fullPath: '/api/hotel/settings'
+      preLoaderRoute: typeof ApiHotelSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/user-control': {
+      id: '/api/hotel/user-control'
+      path: '/api/hotel/user-control'
+      fullPath: '/api/hotel/user-control'
+      preLoaderRoute: typeof ApiHotelUserControlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/walk-in-customer': {
+      id: '/api/hotel/walk-in-customer'
+      path: '/api/hotel/walk-in-customer'
+      fullPath: '/api/hotel/walk-in-customer'
+      preLoaderRoute: typeof ApiHotelWalkInCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/customers': {
+      id: '/api/n3/customers'
+      path: '/api/n3/customers'
+      fullPath: '/api/n3/customers'
+      preLoaderRoute: typeof ApiN3CustomersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/financial-verification': {
+      id: '/api/n3/financial-verification'
+      path: '/api/n3/financial-verification'
+      fullPath: '/api/n3/financial-verification'
+      preLoaderRoute: typeof ApiN3FinancialVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/stocks': {
+      id: '/api/n3/stocks'
+      path: '/api/n3/stocks'
+      fullPath: '/api/n3/stocks'
+      preLoaderRoute: typeof ApiN3StocksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session/me': {
+      id: '/api/session/me'
+      path: '/api/session/me'
+      fullPath: '/api/session/me'
+      preLoaderRoute: typeof ApiSessionMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/checkout': {
+      id: '/reservations/$id_/checkout'
+      path: '/reservations/$id/checkout'
+      fullPath: '/reservations/$id/checkout'
+      preLoaderRoute: typeof ReservationsIdCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/edit': {
+      id: '/reservations/$id_/edit'
+      path: '/reservations/$id/edit'
+      fullPath: '/reservations/$id/edit'
+      preLoaderRoute: typeof ReservationsIdEditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/folio-print': {
+      id: '/reservations/$id_/folio-print'
+      path: '/reservations/$id/folio-print'
+      fullPath: '/reservations/$id/folio-print'
+      preLoaderRoute: typeof ReservationsIdFolioPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservations/$id_/print': {
+      id: '/reservations/$id_/print'
+      path: '/reservations/$id/print'
+      fullPath: '/reservations/$id/print'
+      preLoaderRoute: typeof ReservationsIdPrintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/booking-sources/$id': {
@@ -1201,46 +1151,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelBookingSourcesIdRouteImport
       parentRoute: typeof ApiHotelBookingSourcesRoute
     }
-    '/api/hotel/reservations/$id/timeline': {
-      id: '/api/hotel/reservations/$id/timeline'
-      path: '/timeline'
-      fullPath: '/api/hotel/reservations/$id/timeline'
-      preLoaderRoute: typeof ApiHotelReservationsIdTimelineRouteImport
-      parentRoute: typeof ApiHotelReservationsIdRoute
+    '/api/hotel/charges/catalogue': {
+      id: '/api/hotel/charges/catalogue'
+      path: '/api/hotel/charges/catalogue'
+      fullPath: '/api/hotel/charges/catalogue'
+      preLoaderRoute: typeof ApiHotelChargesCatalogueRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/api/hotel/reservations/$id/tax-profile': {
-      id: '/api/hotel/reservations/$id/tax-profile'
-      path: '/tax-profile'
-      fullPath: '/api/hotel/reservations/$id/tax-profile'
-      preLoaderRoute: typeof ApiHotelReservationsIdTaxProfileRouteImport
-      parentRoute: typeof ApiHotelReservationsIdRoute
+    '/api/hotel/charges/settings': {
+      id: '/api/hotel/charges/settings'
+      path: '/api/hotel/charges/settings'
+      fullPath: '/api/hotel/charges/settings'
+      preLoaderRoute: typeof ApiHotelChargesSettingsRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/api/hotel/reservations/$id/operations': {
-      id: '/api/hotel/reservations/$id/operations'
-      path: '/operations'
-      fullPath: '/api/hotel/reservations/$id/operations'
-      preLoaderRoute: typeof ApiHotelReservationsIdOperationsRouteImport
-      parentRoute: typeof ApiHotelReservationsIdRoute
+    '/api/hotel/company-name/refresh': {
+      id: '/api/hotel/company-name/refresh'
+      path: '/api/hotel/company-name/refresh'
+      fullPath: '/api/hotel/company-name/refresh'
+      preLoaderRoute: typeof ApiHotelCompanyNameRefreshRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/api/hotel/reservations/$id/guest-assignments': {
-      id: '/api/hotel/reservations/$id/guest-assignments'
-      path: '/guest-assignments'
-      fullPath: '/api/hotel/reservations/$id/guest-assignments'
-      preLoaderRoute: typeof ApiHotelReservationsIdGuestAssignmentsRouteImport
-      parentRoute: typeof ApiHotelReservationsIdRoute
+    '/api/hotel/housekeeping/purge': {
+      id: '/api/hotel/housekeeping/purge'
+      path: '/purge'
+      fullPath: '/api/hotel/housekeeping/purge'
+      preLoaderRoute: typeof ApiHotelHousekeepingPurgeRouteImport
+      parentRoute: typeof ApiHotelHousekeepingRoute
     }
-    '/api/hotel/reservations/$id/folio': {
-      id: '/api/hotel/reservations/$id/folio'
-      path: '/folio'
-      fullPath: '/api/hotel/reservations/$id/folio'
-      preLoaderRoute: typeof ApiHotelReservationsIdFolioRouteImport
-      parentRoute: typeof ApiHotelReservationsIdRoute
+    '/api/hotel/reservations/$id': {
+      id: '/api/hotel/reservations/$id'
+      path: '/$id'
+      fullPath: '/api/hotel/reservations/$id'
+      preLoaderRoute: typeof ApiHotelReservationsIdRouteImport
+      parentRoute: typeof ApiHotelReservationsRoute
     }
-    '/api/hotel/reservations/$id/deposits': {
-      id: '/api/hotel/reservations/$id/deposits'
-      path: '/deposits'
-      fullPath: '/api/hotel/reservations/$id/deposits'
-      preLoaderRoute: typeof ApiHotelReservationsIdDepositsRouteImport
+    '/api/hotel/rooms/$id': {
+      id: '/api/hotel/rooms/$id'
+      path: '/$id'
+      fullPath: '/api/hotel/rooms/$id'
+      preLoaderRoute: typeof ApiHotelRoomsIdRouteImport
+      parentRoute: typeof ApiHotelRoomsRoute
+    }
+    '/api/n3/customers/all': {
+      id: '/api/n3/customers/all'
+      path: '/all'
+      fullPath: '/api/n3/customers/all'
+      preLoaderRoute: typeof ApiN3CustomersAllRouteImport
+      parentRoute: typeof ApiN3CustomersRoute
+    }
+    '/api/n3/probe/': {
+      id: '/api/n3/probe/'
+      path: '/api/n3/probe'
+      fullPath: '/api/n3/probe/'
+      preLoaderRoute: typeof ApiN3ProbeIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/probe/$probe': {
+      id: '/api/n3/probe/$probe'
+      path: '/api/n3/probe/$probe'
+      fullPath: '/api/n3/probe/$probe'
+      preLoaderRoute: typeof ApiN3ProbeProbeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/selectors/$kind': {
+      id: '/api/n3/selectors/$kind'
+      path: '/api/n3/selectors/$kind'
+      fullPath: '/api/n3/selectors/$kind'
+      preLoaderRoute: typeof ApiN3SelectorsKindRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/stocks/all': {
+      id: '/api/n3/stocks/all'
+      path: '/all'
+      fullPath: '/api/n3/stocks/all'
+      preLoaderRoute: typeof ApiN3StocksAllRouteImport
+      parentRoute: typeof ApiN3StocksRoute
+    }
+    '/api/hotel/charges/catalogue/$itemId': {
+      id: '/api/hotel/charges/catalogue/$itemId'
+      path: '/$itemId'
+      fullPath: '/api/hotel/charges/catalogue/$itemId'
+      preLoaderRoute: typeof ApiHotelChargesCatalogueItemIdRouteImport
+      parentRoute: typeof ApiHotelChargesCatalogueRoute
+    }
+    '/api/hotel/housekeeping/rooms/$roomId': {
+      id: '/api/hotel/housekeeping/rooms/$roomId'
+      path: '/rooms/$roomId'
+      fullPath: '/api/hotel/housekeeping/rooms/$roomId'
+      preLoaderRoute: typeof ApiHotelHousekeepingRoomsRoomIdRouteImport
+      parentRoute: typeof ApiHotelHousekeepingRoute
+    }
+    '/api/hotel/reservations/$id/check-in': {
+      id: '/api/hotel/reservations/$id/check-in'
+      path: '/check-in'
+      fullPath: '/api/hotel/reservations/$id/check-in'
+      preLoaderRoute: typeof ApiHotelReservationsIdCheckInRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
     '/api/hotel/reservations/$id/checkout-preview': {
@@ -1250,39 +1256,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdCheckoutPreviewRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
-    '/api/hotel/reservations/$id/check-in': {
-      id: '/api/hotel/reservations/$id/check-in'
-      path: '/check-in'
-      fullPath: '/api/hotel/reservations/$id/check-in'
-      preLoaderRoute: typeof ApiHotelReservationsIdCheckInRouteImport
+    '/api/hotel/reservations/$id/deposits': {
+      id: '/api/hotel/reservations/$id/deposits'
+      path: '/deposits'
+      fullPath: '/api/hotel/reservations/$id/deposits'
+      preLoaderRoute: typeof ApiHotelReservationsIdDepositsRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
-    '/api/hotel/housekeeping/rooms/$roomId': {
-      id: '/api/hotel/housekeeping/rooms/$roomId'
-      path: '/rooms/$roomId'
-      fullPath: '/api/hotel/housekeeping/rooms/$roomId'
-      preLoaderRoute: typeof ApiHotelHousekeepingRoomsRoomIdRouteImport
-      parentRoute: typeof ApiHotelHousekeepingRoute
+    '/api/hotel/reservations/$id/folio': {
+      id: '/api/hotel/reservations/$id/folio'
+      path: '/folio'
+      fullPath: '/api/hotel/reservations/$id/folio'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
     }
-    '/api/hotel/charges/catalogue/$itemId': {
-      id: '/api/hotel/charges/catalogue/$itemId'
-      path: '/$itemId'
-      fullPath: '/api/hotel/charges/catalogue/$itemId'
-      preLoaderRoute: typeof ApiHotelChargesCatalogueItemIdRouteImport
-      parentRoute: typeof ApiHotelChargesCatalogueRoute
+    '/api/hotel/reservations/$id/guest-assignments': {
+      id: '/api/hotel/reservations/$id/guest-assignments'
+      path: '/guest-assignments'
+      fullPath: '/api/hotel/reservations/$id/guest-assignments'
+      preLoaderRoute: typeof ApiHotelReservationsIdGuestAssignmentsRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
     }
-    '/api/hotel/reservations/$id/folio/refresh': {
-      id: '/api/hotel/reservations/$id/folio/refresh'
-      path: '/refresh'
-      fullPath: '/api/hotel/reservations/$id/folio/refresh'
-      preLoaderRoute: typeof ApiHotelReservationsIdFolioRefreshRouteImport
-      parentRoute: typeof ApiHotelReservationsIdFolioRoute
+    '/api/hotel/reservations/$id/operations': {
+      id: '/api/hotel/reservations/$id/operations'
+      path: '/operations'
+      fullPath: '/api/hotel/reservations/$id/operations'
+      preLoaderRoute: typeof ApiHotelReservationsIdOperationsRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
     }
-    '/api/hotel/reservations/$id/folio/lines': {
-      id: '/api/hotel/reservations/$id/folio/lines'
-      path: '/lines'
-      fullPath: '/api/hotel/reservations/$id/folio/lines'
-      preLoaderRoute: typeof ApiHotelReservationsIdFolioLinesRouteImport
+    '/api/hotel/reservations/$id/tax-profile': {
+      id: '/api/hotel/reservations/$id/tax-profile'
+      path: '/tax-profile'
+      fullPath: '/api/hotel/reservations/$id/tax-profile'
+      preLoaderRoute: typeof ApiHotelReservationsIdTaxProfileRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
+    }
+    '/api/hotel/reservations/$id/timeline': {
+      id: '/api/hotel/reservations/$id/timeline'
+      path: '/timeline'
+      fullPath: '/api/hotel/reservations/$id/timeline'
+      preLoaderRoute: typeof ApiHotelReservationsIdTimelineRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
+    }
+    '/reservations/$id_/deposits/$depositId/receipt-print': {
+      id: '/reservations/$id_/deposits/$depositId/receipt-print'
+      path: '/reservations/$id/deposits/$depositId/receipt-print'
+      fullPath: '/reservations/$id/deposits/$depositId/receipt-print'
+      preLoaderRoute: typeof ReservationsIdDepositsDepositIdReceiptPrintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/reservations/$id/deposits/preview': {
+      id: '/api/hotel/reservations/$id/deposits/preview'
+      path: '/preview'
+      fullPath: '/api/hotel/reservations/$id/deposits/preview'
+      preLoaderRoute: typeof ApiHotelReservationsIdDepositsPreviewRouteImport
+      parentRoute: typeof ApiHotelReservationsIdDepositsRoute
+    }
+    '/api/hotel/reservations/$id/folio/adjustments': {
+      id: '/api/hotel/reservations/$id/folio/adjustments'
+      path: '/adjustments'
+      fullPath: '/api/hotel/reservations/$id/folio/adjustments'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioAdjustmentsRouteImport
       parentRoute: typeof ApiHotelReservationsIdFolioRoute
     }
     '/api/hotel/reservations/$id/folio/bill-to': {
@@ -1292,26 +1326,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdFolioBillToRouteImport
       parentRoute: typeof ApiHotelReservationsIdFolioRoute
     }
-    '/api/hotel/reservations/$id/folio/adjustments': {
-      id: '/api/hotel/reservations/$id/folio/adjustments'
-      path: '/adjustments'
-      fullPath: '/api/hotel/reservations/$id/folio/adjustments'
-      preLoaderRoute: typeof ApiHotelReservationsIdFolioAdjustmentsRouteImport
+    '/api/hotel/reservations/$id/folio/lines': {
+      id: '/api/hotel/reservations/$id/folio/lines'
+      path: '/lines'
+      fullPath: '/api/hotel/reservations/$id/folio/lines'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioLinesRouteImport
       parentRoute: typeof ApiHotelReservationsIdFolioRoute
     }
-    '/api/hotel/reservations/$id/deposits/preview': {
-      id: '/api/hotel/reservations/$id/deposits/preview'
-      path: '/preview'
-      fullPath: '/api/hotel/reservations/$id/deposits/preview'
-      preLoaderRoute: typeof ApiHotelReservationsIdDepositsPreviewRouteImport
+    '/api/hotel/reservations/$id/folio/refresh': {
+      id: '/api/hotel/reservations/$id/folio/refresh'
+      path: '/refresh'
+      fullPath: '/api/hotel/reservations/$id/folio/refresh'
+      preLoaderRoute: typeof ApiHotelReservationsIdFolioRefreshRouteImport
+      parentRoute: typeof ApiHotelReservationsIdFolioRoute
+    }
+    '/api/hotel/reservations/$id/deposits/$depositId/receipt': {
+      id: '/api/hotel/reservations/$id/deposits/$depositId/receipt'
+      path: '/$depositId/receipt'
+      fullPath: '/api/hotel/reservations/$id/deposits/$depositId/receipt'
+      preLoaderRoute: typeof ApiHotelReservationsIdDepositsDepositIdReceiptRouteImport
       parentRoute: typeof ApiHotelReservationsIdDepositsRoute
     }
-    '/api/hotel/reservations/$id/operations/$requestId/decision': {
-      id: '/api/hotel/reservations/$id/operations/$requestId/decision'
-      path: '/$requestId/decision'
-      fullPath: '/api/hotel/reservations/$id/operations/$requestId/decision'
-      preLoaderRoute: typeof ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport
-      parentRoute: typeof ApiHotelReservationsIdOperationsRoute
+    '/api/hotel/reservations/$id/deposits/$depositId/reconcile': {
+      id: '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
+      path: '/$depositId/reconcile'
+      fullPath: '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
+      preLoaderRoute: typeof ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport
+      parentRoute: typeof ApiHotelReservationsIdDepositsRoute
     }
     '/api/hotel/reservations/$id/folio/lines/$lineId': {
       id: '/api/hotel/reservations/$id/folio/lines/$lineId'
@@ -1320,12 +1361,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdFolioLinesLineIdRouteImport
       parentRoute: typeof ApiHotelReservationsIdFolioLinesRoute
     }
-    '/api/hotel/reservations/$id/deposits/$depositId/reconcile': {
-      id: '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
-      path: '/$depositId/reconcile'
-      fullPath: '/api/hotel/reservations/$id/deposits/$depositId/reconcile'
-      preLoaderRoute: typeof ApiHotelReservationsIdDepositsDepositIdReconcileRouteImport
-      parentRoute: typeof ApiHotelReservationsIdDepositsRoute
+    '/api/hotel/reservations/$id/operations/$requestId/decision': {
+      id: '/api/hotel/reservations/$id/operations/$requestId/decision'
+      path: '/$requestId/decision'
+      fullPath: '/api/hotel/reservations/$id/operations/$requestId/decision'
+      preLoaderRoute: typeof ApiHotelReservationsIdOperationsRequestIdDecisionRouteImport
+      parentRoute: typeof ApiHotelReservationsIdOperationsRoute
     }
     '/api/hotel/reservations/$id/folio/lines/$lineId/reverse': {
       id: '/api/hotel/reservations/$id/folio/lines/$lineId/reverse'
@@ -1366,6 +1407,7 @@ const ApiHotelHousekeepingRouteWithChildren =
 
 interface ApiHotelReservationsIdDepositsRouteChildren {
   ApiHotelReservationsIdDepositsPreviewRoute: typeof ApiHotelReservationsIdDepositsPreviewRoute
+  ApiHotelReservationsIdDepositsDepositIdReceiptRoute: typeof ApiHotelReservationsIdDepositsDepositIdReceiptRoute
   ApiHotelReservationsIdDepositsDepositIdReconcileRoute: typeof ApiHotelReservationsIdDepositsDepositIdReconcileRoute
 }
 
@@ -1373,6 +1415,8 @@ const ApiHotelReservationsIdDepositsRouteChildren: ApiHotelReservationsIdDeposit
   {
     ApiHotelReservationsIdDepositsPreviewRoute:
       ApiHotelReservationsIdDepositsPreviewRoute,
+    ApiHotelReservationsIdDepositsDepositIdReceiptRoute:
+      ApiHotelReservationsIdDepositsDepositIdReceiptRoute,
     ApiHotelReservationsIdDepositsDepositIdReconcileRoute:
       ApiHotelReservationsIdDepositsDepositIdReconcileRoute,
   }
@@ -1587,6 +1631,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiN3ProbeProbeRoute: ApiN3ProbeProbeRoute,
   ApiN3SelectorsKindRoute: ApiN3SelectorsKindRoute,
   ApiN3ProbeIndexRoute: ApiN3ProbeIndexRoute,
+  ReservationsIdDepositsDepositIdReceiptPrintRoute:
+    ReservationsIdDepositsDepositIdReceiptPrintRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
