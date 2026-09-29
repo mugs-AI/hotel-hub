@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { formatRoomLabelsList, roomLabel } from "@/lib/reservations-ui";
+import { formatRoomLabelsList, isPastDateConfirmed, roomLabel } from "@/lib/reservations-ui";
 import { depositsCompactSummary } from "@/components/DepositsCard";
 import { timelineDrawerTitle } from "@/routes/reservations.$id";
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 describe("reservations list — room labels (privacy + formatting)", () => {
+  it("flags only past confirmed departures for review", () => {
+    expect(isPastDateConfirmed("confirmed", "2026-09-27", "2026-09-29")).toBe(true);
+    expect(isPastDateConfirmed("confirmed", "2026-09-29", "2026-09-29")).toBe(false);
+    expect(isPastDateConfirmed("checked_in", "2026-09-27", "2026-09-29")).toBe(false);
+    expect(isPastDateConfirmed("cancelled", "2026-09-27", "2026-09-29")).toBe(false);
+    expect(isPastDateConfirmed("confirmed", "2026-09-27", null)).toBe(false);
+  });
   it("prefers displayName, then n3StockName, then roomNumber (tenant-scoped label convention)", () => {
     expect(roomLabel("Ocean View", "N3-101", "101")).toBe("Ocean View");
     expect(roomLabel(null, "N3-101", "101")).toBe("N3-101");

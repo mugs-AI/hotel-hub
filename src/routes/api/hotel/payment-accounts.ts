@@ -19,6 +19,8 @@ export async function handlePaymentAccountsGet(): Promise<Response> {
     const defaultsOutcome = await n3Receipts.getNew(ctx.session.n3Token);
     if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 401)
       return denyN3Unauthorized("payment-accounts.get");
+    if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 403)
+      return deny(403, "n3_receipt_access_denied");
     const defaults = parseNewReceiptDefaults(defaultsOutcome);
     if (!defaults) return deny(502, "n3_defaults_unavailable");
     const accounts = await listEligiblePaymentAccounts(
@@ -43,6 +45,8 @@ export async function handlePaymentAccountsGet(): Promise<Response> {
   } catch (error) {
     if (error instanceof DepositError && error.code === "unauthorized")
       return denyN3Unauthorized("payment-accounts.get");
+    if (error instanceof DepositError && error.code === "n3_account_access_denied")
+      return deny(403, error.code);
     console.error("[payment-accounts.get] failed", (error as Error).message?.slice(0, 200));
     return deny(502, "n3_deposit_account_unavailable");
   }

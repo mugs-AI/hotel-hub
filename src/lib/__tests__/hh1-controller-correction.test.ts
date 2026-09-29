@@ -287,13 +287,14 @@ function sessionFixture(roleReason: unknown) {
       tenantId: "tenant-1",
       tenantCode: "HOTEL",
       companyName: "Boutique Hotel",
-      n3TenantKey: "n3-tenant",
     },
     user: { userEmail: "owner@hotel.test", userName: "owner1", n3UserKey: "u-1" },
     role: null,
     roleStatus: "role_unassigned",
     roleReason,
     housekeepingMode: "simple",
+    exceptionApprovalMode: "owner_approval",
+    displaySize: 7,
   } as Extract<SessionMe, { authenticated: true }>;
 }
 

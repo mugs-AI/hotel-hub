@@ -86,6 +86,7 @@ export type RoomInformation = {
   roomName: string | null;
   roomType: string;
   floor: string | null;
+  maxGuests: number;
   isActive: boolean;
 };
 
@@ -114,6 +115,7 @@ export function RoomInformationSheet({
             <SheetRow label="Room name">{room.roomName || "—"}</SheetRow>
             <SheetRow label="Room type">{room.roomType}</SheetRow>
             <SheetRow label="Floor">{room.floor || "Unassigned"}</SheetRow>
+            <SheetRow label="Max guests">{room.maxGuests}</SheetRow>
             <SheetRow label="Status">{room.isActive ? "Active" : "Inactive"}</SheetRow>
           </dl>
         ) : null}

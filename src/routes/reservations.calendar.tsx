@@ -1,7 +1,7 @@
 // Read-only Reservation Calendar / Room View.
 // Uses existing rooms + reservations. No mutations, no drag/drop.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
 import { useSessionMe } from "@/lib/session-client";
@@ -83,6 +83,7 @@ type CalendarRoom = {
   n3StockName: string | null;
   roomType: string;
   floor: string | null;
+  maxGuests: number;
   isActive: boolean;
 };
 type CalendarAllocation = {
@@ -339,6 +340,7 @@ function FloorGrid({
   const [activeFloor, setActiveFloor] = useState<string>("__all__");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
+  const scrollport = useRef<HTMLDivElement>(null);
 
   const visibleFloors =
     activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
@@ -375,6 +377,7 @@ function FloorGrid({
                 roomName: roomInfo.displayName ?? roomInfo.n3StockName,
                 roomType: roomInfo.roomType,
                 floor: roomInfo.floor,
+                maxGuests: roomInfo.maxGuests,
                 isActive: roomInfo.isActive,
               }
             : null
@@ -388,7 +391,40 @@ function FloorGrid({
         onChange={setActiveFloor}
         total={rooms.length}
       />
-      <div className="overflow-auto rounded-md border" style={{ borderColor: `${NAVY}22` }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className="text-muted-foreground">
+          Scroll dates while the room and date headings stay visible.
+        </span>
+        <div className="flex gap-2" aria-label="Scroll calendar dates">
+          <button
+            type="button"
+            onClick={() =>
+              scrollport.current?.scrollBy({ left: -7 * DAY_COL_PX, behavior: "smooth" })
+            }
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1.5 font-medium focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll dates left one week"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden /> 7 days
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              scrollport.current?.scrollBy({ left: 7 * DAY_COL_PX, behavior: "smooth" })
+            }
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-white px-3 py-1.5 font-medium focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Scroll dates right one week"
+          >
+            7 days <ChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+      <div
+        ref={scrollport}
+        tabIndex={0}
+        aria-label="Room calendar; scroll horizontally or vertically to view dates and rooms"
+        className="overflow-auto rounded-md border focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ borderColor: `${NAVY}22`, maxHeight: "min(65vh, 720px)" }}
+      >
         <div style={{ width: rowWidth, minWidth: rowWidth }}>
           {/* Header row — sticky at top */}
           <div
@@ -600,15 +636,15 @@ function RoomRow({
           className="sticky left-0 z-10 bg-white p-1.5"
           style={{ borderRight: `1px solid ${NAVY}11` }}
         >
-          {/* Room number only. Stock code, type and floor live in the Room
-              information sheet so the grid stays scannable. */}
+          {/* Prefer the editable display name. Keep the N3 code in room info. */}
           <SheetTrigger
-            label={`Room information for room ${room.roomNumber}`}
+            label={`Room information for ${roomLabel(room.displayName, room.n3StockName, room.roomNumber)}`}
             onOpen={() => onRoomInfo(room)}
-            className="rounded font-mono text-sm font-semibold underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="block max-w-full truncate rounded text-left text-sm font-semibold underline decoration-dotted underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {room.roomNumber}
+            {roomLabel(room.displayName, room.n3StockName, room.roomNumber)}
           </SheetTrigger>
+          <span className="block text-xs text-muted-foreground">Max {room.maxGuests} guests</span>
         </div>
         {dates.map((d) => {
           const dow = dayOfWeek(d);

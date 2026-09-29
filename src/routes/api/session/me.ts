@@ -1,10 +1,7 @@
 // GET /api/session/me — returns the authenticated session context or a
 // deny-by-default anonymous shape. NEVER returns the N3 token.
 //
-// For role-unassigned users the response includes the immutable
-// `n3TenantKey` and `n3UserKey` so a server operator (MUGS) can locate
-// the exact `hotel_tenants` / `hotel_user_roles` rows for first-Owner
-// provisioning — those identifiers are not secrets, unlike the N3 token.
+// Keep the N3 tenant key server-side, including for role-unassigned sessions.
 import { createFileRoute } from "@tanstack/react-router";
 import { readRequestContext } from "@/lib/session-context.server";
 import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
@@ -22,7 +19,6 @@ export type SessionMeResponse =
         tenantId: string;
         tenantCode: string | null;
         companyName: string | null;
-        n3TenantKey: string;
       };
       user: {
         userEmail: string | null;
@@ -92,7 +88,6 @@ export async function handleSessionMe(): Promise<Response> {
       tenantId: s.tenantId!,
       tenantCode: s.tenantCode,
       companyName,
-      n3TenantKey: s.n3TenantKey,
     },
     user: {
       userEmail: s.userEmail,

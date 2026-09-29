@@ -1010,6 +1010,8 @@ function PaymentAccountAliasesPanel({
 }) {
   const [accounts, setAccounts] = useState<PaymentAccountChoice[]>([]);
   const [error, setError] = useState("");
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [accountRetry, setAccountRetry] = useState(0);
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const unauthorizedRef = useRef(onN3Unauthorized);
@@ -1017,19 +1019,33 @@ function PaymentAccountAliasesPanel({
 
   useEffect(() => {
     let cancelled = false;
+    setLoadingAccounts(true);
+    setError("");
     void hotelJson<{ accounts: PaymentAccountChoice[] }>("/api/hotel/payment-accounts")
       .then((r) => {
         if (!cancelled) setAccounts(r.accounts);
       })
       .catch((e) => {
         if (cancelled) return;
-        if ((e as Error).message === "unauthorized") unauthorizedRef.current();
-        setError("Could not load N3 bank and cash accounts.");
+        const code = (e as Error).message;
+        if (code === "unauthorized") unauthorizedRef.current();
+        setError(
+          code === "n3_receipt_access_denied"
+            ? "N3 denied access to Receive Payment defaults. Ask your N3 administrator to check this user's permission."
+            : code === "n3_account_access_denied"
+              ? "N3 denied access to bank and cash accounts. Ask your N3 administrator to check this user's permission."
+              : code === "n3_defaults_unavailable"
+                ? "Could not read N3 Receive Payment defaults. Retry the connection."
+                : "Could not load N3 bank and cash accounts. Retry the connection.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAccounts(false);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [accountRetry]);
 
   const save = async (account: PaymentAccountChoice) => {
     const label = (
@@ -1063,7 +1079,22 @@ function PaymentAccountAliasesPanel({
         Name each N3 bank or cash account for the front desk, such as QR DuitNow or CashNote. Its N3
         account code stays the same.
       </p>
-      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+      {loadingAccounts ? (
+        <p className="mt-2 text-sm text-muted-foreground">Loading N3 accounts…</p>
+      ) : null}
+      {error ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" role="alert">
+          <span className="text-destructive">{error}</span>
+          <button type="button" className="underline" onClick={() => setAccountRetry((n) => n + 1)}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+      {!loadingAccounts && !error && accounts.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          No eligible N3 bank or cash accounts found.
+        </p>
+      ) : null}
       <div className="mt-3 space-y-2">
         {accounts.map((account) => (
           <div key={account.id} className="flex flex-wrap items-end gap-2">

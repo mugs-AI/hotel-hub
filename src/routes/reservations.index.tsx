@@ -9,6 +9,7 @@ import {
   formatIsoDate,
   formatRoomLabelsList,
   friendlyError,
+  isPastDateConfirmed,
   type ListFilters,
 } from "@/lib/reservations-ui";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
@@ -632,7 +633,10 @@ function ResultsCard(props: {
               </tr>
             ) : (
               rows.map((r) => (
-                <tr key={r.id} className="border-t border-border/60 hover:bg-muted/30">
+                <tr
+                  key={r.id}
+                  className={`border-t border-border/60 hover:bg-muted/30 ${isPastDateConfirmed(r.status, r.departureDate, propertyDate) ? "border-l-4 border-l-amber-500 bg-amber-50/60" : ""}`}
+                >
                   <td className="py-2 pr-4 font-mono text-sm">
                     <Link
                       to="/reservations/$id"
@@ -682,6 +686,14 @@ function ResultsCard(props: {
                     >
                       {r.status}
                     </span>
+                    {isPastDateConfirmed(r.status, r.departureDate, propertyDate) ? (
+                      <span
+                        className="mt-1 block w-fit rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900"
+                        title="This confirmed reservation has past stay dates. Review its status."
+                      >
+                        Past dates · review
+                      </span>
+                    ) : null}
                   </td>
                   <td className="py-2 pr-4 text-sm text-muted-foreground">
                     {formatCreatedAt(r.createdAt)}

@@ -320,6 +320,23 @@ describe("N3 Cloud receipt contract and Deposit To account", () => {
     expect(accounts.map((a) => a.kind)).toEqual(["bank", "cash"]);
   });
 
+  it("accepts the verified Value casing but still rejects a malformed account page", async () => {
+    const row = accountResult().body.data;
+    const stub = (body: unknown) =>
+      ({
+        listPaymentAccounts: async () => ({ kind: "response", status: 200, durationMs: 1, body }),
+      }) as unknown as N3ReceiptsClient;
+    const accounts = await listEligiblePaymentAccounts(
+      stub({ code: "0000", data: { Value: [row] } }),
+      "token",
+      "1",
+    );
+    expect(accounts).toHaveLength(1);
+    await expect(
+      listEligiblePaymentAccounts(stub({ code: "0000", data: { Value: {} } }), "token", "1"),
+    ).rejects.toMatchObject({ code: "n3_deposit_account_unavailable" });
+  });
+
   it("sends a numeric customer/currency and top-level total without details", () => {
     const defaults = parseNewReceiptDefaults(newDefaults() as N3Outcome);
     expect(defaults).not.toBeNull();

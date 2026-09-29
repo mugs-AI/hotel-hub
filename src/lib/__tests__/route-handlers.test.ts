@@ -289,7 +289,8 @@ describe("/api/session/me", () => {
     const body = JSON.parse(text);
     expect(body.authenticated).toBe(true);
     expect(body.role).toBe("owner");
-    expect(body.tenant.n3TenantKey).toBe("n3-tenant-1");
+    expect(body.tenant).not.toHaveProperty("n3TenantKey");
+    expect(text).not.toContain("n3-tenant-1");
     expect(body.user.n3UserKey).toBe("user-1");
   });
 

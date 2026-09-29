@@ -314,8 +314,6 @@ export function RoleUnassignedShell({
             <dd className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</dd>
             <dt className="text-muted-foreground">hotel_tenants.id</dt>
             <dd className="font-mono break-all">{session.tenant.tenantId}</dd>
-            <dt className="text-muted-foreground">n3_tenant_key</dt>
-            <dd className="font-mono break-all">{session.tenant.n3TenantKey}</dd>
             <dt className="text-muted-foreground">n3_user_key</dt>
             <dd className="font-mono break-all">{session.user.n3UserKey}</dd>
             <dt className="text-muted-foreground">User email</dt>
@@ -407,10 +405,6 @@ function SessionBadge({
                 <div>
                   Tenant ID:{" "}
                   <span className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</span>
-                </div>
-                <div>
-                  N3 tenant key:{" "}
-                  <span className="font-mono break-all">{session.tenant.n3TenantKey}</span>
                 </div>
               </PopoverContent>
             </Popover>

@@ -261,6 +261,15 @@ export function roomLabel(
   return (roomNumber ?? "").trim();
 }
 
+/** Past confirmed dates need a review, without implying an occupied room. */
+export function isPastDateConfirmed(
+  status: string,
+  departure: string,
+  propertyDate: string | null,
+) {
+  return status === "confirmed" && propertyDate !== null && departure < propertyDate;
+}
+
 // ---------- Reservation list room labels ----------
 /** Max number of individual room labels shown before truncating with "+N more". */
 export const ROOM_LABELS_LIST_MAX = 3;

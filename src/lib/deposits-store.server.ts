@@ -317,6 +317,8 @@ export async function listEligiblePaymentAccounts(
     const outcome = await n3.listPaymentAccounts(token, skip);
     if (outcome.kind === "response" && outcome.status === 401)
       throw new DepositError("unauthorized");
+    if (outcome.kind === "response" && outcome.status === 403)
+      throw new DepositError("n3_account_access_denied");
     if (
       outcome.kind !== "response" ||
       outcome.status < 200 ||
@@ -324,9 +326,12 @@ export async function listEligiblePaymentAccounts(
       !successfulEnvelope(outcome.body)
     )
       throw new DepositError("n3_deposit_account_unavailable");
-    if (!Array.isArray((outcome.body as any)?.data?.value))
-      throw new DepositError("n3_deposit_account_unavailable");
-    const page = rows(outcome.body);
+    // Accept the verified N3 Value casing while still requiring an array
+    // inside a declared-success envelope.
+    const data = (outcome.body as any)?.data ?? (outcome.body as any)?.Data;
+    const pageRows = data?.value ?? data?.Value;
+    if (!Array.isArray(pageRows)) throw new DepositError("n3_deposit_account_unavailable");
+    const page = pageRows as unknown[];
     for (const row of page) {
       const id = str(pick(row, ["id"]));
       if (!isRealN3Id(id)) continue;
