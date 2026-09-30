@@ -93,6 +93,7 @@ export type N3ReceiptsClient = {
   getAccountById(token: string, id: string): Promise<N3Outcome>;
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
   getById(token: string, id: string): Promise<N3Outcome>;
+  getGLPosting(token: string, id: string): Promise<N3Outcome>;
   create(token: string, payload: unknown): Promise<N3Outcome>;
 };
 
@@ -120,6 +121,10 @@ export const n3Receipts: N3ReceiptsClient = {
   getById(token, id) {
     if (!isRealN3Id(id)) throw new Error("getById: unsafe id");
     return n3Request(token, "GET", `/api/ARReceipts/${encodeURIComponent(id)}`);
+  },
+  getGLPosting(token, id) {
+    if (!isRealN3Id(id)) throw new Error("getGLPosting: unsafe id");
+    return n3Request(token, "GET", `/api/ARReceipts/GLPosting?key=${encodeURIComponent(id)}`);
   },
   create(token, payload) {
     return n3Request(token, "POST", "/api/ARReceipts/Create", payload);

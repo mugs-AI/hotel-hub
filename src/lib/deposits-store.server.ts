@@ -68,6 +68,8 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "n3_preflight_unavailable",
   "n3_rejected",
   "n3_result_uncertain",
+  "n3_receipt_readback_uncertain",
+  "n3_journal_readback_uncertain",
   "reference_conflict",
   "deposit_not_found",
   "deposit_not_uncertain",
@@ -169,15 +171,35 @@ function positiveInt(v: unknown): number | null {
   return n !== null && Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+function valuesFor(obj: unknown, keys: string[]): unknown[] {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return [];
+  const names = keys.map((key) => key.toLowerCase());
+  return Object.entries(obj)
+    .filter(([key, value]) => names.includes(key.toLowerCase()) && value !== undefined)
+    .map(([, value]) => value);
+}
+
+function fieldsAgree(obj: unknown, keys: string[], check: (value: unknown) => boolean): boolean {
+  return valuesFor(obj, keys).every(check);
+}
+
 /** N3 OpenAPI JSON responses carry a business code even when HTTP is 200. */
 function successfulEnvelope(body: unknown): boolean {
-  const b: any = body;
-  return !!b && typeof b === "object" && b.code === "0000" && b.success !== false;
+  return (
+    valuesFor(body, ["code"]).length > 0 &&
+    fieldsAgree(body, ["code"], (value) => value === "0000") &&
+    fieldsAgree(
+      body,
+      ["success"],
+      (value) => value === true || value === 1 || value === "true" || value === "1",
+    )
+  );
 }
 
 export type N3ReceiptDefaults = {
   docType: string;
   currencyId: string;
+  currencyCode: string;
   currencyRate: number;
   accountId: string;
   accountCode: string | null;
@@ -197,14 +219,36 @@ export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults |
   if (docType !== "AROR") return null;
   const currencyIdNumber = positiveInt(pick(v, ["currencyId", "CurrencyId"]));
   const currencyId = currencyIdNumber === null ? null : String(currencyIdNumber);
+  const currency = pick(v, ["currency"]);
+  const currencyCode = str(pick(v, ["currencyCode"])) ?? str(pick(currency, ["code"]));
   const currencyRate = num(pick(v, ["currencyRate", "CurrencyRate"]));
   const accountId = str(pick(v, ["accountId", "AccountId"]));
-  if (!currencyId || !isRealN3Id(accountId)) return null;
+  if (!currencyId || !currencyCode || !isRealN3Id(accountId)) return null;
+  if (
+    !fieldsAgree(v, ["currencyId"], (value) => str(value) === currencyId) ||
+    !valuesFor(v, ["currency"]).every((obj) =>
+      fieldsAgree(obj, ["id"], (value) => str(value) === currencyId),
+    ) ||
+    !fieldsAgree(
+      v,
+      ["currencyCode"],
+      (value) => str(value)?.toUpperCase() === currencyCode.toUpperCase(),
+    ) ||
+    !valuesFor(v, ["currency"]).every((obj) =>
+      fieldsAgree(
+        obj,
+        ["code"],
+        (value) => str(value)?.toUpperCase() === currencyCode.toUpperCase(),
+      ),
+    )
+  )
+    return null;
   if (currencyRate === null || currencyRate <= 0) return null;
   const accountObj = pick(v, ["account", "Account"]);
   return {
     docType,
     currencyId,
+    currencyCode: currencyCode.toUpperCase(),
     currencyRate,
     accountId,
     accountCode: str(pick(v, ["accountCode", "AccountCode"])) ?? str(pick(accountObj, ["code"])),
@@ -436,6 +480,23 @@ export function classifyCreateOutcome(
   if (!isRealN3Id(id) || !docCode) {
     return { verdict: "unknown", code: "n3_missing_identity" };
   }
+  if (
+    !fieldsAgree(
+      v,
+      ["id", "receiptId"],
+      (value) => str(value)?.toLowerCase() === id.toLowerCase(),
+    ) ||
+    !fieldsAgree(v, ["docCode", "docNo"], (value) => str(value) === docCode) ||
+    !fieldsAgree(v, ["docType"], (value) => value === "AROR") ||
+    !fieldsAgree(v, ["customerId"], (value) => str(value) === expected.customerId) ||
+    !fieldsAgree(v, ["referenceNo"], (value) => str(value) === expected.referenceNo) ||
+    !fieldsAgree(
+      v,
+      ["totalAmount", "netTotalAmount", "amount", "paymentAmount"],
+      (value) => moneyCents(value) === moneyCents(expected.amount),
+    )
+  )
+    return { verdict: "unknown", code: "n3_business_result_uncertain" };
   const docType = str(pick(v, ["docType", "DocType"]));
   if (docType && docType !== "AROR") return { verdict: "unknown", code: "n3_doctype_mismatch" };
   const cust = str(pick(v, ["customerId", "CustomerId"]));
@@ -451,6 +512,307 @@ export function classifyCreateOutcome(
     return { verdict: "unknown", code: "n3_amount_mismatch" };
   }
   return { verdict: "posted", identity: { n3ReceiptId: id as string, n3DocCode: docCode } };
+}
+
+type ReceiptPostingExpectation = {
+  identity: ReceiptIdentity;
+  customerId: string;
+  customerCode: string;
+  referenceNo: string;
+  amount: number;
+  currencyId: string | null;
+  currencyCode: string;
+  paymentLines: VerifiedPaymentLine[];
+};
+
+type PostingReadback =
+  | { kind: "verified" }
+  | {
+      kind: "unknown";
+      code: "n3_receipt_readback_uncertain" | "n3_journal_readback_uncertain";
+      unauthorized: boolean;
+    };
+
+function moneyCents(v: unknown): number | null {
+  const n = num(v);
+  if (n === null || n < 0 || n > MAX_DEPOSIT_AMOUNT) return null;
+  const cents = Math.round(n * 100);
+  return Math.abs(n * 100 - cents) < 1e-6 ? cents : null;
+}
+
+function inactiveReceipt(receipt: unknown): boolean {
+  if (
+    valuesFor(receipt, ["status", "documentStatus"]).some((value) =>
+      ["void", "voided", "cancelled", "canceled"].includes(str(value)?.toLowerCase() ?? ""),
+    )
+  )
+    return true;
+  return valuesFor(receipt, ["isCancelled", "isCanceled", "isVoid", "isVoided"]).some((value) => {
+    if (value === null) return false;
+    return (
+      value !== undefined &&
+      value !== false &&
+      value !== 0 &&
+      !(typeof value === "string" && ["false", "0", "no", "n"].includes(value.trim().toLowerCase()))
+    );
+  });
+}
+
+function validPostingExpectation(expected: ReceiptPostingExpectation): boolean {
+  if (
+    !Array.isArray(expected.paymentLines) ||
+    expected.paymentLines.some(
+      (line) => !line || !isRealN3Id(line.id) || typeof line.code !== "string" || !line.code.trim(),
+    )
+  )
+    return false;
+  const ids = expected.paymentLines.map((line) => line.id.toLowerCase());
+  return (
+    isRealN3Id(expected.identity.n3ReceiptId) &&
+    !!expected.identity.n3DocCode &&
+    positiveInt(expected.customerId) !== null &&
+    positiveInt(expected.currencyId) !== null &&
+    !!expected.customerCode &&
+    !!expected.currencyCode &&
+    expected.paymentLines.length > 0 &&
+    new Set(ids).size === ids.length &&
+    expected.paymentLines.every(
+      (line) =>
+        isRealN3Id(line.id) &&
+        !!line.code &&
+        moneyCents(line.amount) !== null &&
+        moneyCents(line.amount)! > 0,
+    ) &&
+    moneyCents(expected.amount) !== null &&
+    moneyCents(expected.amount)! > 0 &&
+    expected.paymentLines.reduce((sum, line) => sum + moneyCents(line.amount)!, 0) ===
+      moneyCents(expected.amount)
+  );
+}
+
+/** A missing or contradictory field is never proof that N3 posted as requested. */
+export function verifyReceiptDetail(
+  outcome: N3Outcome,
+  expected: ReceiptPostingExpectation,
+): boolean {
+  if (!validPostingExpectation(expected)) return false;
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return false;
+  if (!successfulEnvelope(outcome.body)) return false;
+  const receipt = unwrap(outcome.body);
+  if (!receipt || typeof receipt !== "object") return false;
+  const id = str(pick(receipt, ["id"]));
+  const docCode = str(pick(receipt, ["docCode"]));
+  const customerId = str(pick(receipt, ["customerId"]));
+  const currencyId = str(pick(receipt, ["currencyId"]));
+  const currencyCode =
+    str(pick(receipt, ["currencyCode"])) ?? str(pick(pick(receipt, ["currency"]), ["code"]));
+  const total = moneyCents(pick(receipt, ["totalAmount", "netTotalAmount"]));
+  if (
+    !fieldsAgree(
+      receipt,
+      ["id"],
+      (value) => str(value)?.toLowerCase() === expected.identity.n3ReceiptId.toLowerCase(),
+    ) ||
+    !fieldsAgree(
+      receipt,
+      ["docCode", "docNo"],
+      (value) => str(value) === expected.identity.n3DocCode,
+    ) ||
+    !fieldsAgree(receipt, ["docType"], (value) => value === "AROR") ||
+    !fieldsAgree(receipt, ["referenceNo"], (value) => value === expected.referenceNo) ||
+    !fieldsAgree(receipt, ["customerId"], (value) => str(value) === expected.customerId) ||
+    !valuesFor(receipt, ["customer"]).every((obj) =>
+      fieldsAgree(obj, ["id"], (value) => str(value) === expected.customerId),
+    ) ||
+    !fieldsAgree(receipt, ["currencyId"], (value) => str(value) === expected.currencyId) ||
+    !valuesFor(receipt, ["currency"]).every((obj) =>
+      fieldsAgree(obj, ["id"], (value) => str(value) === expected.currencyId),
+    ) ||
+    !fieldsAgree(
+      receipt,
+      ["currencyCode"],
+      (value) => str(value)?.toUpperCase() === expected.currencyCode.toUpperCase(),
+    ) ||
+    !valuesFor(receipt, ["currency"]).every((obj) =>
+      fieldsAgree(
+        obj,
+        ["code"],
+        (value) => str(value)?.toUpperCase() === expected.currencyCode.toUpperCase(),
+      ),
+    ) ||
+    !fieldsAgree(
+      receipt,
+      ["totalAmount", "netTotalAmount"],
+      (value) => moneyCents(value) === moneyCents(expected.amount),
+    ) ||
+    !fieldsAgree(
+      receipt,
+      ["outstandingAmount"],
+      (value) => moneyCents(value) === moneyCents(expected.amount),
+    ) ||
+    !fieldsAgree(
+      receipt,
+      ["isMultiPayment"],
+      (value) => value === expected.paymentLines.length > 1,
+    ) ||
+    !fieldsAgree(receipt, ["knockoff"], (value) => Array.isArray(value) && value.length === 0)
+  )
+    return false;
+  if (
+    id?.toLowerCase() !== expected.identity.n3ReceiptId.toLowerCase() ||
+    docCode !== expected.identity.n3DocCode ||
+    str(pick(receipt, ["docType"])) !== "AROR" ||
+    customerId !== expected.customerId ||
+    str(pick(receipt, ["referenceNo"])) !== expected.referenceNo ||
+    !currencyId ||
+    currencyId !== expected.currencyId ||
+    currencyCode?.toUpperCase() !== expected.currencyCode.toUpperCase() ||
+    total !== moneyCents(expected.amount) ||
+    moneyCents(pick(receipt, ["outstandingAmount"])) !== moneyCents(expected.amount) ||
+    inactiveReceipt(receipt) ||
+    !Array.isArray(pick(receipt, ["knockoff"])) ||
+    pick(receipt, ["knockoff"]).length !== 0
+  )
+    return false;
+
+  const selected = expected.paymentLines;
+  if (selected.length === 1) {
+    const actualId = str(pick(receipt, ["accountId"]));
+    return (
+      actualId?.toLowerCase() === selected[0]!.id.toLowerCase() &&
+      fieldsAgree(
+        receipt,
+        ["accountId"],
+        (value) => str(value)?.toLowerCase() === selected[0]!.id.toLowerCase(),
+      ) &&
+      [false, undefined].includes(pick(receipt, ["isMultiPayment"]))
+    );
+  }
+  if (selected.length < 2 || pick(receipt, ["isMultiPayment"]) !== true) return false;
+  const arrays = valuesFor(receipt, ["multiPayments"]);
+  if (!arrays.length) return false;
+  return arrays.every((payments) => {
+    if (!Array.isArray(payments) || payments.length !== selected.length) return false;
+    const remaining = new Map(
+      selected.map((line) => [line.id.toLowerCase(), moneyCents(line.amount)]),
+    );
+    for (const line of payments) {
+      const accountId = str(pick(line, ["accountId"]))?.toLowerCase();
+      const amount = moneyCents(pick(line, ["amount"]));
+      if (!accountId || !remaining.has(accountId) || amount !== remaining.get(accountId))
+        return false;
+      if (
+        !fieldsAgree(line, ["accountId"], (value) => str(value)?.toLowerCase() === accountId) ||
+        !fieldsAgree(line, ["amount"], (value) => moneyCents(value) === amount)
+      )
+        return false;
+      remaining.delete(accountId);
+    }
+    return remaining.size === 0;
+  });
+}
+
+function journalRows(body: unknown): unknown[] | null {
+  if (!successfulEnvelope(body)) return null;
+  let value = (body as any).data;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(value)) return value;
+  const lines = pick(value, ["details", "lines", "value"]);
+  return Array.isArray(lines) ? lines : null;
+}
+
+/** Require the exact chosen debits and one customer credit, with no extra posting lines. */
+export function verifyReceiptJournal(
+  outcome: N3Outcome,
+  expected: ReceiptPostingExpectation,
+): boolean {
+  if (!validPostingExpectation(expected)) return false;
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return false;
+  const lines = journalRows(outcome.body);
+  if (!lines || lines.length !== expected.paymentLines.length + 1) return false;
+  const remaining = [...expected.paymentLines];
+  let debitTotal = 0;
+  let creditTotal = 0;
+  let customerCredits = 0;
+  for (const row of lines) {
+    const account = pick(row, ["account", "accountCodeLookup"]);
+    const id = str(pick(row, ["accountId", "glAccountId"])) ?? str(pick(account, ["id"]));
+    const code = str(pick(row, ["accountCode", "glAccountCode"])) ?? str(pick(account, ["code"]));
+    const debit = moneyCents(pick(row, ["debit", "debitAmount"]));
+    const credit = moneyCents(pick(row, ["credit", "creditAmount"]));
+    if (!code && !id) return false;
+    if (debit === null || credit === null || debit > 0 === credit > 0) return false;
+    const accountObjects = valuesFor(row, ["account", "accountCodeLookup"]);
+    if (
+      !fieldsAgree(
+        row,
+        ["accountId", "glAccountId"],
+        (value) => str(value)?.toLowerCase() === id?.toLowerCase(),
+      ) ||
+      !fieldsAgree(row, ["accountCode", "glAccountCode"], (value) => str(value) === code) ||
+      accountObjects.some(
+        (account) =>
+          !fieldsAgree(
+            account,
+            ["id"],
+            (value) => str(value)?.toLowerCase() === id?.toLowerCase(),
+          ) || !fieldsAgree(account, ["code"], (value) => str(value) === code),
+      ) ||
+      !fieldsAgree(row, ["debit", "debitAmount"], (value) => moneyCents(value) === debit) ||
+      !fieldsAgree(row, ["credit", "creditAmount"], (value) => moneyCents(value) === credit)
+    )
+      return false;
+    debitTotal += debit;
+    creditTotal += credit;
+    if (debit > 0) {
+      const index = remaining.findIndex(
+        (line) =>
+          !!id &&
+          id.toLowerCase() === line.id.toLowerCase() &&
+          (code ? code === line.code : true) &&
+          debit === moneyCents(line.amount),
+      );
+      if (index < 0) return false;
+      remaining.splice(index, 1);
+    } else {
+      if (code !== expected.customerCode || credit !== moneyCents(expected.amount)) return false;
+      customerCredits++;
+    }
+  }
+  return (
+    remaining.length === 0 &&
+    customerCredits === 1 &&
+    debitTotal === moneyCents(expected.amount) &&
+    creditTotal === debitTotal
+  );
+}
+
+async function readBackReceiptPosting(
+  n3: N3ReceiptsClient,
+  token: string,
+  expected: ReceiptPostingExpectation,
+): Promise<PostingReadback> {
+  const detail = await n3.getById(token, expected.identity.n3ReceiptId);
+  if (!verifyReceiptDetail(detail, expected))
+    return {
+      kind: "unknown",
+      code: "n3_receipt_readback_uncertain",
+      unauthorized: detail.kind === "response" && detail.status === 401,
+    };
+  const journal = await n3.getGLPosting(token, expected.identity.n3ReceiptId);
+  if (!verifyReceiptJournal(journal, expected))
+    return {
+      kind: "unknown",
+      code: "n3_journal_readback_uncertain",
+      unauthorized: journal.kind === "response" && journal.status === 401,
+    };
+  return { kind: "verified" };
 }
 
 /**
@@ -470,10 +832,21 @@ export function matchExistingReceipt(
   if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
   if (!successfulEnvelope(outcome.body)) return null;
   const list = rows(outcome.body);
+  if (
+    list.some((row) => {
+      const references = valuesFor(row, ["referenceNo"]);
+      return (
+        references.some((ref) => str(ref) === expected.referenceNo) &&
+        !references.every((ref) => str(ref) === expected.referenceNo)
+      );
+    })
+  )
+    return { conflict: true };
   const sameRef = list.filter(
     (r) => str(pick(r, ["referenceNo", "ReferenceNo"])) === expected.referenceNo,
   );
   if (sameRef.length === 0) return null;
+  if (sameRef.length !== 1) return { conflict: true };
   for (const r of sameRef) {
     const docType = str(pick(r, ["docType", "DocType"]));
     if (docType !== "AROR") return { conflict: true };
@@ -482,15 +855,34 @@ export function matchExistingReceipt(
     if (!isRealN3Id(id) || !docCode) return { conflict: true };
     const custObj = pick(r, ["customer", "Customer"]);
     const cust = str(pick(r, ["customerId", "CustomerId"])) ?? str(pick(custObj, ["id"]));
-    if (cust && cust !== expected.customerId) return { conflict: true };
+    if (cust !== expected.customerId || inactiveReceipt(r)) return { conflict: true };
     const currency =
       str(pick(r, ["currencyId", "CurrencyId"])) ??
       str(pick(pick(r, ["currency", "Currency"]), ["id"]));
-    if (expected.currencyId && currency && currency !== expected.currencyId) {
+    if (!expected.currencyId || currency !== expected.currencyId) {
       return { conflict: true };
     }
     const total = num(pick(r, ["netTotalAmount", "totalAmount", "amount", "paymentAmount"]));
     if (total === null || Math.abs(total - expected.amount) > 0.005) return { conflict: true };
+    if (
+      !fieldsAgree(r, ["id", "receiptId"], (v) => str(v)?.toLowerCase() === id.toLowerCase()) ||
+      !fieldsAgree(r, ["docCode", "docNo"], (v) => str(v) === docCode) ||
+      !fieldsAgree(r, ["docType"], (v) => v === "AROR") ||
+      !fieldsAgree(r, ["customerId"], (v) => str(v) === expected.customerId) ||
+      !valuesFor(r, ["customer"]).every((obj) =>
+        fieldsAgree(obj, ["id"], (v) => str(v) === expected.customerId),
+      ) ||
+      !fieldsAgree(r, ["currencyId"], (v) => str(v) === expected.currencyId) ||
+      !valuesFor(r, ["currency"]).every((obj) =>
+        fieldsAgree(obj, ["id"], (v) => str(v) === expected.currencyId),
+      ) ||
+      !fieldsAgree(
+        r,
+        ["netTotalAmount", "totalAmount", "amount", "paymentAmount"],
+        (v) => moneyCents(v) === moneyCents(expected.amount),
+      )
+    )
+      return { conflict: true };
     return { match: { n3ReceiptId: id as string, n3DocCode: docCode } };
   }
   return null;
@@ -541,6 +933,7 @@ export function classifyPreflight(
   const found = matchExistingReceipt(outcome, expected);
   if (found && "conflict" in found) return { kind: "conflict" };
   if (found && "match" in found) return { kind: "match", identity: found.match };
+  if (rows(outcome.body).length !== 0) return { kind: "conflict" };
   return { kind: "none" };
 }
 
@@ -739,6 +1132,12 @@ export async function createDeposit(
     );
   }
 
+  if (
+    defaults.currencyCode !== settings.currency.toUpperCase() ||
+    reservation.currency.toUpperCase() !== settings.currency.toUpperCase()
+  )
+    throw new DepositError("n3_defaults_invalid");
+
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");
   }
@@ -813,6 +1212,13 @@ export async function createDeposit(
     amount,
     currencyId: defaults.currencyId,
   };
+  const postingExpected = (identity: ReceiptIdentity): ReceiptPostingExpectation => ({
+    ...expected,
+    identity,
+    customerCode: settings.walkInCustomer!.n3Code,
+    currencyCode: deposit.currencyCode,
+    paymentLines,
+  });
 
   // Pre-flight read-only reconciliation. FAIL CLOSED: the create only happens
   // after a readable, successful, zero-match preflight.
@@ -877,6 +1283,27 @@ export async function createDeposit(
   }
 
   if (verdictPre.kind === "match") {
+    const checked = await readBackReceiptPosting(
+      n3,
+      input.n3Token,
+      postingExpected(verdictPre.identity),
+    );
+    if (checked.kind !== "verified") {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdictPre.identity.n3ReceiptId,
+        n3_doc_code: verdictPre.identity.n3DocCode,
+        last_error_code: checked.code,
+      });
+      await logAudit({
+        tenantId: input.tenantId,
+        n3UserKey: input.actorN3UserKey,
+        eventType: "hotel.deposit.unknown",
+        detail: { depositId: deposit.id, reservationId: input.reservationId, code: checked.code },
+      });
+      if (checked.unauthorized) throw new DepositError("unauthorized");
+      return { deposit, reused: false };
+    }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "posted",
       n3_receipt_id: verdictPre.identity.n3ReceiptId,
@@ -912,6 +1339,27 @@ export async function createDeposit(
   const verdict = classifyCreateOutcome(created, expected);
 
   if (verdict.verdict === "posted") {
+    const checked = await readBackReceiptPosting(
+      n3,
+      input.n3Token,
+      postingExpected(verdict.identity),
+    );
+    if (checked.kind !== "verified") {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdict.identity.n3ReceiptId,
+        n3_doc_code: verdict.identity.n3DocCode,
+        last_error_code: checked.code,
+      });
+      await logAudit({
+        tenantId: input.tenantId,
+        n3UserKey: input.actorN3UserKey,
+        eventType: "hotel.deposit.unknown",
+        detail: { depositId: deposit.id, reservationId: input.reservationId, code: checked.code },
+      });
+      if (checked.unauthorized) throw new DepositError("unauthorized");
+      return { deposit, reused: false };
+    }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "posted",
       n3_receipt_id: verdict.identity.n3ReceiptId,
@@ -1007,26 +1455,17 @@ export async function reconcileDeposit(
   const customerId = snap.data?.n3_customer_id ?? null;
   if (!customerId) throw new DepositError("walk_in_customer_not_mapped");
 
-  const outcome = await n3.listByReference(input.n3Token, deposit.n3ReferenceNo);
-  if (outcome.kind === "response" && outcome.status === 401) {
-    throw new DepositError("unauthorized");
-  }
-  if (outcome.kind === "response" && outcome.status === 403) {
-    // Fail closed, keep the session and the ledger row untouched.
-    throw new DepositError("n3_preflight_unavailable");
-  }
-  const match = matchExistingReceipt(outcome, {
-    customerId,
-    referenceNo: deposit.n3ReferenceNo,
-    amount: deposit.amount,
-    currencyId: null,
-  });
-  if (!match || "conflict" in match) {
+  const uncertain = async (code: string, found?: ReceiptIdentity): Promise<DepositRecord> => {
     // Still uncertain. Never auto-retry the create, never mark failed.
-    if (deposit.status === "submitting") {
+    if (
+      deposit.status === "submitting" ||
+      deposit.lastErrorCode !== code ||
+      (found && deposit.n3ReceiptId !== found.n3ReceiptId)
+    ) {
       const stalled = await updateDeposit(input.tenantId, deposit.id, {
         status: "unknown",
-        last_error_code: "n3_result_uncertain",
+        last_error_code: code,
+        ...(found ? { n3_receipt_id: found.n3ReceiptId, n3_doc_code: found.n3DocCode } : {}),
       });
       await logAudit({
         tenantId: input.tenantId,
@@ -1035,18 +1474,62 @@ export async function reconcileDeposit(
         detail: {
           depositId: stalled.id,
           reservationId: input.reservationId,
-          code: "n3_result_uncertain",
+          code,
           via: "manual_check",
         },
       });
       return stalled;
     }
     return deposit;
+  };
+
+  let identity: ReceiptIdentity;
+  const defaultsOutcome = await n3.getNew(input.n3Token);
+  if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 401)
+    throw new DepositError("unauthorized");
+  const defaults = parseNewReceiptDefaults(defaultsOutcome);
+  if (!defaults) return uncertain("n3_receipt_readback_uncertain");
+  if (defaults.currencyCode !== deposit.currencyCode.toUpperCase())
+    return uncertain("n3_receipt_readback_uncertain");
+  if (deposit.n3ReceiptId && deposit.n3DocCode) {
+    if (!isRealN3Id(deposit.n3ReceiptId)) return uncertain("n3_receipt_readback_uncertain");
+    identity = { n3ReceiptId: deposit.n3ReceiptId, n3DocCode: deposit.n3DocCode };
+  } else {
+    const outcome = await n3.listByReference(input.n3Token, deposit.n3ReferenceNo);
+    if (outcome.kind === "response" && outcome.status === 401)
+      throw new DepositError("unauthorized");
+    if (outcome.kind === "response" && outcome.status === 403)
+      throw new DepositError("n3_preflight_unavailable");
+    const match = matchExistingReceipt(outcome, {
+      customerId,
+      referenceNo: deposit.n3ReferenceNo,
+      amount: deposit.amount,
+      currencyId: defaults.currencyId,
+    });
+    if (!match || "conflict" in match) return uncertain("n3_result_uncertain");
+    identity = match.match;
+  }
+  if (!deposit.n3CustomerCode || deposit.paymentLines.length < 1)
+    return uncertain("n3_receipt_readback_uncertain", identity);
+  const checked = await readBackReceiptPosting(n3, input.n3Token, {
+    identity,
+    customerId,
+    customerCode: deposit.n3CustomerCode,
+    referenceNo: deposit.n3ReferenceNo,
+    amount: deposit.amount,
+    currencyId: defaults.currencyId,
+    currencyCode: deposit.currencyCode,
+    paymentLines: deposit.paymentLines,
+  });
+  if (checked.kind !== "verified") {
+    const result = await uncertain(checked.code, identity);
+    if (checked.unauthorized) throw new DepositError("unauthorized");
+    return result;
   }
   const updated = await updateDeposit(input.tenantId, deposit.id, {
     status: "posted",
-    n3_receipt_id: match.match.n3ReceiptId,
-    n3_doc_code: match.match.n3DocCode,
+    n3_receipt_id: identity.n3ReceiptId,
+    n3_doc_code: identity.n3DocCode,
     last_error_code: null,
   });
   await logAudit({
@@ -1056,8 +1539,8 @@ export async function reconcileDeposit(
     detail: {
       depositId: updated.id,
       reservationId: input.reservationId,
-      n3ReceiptId: match.match.n3ReceiptId,
-      n3DocCode: match.match.n3DocCode,
+      n3ReceiptId: identity.n3ReceiptId,
+      n3DocCode: identity.n3DocCode,
       via: "manual_check",
     },
   });
@@ -1128,6 +1611,12 @@ export async function buildDepositPreview(
       outcome.kind === "transport_error" ? "n3_defaults_unavailable" : "n3_defaults_invalid",
     );
   }
+
+  if (
+    defaults.currencyCode !== settings.currency.toUpperCase() ||
+    reservation.currency.toUpperCase() !== settings.currency.toUpperCase()
+  )
+    throw new DepositError("n3_defaults_invalid");
 
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");
