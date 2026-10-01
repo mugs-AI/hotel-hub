@@ -7,8 +7,9 @@
 // them — and the server refuses the board data too, so nothing here depends on
 // the browser behaving.
 import { createFileRoute } from "@tanstack/react-router";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
 import { AppShell } from "@/components/AppShell";
-import { HousekeepingBoard } from "@/components/HousekeepingBoard";
+import { HousekeepingBoard, HousekeepingSetupNotice } from "@/components/HousekeepingBoard";
 import { HousekeepingModeBanner } from "@/components/HousekeepingModeBanner";
 import { useSessionMe } from "@/lib/session-client";
 import { housekeepingAuthority } from "@/lib/housekeeping";
@@ -39,13 +40,10 @@ function HousekeepingPage() {
 
   return (
     <AppShell>
-      <div className="space-y-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "#102A43" }}>
-            Housekeeping
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">Track room cleaning and readiness.</p>
-        </div>
+      <div className="space-y-3">
+        <WorkspaceHeader title="Housekeeping" help={DESCRIPTION}>
+          {authority.canOpenWorkspace ? <HousekeepingSetupNotice /> : null}
+        </WorkspaceHeader>
 
         {authority.canOpenWorkspace ? (
           <>

@@ -78,6 +78,17 @@ function panel(component: typeof N3IntegrationPanel | typeof PropertyPanel) {
 }
 
 describe("Compact navigation preserves access", () => {
+  it("groups setup links and the width checkbox inside Tools instead of the main row", async () => {
+    const html = await shell();
+    const tools = html.match(/<details[^>]*>[\s\S]*?<\/details>/)?.[0] ?? "";
+    expect(tools).toContain("Tools");
+    expect(tools).toContain('href="/rooms-rates"');
+    expect(tools).toContain('href="/settings"');
+    expect(tools).toContain('type="checkbox"');
+    expect(tools).toContain("Full Width");
+    expect(html).not.toContain('aria-label="Display width"');
+  });
+
   it("offers an accessible mobile menu and does not render deferred placeholders", async () => {
     const html = await shell();
     expect(html).toContain('aria-label="Open main menu"');

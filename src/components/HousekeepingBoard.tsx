@@ -10,6 +10,7 @@
 // UX: RECOGNIZE (summary tiles) -> ACT (one prominent next action per room)
 // -> CONFIRM (plain-language confirmation). Rooms that need action come first;
 // Ready rooms are collapsed behind a filter/counter so they never dominate.
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { useMemo, useRef, useState } from "react";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -143,6 +144,26 @@ const PRIMARY_TRANSITIONS: HousekeepingTransition[] = [
   "mark_ready",
 ];
 
+export function HousekeepingSetupNotice() {
+  const board = useHousekeepingBoard();
+  const count = board.data?.counts.not_set_up ?? 0;
+  if (count === 0) return null;
+  return (
+    <span
+      role="status"
+      className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900"
+    >
+      <strong>{count} room(s) are not set up for housekeeping.</strong>
+      <CardInfoPopover label="About housekeeping setup">
+        Check-in is blocked for these rooms until someone confirms Ready or Dirty.
+        {!board.data?.authority.canInitialize
+          ? " Ask the Owner to set them up."
+          : " Set their condition on the board below."}
+      </CardInfoPopover>
+    </span>
+  );
+}
+
 export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated" }) {
   const board = useHousekeepingBoard();
   const act = useHousekeepingAction();
@@ -254,7 +275,7 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   const pendingHandoffs = board.data!.pendingHandoffs;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {/* RECOGNIZE — clickable summary tiles */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
         <Tile
@@ -316,15 +337,12 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span>
-          Property date {board.data!.propertyDate} · {board.data!.timezone}
-        </span>
-        {!canInitialize && tally.not_set_up > 0 ? (
-          <span>
-            Not set up rooms need one-time Owner setup. After that, Housekeeping can complete the
-            workflow through Mark Ready.
-          </span>
-        ) : null}
+        <CardInfoPopover label="About housekeeping board">
+          Property date {board.data!.propertyDate} · {board.data!.timezone}.
+          {!canInitialize && tally.not_set_up > 0
+            ? " Not set up rooms need one-time Owner setup; then Housekeeping can complete the workflow through Mark Ready."
+            : null}
+        </CardInfoPopover>
         {filter !== "needs_action" && (
           <button
             type="button"
@@ -341,14 +359,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
         <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <strong>{pendingHandoffs} room(s) a guest has just left are still being updated.</strong>{" "}
           HotelHub keeps retrying automatically.
-        </p>
-      )}
-
-      {tally.not_set_up > 0 && (
-        <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          <strong>{tally.not_set_up} room(s) are not set up for housekeeping.</strong> Check-in is
-          blocked for them until someone confirms Ready or Dirty.
-          {!canInitialize && " Ask the Owner to set them up."}
         </p>
       )}
 
@@ -490,7 +500,7 @@ function Tile({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className="rounded-lg border p-3 text-left transition-colors"
+      className="rounded-lg border p-2 text-left transition-colors"
       style={{
         borderColor: active ? tone : "#D6E0EA",
         backgroundColor: active ? `${tone}12` : "white",

@@ -1,7 +1,9 @@
 // Read-only Reservation Calendar / Room View.
 // Uses existing rooms + reservations. No mutations, no drag/drop.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
 import { useSessionMe } from "@/lib/session-client";
@@ -14,6 +16,7 @@ import {
   groupRoomsByFloor,
   naturalCompare,
   roomLabel,
+  syncCalendarScroll,
   UNASSIGNED_FLOOR,
 } from "@/lib/reservations-ui";
 import { ChevronLeft, ChevronRight, CalendarDays, ChevronDown, Plus } from "lucide-react";
@@ -112,9 +115,8 @@ function CalendarPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
+      <div className="space-y-3" style={{ backgroundColor: SOFT_BG }}>
         <Header canCreate={canCreate} />
-        <ViewSwitcher active="calendar" />
         {data?.authenticated !== true ? null : !canView ? <NoAccess /> : <Grid />}
       </div>
     </AppShell>
@@ -123,38 +125,21 @@ function CalendarPage() {
 
 function Header({ canCreate }: { canCreate: boolean }) {
   return (
-    <section
-      className="rounded-lg p-6 text-white shadow-sm"
-      style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span
-            className="inline-block rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: GOLD, color: NAVY }}
-          >
-            Planning
-          </span>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-            Reservation Calendar / Room View
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/85">
-            Read-only view of room allocations across the selected date range. Click a reservation
-            block to open its full detail.
-          </p>
-        </div>
-        {canCreate ? (
+    <WorkspaceHeader
+      title="Reservations"
+      badge="Front Desk"
+      help="Read-only room allocations. Open a reservation block for details. Use the date arrows or the top scrollbar to move across the selected range."
+      actions={
+        canCreate ? (
           <Link
             to="/reservations/new"
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium shadow-sm"
-            style={{ backgroundColor: GOLD, color: NAVY }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#E5A93D] px-3 py-1.5 text-sm font-medium text-[#102A43] shadow-sm"
           >
-            <Plus className="h-4 w-4" aria-hidden />
-            Add Reservation
+            <Plus className="h-4 w-4" aria-hidden /> New Reservation
           </Link>
-        ) : null}
-      </div>
-    </section>
+        ) : null
+      }
+    />
   );
 }
 
@@ -210,12 +195,16 @@ function Grid() {
 
   return (
     <section
-      className="rounded-lg border bg-white p-4 shadow-sm"
+      className="rounded-lg border bg-white p-3 shadow-sm"
       style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${NAVY}` }}
     >
-      <div className="mb-3 flex flex-wrap items-end gap-3">
-        <div className="w-48">
-          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <ViewSwitcher active="calendar" />
+        <Legend />
+      </div>
+      <div className="mb-2 flex flex-wrap items-end gap-2">
+        <div className="w-40">
+          <label className="mb-0.5 block text-sm font-medium" style={{ color: NAVY }}>
             Start date
           </label>
           <MalaysianDateInput
@@ -227,7 +216,7 @@ function Grid() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium" style={{ color: NAVY }}>
+          <label className="mb-0.5 block text-sm font-medium" style={{ color: NAVY }}>
             Range
           </label>
           <div
@@ -256,11 +245,11 @@ function Grid() {
             })}
           </div>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-1">
           <button
             type="button"
             onClick={() => move(-days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
             aria-label="Previous range"
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden /> Prev
@@ -268,22 +257,20 @@ function Grid() {
           <button
             type="button"
             onClick={() => navigate({ search: (prev: Search) => ({ ...prev, startDate: today }) })}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
           >
             <CalendarDays className="h-3.5 w-3.5" aria-hidden /> Today
           </button>
           <button
             type="button"
             onClick={() => move(days)}
-            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
             aria-label="Next range"
           >
             Next <ChevronRight className="h-3.5 w-3.5" aria-hidden />
           </button>
         </div>
       </div>
-
-      <Legend />
 
       {q.isPending ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Loading calendar…</p>
@@ -315,7 +302,7 @@ function Grid() {
 
 // Column geometry: single source of truth so header, row, and overlay
 // stay perfectly aligned even under overflow-x scroll.
-const LABEL_COL_PX = 220;
+const LABEL_COL_PX = 144;
 const DAY_COL_PX = 96;
 const ROW_HEIGHT_PX = 48;
 
@@ -341,6 +328,21 @@ function FloorGrid({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
   const scrollport = useRef<HTMLDivElement>(null);
+  const topScrollport = useRef<HTMLDivElement>(null);
+  const [scrollViewportWidth, setScrollViewportWidth] = useState<number>();
+
+  // Match the actual content viewport, including classic vertical-scrollbar loss.
+  // Both tracks then have the same maximum horizontal position.
+  useEffect(() => {
+    const viewport = scrollport.current;
+    if (!viewport) return;
+    const measure = () => setScrollViewportWidth(viewport.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [rangeStart, days]);
 
   const visibleFloors =
     activeFloor === "__all__" ? grouped.floors : grouped.floors.filter((f) => f === activeFloor);
@@ -392,9 +394,10 @@ function FloorGrid({
         total={rooms.length}
       />
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span className="text-muted-foreground">
-          Scroll dates while the room and date headings stay visible.
-        </span>
+        <CardInfoPopover label="About calendar scrolling">
+          Scroll the selected dates with the top scrollbar, seven-day arrows, touchpad or swipe.
+          Room names and date headings stay visible. Prev / Next changes the entire date range.
+        </CardInfoPopover>
         <div className="flex gap-2" aria-label="Scroll calendar dates">
           <button
             type="button"
@@ -419,11 +422,32 @@ function FloorGrid({
         </div>
       </div>
       <div
+        key={`scroll-${rangeStart}-${days}`}
+        ref={topScrollport}
+        tabIndex={0}
+        aria-label="Scroll selected calendar dates"
+        className="max-w-full overflow-x-scroll rounded bg-slate-50 focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ scrollbarWidth: "auto", width: scrollViewportWidth }}
+        onScroll={(event) => {
+          syncCalendarScroll(event.currentTarget, scrollport.current);
+        }}
+      >
+        <div style={{ width: rowWidth, height: 16 }} />
+      </div>
+      <div
+        key={`${rangeStart}-${days}`}
         ref={scrollport}
+        onScroll={(event) => {
+          syncCalendarScroll(event.currentTarget, topScrollport.current);
+        }}
         tabIndex={0}
         aria-label="Room calendar; scroll horizontally or vertically to view dates and rooms"
         className="overflow-auto rounded-md border focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ borderColor: `${NAVY}22`, maxHeight: "min(65vh, 720px)" }}
+        style={{
+          borderColor: `${NAVY}22`,
+          maxHeight: "clamp(180px, calc(100dvh - 22rem), 640px)",
+          scrollbarWidth: "auto",
+        }}
       >
         <div style={{ width: rowWidth, minWidth: rowWidth }}>
           {/* Header row — sticky at top */}
@@ -575,7 +599,7 @@ function Legend() {
     { label: "Checked-out", color: "#9AA5B1" },
   ];
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       {items.map((i) => (
         <span key={i.label} className="inline-flex items-center gap-1">
           <span className="inline-block h-3 w-3 rounded" style={{ backgroundColor: i.color }} />

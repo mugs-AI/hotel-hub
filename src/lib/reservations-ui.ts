@@ -631,3 +631,12 @@ export function friendlyError(
 // Codes that must preserve stay + guest input on the New page (only rooms
 // are cleared/refreshed).
 export const CREATE_PRESERVE_CODES = new Set(["room_not_available"]);
+/** Keep the two date tracks aligned without cancelling a smooth-scroll frame. */
+export function syncCalendarScroll(
+  source: { scrollLeft: number },
+  target: { scrollLeft: number } | null,
+): void {
+  if (target && Math.abs(target.scrollLeft - source.scrollLeft) > 0.5) {
+    target.scrollLeft = source.scrollLeft;
+  }
+}

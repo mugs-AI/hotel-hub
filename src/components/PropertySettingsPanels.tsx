@@ -197,7 +197,8 @@ export function GuestControlsPanel({
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
       <CardHeading title="Guest controls">
         Guest records are always fully editable before check-in. These rules decide what Front Desk
-        may still change after a guest has checked in.
+        may still change after a guest has checked in. An Owner can make a controlled correction
+        with a written reason recorded in the reservation timeline.
       </CardHeading>
 
       <fieldset className="mt-4 space-y-2">
@@ -240,12 +241,6 @@ export function GuestControlsPanel({
           </label>
         ))}
       </fieldset>
-
-      <p className="mt-3 max-w-2xl text-xs text-muted-foreground">
-        These rules apply to Front Desk. An Owner can always make a controlled correction after
-        check-in, and every such correction requires a written reason that is recorded in the
-        reservation timeline.
-      </p>
 
       <label className="mt-4 flex items-start gap-2 text-sm">
         <input
@@ -316,7 +311,8 @@ export function HousekeepingPanel({
         Both options use exactly the same room conditions and the same rules, and room turnaround
         always happens in the Housekeeping workspace — only the screens differ. This setting only
         selects the workflow mode. Switching is safe at any time and never changes a room&apos;s
-        current condition.
+        current condition. Check-in requires Ready. Set up untracked rooms on the Housekeeping board
+        by confirming Ready or Dirty.
       </CardHeading>
 
       <fieldset className="mt-4 space-y-2">
@@ -359,12 +355,6 @@ export function HousekeepingPanel({
           </label>
         ))}
       </fieldset>
-
-      <p className="mt-3 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
-        A room can only be checked into when it is <strong>Ready</strong>. Rooms that have never
-        been set up for housekeeping block check-in until someone confirms their condition — set
-        them up on the Housekeeping board.
-      </p>
 
       <button
         type="button"

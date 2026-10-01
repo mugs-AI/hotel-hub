@@ -3,6 +3,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -285,17 +286,18 @@ function Console() {
         >
           Hotel settings › Verification
         </p>
-        <h1
-          className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl"
-          style={{ color: NAVY }}
-        >
-          N3 Financial Verification
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Read-only console. Discovers the live N3 Cloud contract for AR Receive Payments, Cash
-          Sales, Customer Refunds, and the GL Chart of Accounts used for deposits and refunds. It
-          does not create, void, match, or refund any N3 transaction.
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight" style={{ color: NAVY }}>
+            N3 Financial Verification
+          </h1>
+          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            Read-only
+          </span>
+          <CardInfoPopover label="About N3 Financial Verification">
+            Discovers the N3 contracts for Receive Payments, Cash Sales, Customer Refunds and GL
+            accounts. This console does not create, void, match or refund any N3 transaction.
+          </CardInfoPopover>
+        </div>
         <p className="mt-2 text-xs text-muted-foreground">
           <Link to="/settings" className="underline">
             ← Back to Settings

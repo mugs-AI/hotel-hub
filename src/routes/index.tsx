@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -52,8 +53,13 @@ function Dashboard() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#102A43]">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-600">Today’s property operations</p>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-[#102A43]">Dashboard</h1>
+              <CardInfoPopover label="About Dashboard">
+                Today’s property operations. Figures use the server’s property date and respect your
+                access permissions.
+              </CardInfoPopover>
+            </div>
           </div>
           {propertyDate ? (
             <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-medium text-teal-800">
@@ -64,11 +70,17 @@ function Dashboard() {
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {canReservations ? (
-            <Metric label="Confirmed arrivals" value={arrivals.data?.total} to="/reservations" />
+            <Metric
+              label="Confirmed arrivals"
+              value={arrivals.data?.total}
+              to="/reservations"
+              tone="teal"
+            />
           ) : null}
           {canDepartures ? (
             <>
               <Metric
+                tone="blue"
                 label="Departures today"
                 value={departures.data?.counts.today}
                 to="/departures"
@@ -87,7 +99,7 @@ function Dashboard() {
               label="Rooms needing attention"
               value={housekeeping.data?.counts.needs_attention}
               to="/housekeeping"
-              tone="alert"
+              tone="amber"
             />
           ) : null}
         </div>
@@ -193,21 +205,25 @@ function Metric({
   label: string;
   value: number | undefined;
   to: DashboardPath;
-  tone?: "alert";
+  tone?: "alert" | "teal" | "blue" | "amber";
   departureBucket?: "overdue";
 }) {
+  const tones = {
+    teal: "border-teal-200 bg-teal-50 text-teal-900",
+    blue: "border-blue-200 bg-blue-50 text-blue-900",
+    alert: value
+      ? "border-rose-200 bg-rose-50 text-rose-900"
+      : "border-slate-200 bg-slate-50 text-slate-800",
+    amber: "border-amber-200 bg-amber-50 text-amber-900",
+  };
   return (
     <Link
       to={to}
       search={to === "/departures" ? { bucket: departureBucket ?? "today" } : undefined}
-      className={`${card} block hover:border-teal-600`}
+      className={`block rounded-xl border p-4 shadow-sm transition-shadow hover:shadow-md ${tones[tone ?? "teal"]}`}
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-600">{label}</p>
-      <p
-        className={`mt-3 text-3xl font-semibold ${tone && value ? "text-amber-700" : "text-[#102A43]"}`}
-      >
-        {value ?? "—"}
-      </p>
+      <p className="text-xs font-medium uppercase tracking-wide">{label}</p>
+      <p className="mt-2 text-3xl font-semibold">{value ?? "—"}</p>
     </Link>
   );
 }
@@ -225,7 +241,9 @@ function SectionTitle({ title, to }: { title: string; to: DashboardPath }) {
 
 function Status({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-3">
+    <div
+      className={`rounded-lg p-3 ${label === "Ready" ? "bg-emerald-50" : label === "In progress" ? "bg-blue-50" : label === "Do Not Disturb" ? "bg-violet-50" : "bg-amber-50"}`}
+    >
       <span className="text-slate-600">{label}</span>
       <strong className="mt-1 block text-xl text-[#102A43]">{value}</strong>
     </div>

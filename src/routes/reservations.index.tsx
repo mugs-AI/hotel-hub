@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -117,7 +118,7 @@ function ReservationsListPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
+      <div className="space-y-3" style={{ backgroundColor: SOFT_BG }}>
         <Header canCreate={canCreate} />
         {!isAuthed ? null : !canView ? <NoAccess /> : <ListInner canCreate={canCreate} />}
       </div>
@@ -127,36 +128,21 @@ function ReservationsListPage() {
 
 function Header({ canCreate }: { canCreate: boolean }) {
   return (
-    <section
-      className="rounded-lg p-6 text-white shadow-sm"
-      style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span
-            className="inline-block rounded-full px-2 py-0.5 text-sm font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: GOLD, color: NAVY }}
-          >
-            Front Desk
-          </span>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Reservations</h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/85">
-            Search, review and create hotel reservations. Filtering and pagination happen on the
-            server so you always see complete results.
-          </p>
-        </div>
-        {canCreate ? (
+    <WorkspaceHeader
+      title="Reservations"
+      badge="Front Desk"
+      help="Search, review and create hotel reservations. Filters search the complete reservation list."
+      actions={
+        canCreate ? (
           <Link
             to="/reservations/new"
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium shadow-sm"
-            style={{ backgroundColor: GOLD, color: NAVY }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-[#E5A93D] px-3 py-1.5 text-sm font-medium text-[#102A43] shadow-sm"
           >
-            <Plus className="h-4 w-4" aria-hidden />
-            <span>New Reservation</span>
+            <Plus className="h-4 w-4" aria-hidden /> New Reservation
           </Link>
-        ) : null}
-      </div>
-    </section>
+        ) : null
+      }
+    />
   );
 }
 
@@ -246,7 +232,6 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
 
   return (
     <>
-      <ViewSwitcher active="list" />
       <FiltersCard
         draft={draft}
         onChange={setDraft}
@@ -317,7 +302,7 @@ export function ViewSwitcher({ active }: { active: "list" | "calendar" }) {
           color: active === "calendar" ? "white" : NAVY,
         }}
       >
-        Calendar / Room View
+        Calendar
       </Link>
     </nav>
   );
@@ -366,17 +351,20 @@ function FiltersCard({
 }) {
   return (
     <section
-      className="rounded-lg border bg-white p-5 shadow-sm"
+      className="rounded-lg border bg-white p-3 shadow-sm"
       style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${NAVY}` }}
     >
-      <div className="mb-3 flex items-center gap-2">
-        <Filter className="h-4 w-4" style={{ color: NAVY }} aria-hidden />
-        <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-          Filters
-        </h2>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4" style={{ color: NAVY }} aria-hidden />
+          <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+            Filters
+          </h2>
+        </div>
+        <ViewSwitcher active="list" />
       </div>
       <form
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-4 xl:grid-cols-5"
         onSubmit={(e) => {
           e.preventDefault();
           onApply();
@@ -436,7 +424,7 @@ function FiltersCard({
           />
         </Field>
 
-        <div className="col-span-full flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-end justify-end gap-2 md:col-span-1 xl:col-span-3">
           <button
             type="button"
             onClick={onClear}

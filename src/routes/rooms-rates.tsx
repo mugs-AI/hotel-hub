@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
 import { AppShell } from "@/components/AppShell";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { useSessionMe } from "@/lib/session-client";
@@ -82,7 +83,7 @@ const GOLD = "#E5A93D";
 const SOFT_BG = "#F4F8FC";
 const ERR = "#C2413B";
 
-const CARD = "rounded-lg bg-white p-5 shadow-sm border";
+const CARD = "rounded-lg bg-white p-3 shadow-sm border";
 
 function RoomsRatesPage() {
   const session = useSessionMe();
@@ -92,23 +93,12 @@ function RoomsRatesPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6" style={{ backgroundColor: SOFT_BG }}>
-        <section
-          className="rounded-lg p-6 text-white shadow-sm"
-          style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
-        >
-          <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: GOLD, color: NAVY }}
-          >
-            Hotel Setup
-          </span>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Rooms &amp; Rates</h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/85">
-            Configure the default N3 walk-in customer and map N3 stock codes to hotel rooms. Base
-            room details start from the verified N3 Stock Master and remain editable locally.
-          </p>
-        </section>
+      <div className="space-y-3" style={{ backgroundColor: SOFT_BG }}>
+        <WorkspaceHeader
+          title="Rooms & Rates"
+          badge="Hotel Setup"
+          help="Map N3 stock codes to rooms and edit local room details and rates. The default walk-in customer and property options are under Tools → Settings."
+        />
         {!authed ? null : !canView ? (
           <NoAccess />
         ) : (
@@ -170,7 +160,7 @@ function RoomsRatesInner({
   const ready = Boolean(settings?.walkInCustomer && activeRoomCount > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <ReadinessCard
         ready={ready}
         hasCustomer={!!settings?.walkInCustomer}
@@ -184,7 +174,6 @@ function RoomsRatesInner({
           {error}
         </div>
       ) : null}
-      <PropertySettingsPointer />
       <RoomsCard
         rooms={rooms}
         canSetup={canSetup}
@@ -260,26 +249,6 @@ function SectionHeader({
       >
         {tag}
       </span>
-    </div>
-  );
-}
-
-function PropertySettingsPointer() {
-  return (
-    <div className={CARD} style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${NAVY}` }}>
-      <SectionHeader
-        label="Property settings"
-        accent={NAVY}
-        tag="Moved"
-        help="Currency, timezone, standard check-in / check-out times, guest-editing controls and the default N3 walk-in customer now live in the Settings workspace."
-      />
-      <Link
-        to="/settings"
-        className="mt-3 inline-flex rounded-md px-3 py-1.5 text-xs font-medium text-white"
-        style={{ backgroundColor: NAVY }}
-      >
-        Open Settings
-      </Link>
     </div>
   );
 }

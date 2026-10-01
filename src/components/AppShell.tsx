@@ -5,9 +5,9 @@ import { hasPermission, type Permission } from "@/lib/rbac";
 import { housekeepingAuthority } from "@/lib/housekeeping";
 import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 
-import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
+import { useDisplayWidth, widthContainerClass } from "@/lib/display-preference";
 import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
-import { ChevronDown, Info, Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type NavItem = {
@@ -132,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hkAuthority = housekeepingAuthority(session.housekeepingMode ?? "simple", role);
   const containerClass = widthContainerClass(displayWidth);
 
-  const navigationLinks = NAV_ITEMS.filter((item) => !item.disabled).map((item) => {
+  const renderLink = (item: NavItem) => {
     const visible =
       item.to === "/housekeeping"
         ? hkAuthority.canOpenWorkspace
@@ -152,12 +152,48 @@ export function AppShell({ children }: { children: ReactNode }) {
         {item.label}
       </Link>
     );
-  });
+  };
+  const isTool = (item: NavItem) => item.to === "/rooms-rates" || item.to === "/settings";
+  const navigationLinks = NAV_ITEMS.filter((item) => !item.disabled && !isTool(item)).map(
+    renderLink,
+  );
+  const toolLinks = NAV_ITEMS.filter((item) => !item.disabled && isTool(item)).map(renderLink);
+  const tools = (
+    <details
+      key={location.pathname}
+      className="group relative shrink-0"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary")?.focus();
+        }
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+      }}
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-[#102A43] hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        Tools <ChevronDown className="h-4 w-4" aria-hidden />
+      </summary>
+      <div className="z-50 w-full rounded-md border bg-white p-2 shadow-lg xl:absolute xl:right-0 xl:w-52">
+        {toolLinks}
+        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border-t px-3 py-2 text-sm font-medium text-[#102A43] hover:bg-muted">
+          Full Width
+          <input
+            type="checkbox"
+            checked={displayWidth === "full"}
+            onChange={(event) => setDisplayWidth(event.target.checked ? "full" : "standard")}
+            className="h-4 w-4 accent-[#0F9D8A]"
+          />
+        </label>
+      </div>
+    </details>
+  );
 
   return (
     <div className="min-h-screen text-foreground" style={{ backgroundColor: "#F4F8FC" }}>
       <header className="border-b border-border bg-white">
-        <div className={`${containerClass} flex min-w-0 items-center justify-between gap-2 py-3`}>
+        <div className={`${containerClass} flex min-w-0 items-center justify-between gap-2 py-2`}>
           <div className="flex shrink-0 items-center gap-2">
             <div
               className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
@@ -173,18 +209,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <nav
             aria-label="Primary"
-            className="hidden min-w-0 flex-1 flex-wrap items-center justify-center gap-1 lg:flex"
+            className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex"
           >
             {navigationLinks}
+            {tools}
           </nav>
           <div className="flex min-w-0 items-center gap-2">
-            <div className="hidden 2xl:block">
-              <DisplayWidthToggle value={displayWidth} onChange={setDisplayWidth} />
-            </div>
             <SessionBadge
               session={session}
-              displayWidth={displayWidth}
-              onDisplayWidthChange={setDisplayWidth}
               onSignOut={() => signOut.mutate()}
               signingOut={signOut.isPending}
               onRefreshCompany={() => void refreshCompanyName()}
@@ -195,13 +227,30 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <button
                   type="button"
                   aria-label="Open main menu"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input text-[#102A43] focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input text-[#102A43] focus-visible:ring-2 focus-visible:ring-ring xl:hidden"
                 >
                   <Menu className="h-5 w-5" aria-hidden />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 max-w-[calc(100vw-2rem)] p-2">
-                <nav aria-label="Mobile primary">{navigationLinks}</nav>
+              <PopoverContent
+                align="end"
+                className="max-h-[var(--radix-popover-content-available-height)] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto p-2"
+                onEscapeKeyDown={(event) => {
+                  const details =
+                    event.target instanceof HTMLElement
+                      ? event.target.closest("details[open]")
+                      : null;
+                  if (details) {
+                    event.preventDefault();
+                    details.removeAttribute("open");
+                    details.querySelector("summary")?.focus();
+                  }
+                }}
+              >
+                <nav aria-label="Mobile primary">
+                  {navigationLinks}
+                  {tools}
+                </nav>
               </PopoverContent>
             </Popover>
           </div>
@@ -218,47 +267,6 @@ function FullScreenLoader({ label }: { label: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <p className="text-sm text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function DisplayWidthToggle({
-  value,
-  onChange,
-}: {
-  value: DisplayWidth;
-  onChange: (v: DisplayWidth) => void;
-}) {
-  const options: Array<{ v: DisplayWidth; label: string; title: string }> = [
-    { v: "standard", label: "Standard", title: "Centered layout, capped for readability" },
-    { v: "full", label: "Full width", title: "Use the full browser workspace" },
-  ];
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Display width"
-      className="hidden items-center rounded-md border border-input bg-white p-0.5 text-xs md:inline-flex"
-    >
-      {options.map((o) => {
-        const active = o.v === value;
-        return (
-          <button
-            key={o.v}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            title={o.title}
-            onClick={() => onChange(o.v)}
-            className="rounded px-2 py-1 font-medium transition-colors"
-            style={{
-              backgroundColor: active ? "#0F9D8A" : "transparent",
-              color: active ? "white" : "#102A43",
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -334,16 +342,12 @@ export function RoleUnassignedShell({
 
 function SessionBadge({
   session,
-  displayWidth,
-  onDisplayWidthChange,
   onSignOut,
   signingOut,
   onRefreshCompany,
   companySyncState,
 }: {
   session: Extract<SessionMe, { authenticated: true }>;
-  displayWidth: DisplayWidth;
-  onDisplayWidthChange: (value: DisplayWidth) => void;
   onSignOut: () => void;
   signingOut: boolean;
   onRefreshCompany: () => void;
@@ -355,8 +359,8 @@ function SessionBadge({
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label="Account and display options"
-            className="flex min-w-0 items-center gap-1 rounded-md px-2 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring 2xl:hidden"
+            aria-label="Account information"
+            className="flex min-w-0 items-center gap-1 rounded-md px-2 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="max-w-[7rem] truncate sm:max-w-[10rem]">
               {session.user.userName ?? "Account"}
@@ -387,7 +391,6 @@ function SessionBadge({
               {companySyncState === "syncing" ? "Syncing N3 name…" : "Sync N3 name"}
             </button>
           ) : null}
-          <DisplayWidthToggle value={displayWidth} onChange={onDisplayWidthChange} />
           <button
             type="button"
             onClick={onSignOut}
@@ -398,112 +401,6 @@ function SessionBadge({
           </button>
         </PopoverContent>
       </Popover>
-      <div className="hidden items-center gap-4 text-xs 2xl:flex">
-        <div className="min-w-0">
-          <div className="text-muted-foreground">Company</div>
-          <div className="flex items-center gap-1 font-medium text-foreground">
-            <span
-              className="max-w-[220px] truncate"
-              title={session.tenant.companyName ?? undefined}
-            >
-              {session.tenant.companyName ??
-                (session.role === "owner" ? (
-                  <button
-                    type="button"
-                    onClick={onRefreshCompany}
-                    disabled={companySyncState === "syncing"}
-                    className="text-left underline decoration-dotted underline-offset-2 disabled:opacity-60"
-                    title="Read this property's company name from N3"
-                  >
-                    {companySyncState === "syncing"
-                      ? "Syncing N3 name…"
-                      : companySyncState === "failed"
-                        ? "Retry N3 name"
-                        : "Sync N3 name"}
-                  </button>
-                ) : (
-                  "—"
-                ))}
-            </span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Tenant information"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 space-y-2 text-xs">
-                <div className="font-semibold">Tenant information</div>
-                <div>
-                  Tenant ID:{" "}
-                  <span className="font-mono break-all">{session.tenant.tenantCode ?? "—"}</span>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-        <div className="min-w-0">
-          <div className="text-muted-foreground">User</div>
-          <div className="flex items-center gap-1 font-medium text-foreground">
-            <span
-              className="max-w-[140px] truncate"
-              title={session.user.userName ?? undefined}
-              data-testid="session-user-name"
-            >
-              {session.user.userName ??
-                (session.role === "owner" ? (
-                  <button
-                    type="button"
-                    onClick={onRefreshCompany}
-                    disabled={companySyncState === "syncing"}
-                    className="text-left underline decoration-dotted underline-offset-2 disabled:opacity-60"
-                  >
-                    {companySyncState === "syncing"
-                      ? "Syncing N3 name…"
-                      : companySyncState === "failed"
-                        ? "Retry N3 name"
-                        : "Sync N3 name"}
-                  </button>
-                ) : (
-                  "—"
-                ))}
-            </span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="User information"
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  <Info className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 space-y-2 text-xs">
-                <div className="font-semibold">User information</div>
-                <div>
-                  Email: <span className="break-all">{session.user.userEmail ?? "—"}</span>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-        <div>
-          <div className="text-muted-foreground">Role</div>
-          <div className="font-medium text-foreground">
-            {session.role ?? <span className="text-amber-500">unassigned</span>}
-          </div>
-        </div>
-      </div>
-      <button
-        onClick={onSignOut}
-        disabled={signingOut}
-        className="hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50 2xl:block"
-      >
-        {signingOut ? "Signing out…" : "Sign out"}
-      </button>
     </div>
   );
 }

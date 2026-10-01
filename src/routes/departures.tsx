@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { z } from "zod";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { GuestContactSheet, SheetTrigger, type GuestContactInfo } from "@/components/InfoSheets";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
@@ -46,12 +47,12 @@ function DeparturesPage() {
     <AppShell>
       <div className="space-y-5">
         <GuestContactSheet info={contact} onClose={() => setContact(null)} />
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">Departures</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <CardInfoPopover label="About Departures">
             Read-only view of checked-in stays. Preparing checkout calculates a room-only folio and
             verifies deposits — it never posts to accounting.
-          </p>
+          </CardInfoPopover>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

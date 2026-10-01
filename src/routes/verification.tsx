@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { probe as runProbe, useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -103,12 +104,12 @@ function VerificationConsolePage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight">N3 Verification Console</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <CardInfoPopover label="About N3 Verification Console">
             Owner-only. Runs the three fixed read-only probes through the server-side gateway. No
             custom paths, nothing written back, nothing outside the approved list.
-          </p>
+          </CardInfoPopover>
         </div>
 
         {!canVerify ? (

@@ -1,6 +1,7 @@
 // Explains which housekeeping experience this property is running, so a
 // staff member never wonders why their colleague's screen looks different.
 // Same engine and same lifecycle in both modes — only the framing differs.
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
 import { useSessionMe } from "@/lib/session-client";
 import { HK_COLORS, MODE_PRESENTATION, ROLE_HINTS } from "@/lib/housekeeping";
@@ -16,7 +17,7 @@ export function HousekeepingModeBanner() {
 
   return (
     <section
-      className="rounded-md border bg-white px-3 py-2.5"
+      className="rounded-md border bg-white px-3 py-1.5"
       style={{
         borderColor: `${presentation.accent}55`,
         borderLeft: `5px solid ${presentation.accent}`,
@@ -34,13 +35,13 @@ export function HousekeepingModeBanner() {
             {roleHint}
           </span>
         )}
+        <CardInfoPopover label="About housekeeping workflow">
+          {presentation.summary}{" "}
+          {mode === "dedicated"
+            ? "Use the floor filters and per-room History to manage the team's work."
+            : "Floor filters and per-room History are available here too. The Owner can switch to a dedicated housekeeping team in Settings \u2192 System."}
+        </CardInfoPopover>
       </div>
-      <p className="mt-1 text-xs" style={{ color: HK_COLORS.gray }}>
-        {presentation.summary}{" "}
-        {mode === "dedicated"
-          ? "Use the floor filters and per-room History to manage the team's work."
-          : "Floor filters and per-room History are available here too. The Owner can switch to a dedicated housekeeping team in Settings \u2192 System."}
-      </p>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -137,10 +138,12 @@ function Header() {
       >
         Front Desk
       </span>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">New Reservation</h1>
-      <p className="mt-1 max-w-2xl text-sm text-white/85">
-        Complete the four steps below to book a stay. Your progress is saved automatically.
-      </p>
+      <div className="mt-1 flex items-center gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">New Reservation</h1>
+        <CardInfoPopover label="About New Reservation">
+          Complete the four steps below to book a stay. Your progress is saved automatically.
+        </CardInfoPopover>
+      </div>
     </section>
   );
 }
