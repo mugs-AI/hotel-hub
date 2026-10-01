@@ -8,10 +8,12 @@
  * replacement number is write-only local state — it is sent once with the
  * mutation and never written into the query cache, URL or browser storage.
  */
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
+import { useReservationTabLabel, useWorkspace, useWorkspaceDraft } from "@/lib/workspace-context";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
@@ -30,7 +32,7 @@ import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { CountryCombobox } from "@/components/country-combobox";
 import { MALAYSIAN_STATES } from "@/lib/malaysia-states";
 import { addDaysIso } from "@/lib/malaysia-date";
-import { useIdempotentRequestId } from "@/lib/idempotency";
+import { useIdempotentRequestId, type RequestIdState } from "@/lib/idempotency";
 import { buildSafeUpdateSignature, newIdentityRevision } from "@/lib/reservation-update-signature";
 import {
   EXTERNAL_REF_MAX,
@@ -67,6 +69,7 @@ function EditPage() {
   const role = data && data.authenticated === true ? data.role : null;
   const canEdit = hasPermission(role, "hotel:reservations:edit");
   const query = useReservationDetail(id);
+  useReservationTabLabel(id, query.data?.reservation.bookingReference);
 
   return (
     <AppShell>
@@ -84,6 +87,7 @@ function EditPage() {
           </p>
         ) : query.data ? (
           <EditForm
+            key={id}
             id={id}
             data={query.data.reservation}
             capabilities={query.data.editCapabilities}
@@ -146,9 +150,12 @@ function Header({
   notice: string;
 }) {
   return (
-    <section
-      className="rounded-lg p-5 text-white shadow-sm"
-      style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
+    <WorkspaceHeader
+      title="Edit Reservation"
+      badge={roleLabel(role)}
+      help={
+        notice || "Edit the reservation within its current permissions. Save changes when finished."
+      }
     >
       <Link
         to="/reservations/$id"
@@ -159,12 +166,6 @@ function Header({
         Back to reservation
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span
-          className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-          style={{ backgroundColor: GOLD, color: NAVY }}
-        >
-          {roleLabel(role)}
-        </span>
         {status ? (
           <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
             {status.replace(/_/g, " ")}
@@ -174,9 +175,7 @@ function Header({
           <span className="break-all font-mono text-xs text-white/85">{reference}</span>
         ) : null}
       </div>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight">Edit Reservation</h1>
-      {notice ? <p className="mt-1 max-w-2xl text-sm text-white/85">{notice}</p> : null}
-    </section>
+    </WorkspaceHeader>
   );
 }
 
@@ -308,33 +307,61 @@ function EditForm({
 }) {
   const navigate = useNavigate();
   const invalidateAfterUpdate = useInvalidateReservationUpdate(id);
-  const [saving, setSaving] = useState(false);
+  const router = useRouter();
   const sourcesQ = useBookingSources({ activeOnly: true });
   const sources = sourcesQ.data?.sources ?? [];
-  const requestId = useIdempotentRequestId();
+  const workspace = useWorkspace();
+  const tabKey = `reservation:${id.toLowerCase()}`;
+  const [retainedRequest] = useWorkspaceDraft<{ current: RequestIdState | null }>(
+    "edit:request",
+    () => ({ current: null }),
+  );
+  const requestId = useIdempotentRequestId(retainedRequest);
+  const [saveIntent, setSaveIntent] = useWorkspaceDraft<{
+    payload: UpdateReservationFullPayload;
+    phase: "posting" | "unknown";
+  } | null>(
+    "edit:save-intent",
+    null,
+    (value) => value !== null,
+    tabKey,
+    (value) => (value ? "Resolve the pending reservation save before closing this tab." : null),
+  );
+  const submitClaim = useRef(false);
+  const saving = saveIntent?.phase === "posting";
 
   const full = capabilities.mode === "full";
   const contactOnly = capabilities.mode === "contact";
   const ownerCorrection = capabilities.mode === "owner_correction";
 
-  const [arrival, setArrival] = useState(data.arrivalDate);
-  const [departure, setDeparture] = useState(data.departureDate);
-  const [bookingSource, setBookingSource] = useState(data.bookingSource);
-  const [externalRef, setExternalRef] = useState(data.externalBookingReference ?? "");
-  const [notes, setNotes] = useState(data.notes ?? "");
-  const [correctionReason, setCorrectionReason] = useState("");
-  const [rooms, setRooms] = useState<RoomDraftState[]>(() => buildRoomDrafts(data));
-  const [guests, setGuests] = useState<GuestDraftState[]>(() => buildGuestDrafts(data));
+  const [arrival, setArrival] = useWorkspaceDraft("edit:arrival", data.arrivalDate);
+  const [departure, setDeparture] = useWorkspaceDraft("edit:departure", data.departureDate);
+  const [bookingSource, setBookingSource] = useWorkspaceDraft("edit:source", data.bookingSource);
+  const [externalRef, setExternalRef] = useWorkspaceDraft(
+    "edit:external-ref",
+    data.externalBookingReference ?? "",
+  );
+  const [notes, setNotes] = useWorkspaceDraft("edit:notes", data.notes ?? "");
+  const [correctionReason, setCorrectionReason] = useWorkspaceDraft("edit:correction", "");
+  const [rooms, setRooms] = useWorkspaceDraft<RoomDraftState[]>("edit:rooms", () =>
+    buildRoomDrafts(data),
+  );
+  const [guests, setGuests] = useWorkspaceDraft<GuestDraftState[]>("edit:guests", () =>
+    buildGuestDrafts(data),
+  );
+  const [wasDirty, setWasDirty] = useWorkspaceDraft("edit:dirty", false, (value) => value);
+  const [draftVersion, setDraftVersion] = useWorkspaceDraft("edit:version", data.updatedAt);
   const [errors, setErrors] = useState<string[]>([]);
 
   // Re-seed the draft when the authoritative version changes underneath an
   // untouched form. A dirty form is never silently overwritten.
-  const baseVersion = useRef(data.updatedAt);
-  const dirty = useRef(false);
+  const baseVersion = useRef(draftVersion);
+  const dirty = useRef(wasDirty);
   useEffect(() => {
     if (data.updatedAt === baseVersion.current) return;
-    baseVersion.current = data.updatedAt;
     if (dirty.current) return;
+    baseVersion.current = data.updatedAt;
+    setDraftVersion(data.updatedAt);
     setArrival(data.arrivalDate);
     setDeparture(data.departureDate);
     setBookingSource(data.bookingSource);
@@ -342,10 +369,21 @@ function EditForm({
     setNotes(data.notes ?? "");
     setRooms(buildRoomDrafts(data));
     setGuests(buildGuestDrafts(data));
-  }, [data]);
+  }, [
+    data,
+    setArrival,
+    setDeparture,
+    setBookingSource,
+    setExternalRef,
+    setNotes,
+    setRooms,
+    setGuests,
+    setDraftVersion,
+  ]);
 
   function markDirty() {
     dirty.current = true;
+    setWasDirty(true);
   }
 
   const availabilityQ = useAvailability(arrival, departure, {
@@ -535,34 +573,51 @@ function EditForm({
   }
 
   async function submit() {
-    const issues = validate();
-    setErrors(issues);
-    if (issues.length > 0) return;
-    const clientRequestId = requestId.get(safeSignature());
-    setSaving(true);
+    if (saving || submitClaim.current) return;
+    // An uncertain save replays the exact original payload/request ID, even if
+    // an authoritative refetch now shows the version written by that request.
+    let payload = saveIntent?.payload;
+    if (!payload) {
+      if (dirty.current && draftVersion !== data.updatedAt) {
+        setErrors([
+          "Someone else changed this reservation while you were editing. Discard this draft and reopen before saving.",
+        ]);
+        return;
+      }
+      const issues = validate();
+      setErrors(issues);
+      if (issues.length > 0) return;
+      payload = buildPayload(requestId.get(safeSignature()));
+    }
+    submitClaim.current = true;
+    setSaveIntent({ payload, phase: "posting" });
+    const originatingPath = router.state.location.pathname;
     try {
-      // The payload (which may carry a write-only replacement number) is
-      // created here, sent once, and never handed to React Query.
-      const result = await submitReservationFullUpdate(id, buildPayload(clientRequestId));
+      // Private UI memory only: never give replacement identities to QueryClient,
+      // storage or URLs. A lost response can replay this identical intent.
+      const result = await submitReservationFullUpdate(id, payload);
+      setSaveIntent(null);
       requestId.rotate();
-      // Authoritative success: drop the replacement values from memory.
       setGuests((prev) =>
-        prev.map((g) => ({
-          ...g,
-          identityNumber: "",
-          identityRevision: newIdentityRevision(),
-        })),
+        prev.map((g) => ({ ...g, identityNumber: "", identityRevision: newIdentityRevision() })),
       );
-      invalidateAfterUpdate();
-      toast.success(result.replayed ? "Changes already applied." : "Reservation updated.");
-      navigate({ to: "/reservations/$id", params: { id } });
+      workspace?.store.clearDrafts(tabKey, "edit:");
+      if (!workspace || workspace.isCurrent()) {
+        invalidateAfterUpdate();
+        toast.success(result.replayed ? "Changes already applied." : "Reservation updated.");
+        if (router.state.location.pathname === originatingPath)
+          navigate({ to: "/reservations/$id", params: { id } });
+      }
     } catch (err) {
       const code = (err as { code?: string }).code ?? "reservation_update_failed";
       if (code === "network_error") {
-        // Keep the request ID so a retry of the same payload is a safe replay.
-        setErrors(["We couldn’t reach the server. Please retry — your changes are not lost."]);
+        setSaveIntent({ payload, phase: "unknown" });
+        setErrors([
+          "The save result is uncertain. Retry the same saved changes to check the result.",
+        ]);
         return;
       }
+      setSaveIntent(null);
       requestId.rotate();
       if (code === "stale_reservation") {
         setErrors([
@@ -571,7 +626,7 @@ function EditForm({
         return;
       }
       if (code === "room_unavailable") {
-        await availabilityQ.refetch();
+        if (!workspace || workspace.isCurrent()) await availabilityQ.refetch();
         setErrors([
           "One of the selected rooms is no longer available for these dates. Choose another room.",
         ]);
@@ -579,7 +634,7 @@ function EditForm({
       }
       setErrors([editErrorMessage(code)]);
     } finally {
-      setSaving(false);
+      submitClaim.current = false;
     }
   }
 
@@ -640,342 +695,365 @@ function EditForm({
         </div>
       ) : null}
 
-      {/* ------------------------------ Stay ------------------------------ */}
-      <section
-        className="rounded-lg border bg-white p-4 shadow-sm"
-        style={{ borderColor: `${NAVY}22` }}
-      >
-        <h2 className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>
-          Stay details
-        </h2>
-        {readOnlyStay ? (
-          <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-            <ReadOnlyField label="Arrival" value={formatMy(data.arrivalDate)} />
-            <ReadOnlyField label="Departure" value={formatMy(data.departureDate)} />
-            <ReadOnlyField
-              label="Booking source"
-              value={tenantSourceLabel(sources, data.bookingSource)}
-            />
-            <ReadOnlyField
-              label="External reference"
-              value={data.externalBookingReference ?? "—"}
-            />
-            <ReadOnlyField label="Notes" value={data.notes ?? "—"} />
-          </dl>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block text-xs">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                Arrival date
-              </span>
-              <MalaysianDateInput
-                value={arrival}
+      {saveIntent ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {saving
+            ? "Saving reservation… You can switch work tabs while this completes."
+            : "The previous save result is uncertain. Retry saved changes before editing or discarding."}
+        </p>
+      ) : null}
+      <fieldset disabled={saveIntent !== null} className="contents">
+        {/* ------------------------------ Stay ------------------------------ */}
+        <section
+          className="rounded-lg border bg-white p-4 shadow-sm"
+          style={{ borderColor: `${NAVY}22` }}
+        >
+          <h2 className="mb-3 text-sm font-semibold" style={{ color: NAVY }}>
+            Stay details
+          </h2>
+          {readOnlyStay ? (
+            <dl className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+              <ReadOnlyField label="Arrival" value={formatMy(data.arrivalDate)} />
+              <ReadOnlyField label="Departure" value={formatMy(data.departureDate)} />
+              <ReadOnlyField
+                label="Booking source"
+                value={tenantSourceLabel(sources, data.bookingSource)}
+              />
+              <ReadOnlyField
+                label="External reference"
+                value={data.externalBookingReference ?? "—"}
+              />
+              <ReadOnlyField label="Notes" value={data.notes ?? "—"} />
+            </dl>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  Arrival date
+                </span>
+                <MalaysianDateInput
+                  value={arrival}
+                  onChange={(next) => {
+                    markDirty();
+                    setArrival(next);
+                    if (next && (!departure || departure <= next))
+                      setDeparture(addDaysIso(next, 1));
+                  }}
+                  required
+                  pickerLabel="Choose arrival date"
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  Departure date
+                </span>
+                <MalaysianDateInput
+                  value={departure}
+                  onChange={(v) => {
+                    markDirty();
+                    setDeparture(v);
+                  }}
+                  required
+                  minIso={arrival ? addDaysIso(arrival, 1) : undefined}
+                  pickerLabel="Choose departure date"
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  Booking source
+                </span>
+                <select
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  value={bookingSource}
+                  onChange={(e) => {
+                    markDirty();
+                    setBookingSource(e.target.value);
+                  }}
+                  disabled={sourcesQ.isPending}
+                >
+                  <option value="">{sourcesQ.isPending ? "Loading…" : "Select a source…"}</option>
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.sourceCode}>
+                      {s.displayName}
+                    </option>
+                  ))}
+                  {/* An inactive historical source stays selectable, unchanged. */}
+                  {data.bookingSource &&
+                  !sources.some((s) => s.sourceCode === data.bookingSource) ? (
+                    <option value={data.bookingSource}>
+                      {tenantSourceLabel(sources, data.bookingSource)} (inactive)
+                    </option>
+                  ) : null}
+                </select>
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  External booking reference
+                </span>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  value={externalRef}
+                  onChange={(e) => {
+                    markDirty();
+                    setExternalRef(e.target.value);
+                  }}
+                  maxLength={EXTERNAL_REF_MAX + 20}
+                  placeholder="Optional"
+                />
+                {!extCheck.ok ? (
+                  <span className="mt-1 block text-[11px]" style={{ color: ERR }}>
+                    {friendlyError(extCheck.code)}
+                  </span>
+                ) : null}
+              </label>
+              <label className="block text-xs sm:col-span-2">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  Internal notes
+                </span>
+                <input
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                  value={notes}
+                  onChange={(e) => {
+                    markDirty();
+                    setNotes(e.target.value);
+                  }}
+                  maxLength={500}
+                />
+              </label>
+            </div>
+          )}
+        </section>
+
+        {/* ------------------------------ Rooms ----------------------------- */}
+        <section
+          className="rounded-lg border bg-white p-4 shadow-sm"
+          style={{ borderColor: `${TEAL}33` }}
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+              Rooms &amp; rates
+            </h2>
+            {full ? (
+              <p className="text-[11px] text-muted-foreground">
+                {availabilityQ.isFetching
+                  ? "Checking availability…"
+                  : `${addableRooms.length} more room(s) available`}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Read-only after check-in — use an approved operation request.
+              </p>
+            )}
+          </div>
+          <ul className="space-y-2">
+            {rooms.map((r, i) => (
+              <RoomRow
+                key={r.clientKey}
+                room={r}
+                guestCount={perRoomGuests[r.clientKey] ?? 0}
+                currency={data.currency}
+                readOnly={!full}
+                canRemove={full && rooms.length > 1}
                 onChange={(next) => {
                   markDirty();
-                  setArrival(next);
-                  if (next && (!departure || departure <= next)) setDeparture(addDaysIso(next, 1));
+                  setRooms(rooms.map((x, j) => (i === j ? next : x)));
                 }}
-                required
-                pickerLabel="Choose arrival date"
-              />
-            </label>
-            <label className="block text-xs">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                Departure date
-              </span>
-              <MalaysianDateInput
-                value={departure}
-                onChange={(v) => {
+                onRemove={() => {
+                  if (!window.confirm(`Remove ${r.label} from this reservation?`)) {
+                    return;
+                  }
                   markDirty();
-                  setDeparture(v);
+                  setRooms(rooms.filter((_, j) => j !== i));
+                  setGuests((gs) =>
+                    gs.map((g) =>
+                      g.assignedRoomClientKey === r.clientKey
+                        ? { ...g, assignedRoomClientKey: "" }
+                        : g,
+                    ),
+                  );
                 }}
-                required
-                minIso={arrival ? addDaysIso(arrival, 1) : undefined}
-                pickerLabel="Choose departure date"
               />
-            </label>
-            <label className="block text-xs">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                Booking source
-              </span>
-              <select
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-                value={bookingSource}
-                onChange={(e) => {
-                  markDirty();
-                  setBookingSource(e.target.value);
-                }}
-                disabled={sourcesQ.isPending}
-              >
-                <option value="">{sourcesQ.isPending ? "Loading…" : "Select a source…"}</option>
-                {sources.map((s) => (
-                  <option key={s.id} value={s.sourceCode}>
-                    {s.displayName}
-                  </option>
-                ))}
-                {/* An inactive historical source stays selectable, unchanged. */}
-                {data.bookingSource && !sources.some((s) => s.sourceCode === data.bookingSource) ? (
-                  <option value={data.bookingSource}>
-                    {tenantSourceLabel(sources, data.bookingSource)} (inactive)
-                  </option>
-                ) : null}
-              </select>
-            </label>
-            <label className="block text-xs">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                External booking reference
-              </span>
-              <input
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-                value={externalRef}
-                onChange={(e) => {
-                  markDirty();
-                  setExternalRef(e.target.value);
-                }}
-                maxLength={EXTERNAL_REF_MAX + 20}
-                placeholder="Optional"
-              />
-              {!extCheck.ok ? (
-                <span className="mt-1 block text-[11px]" style={{ color: ERR }}>
-                  {friendlyError(extCheck.code)}
-                </span>
-              ) : null}
-            </label>
-            <label className="block text-xs sm:col-span-2">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                Internal notes
-              </span>
-              <input
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-                value={notes}
-                onChange={(e) => {
-                  markDirty();
-                  setNotes(e.target.value);
-                }}
-                maxLength={500}
-              />
-            </label>
-          </div>
-        )}
-      </section>
+            ))}
+          </ul>
 
-      {/* ------------------------------ Rooms ----------------------------- */}
-      <section
-        className="rounded-lg border bg-white p-4 shadow-sm"
-        style={{ borderColor: `${TEAL}33` }}
-      >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-            Rooms &amp; rates
-          </h2>
           {full ? (
-            <p className="text-[11px] text-muted-foreground">
-              {availabilityQ.isFetching
-                ? "Checking availability…"
-                : `${addableRooms.length} more room(s) available`}
-            </p>
-          ) : (
-            <p className="text-[11px] text-muted-foreground">
-              Read-only after check-in — use an approved operation request.
-            </p>
-          )}
-        </div>
-        <ul className="space-y-2">
-          {rooms.map((r, i) => (
-            <RoomRow
-              key={r.clientKey}
-              room={r}
-              guestCount={perRoomGuests[r.clientKey] ?? 0}
-              currency={data.currency}
-              readOnly={!full}
-              canRemove={full && rooms.length > 1}
-              onChange={(next) => {
-                markDirty();
-                setRooms(rooms.map((x, j) => (i === j ? next : x)));
-              }}
-              onRemove={() => {
-                if (!window.confirm(`Remove ${r.label} from this reservation?`)) {
-                  return;
-                }
-                markDirty();
-                setRooms(rooms.filter((_, j) => j !== i));
-                setGuests((gs) =>
-                  gs.map((g) =>
-                    g.assignedRoomClientKey === r.clientKey
-                      ? { ...g, assignedRoomClientKey: "" }
-                      : g,
-                  ),
-                );
-              }}
-            />
-          ))}
-        </ul>
+            <div className="mt-3">
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium" style={{ color: NAVY }}>
+                  Add a room
+                </span>
+                <select
+                  className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm sm:max-w-md"
+                  value=""
+                  onChange={(e) => {
+                    const hit = addableRooms.find((a) => a.hotelRoomId === e.target.value);
+                    if (!hit) return;
+                    markDirty();
+                    setRooms((prev) => [
+                      ...prev,
+                      {
+                        clientKey: newKey("new-room"),
+                        reservationRoomId: null,
+                        hotelRoomId: hit.hotelRoomId,
+                        label: roomLabel(hit.displayName, hit.n3StockName, hit.roomNumber),
+                        baseRate: Number(hit.baseRate),
+                        maxOccupancy: Number(hit.maxOccupancy) || 0,
+                        agreedRate: Number(hit.baseRate),
+                        adults: 1,
+                        children: 0,
+                        rateOverrideReason: "",
+                        remark: "",
+                      },
+                    ]);
+                  }}
+                  disabled={addableRooms.length === 0}
+                >
+                  <option value="">
+                    {addableRooms.length === 0
+                      ? "No other rooms available for these dates"
+                      : "Choose an available room…"}
+                  </option>
+                  {addableRooms.map((a) => (
+                    <option key={a.hotelRoomId} value={a.hotelRoomId}>
+                      {roomLabel(a.displayName, a.n3StockName, a.roomNumber)} · max {a.maxOccupancy}{" "}
+                      · {a.currency} {Number(a.baseRate).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Plus className="h-3 w-3" aria-hidden /> Newly added rooms can be assigned to
+                  guests immediately.
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </section>
 
-        {full ? (
-          <div className="mt-3">
-            <label className="block text-xs">
-              <span className="mb-1 block font-medium" style={{ color: NAVY }}>
-                Add a room
-              </span>
-              <select
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm sm:max-w-md"
-                value=""
-                onChange={(e) => {
-                  const hit = addableRooms.find((a) => a.hotelRoomId === e.target.value);
-                  if (!hit) return;
+        {/* ------------------------------ Guests ---------------------------- */}
+        <section
+          className="rounded-lg border bg-white p-4 shadow-sm"
+          style={{ borderColor: `${GOLD}55` }}
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+              Guests &amp; room assignment
+            </h2>
+            {capabilities.canAddRemoveGuests ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs font-medium"
+                style={{ color: NAVY }}
+                onClick={() => {
                   markDirty();
-                  setRooms((prev) => [
+                  setGuests((prev) => [
                     ...prev,
                     {
-                      clientKey: newKey("new-room"),
-                      reservationRoomId: null,
-                      hotelRoomId: hit.hotelRoomId,
-                      label: roomLabel(hit.displayName, hit.n3StockName, hit.roomNumber),
-                      baseRate: Number(hit.baseRate),
-                      maxOccupancy: Number(hit.maxOccupancy) || 0,
-                      agreedRate: Number(hit.baseRate),
-                      adults: 1,
-                      children: 0,
-                      rateOverrideReason: "",
-                      remark: "",
+                      clientKey: newKey("new-guest"),
+                      reservationGuestId: null,
+                      fullName: "",
+                      mobile: "",
+                      email: "",
+                      notes: "",
+                      nationalityCode: "",
+                      addressLine1: "",
+                      addressLine2: "",
+                      addressLine3: "",
+                      city: "",
+                      postcode: "",
+                      countryCode: "",
+                      stateCode: "",
+                      stateProvince: "",
+                      isPrimary: prev.length === 0,
+                      assignedRoomClientKey: rooms[0]?.clientKey ?? "",
+                      identityMasked: null,
+                      identityTypeExisting: null,
+                      identityAction: "replace",
+                      identityType: "",
+                      identityNumber: "",
+                      identityRevision: newIdentityRevision(),
                     },
                   ]);
                 }}
-                disabled={addableRooms.length === 0}
               >
-                <option value="">
-                  {addableRooms.length === 0
-                    ? "No other rooms available for these dates"
-                    : "Choose an available room…"}
-                </option>
-                {addableRooms.map((a) => (
-                  <option key={a.hotelRoomId} value={a.hotelRoomId}>
-                    {roomLabel(a.displayName, a.n3StockName, a.roomNumber)} · max {a.maxOccupancy} ·{" "}
-                    {a.currency} {Number(a.baseRate).toFixed(2)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="mt-2">
-              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                <Plus className="h-3 w-3" aria-hidden /> Newly added rooms can be assigned to guests
-                immediately.
-              </span>
-            </div>
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                Add guest
+              </button>
+            ) : null}
           </div>
-        ) : null}
-      </section>
 
-      {/* ------------------------------ Guests ---------------------------- */}
-      <section
-        className="rounded-lg border bg-white p-4 shadow-sm"
-        style={{ borderColor: `${GOLD}55` }}
-      >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-            Guests &amp; room assignment
-          </h2>
-          {capabilities.canAddRemoveGuests ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-1 text-xs font-medium"
-              style={{ color: NAVY }}
-              onClick={() => {
-                markDirty();
-                setGuests((prev) => [
-                  ...prev,
-                  {
-                    clientKey: newKey("new-guest"),
-                    reservationGuestId: null,
-                    fullName: "",
-                    mobile: "",
-                    email: "",
-                    notes: "",
-                    nationalityCode: "",
-                    addressLine1: "",
-                    addressLine2: "",
-                    addressLine3: "",
-                    city: "",
-                    postcode: "",
-                    countryCode: "",
-                    stateCode: "",
-                    stateProvince: "",
-                    isPrimary: prev.length === 0,
-                    assignedRoomClientKey: rooms[0]?.clientKey ?? "",
-                    identityMasked: null,
-                    identityTypeExisting: null,
-                    identityAction: "replace",
-                    identityType: "",
-                    identityNumber: "",
-                    identityRevision: newIdentityRevision(),
-                  },
-                ]);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
-              Add guest
-            </button>
-          ) : null}
-        </div>
-
-        <div className="space-y-3">
-          {guests.map((g, i) => (
-            <GuestCard
-              key={g.clientKey}
-              guest={g}
-              rooms={rooms}
-              capabilities={capabilities}
-              contactOnly={contactOnly}
-              canRemove={capabilities.canAddRemoveGuests && guests.length > 1}
-              onChange={(next) => {
-                markDirty();
-                setGuests(guests.map((x, j) => (i === j ? next : x)));
-              }}
-              onMakePrimary={() => {
-                markDirty();
-                setGuests(guests.map((x, j) => ({ ...x, isPrimary: i === j })));
-              }}
-              onRemove={() => {
-                if (!window.confirm(`Remove ${g.fullName || "this guest"} from the reservation?`))
-                  return;
-                markDirty();
-                const remaining = guests.filter((_, j) => j !== i);
-                if (!remaining.some((x) => x.isPrimary) && remaining[0])
-                  remaining[0] = { ...remaining[0], isPrimary: true };
-                setGuests(remaining);
-              }}
-            />
-          ))}
-        </div>
-      </section>
-
-      {capabilities.correctionReasonRequired ? (
-        <section
-          className="rounded-lg border bg-white p-4 shadow-sm"
-          style={{ borderColor: `${GOLD}66` }}
-        >
-          <label className="block text-xs font-medium" style={{ color: NAVY }}>
-            Correction reason (required)
-            <textarea
-              className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
-              style={{ borderColor: `${NAVY}33` }}
-              rows={2}
-              maxLength={300}
-              value={correctionReason}
-              onChange={(e) => {
-                markDirty();
-                setCorrectionReason(e.target.value);
-              }}
-              placeholder="Why is this correction being made?"
-            />
-          </label>
+          <div className="space-y-3">
+            {guests.map((g, i) => (
+              <GuestCard
+                key={g.clientKey}
+                guest={g}
+                rooms={rooms}
+                capabilities={capabilities}
+                contactOnly={contactOnly}
+                canRemove={capabilities.canAddRemoveGuests && guests.length > 1}
+                onChange={(next) => {
+                  markDirty();
+                  setGuests(guests.map((x, j) => (i === j ? next : x)));
+                }}
+                onMakePrimary={() => {
+                  markDirty();
+                  setGuests(guests.map((x, j) => ({ ...x, isPrimary: i === j })));
+                }}
+                onRemove={() => {
+                  if (!window.confirm(`Remove ${g.fullName || "this guest"} from the reservation?`))
+                    return;
+                  markDirty();
+                  const remaining = guests.filter((_, j) => j !== i);
+                  if (!remaining.some((x) => x.isPrimary) && remaining[0])
+                    remaining[0] = { ...remaining[0], isPrimary: true };
+                  setGuests(remaining);
+                }}
+              />
+            ))}
+          </div>
         </section>
-      ) : null}
 
+        {capabilities.correctionReasonRequired ? (
+          <section
+            className="rounded-lg border bg-white p-4 shadow-sm"
+            style={{ borderColor: `${GOLD}66` }}
+          >
+            <label className="block text-xs font-medium" style={{ color: NAVY }}>
+              Correction reason (required)
+              <textarea
+                className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                style={{ borderColor: `${NAVY}33` }}
+                rows={2}
+                maxLength={300}
+                value={correctionReason}
+                onChange={(e) => {
+                  markDirty();
+                  setCorrectionReason(e.target.value);
+                }}
+                placeholder="Why is this correction being made?"
+              />
+            </label>
+          </section>
+        ) : null}
+      </fieldset>
       <div className="flex flex-wrap items-center justify-between gap-2 pb-6">
         <Link
           to="/reservations/$id"
           params={{ id }}
+          onClick={(event) => {
+            if (saveIntent) {
+              event.preventDefault();
+              window.alert("Resolve the pending reservation save before discarding changes.");
+              return;
+            }
+            if (wasDirty && !window.confirm("Discard unsaved reservation changes?")) {
+              event.preventDefault();
+              return;
+            }
+            requestId.rotate();
+            workspace?.store.clearDrafts(tabKey, "edit:");
+          }}
           className="rounded-md border border-input bg-white px-3 py-1.5 text-xs font-medium"
           style={{ color: NAVY }}
         >
@@ -984,12 +1062,12 @@ function EditForm({
         <button
           type="button"
           onClick={submit}
-          disabled={saving || blockingIssues}
+          disabled={saving || (!saveIntent && blockingIssues)}
           className="inline-flex items-center gap-1 rounded-md px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
           style={{ backgroundColor: NAVY }}
         >
           <Save className="h-3.5 w-3.5" aria-hidden />
-          {saving ? "Saving…" : "Save changes"}
+          {saving ? "Saving…" : saveIntent ? "Retry saved changes" : "Save changes"}
         </button>
       </div>
       {ownerCorrection && !capabilities.canChangePrimaryGuest ? (

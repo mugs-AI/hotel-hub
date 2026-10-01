@@ -2,10 +2,13 @@
 // Owner + Front Desk read the ledger; only the Owner may post to N3.
 // The client request id is minted ONCE when the Owner opens the confirmation
 // flow so a safe HTTP retry cannot create a second N3 document.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { depositEntry, formatDepositInput } from "@/lib/deposit-entry";
+import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import {
   depositErrorMessage,
+  DepositApiError,
   depositStatusLabel,
   isRecoverableDeposit,
   useCreateDeposit,
@@ -113,80 +116,130 @@ export function DepositsCard({
   const reconcile = useReconcileDeposit(reservationId);
   const preview = useDepositPreview(reservationId);
   const accounts = usePaymentAccounts(canCreate && eligible);
-  const [amount, setAmount] = useState("");
-  const [lines, setLines] = useState<Array<{ accountId: string; amount: string }>>([
-    { accountId: "", amount: "" },
-  ]);
+  const tabKey = `reservation:${reservationId.toLowerCase()}`;
+  const [lines, setLines] = useWorkspaceDraft<Array<{ accountId: string; amount: string }>>(
+    "deposit-lines",
+    [{ accountId: "", amount: "" }],
+    (value) => value.some((line) => Boolean(line.accountId || line.amount.trim())),
+    tabKey,
+  );
   const [formError, setFormError] = useState("");
   // Stable per-confirmation-attempt identity. Minted on "Add deposit",
   // cleared only on cancel or a completed server result.
-  const [attempt, setAttempt] = useState<{
+  const [attempt, setAttempt] = useWorkspaceDraft<{
     clientRequestId: string;
     amount: number;
     paymentLines: PaymentLine[];
-  } | null>(null);
+    phase: "review" | "posting" | "unknown";
+  } | null>(
+    "deposit-attempt",
+    null,
+    (value) => value !== null,
+    tabKey,
+    (value) =>
+      value?.phase === "posting"
+        ? "Deposit posting is in progress. Wait for the result before closing this tab."
+        : value?.phase === "unknown"
+          ? "The deposit result is uncertain. Check N3 before closing this tab."
+          : null,
+  );
+  const submitClaim = useRef(false);
+
+  // Recover only this exact browser intent from the authoritative ledger.
+  // Amount/account similarity is not evidence that an uncertain post completed.
+  useEffect(() => {
+    if (attempt?.phase !== "unknown") return;
+    const result = q.data?.deposits.find((d) => d.clientRequestId === attempt.clientRequestId);
+    if (result?.status !== "posted" && result?.status !== "failed") return;
+    setLines([{ accountId: "", amount: "" }]);
+    setAttempt(null);
+    setFormError("");
+  }, [attempt, q.data, setAttempt, setLines]);
 
   if (!canView) return null;
   const deposits = q.data?.deposits ?? [];
   const gateOpen = q.data?.capability.canCreate === true;
+  const canSplit = q.data?.capability.canSplit === true;
   const canPost = canCreate && gateOpen && eligible;
+  const entry = depositEntry(lines, canSplit);
+  const unresolved = deposits.some((deposit) => isRecoverableDeposit(deposit.status));
 
   const openConfirm = () => {
-    const value = Number(amount);
-    if (
-      !Number.isFinite(value) ||
-      value <= 0 ||
-      Math.abs(value * 100 - Math.round(value * 100)) > 1e-6
-    ) {
-      setFormError("Enter a positive amount with at most 2 decimals.");
-      return;
-    }
-    const rounded = Math.round(value * 100) / 100;
-    const paymentLines = lines.map((l) => ({ accountId: l.accountId, amount: Number(l.amount) }));
-    const valid =
-      paymentLines.every(
-        (l) =>
-          l.accountId &&
-          Number.isFinite(l.amount) &&
-          l.amount > 0 &&
-          Math.abs(l.amount * 100 - Math.round(l.amount * 100)) < 1e-6,
-      ) &&
-      new Set(paymentLines.map((l) => l.accountId)).size === paymentLines.length &&
-      paymentLines.reduce((sum, l) => sum + Math.round(l.amount * 100), 0) ===
-        Math.round(rounded * 100);
-    if (!valid) {
-      setFormError("Choose distinct accounts and enter amounts that total the deposit exactly.");
+    if (!entry.ok) {
+      setFormError(entry.message);
       return;
     }
     setFormError("");
-    setAttempt({ clientRequestId: crypto.randomUUID(), amount: rounded, paymentLines });
+    setAttempt({
+      clientRequestId: crypto.randomUUID(),
+      amount: entry.amount,
+      paymentLines: entry.paymentLines,
+      phase: "review",
+    });
     preview.reset();
-    preview.mutate({ amount: rounded, paymentLines });
+    preview.mutate({ amount: entry.amount, paymentLines: entry.paymentLines });
   };
 
   const cancelConfirm = () => {
+    if (attempt?.phase === "posting" || attempt?.phase === "unknown") return;
     setAttempt(null);
     preview.reset();
     create.reset();
   };
 
-  const submit = () => {
-    if (!attempt) return;
-    create.mutate(
-      {
+  const submit = async () => {
+    if (
+      !attempt ||
+      attempt.phase !== "review" ||
+      submitClaim.current ||
+      !preview.data?.preview ||
+      preview.isPending
+    )
+      return;
+    submitClaim.current = true;
+    setAttempt({ ...attempt, phase: "posting" });
+    try {
+      // Await outside component-bound mutation callbacks: it still resolves the same
+      // retained intent when the Owner switches to another work tab meanwhile.
+      await create.mutateAsync({
         amount: attempt.amount,
         clientRequestId: attempt.clientRequestId,
         paymentLines: attempt.paymentLines,
-      },
-      {
-        onSuccess: () => {
-          setAmount("");
-          setLines([{ accountId: "", amount: "" }]);
-          setAttempt(null);
-          preview.reset();
-        },
-      },
-    );
+      });
+      setLines([{ accountId: "", amount: "" }]);
+      setAttempt(null);
+      preview.reset();
+    } catch (error) {
+      const definite =
+        error instanceof DepositApiError &&
+        [
+          "invalid_amount",
+          "invalid_payment_lines",
+          "invalid_client_request_id",
+          "deposit_writes_disabled",
+          "forbidden",
+          "unauthorized",
+          "cross_site_denied",
+          "reservation_not_found",
+          "reservation_not_eligible",
+          "walk_in_customer_not_mapped",
+          "n3_defaults_unavailable",
+          "n3_defaults_invalid",
+          "n3_deposit_account_unavailable",
+          "n3_deposit_account_invalid",
+          "n3_preflight_unavailable",
+          "reference_conflict",
+          "multi_payment_contract_unverified",
+          "payment_method_hidden",
+        ].includes(error.code);
+      setAttempt({ ...attempt, phase: definite ? "review" : "unknown" });
+      setFormError(
+        depositErrorMessage(error instanceof DepositApiError ? error.code : "n3_result_uncertain"),
+      );
+      void q.refetch();
+    } finally {
+      submitClaim.current = false;
+    }
   };
 
   const p = preview.data?.preview;
@@ -223,7 +276,7 @@ export function DepositsCard({
           </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
-          {q.isPending ? "Loading…" : headline}
+          {q.isPending ? "Loading…" : q.isError ? "Deposits unavailable" : headline}
         </span>
       </div>
       {attention ? (
@@ -313,7 +366,22 @@ export function DepositsCard({
         </ul>
       )}
 
-      {!canCreate ? null : (
+      {q.isError ? (
+        <div className="mt-3 text-sm" role="alert">
+          <p style={{ color: ERR }}>Could not load deposits. Retry before adding a deposit.</p>
+          <button
+            type="button"
+            className="mt-2 rounded-md border bg-white px-3 py-2"
+            onClick={() => void q.refetch()}
+          >
+            Retry deposits
+          </button>
+        </div>
+      ) : q.isPending ? null : !canCreate ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Only the Owner can add a deposit. You can view recorded deposits here.
+        </p>
+      ) : (
         <div className="mt-4 border-t pt-4">
           {!gateOpen ? (
             <p className="text-xs text-muted-foreground">
@@ -323,23 +391,15 @@ export function DepositsCard({
             <p className="text-xs text-muted-foreground">
               You can only take a deposit on a confirmed booking.
             </p>
+          ) : !attempt && unresolved ? (
+            <p className="text-sm" style={{ color: GOLD }}>
+              Check the unconfirmed deposit in N3 before adding another deposit.
+            </p>
           ) : !attempt ? (
             <div className="space-y-3">
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="text-xs">
-                  <span className="block text-muted-foreground">Deposit amount</span>
-                  <input
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={(e) => {
-                      setAmount(e.target.value);
-                      if (lines.length === 1) setLines([{ ...lines[0]!, amount: e.target.value }]);
-                    }}
-                    className="mt-1 w-40 rounded-md border border-input px-2 py-1 text-sm tabular-nums"
-                    placeholder="0.00"
-                  />
-                </label>
-              </div>
+              <p className="text-sm font-semibold tabular-nums" style={{ color: NAVY }}>
+                Deposit total: {entry.ok ? entry.amount.toFixed(2) : "—"}
+              </p>
               {lines.map((line, index) => (
                 <div key={index} className="flex flex-wrap items-end gap-2">
                   <label className="text-xs">
@@ -371,6 +431,14 @@ export function DepositsCard({
                       inputMode="decimal"
                       className="mt-1 w-32 rounded-md border border-input px-2 py-1 text-sm"
                       value={line.amount}
+                      placeholder="0.00"
+                      onBlur={() =>
+                        setLines((current) =>
+                          current.map((l, i) =>
+                            i === index ? { ...l, amount: formatDepositInput(l.amount) } : l,
+                          ),
+                        )
+                      }
                       onChange={(e) =>
                         setLines((current) =>
                           current.map((l, i) =>
@@ -392,9 +460,16 @@ export function DepositsCard({
                 </div>
               ))}
               {accounts.error ? (
-                <p className="text-xs" style={{ color: ERR }}>
+                <div className="text-xs" style={{ color: ERR }}>
                   {depositErrorMessage(accounts.error.code)}
-                </p>
+                  <button
+                    type="button"
+                    className="ml-2 rounded-md border bg-white px-2 py-1"
+                    onClick={() => void accounts.refetch()}
+                  >
+                    Retry payment methods
+                  </button>
+                </div>
               ) : null}
               {accounts.isSuccess && accounts.data.accounts.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
@@ -402,17 +477,32 @@ export function DepositsCard({
                 </p>
               ) : null}
               <div className="flex flex-wrap items-center gap-2">
+                {canSplit ? (
+                  <button
+                    type="button"
+                    className="rounded-md border px-2 py-1 text-xs"
+                    disabled={lines.length >= 10}
+                    onClick={() =>
+                      setLines((current) => [...current, { accountId: "", amount: "" }])
+                    }
+                  >
+                    Add another payment method
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    One payment method per deposit.
+                  </span>
+                )}
                 <button
                   type="button"
-                  className="rounded-md border px-2 py-1 text-xs"
-                  disabled={lines.length >= 10}
-                  onClick={() => setLines((current) => [...current, { accountId: "", amount: "" }])}
-                >
-                  Add another payment method
-                </button>
-                <button
-                  type="button"
-                  disabled={!canPost || !amount.trim() || !accounts.data?.accounts.length}
+                  disabled={
+                    !canPost ||
+                    !entry.ok ||
+                    accounts.isPending ||
+                    Boolean(accounts.error) ||
+                    !accounts.data?.accounts.length ||
+                    lines.some((l) => !accounts.data?.accounts.some((a) => a.id === l.accountId))
+                  }
                   onClick={openConfirm}
                   className="rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50"
                   style={{ backgroundColor: GOLD, color: NAVY }}
@@ -420,6 +510,14 @@ export function DepositsCard({
                   Add deposit
                 </button>
               </div>
+              {!entry.ok && lines.some((l) => l.amount.trim()) ? (
+                <p className="text-xs" style={{ color: ERR }}>
+                  {entry.message}
+                </p>
+              ) : null}
+              {accounts.isPending ? (
+                <p className="text-xs text-muted-foreground">Loading payment methods…</p>
+              ) : null}
               {formError ? (
                 <p className="text-xs" style={{ color: ERR }}>
                   {formError}
@@ -428,6 +526,34 @@ export function DepositsCard({
             </div>
           ) : (
             <div className="rounded-md border p-3 text-xs" style={{ borderColor: `${GOLD}55` }}>
+              {attempt.phase === "posting" ? (
+                <p role="status">Posting this deposit to N3…</p>
+              ) : attempt.phase === "unknown" ? (
+                <div role="alert">
+                  <p>
+                    The deposit result is uncertain. Do not submit another deposit. Check the
+                    recorded result below or refer to Admin.
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md border bg-white px-3 py-2"
+                    onClick={() => void q.refetch()}
+                  >
+                    Reload deposits
+                  </button>
+                </div>
+              ) : null}
+              {attempt.phase === "review" && !p && !preview.isPending && !preview.error ? (
+                <button
+                  type="button"
+                  className="rounded-md border bg-white px-3 py-2"
+                  onClick={() =>
+                    preview.mutate({ amount: attempt.amount, paymentLines: attempt.paymentLines })
+                  }
+                >
+                  Review deposit
+                </button>
+              ) : null}
               {preview.isPending ? (
                 <p className="text-muted-foreground">Checking the details in N3…</p>
               ) : preview.error ? (
@@ -466,7 +592,9 @@ export function DepositsCard({
                 <button
                   type="button"
                   onClick={submit}
-                  disabled={create.isPending || preview.isPending || !p}
+                  disabled={
+                    attempt.phase !== "review" || create.isPending || preview.isPending || !p
+                  }
                   className="rounded-md px-3 py-1.5 font-medium text-white disabled:opacity-50"
                   style={{ backgroundColor: NAVY }}
                 >
@@ -475,6 +603,7 @@ export function DepositsCard({
                 <button
                   type="button"
                   onClick={cancelConfirm}
+                  disabled={attempt.phase !== "review"}
                   className="rounded-md border border-input bg-white px-3 py-1.5 font-medium"
                   style={{ color: NAVY }}
                 >

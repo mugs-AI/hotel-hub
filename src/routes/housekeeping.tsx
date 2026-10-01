@@ -9,10 +9,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { WorkspaceHeader } from "@/components/WorkspaceHeader";
 import { AppShell } from "@/components/AppShell";
-import { HousekeepingBoard, HousekeepingSetupNotice } from "@/components/HousekeepingBoard";
+import { HousekeepingBoard } from "@/components/HousekeepingBoard";
 import { HousekeepingModeBanner } from "@/components/HousekeepingModeBanner";
 import { useSessionMe } from "@/lib/session-client";
 import { housekeepingAuthority } from "@/lib/housekeeping";
+import { useHousekeepingBoard } from "@/lib/housekeeping-client";
+import { formatIsoDate } from "@/lib/reservations-ui";
 
 const TITLE = "Housekeeping — HotelHub";
 const DESCRIPTION =
@@ -41,9 +43,10 @@ function HousekeepingPage() {
   return (
     <AppShell>
       <div className="space-y-3">
-        <WorkspaceHeader title="Housekeeping" help={DESCRIPTION}>
-          {authority.canOpenWorkspace ? <HousekeepingSetupNotice /> : null}
-        </WorkspaceHeader>
+        <WorkspaceHeader
+          title="Housekeeping"
+          help={<HousekeepingHelp enabled={authority.canOpenWorkspace} />}
+        />
 
         {authority.canOpenWorkspace ? (
           <>
@@ -67,5 +70,23 @@ function HousekeepingPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+function HousekeepingHelp({ enabled }: { enabled: boolean }) {
+  const board = useHousekeepingBoard(enabled);
+  return (
+    <>
+      <p>{DESCRIPTION}</p>
+      {board.data ? (
+        <p className="mt-2">
+          Property date {formatIsoDate(board.data.propertyDate)} · {board.data.timezone}.
+        </p>
+      ) : null}
+      <p className="mt-2">
+        Not set up rooms cannot check in until the Owner confirms Ready or Dirty. Needs attention
+        also includes cleaning, DND and other operational blockers.
+      </p>
+    </>
   );
 }

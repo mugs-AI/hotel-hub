@@ -6,6 +6,8 @@ import { paymentAccountErrorMessage } from "./payment-account-messages";
 
 export type DepositDTO = {
   id: string;
+  /** Original browser intent UUID; scoped to this reservation ledger. */
+  clientRequestId?: string | null;
   status: "submitting" | "posted" | "failed" | "unknown";
   amount: number;
   currency: string;
@@ -47,7 +49,7 @@ export function usePaymentAccounts(enabled: boolean) {
 
 export type DepositsResponse = {
   deposits: DepositDTO[];
-  capability: { canCreate: boolean };
+  capability: { canCreate: boolean; canSplit?: boolean };
 };
 
 export class DepositApiError extends Error {

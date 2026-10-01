@@ -11,6 +11,7 @@
 // -> CONFIRM (plain-language confirmation). Rooms that need action come first;
 // Ready rooms are collapsed behind a filter/counter so they never dominate.
 import { CardInfoPopover } from "@/components/CardInfoPopover";
+import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { useMemo, useRef, useState } from "react";
 import { createRoomActionGuard, runGuardedRoomAction } from "@/lib/room-action-guard";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -169,8 +170,8 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
   const act = useHousekeepingAction();
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("needs_action");
-  const [floorFilter, setFloorFilter] = useState<string>("all");
+  const [filter, setFilter] = useWorkspaceDraft<Filter>("housekeeping-filter", "needs_action");
+  const [floorFilter, setFloorFilter] = useWorkspaceDraft<string>("housekeeping-floor", "all");
   const [historyRoomId, setHistoryRoomId] = useState<string | null>(null);
   // Per-room pending, keyed by roomId: acting on one room must never block the
   // rest of the board, and two overlapping requests must settle independently.
@@ -337,12 +338,6 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <CardInfoPopover label="About housekeeping board">
-          Property date {board.data!.propertyDate} · {board.data!.timezone}.
-          {!canInitialize && tally.not_set_up > 0
-            ? " Not set up rooms need one-time Owner setup; then Housekeeping can complete the workflow through Mark Ready."
-            : null}
-        </CardInfoPopover>
         {filter !== "needs_action" && (
           <button
             type="button"

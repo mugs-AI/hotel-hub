@@ -9,6 +9,17 @@ import { useDisplayWidth, widthContainerClass } from "@/lib/display-preference";
 import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
 import { ChevronDown, Menu } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { WorkTabs } from "@/components/WorkTabs";
+
+export function hotelRoleLabel(role: string | null) {
+  return role === "owner"
+    ? "Owner"
+    : role === "front_desk"
+      ? "Front Desk"
+      : role === "housekeeper"
+        ? "Housekeeper"
+        : "Staff";
+}
 
 type NavItem = {
   to:
@@ -56,11 +67,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [companySyncState, setCompanySyncState] = useState<"idle" | "syncing" | "failed">("idle");
   const attemptedCompanyTenant = useRef<string | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const navigationRef = useRef<HTMLDivElement>(null);
 
   // Property-wide display size. The authoritative value arrives with the
   // session, so a confirmed Owner save applies as soon as the session cache
   // refreshes — no hard refresh, no sign-out.
   const sessionData = sessionQuery.data;
+  useEffect(() => {
+    const navigation = navigationRef.current;
+    if (!navigation) return;
+    const measure = () =>
+      shellRef.current?.style.setProperty(
+        "--hh-navigation-height",
+        `${navigation.getBoundingClientRect().height}px`,
+      );
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(navigation);
+    return () => observer.disconnect();
+  }, [sessionData?.authenticated]);
   const refetchSession = sessionQuery.refetch;
   const refreshCompanyName = useCallback(async () => {
     setCompanySyncState("syncing");
@@ -191,71 +218,78 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen text-foreground" style={{ backgroundColor: "#F4F8FC" }}>
-      <header className="border-b border-border bg-white">
-        <div className={`${containerClass} flex min-w-0 items-center justify-between gap-2 py-2`}>
-          <div className="flex shrink-0 items-center gap-2">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
-              style={{ backgroundColor: "#102A43" }}
-            >
-              H
-            </div>
-            <div>
-              <div className="text-sm font-semibold leading-tight" style={{ color: "#102A43" }}>
-                HotelHub
+    <div
+      ref={shellRef}
+      className="min-h-screen text-foreground"
+      style={{ backgroundColor: "#F4F8FC" }}
+    >
+      <div ref={navigationRef} data-testid="fixed-workspace-bars" className="sticky top-0 z-40">
+        <header className="border-b border-border bg-white">
+          <div className={`${containerClass} flex min-w-0 items-center justify-between gap-2 py-2`}>
+            <div className="flex shrink-0 items-center gap-2">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
+                style={{ backgroundColor: "#102A43" }}
+              >
+                H
+              </div>
+              <div>
+                <div className="text-sm font-semibold leading-tight" style={{ color: "#102A43" }}>
+                  HotelHub
+                </div>
               </div>
             </div>
-          </div>
-          <nav
-            aria-label="Primary"
-            className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex"
-          >
-            {navigationLinks}
-            {tools}
-          </nav>
-          <div className="flex min-w-0 items-center gap-2">
-            <SessionBadge
-              session={session}
-              onSignOut={() => signOut.mutate()}
-              signingOut={signOut.isPending}
-              onRefreshCompany={() => void refreshCompanyName()}
-              companySyncState={companySyncState}
-            />
-            <Popover key={location.pathname} open={menuOpen} onOpenChange={setMenuOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Open main menu"
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input text-[#102A43] focus-visible:ring-2 focus-visible:ring-ring xl:hidden"
+            <nav
+              aria-label="Primary"
+              className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex"
+            >
+              {navigationLinks}
+              {tools}
+            </nav>
+            <div className="flex min-w-0 items-center gap-2">
+              <SessionBadge
+                session={session}
+                onSignOut={() => signOut.mutate()}
+                signingOut={signOut.isPending}
+                onRefreshCompany={() => void refreshCompanyName()}
+                companySyncState={companySyncState}
+              />
+              <Popover key={location.pathname} open={menuOpen} onOpenChange={setMenuOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Open main menu"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input text-[#102A43] focus-visible:ring-2 focus-visible:ring-ring xl:hidden"
+                  >
+                    <Menu className="h-5 w-5" aria-hidden />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="end"
+                  className="max-h-[var(--radix-popover-content-available-height)] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto p-2"
+                  onEscapeKeyDown={(event) => {
+                    const details =
+                      event.target instanceof HTMLElement
+                        ? event.target.closest("details[open]")
+                        : null;
+                    if (details) {
+                      event.preventDefault();
+                      details.removeAttribute("open");
+                      details.querySelector("summary")?.focus();
+                    }
+                  }}
                 >
-                  <Menu className="h-5 w-5" aria-hidden />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                className="max-h-[var(--radix-popover-content-available-height)] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto p-2"
-                onEscapeKeyDown={(event) => {
-                  const details =
-                    event.target instanceof HTMLElement
-                      ? event.target.closest("details[open]")
-                      : null;
-                  if (details) {
-                    event.preventDefault();
-                    details.removeAttribute("open");
-                    details.querySelector("summary")?.focus();
-                  }
-                }}
-              >
-                <nav aria-label="Mobile primary">
-                  {navigationLinks}
-                  {tools}
-                </nav>
-              </PopoverContent>
-            </Popover>
+                  <nav aria-label="Mobile primary">
+                    {navigationLinks}
+                    {tools}
+                  </nav>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+        <WorkTabs width={displayWidth} />
+      </div>
       <div className={`${containerClass} min-w-0 py-4 sm:py-6`}>
         <main className="min-w-0">{children}</main>
       </div>
@@ -364,6 +398,9 @@ function SessionBadge({
           >
             <span className="max-w-[7rem] truncate sm:max-w-[10rem]">
               {session.user.userName ?? "Account"}
+            </span>
+            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+              {hotelRoleLabel(session.role)}
             </span>
             <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
           </button>

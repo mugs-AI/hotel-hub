@@ -980,6 +980,7 @@ export function classifyPreflight(
 
 export type DepositRecord = {
   id: string;
+  clientRequestId?: string | null;
   reservationId: string;
   amount: number;
   currencyCode: string;
@@ -1003,6 +1004,7 @@ function toRecord(row: any): DepositRecord {
   return {
     id: row.id,
     reservationId: row.reservation_id,
+    clientRequestId: row.idempotency_key ?? null,
     amount: Number(row.amount),
     currencyCode: row.currency_code,
     status: row.status,
@@ -1023,7 +1025,7 @@ function toRecord(row: any): DepositRecord {
 }
 
 const SELECT_COLS =
-  "id, reservation_id, amount, currency_code, status, n3_reference_no, n3_receipt_id, n3_doc_code, n3_customer_code, n3_customer_name, n3_account_code, n3_account_name, payment_lines, description, created_by_n3_user_key, last_error_code, created_at, updated_at";
+  "id, idempotency_key, reservation_id, amount, currency_code, status, n3_reference_no, n3_receipt_id, n3_doc_code, n3_customer_code, n3_customer_name, n3_account_code, n3_account_name, payment_lines, description, created_by_n3_user_key, last_error_code, created_at, updated_at";
 
 export async function listDeposits(
   tenantId: string,
@@ -1684,6 +1686,7 @@ export async function buildDepositPreview(
 export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, string>) {
   return {
     id: d.id,
+    clientRequestId: d.clientRequestId ?? null,
     status: d.status,
     amount: d.amount,
     currency: d.currencyCode,

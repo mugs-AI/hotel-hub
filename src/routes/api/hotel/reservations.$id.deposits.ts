@@ -4,6 +4,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { destroySession, requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
+import { hasPermission } from "@/lib/rbac";
 import {
   createDeposit,
   DepositError,
@@ -91,10 +92,16 @@ export async function handleDepositsList({
       ctx.session.tenantId!,
       rowsList.map((d) => d.createdByN3UserKey),
     );
+    const canCreate =
+      hasPermission(ctx.role, "hotel:deposits:create") &&
+      isDepositWriteEnabled(ctx.session.n3TenantKey);
     return Response.json(
       {
         deposits: rowsList.map((d) => toDepositDTO(d, labels)),
-        capability: { canCreate: isDepositWriteEnabled(ctx.session.n3TenantKey) },
+        capability: {
+          canCreate,
+          canSplit: canCreate && process.env.HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED === "true",
+        },
       },
       { headers: { "cache-control": "no-store" } },
     );

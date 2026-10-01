@@ -128,6 +128,7 @@ const {
   verifyReceiptDetail,
   verifyReceiptJournal,
   matchExistingReceipt,
+  toDepositDTO,
 } = await import("@/lib/deposits-store.server");
 
 // ---------- N3 fake ----------
@@ -592,6 +593,7 @@ describe("5D1.1 idempotency", () => {
     const second = await createDeposit(baseInput(id), { n3: client, env: ENV });
     expect(second.reused).toBe(true);
     expect(calls.create).toBe(1);
+    expect(toDepositDTO(second.deposit).clientRequestId).toBe(id);
   });
 
   it("concurrent duplicates still result in one N3 create", async () => {

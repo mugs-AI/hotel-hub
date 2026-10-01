@@ -7,7 +7,50 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { HousekeepingBoard } from "@/components/HousekeepingBoard";
+vi.mock("@/lib/housekeeping-client", () => ({
+  housekeepingMessage: (message: string) => message,
+  useHousekeepingAction: () => ({ mutateAsync: async () => ({}) }),
+  useRoomHistory: () => ({ data: [], isLoading: false }),
+  useHousekeepingBoard: () => ({
+    isLoading: false,
+    isError: false,
+    data: {
+      mode: "dedicated",
+      propertyDate: "2026-10-01",
+      timezone: "Asia/Kuala_Lumpur",
+      authority: { canInitialize: true },
+      rooms: ["dirty", "ready"].map((condition) => ({
+        roomId: condition,
+        roomLabel: `${condition} fixture room`,
+        roomNumber: condition,
+        floor: "1",
+        roomType: "Standard",
+        maxOccupancy: 2,
+        isActive: true,
+        initialized: true,
+        condition,
+        dndActive: false,
+        dndSetAt: null,
+        lastAction: null,
+        lastActorLabel: null,
+        lastTransitionAt: null,
+        occupancy: "vacant",
+        occupancyReservationId: null,
+        occupancyOverdue: false,
+        group: condition === "ready" ? "ready" : "needs_attention",
+        nextStep: "",
+        availableTransitions: [],
+        canSetDnd: false,
+        canClearDnd: false,
+        checkInBlockers: [],
+      })),
+    },
+  }),
+}));
 import { housekeepingAuthority } from "@/lib/housekeeping";
 
 const read = (rel: string) => readFileSync(resolve(__dirname, rel), "utf8");
@@ -75,7 +118,10 @@ describe("J. Server authorization remains authoritative", () => {
 
 describe("K/L. Ready is de-emphasised, needs-action is the default", () => {
   it("the default filter is needs_action", () => {
-    expect(BOARD).toMatch(/useState<Filter>\("needs_action"\)/);
+    const html = renderToStaticMarkup(createElement(HousekeepingBoard, { variant: "dedicated" }));
+    expect(html).toContain("dirty fixture room");
+    expect(html).not.toContain("ready fixture room");
+    expect(html).toContain("Show Ready rooms");
   });
 
   it("Ready rooms are collapsed behind a counter with an explicit reveal", () => {

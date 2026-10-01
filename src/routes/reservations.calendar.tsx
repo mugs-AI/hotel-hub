@@ -3,6 +3,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { WorkspaceHeader } from "@/components/WorkspaceHeader";
+import { useWorkspace, useWorkspaceDraft } from "@/lib/workspace-context";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { RoomInformationSheet, SheetTrigger } from "@/components/InfoSheets";
@@ -324,12 +325,40 @@ function FloorGrid({
   today: string;
 }) {
   const grouped = useMemo(() => groupRoomsByFloor(rooms), [rooms]);
-  const [activeFloor, setActiveFloor] = useState<string>("__all__");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [activeFloor, setActiveFloor] = useWorkspaceDraft<string>("calendar-floor", "__all__");
+  const [collapsed, setCollapsed] = useWorkspaceDraft<Set<string>>(
+    "calendar-collapsed",
+    () => new Set(),
+  );
+  const workspace = useWorkspace();
+  const gridScrollKey = `calendar-grid:${rangeStart}:${days}`;
   const [roomInfo, setRoomInfo] = useState<CalendarRoom | null>(null);
   const scrollport = useRef<HTMLDivElement>(null);
   const topScrollport = useRef<HTMLDivElement>(null);
   const [scrollViewportWidth, setScrollViewportWidth] = useState<number>();
+  useEffect(() => {
+    const position = workspace?.store.scroll(gridScrollKey);
+    if (position && scrollport.current) {
+      scrollport.current.scrollLeft = position.x;
+      scrollport.current.scrollTop = position.y;
+      if (topScrollport.current) topScrollport.current.scrollLeft = position.x;
+    }
+    const viewport = scrollport.current;
+    const remember = () => {
+      // A detached scrollport reports zero during effect cleanup. Preserve the
+      // last live scroll event instead of overwriting it after route removal.
+      if (viewport?.isConnected)
+        workspace?.store.rememberScroll(gridScrollKey, {
+          x: viewport.scrollLeft,
+          y: viewport.scrollTop,
+        });
+    };
+    viewport?.addEventListener("scroll", remember);
+    return () => {
+      remember();
+      viewport?.removeEventListener("scroll", remember);
+    };
+  }, [workspace?.store, gridScrollKey]);
 
   // Match the actual content viewport, including classic vertical-scrollbar loss.
   // Both tracks then have the same maximum horizontal position.

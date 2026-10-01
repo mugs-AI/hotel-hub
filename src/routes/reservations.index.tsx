@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { WorkspaceHeader } from "@/components/WorkspaceHeader";
+import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
@@ -178,9 +179,16 @@ function ListInner({ canCreate }: { canCreate: boolean }) {
   const limit = Math.min(100, Math.max(1, search.limit));
   const offset = Math.max(0, search.offset);
 
-  const [draft, setDraft] = useState<ListFilters>(filters);
+  const filterVersion = JSON.stringify(filters);
+  const [draft, setDraft] = useWorkspaceDraft<ListFilters>("reservation-filters", filters);
+  const [savedFilterVersion, setSavedFilterVersion] = useWorkspaceDraft(
+    "reservation-filter-version",
+    filterVersion,
+  );
   useEffect(() => {
+    if (savedFilterVersion === filterVersion) return;
     setDraft(filters);
+    setSavedFilterVersion(filterVersion);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filters.bookingReference,

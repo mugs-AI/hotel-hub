@@ -43,17 +43,21 @@ export function nextRequestId(
  * `rotate()` forces a fresh ID after a completed (successful or
  * authoritative non-retryable) response.
  */
-export function useIdempotentRequestId() {
-  const ref = useRef<RequestIdState | null>(null);
+export function useIdempotentRequestId(retainedRef?: { current: RequestIdState | null }) {
+  const localRef = useRef<RequestIdState | null>(null);
+  const ref = retainedRef ?? localRef;
   const [, force] = useState(0);
-  const get = useCallback((signature: string) => {
-    const next = nextRequestId(ref.current, signature);
-    ref.current = next;
-    return next.id;
-  }, []);
+  const get = useCallback(
+    (signature: string) => {
+      const next = nextRequestId(ref.current, signature);
+      ref.current = next;
+      return next.id;
+    },
+    [ref],
+  );
   const rotate = useCallback(() => {
     ref.current = null;
     force((n) => n + 1);
-  }, []);
+  }, [ref]);
   return { get, rotate };
 }

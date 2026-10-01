@@ -2,11 +2,82 @@
 
 Date: 01/10/2026 (Malaysia).
 
-Status: latest compact-workspace candidate built and locally verified, NOT PUBLISHED. Prior UI release remains published at `b10dc5e9`. Responsive visual and authenticated live acceptance remain NOT VERIFIED.
+Status: HH1.0 Hotel c6 correction COMMITTED LOCALLY; publication authorized and in progress. The current correction section is authoritative for this working checkout. The prior published release below remains historical deployment evidence, not proof that these corrections are live.
 
-The current section below controls the next work. Earlier publication evidence is retained at the end as historical evidence and does not imply publication of this new candidate.
+## Current c6 work tabs and Add Deposit correction — 01/10/2026
 
-## Compact workspace correction — 01/10/2026
+### Exact checkout and authorization
+
+- Owner approved the bounded correction build: “remember the [Add Deposit] button not function. Approve all.” The earlier recovery prohibited publication. The subsequent explicit Owner “Approve” authorizes publishing this correction to the existing HotelHub project, financial settings unchanged and no N3 transactions. No new project or Lovable AI build is authorized.
+- Preserved checkout: `/workspace/scratch/a2fdfd89bcff/hotel-hub-deposit-public-release`.
+- Actual branch: `agent/hh-work-tabs-deposit-form`.
+- Recovered starting HEAD: `e2e0fffa8b6118a81f5e0341359c59ba1a92f11c`. Expected previous commits `6704b778261f64963bed00bdb9153ff81e783ec6` and `469f253973bafc2aaf536804d199daa48b304911` were absent from this restored execution snapshot. All correction files were preserved. New local correction commit: `c4611cdaf113dbca113f7deadc80350ce768cc45`, tree `a03af358759da76802811bb423ffb46e0d0f5d32`, exactly matching the previously reviewed product tree. No existing changes were discarded or published history rewritten.
+- Fresh 25-file source manifest SHA-256: `331ee3f2a2030a6316d30212dfa352f7e52c8a94f7c502e564c49fe229ab07e1`, identical to the reviewed source. Full tests/build were not repeated because source bytes are unchanged and the controller verified the final command outputs.
+- Previously recorded published GitHub/Lovable source: `53345af7b9ef000eefcbd62344d8508281bc04a4`, tree `3b6ab0f7a8464dc6acd6218039bffe433221c105`. GitHub main and Lovable latest source were freshly re-queried before publication and both still matched this SHA. Lovable was ready, published, with public audience.
+- No earlier build, test or reviewer task was running at recovery inspection. The interrupted browser failure was present in `/tmp/hh-ui-final.log`.
+
+### Current files and behavior
+
+| Files                                                                                                                                                                                                                           | Local correction                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/components/AppShell.tsx`, `WorkTabs.tsx`, `WorkspaceHeader.tsx`; `src/routes/__root.tsx`; `src/lib/workspace-context.tsx`, `workspace-tabs.ts`                                                                             | Open work tabs, sticky main menu/tab strip/title, highlighted actual role beside the signed-in name. UI memory is scoped to tenant, actor, role and housekeeping mode. Unsaved close confirmation; pending/uncertain save or deposit intents cannot be closed.                                                                                        |
+| `src/routes/reservations.$id.tsx`, `reservations.$id_.edit.tsx`; `src/lib/idempotency.ts`                                                                                                                                       | Compact reservation headers; retained existing reservation edit drafts and request identity. Save state survives switching; pending fields/discard are locked, completion does not steal the active tab, and lost-response replay sends the identical original payload/ID/version. Editor and deposit preview instances are keyed to the reservation. |
+| `src/routes/reservations.index.tsx`, `reservations.calendar.tsx`                                                                                                                                                                | Retained list filters and calendar floor/collapse/scroll state. Last connected scrollbar position survives route removal.                                                                                                                                                                                                                             |
+| `src/routes/housekeeping.tsx`, `src/components/HousekeepingBoard.tsx`                                                                                                                                                           | Property date/timezone inside the main title info; duplicate setup banner and board info removed. Needs attention and Not set up tiles retained. Filters survive tab switching.                                                                                                                                                                       |
+| `src/components/DepositsCard.tsx`; `src/lib/deposit-entry.ts`, `deposits-client.ts`                                                                                                                                             | Add Deposit uses the entered payment line total; valid blur formatting `50 → 50.00`, `40.3 → 40.30`. Explicit loading/error/retry/Owner denial; split controls require server capability. Unknown response recovery uses an exact request ID and authoritative posted/failed result, never amount similarity or an automatic re-post.                 |
+| `src/routes/api/hotel/reservations.$id.deposits.ts`; `src/lib/deposits-store.server.ts`                                                                                                                                         | Read capability reflects existing role/tenant/split gates. Browser DTO includes the original intent UUID from the existing idempotency column for exact recovery. No POST orchestration, financial verification, gate configuration, schema or migration change.                                                                                      |
+| `src/lib/__tests__/deposit-entry.test.ts`, `deposit-capability.test.ts`, `workspace-tabs.test.ts`, `run-5d1-1-deposits.test.ts`, `wp1-ui-correction-housekeeping-workspace.test.ts`; `scripts/verification/hh-workspace-ui.cjs` | Input/gate/private UI memory regressions, exact intent metadata and rendered default housekeeping filter; real local components exercised through intercepted fixture APIs.                                                                                                                                                                           |
+| `src/routeTree.gen.ts`                                                                                                                                                                                                          | Preserved generated ordering-only change: identical line multisets to HEAD, 571 insertions/571 deletions, no route-set change. This ordering-only diff is preserved in the correction commit.                                                                                                                                                         |
+| `docs/HH_UI_NAVIGATION_HELP_CHECKPOINT.md`                                                                                                                                                                                      | This recovery checkpoint.                                                                                                                                                                                                                                                                                                                             |
+
+### Recovery and final evidence
+
+- Interrupted failure: calendar horizontal position returned `0` rather than `287` after switching tabs. Waiting for effects still failed. Trace showed a connected scroll event saved `287`, then detached effect cleanup read `0` and overwrote it.
+- Minimal correction: only remember connected scrollports. Focused browser regression first failed `0` versus `200`, then passed. The full browser flow subsequently retained the original horizontal position.
+- Code review also identified a cross-reservation confirmation preview risk. Keying `DepositsCard` by reservation ID removes the previous booking's mutation preview. The fixture switches review B `80.00` to review A `40.30`, requires a fresh read preview with Confirm disabled, and checks the correct amount.
+- Full browser verification: **39 assertions passed**, 150 intercepted API requests, **zero real financial/N3 posts**. One simulated Create is held during a tab switch, then its response is deliberately lost; exact ledger reconciliation restores the form without a second simulated Create.
+- Browser checks cover first-open deposit entry; Add Deposit enabling and exact derived preview payload; both decimal examples; split gate off; deposit/editor draft retention; dirty close/discard confirmation; locked pending/uncertain saves; identical lost-response edit replay after version advancement; direct cached editor/confirmation tab switching; fixed navigation/title geometry; actual role badge; 390px phone overflow; housekeeping title info/filter; calendar scroll; deposit read failure/retry; Front Desk denial. Desktop/phone fixture screenshots were visually inspected. These are fixture checks, not live authenticated acceptance.
+- Final full suite: **1,573 passed / 20 existing skips**, 101 files passed / 3 skipped; exit 0.
+- Final TypeScript no-emit and production client/server build: exit 0.
+- Changed-file lint: **0 errors / 17 warnings** (Fast Refresh and existing memo dependencies), exit 0. Changed-file Prettier and `git diff --check`: pass.
+- Whole-project lint: **15 errors / 32 warnings**, exit 1. All error files were verified unchanged relative to HEAD; whole-project lint is not green.
+- Independent read-only review: no remaining Critical/Important findings. Previous pending-save/discard, stale-version retry, unknown deposit recovery, editor-instance and deposit-preview findings were addressed.
+- Prior-run evidence logs (not retained in the restored filesystem; command outputs verified by the controller): `/tmp/hh-c6-browser-verified.log`, `/tmp/hh-calendar-recovery-green.log`, `/tmp/hh-c6-tests-final.log`, `/tmp/hh-c6-types-final.log`, `/tmp/hh-c6-build-final.log`, `/tmp/hh-c6-changed-checks.log`, `/tmp/hh-c6-whole-lint.json`.
+
+### Remaining limits and next state
+
+- Correction source is committed locally with an exact reviewed tree. Publication is in progress; terminal release evidence will be recorded below.
+- Draft retention covers the tested existing reservation editor/deposit forms and workspace filters/scroll within the current authenticated browser session. Refresh, sign-out or scope change clears private UI memory.
+- The exact live cause of old reservation deposit fields appearing only after Edit → Discard was not reproduced against the real backend. First-open loading, failure and permission states are covered by fixtures; live historical-record acceptance remains pending.
+- No actual HotelHub-created N3 receipt/journal/replay proof was performed. Existing tenant/Owner-only/single-method financial guards remain unchanged. Split activation, Cash Memo, allocation, balance payment, refund and final checkout remain outside this build and incomplete.
+- Publication is separately authorized. Live historical-record and financial acceptance remain pending; publication smoke checks cannot establish N3 receipt/journal correctness.
+
+Project Sources: replace only this updated `HH_UI_NAVIGATION_HELP_CHECKPOINT.md` in HH1.0; retain the other existing deposit/payment-method checkpoints.
+
+## Prior compact UI release and sandbox activation — historical, 01/10/2026
+
+- Owner approval: “APPROVE ALL”, responding to the bounded publication plus sandbox-only deposit activation scope. This does not authorize production tenant activation, split posting, Codex-operated N3 transactions, Cash Memo/allocation/refund release or door-card work.
+- Input main/Lovable release: `b10dc5e9037b338a989747f597d9d608e0f88eab`.
+- Reviewed local checkpoint: `c2ad40275a506e01f7ac729615778a698d9c8001`; product-code candidate remains `3e1625641a76a8a098148edfe4dc41ff4626caa1`.
+- GitHub main and Lovable synced source, re-read after release: `53345af7b9ef000eefcbd62344d8508281bc04a4`.
+- Exact release tree: `3b6ab0f7a8464dc6acd6218039bffe433221c105`, identical to the reviewed local checkpoint. History preserved; no force push or unfinished checkout import.
+- Changed files: 18 UI, UI-test and checkpoint files; 470 insertions / 426 deletions. No financial server, auth/session/RBAC, schema/types, migration, package or lockfile change.
+- Fresh release verification: 1,548 tests passed / 20 existing skips; TypeScript no-emit and production build exit 0; changed-file lint exit 0 with 9 warnings. Full-project lint retains the recorded 15 unchanged formatting errors. Generated route ordering churn was checked for equal line multisets and restored.
+- Backend: existing HotelHub Lovable Cloud, project `d6c78e7b-c2f2-4bee-bf99-c9c47ff29b76`, workspace `JRQygHE7tZl2GgPN8a8N`; database enabled. A targeted read-only query returned exactly one sandbox company match with immutable N3 tenant key present. No tenant key or credentials are stored in this document or Git.
+- Existing server-only configuration saved through Lovable Cloud Secrets: `HOTELHUB_N3_DEPOSIT_WRITE_TENANT_ALLOWLIST` contains only the verified immutable key of **MUGS AI LAB TEST SDN. BHD.**; `HOTELHUB_N3_DEPOSIT_WRITES_ENABLED` is `true`. Saved names appeared in the project secrets list. The existing gate requires both settings and exact tenant-key equality; empty or nonmatching tenant keys deny. All other tenant keys remain excluded. No split-payment enablement was added.
+- These are feature configuration values, not new authentication credentials. Existing authentication secrets were not opened or changed. No database mutation/migration, Lovable AI build or N3 operation occurred.
+- Lovable states that changed secrets apply immediately in preview and require publication for live use. Both settings were saved BEFORE publication.
+- Deployment ID: `8826a0e8-9480-4286-8197-2a8a18ea6a71`. Plugin returned pending; subsequent editor confirmed “Your website was updated”, then “Published” / “Your website is up to date”, with Publish changes disabled.
+- Public URL: https://hotelrooms.lovable.app/ . Preview and public page both loaded the N3 sign-in gate after refresh. Lovable project reports ready with no project error.
+- Screenshot evidence: `hh-compact-ui-published-confirmed-20261001.jpg`.
+
+Result: **PARTIALLY ACCEPTED**. Engineering, source sync, configuration submission and public publication are verified. Actual signed-in responsive layout, sandbox capability flag, non-sandbox runtime denial and first deposit receipt/journal/replay acceptance remain **NOT VERIFIED**. Configuration/publication must not be described as proven financial settlement.
+
+**Next action:** Owner opens HotelHub from **MUGS AI LAB TEST SDN. BHD.** in N3, chooses one eligible reservation and one shown bank/cash method, and creates one small deposit (for example MYR10) once. Capture the resulting status/reference/receipt ID. If the result is pending or uncertain, use only Check N3/reconciliation; do not create another deposit. The controller then verifies the HotelHub ledger, exact receipt and balanced journal evidence read-only. Cash Memo, knock-off, balance payment, refund and final checkout remain incomplete.
+
+Project Sources: replace only this updated `HH_UI_NAVIGATION_HELP_CHECKPOINT.md` in HH1.0; retain the two existing deposit/payment-method checkpoint files. Publication does not constitute a new formally accepted financial baseline.
+
+## Compact workspace correction preparation — historical, 01/10/2026
 
 Latest explicit Owner request specifies Tools grouping, compact page headers and filters, clearer 30-day scrolling, housekeeping notice placement, removal of the Rooms & Rates Property Settings pointer, more dashboard colour, and priority completion of N3 integration today. This candidate implements the bounded existing UI corrections only. It does not activate financial writes or claim the financial integration is complete.
 
@@ -21,19 +92,19 @@ Latest explicit Owner request specifies Tools grouping, compact page headers and
 
 ### Changes and classification
 
-| Requirement | Local state | Live state |
-| --- | --- | --- |
-| Tools → Rooms & Rates / Settings / Full Width checkbox | Implemented; rendered permissions/grouping regression passes | Not verified |
-| Existing width preference, checked = full / unchecked = standard | Implemented using existing browser preference hook | Not verified |
-| Desktop menu cannot wrap; smaller screens use compact top menu | Implemented; no fixed sidebar | Responsive visual not verified |
-| Compact badge/title/info/action header | Implemented; naturally wraps where phone width requires it | Responsive visual not verified |
-| List / Calendar segmented control inside Filters | Implemented; filter controls use two compact desktop rows | Not verified |
-| 30-day calendar horizontal movement | Implemented; seven-day arrows, synchronized top scrollbar, sticky date/room headings, narrower label column, viewport bound | Mouse/touchpad/swipe not verified |
-| Room display name and maximum guests | Preserved; stock code remains in room information | Not verified |
-| Housekeeping setup warning beside main title | Implemented from authoritative global board count; explanation in info | Not verified |
-| Housekeeping and static page/card explanations | Moved into info; errors/actions/operational notices remain visible | Not verified |
-| Rooms & Rates Property Settings pointer | Removed; actual property settings remain in Settings | Not verified |
-| More colourful dashboard cards | Implemented; counts, queries and permission gates unchanged | Visual not verified |
+| Requirement                                                      | Local state                                                                                                                 | Live state                        |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| Tools → Rooms & Rates / Settings / Full Width checkbox           | Implemented; rendered permissions/grouping regression passes                                                                | Not verified                      |
+| Existing width preference, checked = full / unchecked = standard | Implemented using existing browser preference hook                                                                          | Not verified                      |
+| Desktop menu cannot wrap; smaller screens use compact top menu   | Implemented; no fixed sidebar                                                                                               | Responsive visual not verified    |
+| Compact badge/title/info/action header                           | Implemented; naturally wraps where phone width requires it                                                                  | Responsive visual not verified    |
+| List / Calendar segmented control inside Filters                 | Implemented; filter controls use two compact desktop rows                                                                   | Not verified                      |
+| 30-day calendar horizontal movement                              | Implemented; seven-day arrows, synchronized top scrollbar, sticky date/room headings, narrower label column, viewport bound | Mouse/touchpad/swipe not verified |
+| Room display name and maximum guests                             | Preserved; stock code remains in room information                                                                           | Not verified                      |
+| Housekeeping setup warning beside main title                     | Implemented from authoritative global board count; explanation in info                                                      | Not verified                      |
+| Housekeeping and static page/card explanations                   | Moved into info; errors/actions/operational notices remain visible                                                          | Not verified                      |
+| Rooms & Rates Property Settings pointer                          | Removed; actual property settings remain in Settings                                                                        | Not verified                      |
+| More colourful dashboard cards                                   | Implemented; counts, queries and permission gates unchanged                                                                 | Visual not verified               |
 
 Additional static descriptions on New Reservation, Departures, Dashboard, N3 Verification, N3 Financial Verification, Guest controls and Housekeeping workflow now use info. Dynamic reservation status, read-only notices, payment blockers, errors, confirmation actions and data fields were preserved. The financial console keeps a visible Read-only badge.
 
@@ -76,7 +147,6 @@ Door-card vendor contact may proceed independently with exact writer/lock model,
 
 Project Sources: replace only this stable UI checkpoint in HH1.0 if saving the local candidate history. Keep the deposit/payment checkpoints. This record is HotelHub-specific and must not be uploaded to unrelated product sources.
 
-
 ## Prior UI release evidence — historical
 
 - Owner approval: 01/10/2026 09:17 Malaysia, “approve. (uploaded 3 md files since this morning.)”, following the concrete UI source/merge/preview/publish gate.
@@ -89,4 +159,3 @@ Project Sources: replace only this stable UI checkpoint in HH1.0 if saving the l
 - Publication evidence screenshot: `hh-ui-published-20261001.jpg`; chat hidden; Published/up-to-date state visible.
 - The release contains UI, rendered-component tests and checkpoint documentation only. No auth/RBAC, server/API, schema, dependency, environment, secret or N3 financial-write change.
 - This post-publication checkpoint update is a local documentation-only follow-up. It does not move the published application commit or trigger another application deployment. Replace only this existing checkpoint in Project Sources; retain the other two morning checkpoint files.
-

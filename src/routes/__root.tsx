@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { WorkspaceProvider } from "@/lib/workspace-context";
 
 function NotFoundComponent() {
   return (
@@ -126,9 +127,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster richColors closeButton position="top-right" />
+      <WorkspaceProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+        <Toaster richColors closeButton position="top-right" />
+      </WorkspaceProvider>
     </QueryClientProvider>
   );
 }

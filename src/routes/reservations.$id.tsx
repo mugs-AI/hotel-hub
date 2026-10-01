@@ -17,6 +17,8 @@ import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
 import { PaymentStatusCard } from "@/components/PaymentStatusCard";
+import { WorkspaceHeader } from "@/components/WorkspaceHeader";
+import { useReservationTabLabel } from "@/lib/workspace-context";
 import { FolioCard } from "@/components/FolioCard";
 import { FolioBillToCard } from "@/components/FolioBillToCard";
 import {
@@ -95,6 +97,7 @@ function ReservationDetailPage() {
   const canCreate = hasPermission(role, "hotel:reservations:create");
   const isAuthed = data?.authenticated === true;
   const query = useReservationDetail(id);
+  useReservationTabLabel(id, query.data?.reservation.bookingReference);
 
   return (
     <AppShell>
@@ -130,9 +133,19 @@ function Header({
   search: DetailSearch;
 }) {
   return (
-    <section
-      className="rounded-lg p-6 text-white shadow-sm"
-      style={{ background: `linear-gradient(135deg, ${NAVY}, ${TEAL})` }}
+    <WorkspaceHeader
+      title="Reservation"
+      help="Review the booking, folio and deposits. Deposits are advance payments; final bill posting and settlement are separate steps."
+      actions={
+        canCreate ? (
+          <Link
+            to="/reservations/new"
+            className="inline-flex items-center gap-1 rounded-md bg-[#E5A93D] px-3 py-1.5 text-sm font-medium text-[#102A43]"
+          >
+            <Plus className="h-4 w-4" aria-hidden /> New Reservation
+          </Link>
+        ) : null
+      }
     >
       <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
         <Link
@@ -176,28 +189,7 @@ function Header({
           </span>
         )}
       </div>
-      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span
-            className="inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-            style={{ backgroundColor: GOLD, color: NAVY }}
-          >
-            Front Desk
-          </span>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Reservation</h1>
-        </div>
-        {canCreate ? (
-          <Link
-            to="/reservations/new"
-            className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium shadow-sm"
-            style={{ backgroundColor: GOLD, color: NAVY }}
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            New Reservation
-          </Link>
-        ) : null}
-      </div>
-    </section>
+    </WorkspaceHeader>
   );
 }
 
@@ -413,6 +405,7 @@ function Detail({
       {hasPermission(role, "hotel:folio:view") ? <PaymentStatusCard /> : null}
 
       <DepositsCard
+        key={data.id}
         reservationId={data.id}
         canView={canViewDeposits}
         canCreate={canCreateDeposits}
