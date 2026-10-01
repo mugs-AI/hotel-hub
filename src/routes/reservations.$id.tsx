@@ -16,6 +16,7 @@ import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
+import { PaymentStatusCard } from "@/components/PaymentStatusCard";
 import { FolioCard } from "@/components/FolioCard";
 import { FolioBillToCard } from "@/components/FolioBillToCard";
 import {
@@ -408,6 +409,8 @@ function Detail({
         />
       ) : null}
       <FolioCard reservationId={data.id} canView={hasPermission(role, "hotel:folio:view")} />
+
+      {hasPermission(role, "hotel:folio:view") ? <PaymentStatusCard /> : null}
 
       <DepositsCard
         reservationId={data.id}

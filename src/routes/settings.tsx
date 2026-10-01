@@ -4,6 +4,7 @@
 // Immutable `source_code` is only shown as contextual metadata; it is
 // derived once at creation time and can never be changed.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { CardHeading, CardInfoPopover } from "@/components/CardInfoPopover";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -159,7 +160,7 @@ function SettingsWorkspace() {
   const { settings, setSettings, error } = useHotelSettings();
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-5 py-2">
       <header>
         <p
           className="text-[11px] font-semibold uppercase tracking-[0.14em]"
@@ -167,22 +168,24 @@ function SettingsWorkspace() {
         >
           Owner workspace
         </p>
-        <h1
-          className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl"
-          style={{ color: NAVY }}
-        >
-          Settings
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Property defaults, guest-editing rules, the N3 integration mapping and the booking sources
-          used across HotelHub.
-        </p>
+        <div className="flex items-center gap-2">
+          <h1
+            className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl"
+            style={{ color: NAVY }}
+          >
+            Settings
+          </h1>
+          <CardInfoPopover label="About Settings">
+            Property defaults, guest-editing rules, N3 integration and booking sources used across
+            HotelHub.
+          </CardInfoPopover>
+        </div>
       </header>
 
       <div
         role="tablist"
         aria-label="Settings sections"
-        className="flex flex-wrap gap-1 rounded-lg border bg-white p-1 shadow-sm"
+        className="flex gap-1 overflow-x-auto rounded-lg border bg-white p-1 shadow-sm"
         style={{ borderColor: `${NAVY}1F` }}
       >
         {visibleSettingsTabs(
@@ -195,7 +198,7 @@ function SettingsWorkspace() {
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              "shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors",
               tab === t.id ? "text-white" : "text-muted-foreground hover:bg-muted",
             )}
             style={tab === t.id ? { backgroundColor: NAVY } : undefined}
@@ -253,23 +256,25 @@ function N3IntegrationConsoles() {
     {
       to: "/settings/n3-financial-verification" as const,
       title: "N3 Financial Verification",
-      body: "Read-only financial verification console for deposits and receipts.",
+      body: "Read-only checks of N3 Receive Payments, Cash Memos (Cash Sales posted to AR), Customer Refunds and bank/cash accounts. This console does not post, match, void or refund money, or enable payments.",
     },
   ];
   return (
     <section aria-label="N3 consoles" className="grid gap-3 sm:grid-cols-2">
       {cards.map((c) => (
-        <Link
+        <div
           key={c.to}
-          to={c.to}
-          className="rounded-xl border bg-white p-5 shadow-sm transition-colors hover:bg-muted/40"
+          className="flex items-center justify-between gap-2 rounded-xl border bg-white p-4 shadow-sm"
           style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}
         >
-          <span className="block text-sm font-semibold" style={{ color: NAVY }}>
-            {c.title}
-          </span>
-          <span className="mt-1 block text-sm text-muted-foreground">{c.body}</span>
-        </Link>
+          <Link
+            to={c.to}
+            className="text-sm font-semibold text-[#102A43] hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {c.title} →
+          </Link>
+          <CardInfoPopover label={`About ${c.title}`}>{c.body}</CardInfoPopover>
+        </div>
       ))}
     </section>
   );
@@ -285,12 +290,7 @@ function SystemScreen({
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
-          System
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          How HotelHub runs day to day for your property.
-        </p>
+        <CardHeading title="System">How HotelHub runs day to day for your property.</CardHeading>
       </header>
       <section aria-label="Application display size">
         <DisplaySizePanel settings={settings} onChange={onChange} />
@@ -318,12 +318,9 @@ function OperationsScreen({
   return (
     <div className="space-y-6">
       <header>
-        <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
-          Operations
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        <CardHeading title="Operations">
           How front-desk exceptions are authorised for your property.
-        </p>
+        </CardHeading>
       </header>
       <section aria-label="Reservation exception approvals">
         <ExceptionApprovalPanel settings={settings} onChange={onChange} />
@@ -342,14 +339,11 @@ function BookingSourcesScreen() {
     <div className="space-y-6">
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 sm:flex sm:flex-wrap sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
-            Booking Sources
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          <CardHeading title="Booking Sources">
             Booking sources appear in the New Reservation form and the Reservations filter. Only
             active sources can be assigned to new reservations; deactivated sources are retained on
             historical reservations and remain visible as filter options.
-          </p>
+          </CardHeading>
         </div>
         <Button
           type="button"

@@ -315,13 +315,15 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
 
           {dto.capability.canSetTaxClass ? (
             <div className="rounded-lg border p-3" style={{ borderColor: `${NAVY}1F` }}>
-              <Label className="text-sm font-semibold" style={{ color: NAVY }}>
-                Guest classification (Tourism Tax)
-              </Label>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Malaysian citizens and permanent residents are exempt. Record the classification —
-                never the identity-document number.
-              </p>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-semibold" style={{ color: NAVY }}>
+                  Guest classification (Tourism Tax)
+                </Label>
+                <CardInfoPopover label="About guest tax classification">
+                  Malaysian citizens and permanent residents are exempt. Record the classification —
+                  never the identity-document number.
+                </CardInfoPopover>
+              </div>
               <select
                 className="mt-2 rounded border px-2 py-1 text-sm"
                 value={dto.guestTaxClass}
@@ -343,13 +345,15 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
 
           {dto.capability.canManageCharges ? (
             <div className="rounded-lg border p-3" style={{ borderColor: `${NAVY}1F` }}>
-              <p className="text-sm font-semibold" style={{ color: NAVY }}>
-                Tourism Tax already collected by an OTA / DPSP
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Record manual evidence so the guest is credited instead of charged twice. Only the
-                collecting party, a reference and the amount are stored — never card or bank data.
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold" style={{ color: NAVY }}>
+                  Tourism Tax already collected by an OTA / DPSP
+                </p>
+                <CardInfoPopover label="About Tourism Tax collected by an OTA">
+                  Record manual evidence so the guest is credited instead of charged twice. Only the
+                  collecting party, a reference and the amount are stored — never card or bank data.
+                </CardInfoPopover>
+              </div>
 
               {dto.tourismTaxEvidence.length > 0 ? (
                 <ul className="mt-3 space-y-1 text-sm">

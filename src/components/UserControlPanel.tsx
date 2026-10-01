@@ -1,3 +1,4 @@
+import { CardHeading } from "@/components/CardInfoPopover";
 // HH-AUTH-02 — Settings → User Control.
 //
 // Owner-only. Lists the current tenant's ACTIVE N3 users (name + email for
@@ -52,17 +53,16 @@ export function UserControlPanel() {
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="user-control-heading" className="text-base font-semibold" style={{ color: NAVY }}>
-            User Control
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Give individual N3 users access to HotelHub. Users come from this property&apos;s N3
-            user directory — access follows the N3 account, not the email address.
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Set a name shown in HotelHub when N3 supplies only an email. This does not change the N3
-            account.
-          </p>
+          <CardHeading title="User Control" id="user-control-heading">
+            <p>
+              Give individual N3 users access to HotelHub. Users come from this property&apos;s N3
+              user directory — access follows the N3 account, not the email address.
+            </p>
+            <p className="mt-2">
+              Set a name shown in HotelHub when N3 supplies only an email. This does not change the
+              N3 account.
+            </p>
+          </CardHeading>
         </div>
         <Button
           type="button"

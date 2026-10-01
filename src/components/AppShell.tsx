@@ -7,7 +7,7 @@ import { roleUnassignedGuidance } from "@/lib/role-unassigned";
 
 import { useDisplayWidth, widthContainerClass, type DisplayWidth } from "@/lib/display-preference";
 import { applyDisplaySize, coerceDisplaySize } from "@/lib/display-size";
-import { Info } from "lucide-react";
+import { ChevronDown, Info, Menu } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type NavItem = {
@@ -53,6 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [companySyncState, setCompanySyncState] = useState<"idle" | "syncing" | "failed">("idle");
   const attemptedCompanyTenant = useRef<string | null>(null);
 
@@ -131,11 +132,33 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hkAuthority = housekeepingAuthority(session.housekeepingMode ?? "simple", role);
   const containerClass = widthContainerClass(displayWidth);
 
+  const navigationLinks = NAV_ITEMS.filter((item) => !item.disabled).map((item) => {
+    const visible =
+      item.to === "/housekeeping"
+        ? hkAuthority.canOpenWorkspace
+        : !item.permission || hasPermission(role, item.permission);
+    if (!visible) return null;
+    const path = location.pathname;
+    const active =
+      path === item.to || Boolean(item.matchPrefix && path.startsWith(item.matchPrefix + "/"));
+    return (
+      <Link
+        key={item.label}
+        to={item.to}
+        onClick={() => setMenuOpen(false)}
+        aria-current={active ? "page" : undefined}
+        className={`block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-[#0F9D8A] text-white" : "text-[#102A43] hover:bg-muted"}`}
+      >
+        {item.label}
+      </Link>
+    );
+  });
+
   return (
     <div className="min-h-screen text-foreground" style={{ backgroundColor: "#F4F8FC" }}>
       <header className="border-b border-border bg-white">
-        <div className={`${containerClass} flex items-center justify-between gap-4 py-3`}>
-          <div className="flex items-center gap-3">
+        <div className={`${containerClass} flex min-w-0 items-center justify-between gap-2 py-3`}>
+          <div className="flex shrink-0 items-center gap-2">
             <div
               className="flex h-8 w-8 items-center justify-center rounded-md font-semibold text-white"
               style={{ backgroundColor: "#102A43" }}
@@ -146,85 +169,46 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="text-sm font-semibold leading-tight" style={{ color: "#102A43" }}>
                 HotelHub
               </div>
-              <div className="text-xs text-muted-foreground leading-tight">
-                Boutique Hotel System · N3 integration
-              </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <DisplayWidthToggle value={displayWidth} onChange={setDisplayWidth} />
+          <nav
+            aria-label="Primary"
+            className="hidden min-w-0 flex-1 flex-wrap items-center justify-center gap-1 lg:flex"
+          >
+            {navigationLinks}
+          </nav>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="hidden 2xl:block">
+              <DisplayWidthToggle value={displayWidth} onChange={setDisplayWidth} />
+            </div>
             <SessionBadge
               session={session}
+              displayWidth={displayWidth}
+              onDisplayWidthChange={setDisplayWidth}
               onSignOut={() => signOut.mutate()}
               signingOut={signOut.isPending}
               onRefreshCompany={() => void refreshCompanyName()}
               companySyncState={companySyncState}
             />
+            <Popover key={location.pathname} open={menuOpen} onOpenChange={setMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Open main menu"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-input text-[#102A43] focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
+                >
+                  <Menu className="h-5 w-5" aria-hidden />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 max-w-[calc(100vw-2rem)] p-2">
+                <nav aria-label="Mobile primary">{navigationLinks}</nav>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </header>
-      <div className={`${containerClass} flex gap-6 py-6`}>
-        <nav
-          aria-label="Primary"
-          className="w-56 shrink-0 rounded-lg p-3 shadow-sm"
-          style={{ backgroundColor: "#102A43" }}
-        >
-          <ul className="space-y-1">
-            {NAV_ITEMS.map((item, i) => {
-              const path = location.pathname;
-              const active =
-                !item.disabled &&
-                (path === item.to ||
-                  (item.matchPrefix
-                    ? path === item.matchPrefix || path.startsWith(item.matchPrefix + "/")
-                    : false));
-              const visible =
-                item.to === "/housekeeping"
-                  ? hkAuthority.canOpenWorkspace
-                  : !item.permission || hasPermission(role, item.permission);
-              if (item.disabled || !visible) {
-                const title = item.disabled
-                  ? "Deferred MAF milestone"
-                  : "Not available for your role";
-                return (
-                  <li key={`${item.label}-${i}`}>
-                    <span
-                      className="flex items-center justify-between rounded-md px-3 py-2 text-sm cursor-not-allowed"
-                      style={{ color: "rgba(255,255,255,0.45)" }}
-                      title={title}
-                    >
-                      <span>{item.label}</span>
-                      <span className="text-[10px] uppercase tracking-wide">
-                        {item.disabled ? "soon" : "locked"}
-                      </span>
-                    </span>
-                  </li>
-                );
-              }
-              return (
-                <li key={`${item.label}-${i}`}>
-                  <Link
-                    to={item.to}
-                    className="block rounded-md px-3 py-2 text-sm transition-colors"
-                    style={{
-                      backgroundColor: active ? "#0F9D8A" : "transparent",
-                      color: "white",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!active) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!active) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-        <main className="min-w-0 flex-1">{children}</main>
+      <div className={`${containerClass} min-w-0 py-4 sm:py-6`}>
+        <main className="min-w-0">{children}</main>
       </div>
     </div>
   );
@@ -350,20 +334,71 @@ export function RoleUnassignedShell({
 
 function SessionBadge({
   session,
+  displayWidth,
+  onDisplayWidthChange,
   onSignOut,
   signingOut,
   onRefreshCompany,
   companySyncState,
 }: {
   session: Extract<SessionMe, { authenticated: true }>;
+  displayWidth: DisplayWidth;
+  onDisplayWidthChange: (value: DisplayWidth) => void;
   onSignOut: () => void;
   signingOut: boolean;
   onRefreshCompany: () => void;
   companySyncState: "idle" | "syncing" | "failed";
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-center gap-4 text-xs">
+    <div className="flex min-w-0 items-center gap-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Account and display options"
+            className="flex min-w-0 items-center gap-1 rounded-md px-2 py-2 text-sm font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring 2xl:hidden"
+          >
+            <span className="max-w-[7rem] truncate sm:max-w-[10rem]">
+              {session.user.userName ?? "Account"}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0" aria-hidden />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] space-y-3 text-sm">
+          <div className="break-words font-semibold">
+            {session.tenant.companyName ?? "Company name unavailable"}
+          </div>
+          <div className="break-words">
+            {session.user.userName ?? "User name unavailable"} · {session.role}
+          </div>
+          <div className="break-all text-xs text-muted-foreground">
+            {session.user.userEmail ?? "—"}
+          </div>
+          <div className="break-all text-xs text-muted-foreground">
+            Tenant ID: {session.tenant.tenantCode ?? "—"}
+          </div>
+          {session.role === "owner" && (!session.tenant.companyName || !session.user.userName) ? (
+            <button
+              type="button"
+              onClick={onRefreshCompany}
+              disabled={companySyncState === "syncing"}
+              className="text-sm underline disabled:opacity-50"
+            >
+              {companySyncState === "syncing" ? "Syncing N3 name…" : "Sync N3 name"}
+            </button>
+          ) : null}
+          <DisplayWidthToggle value={displayWidth} onChange={onDisplayWidthChange} />
+          <button
+            type="button"
+            onClick={onSignOut}
+            disabled={signingOut}
+            className="block rounded-md border border-input px-3 py-2 text-sm disabled:opacity-50"
+          >
+            {signingOut ? "Signing out…" : "Sign out"}
+          </button>
+        </PopoverContent>
+      </Popover>
+      <div className="hidden items-center gap-4 text-xs 2xl:flex">
         <div className="min-w-0">
           <div className="text-muted-foreground">Company</div>
           <div className="flex items-center gap-1 font-medium text-foreground">
@@ -465,7 +500,7 @@ function SessionBadge({
       <button
         onClick={onSignOut}
         disabled={signingOut}
-        className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+        className="hidden rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50 2xl:block"
       >
         {signingOut ? "Signing out…" : "Sign out"}
       </button>

@@ -218,7 +218,8 @@ export function DepositsCard({
           <CardInfoPopover label="About deposits">
             Deposits are advance payments recorded through N3. After an approved N3 tenant is
             enabled by the HotelHub administrator, an Owner can add one while the booking is
-            Confirmed. Unconfirmed N3 results are always shown for checking.
+            Confirmed. It remains unapplied until a Cash Memo is posted and matched. Unconfirmed N3
+            results are always shown for checking.
           </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
@@ -316,9 +317,7 @@ export function DepositsCard({
         <div className="mt-4 border-t pt-4">
           {!gateOpen ? (
             <p className="text-xs text-muted-foreground">
-              Deposits are disabled for this property. Ask the HotelHub administrator to enable the
-              approved N3 tenant. Once enabled, an Owner can add a deposit while the booking is
-              Confirmed.
+              Deposit collection is not enabled for this property. Refer to Admin.
             </p>
           ) : !eligible ? (
             <p className="text-xs text-muted-foreground">

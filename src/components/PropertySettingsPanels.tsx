@@ -10,6 +10,7 @@ import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import type { PaymentAccountChoice } from "@/lib/deposits-client";
+import { CardHeading } from "@/components/CardInfoPopover";
 import { PaymentMethodRow } from "@/components/PaymentMethodRow";
 import { paymentAccountErrorMessage } from "@/lib/payment-account-messages";
 import {
@@ -29,7 +30,7 @@ const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
 const GOLD = "#E5A93D";
 
-const CARD = "rounded-xl border bg-white p-5 shadow-sm";
+const CARD = "rounded-xl border bg-white p-4 shadow-sm sm:p-5";
 
 export function useHotelSettings() {
   const [settings, setSettings] = useState<HotelSettingsDTO | null>(null);
@@ -113,13 +114,10 @@ export function PropertyPanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${NAVY}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Property
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Property">
         Currency, timezone and the standard check-in / check-out times used across reservations, the
         calendar and late-checkout requests.
-      </p>
+      </CardHeading>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Currency">
           <input
@@ -197,13 +195,10 @@ export function GuestControlsPanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Guest controls
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Guest controls">
         Guest records are always fully editable before check-in. These rules decide what Front Desk
         may still change after a guest has checked in.
-      </p>
+      </CardHeading>
 
       <fieldset className="mt-4 space-y-2">
         <legend className="text-xs font-medium" style={{ color: NAVY }}>
@@ -317,15 +312,12 @@ export function HousekeepingPanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Housekeeping workflow
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Housekeeping workflow">
         Both options use exactly the same room conditions and the same rules, and room turnaround
         always happens in the Housekeeping workspace — only the screens differ. This setting only
         selects the workflow mode. Switching is safe at any time and never changes a room&apos;s
         current condition.
-      </p>
+      </CardHeading>
 
       <fieldset className="mt-4 space-y-2">
         <legend className="text-xs font-medium" style={{ color: NAVY }}>
@@ -425,13 +417,10 @@ export function DisplaySizePanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Application display size
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Application display size">
         Sets how large HotelHub appears for the whole property. Levels are display sizes, not exact
         text sizes; headings, tables and controls keep their relative hierarchy.
-      </p>
+      </CardHeading>
       <fieldset className="mt-4 space-y-2">
         <legend className="text-xs font-medium" style={{ color: NAVY }}>
           Display size
@@ -515,13 +504,10 @@ export function FolioPrintPanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Folio print
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <CardHeading title="Folio print">
         A4 paper text sizes for every staff member. These are independent of the application display
         size. In the printer dialog use A4 and 100% scale to match the on-screen paper preview.
-      </p>
+      </CardHeading>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="Itemized body size (pt)">
           <select
@@ -638,15 +624,12 @@ export function ExceptionApprovalPanel({
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${TEAL}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Reservation exception approvals
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Reservation exception approvals">
         Early check-in, late checkout, stay extension, room change and rate change are exceptions.
         Choose whether the front desk can carry them out directly, or whether the Owner must approve
         first. Guest-safety checks (room readiness, availability, capacity) always apply either way,
         and every action is recorded in the reservation timeline.
-      </p>
+      </CardHeading>
 
       <fieldset className="mt-4 space-y-2">
         <legend className="text-xs font-medium" style={{ color: NAVY }}>
@@ -810,14 +793,11 @@ export function HousekeepingRetentionPanel() {
 
   return (
     <section className={CARD} style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Housekeeping history retention
-      </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+      <CardHeading title="Housekeeping history retention">
         There is one retention policy: housekeeping history older than {RETENTION_DAYS} days can be
         removed. Current room conditions, Do Not Disturb and room handoffs are never affected, and
         the clean-up itself is recorded in the audit log.
-      </p>
+      </CardHeading>
 
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
         <div>
@@ -916,13 +896,10 @@ export function N3IntegrationPanel({
         className={CARD}
         style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${GOLD}` }}
       >
-        <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-          Default walk-in customer
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        <CardHeading title="Default walk-in customer">
           Selected from your live N3 customer list. HotelHub verifies the code with N3 before
           saving. HotelHub never writes transactions to N3 from this screen.
-        </p>
+        </CardHeading>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">
             {current ? (
@@ -976,27 +953,6 @@ export function N3IntegrationPanel({
         onChange={onChange}
         onN3Unauthorized={onN3Unauthorized}
       />
-
-      <section
-        className={CARD}
-        style={{ borderColor: `${NAVY}1F`, borderLeft: `4px solid ${NAVY}` }}
-      >
-        <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-          N3 financial verification
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Read-only inquiry that confirms the live N3 Cloud contract for AR Receive Payments, Cash
-          Sales, Customer Refunds and the GL Chart of Accounts. It never creates, voids or refunds
-          an N3 transaction.
-        </p>
-        <a
-          href="/settings/n3-financial-verification"
-          className="mt-3 inline-flex rounded-md px-3 py-2 text-sm font-semibold text-white"
-          style={{ backgroundColor: NAVY }}
-        >
-          Open console →
-        </a>
-      </section>
     </div>
   );
 }
@@ -1090,14 +1046,11 @@ function PaymentAccountAliasesPanel({
 
   return (
     <section className={CARD}>
-      <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-        Payment method names
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <CardHeading title="Payment method names">
         Name each N3 bank or cash account for the front desk, such as QR DuitNow or CashNote. Its N3
         account code stays the same. Tick Show to offer it for new deposits, then select Save
         method. Hiding a method keeps previous deposits unchanged.
-      </p>
+      </CardHeading>
       {loadingAccounts ? (
         <p className="mt-2 text-sm text-muted-foreground">Loading N3 accounts…</p>
       ) : null}

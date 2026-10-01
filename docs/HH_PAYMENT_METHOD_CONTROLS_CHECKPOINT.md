@@ -1,6 +1,26 @@
-# HH payment method controls — build checkpoint
+# HH payment method controls — release checkpoint
 
-Date: 01/10/2026 (Malaysia). Status: **DB APPLIED AND VERIFIED — PUBLIC SOURCE UPLOAD AND RELEASE AUTHORIZED — RELEASE IN PROGRESS**.
+Date: 01/10/2026 (Malaysia). Status: **CODE MERGED — DB APPLIED AND VERIFIED — PUBLISHED — AUTHENTICATED UAT PENDING**.
+
+## Current public release — 01/10/2026
+
+- Previous release/input: `9f95f8779b60fd1eb809e777d43548bbf03226e0`.
+- Reviewed product-code candidate: `d7c437f79343ab2b0b8c277a0306af778f9c767a`. Later local changes only updated this checkpoint.
+- Release commit on GitHub main and Lovable synced source: `6feacf349df10ec30e00d1cb5229f0256f35f2b7`.
+- Release tree: `cc94322bfd5876162b872e5c400ecfb800a03e93`, exactly matching tested local `0d2255390fcef2709aef07750789410911381725` (same code; connector-created commit has different SHA).
+- Public site: https://hotelrooms.lovable.app/
+- Deployment ID: `45a214c6-e942-4460-a586-7eadb6dfa5fb`. Publish API returned pending initially; the Lovable editor subsequently showed **Published**, **Your website is up to date**, and disabled **Publish changes** with the latest payment-method correction selected.
+- Preview and public site both rendered the expected N3 sign-in gate. No authenticated session was available for tenant Settings UAT.
+- Migration version `20260930135429` confirmed applied exactly once with matching SQL MD5, visibility column, retained RLS, service-role-only invoker RPC, and denied browser execution. Migration was not repeated during this release.
+- Fresh release gates: 1,539 tests passed / 20 existing skips; TypeScript no-emit and production build exited 0. Earlier changed-file lint/format gates are recorded below; full-project baseline lint exceptions remain. The build only reordered generated route lines; line multisets matched and the file was restored to the reviewed candidate.
+- Diff: 18 files from release input, including one additive migration and matching types. No package/lockfile, N3 identity/auth/session/RBAC foundation, new checkout endpoint, allocation or refund code was added.
+- No N3 operation, no new financial write enablement, no Lovable AI build and no external Supabase account connection occurred.
+
+Acceptance result: **PARTIALLY ACCEPTED — engineering, schema, source sync, publication and unauthenticated smoke checks verified; sandbox payment account loading and persisted Show/Hide behavior NOT VERIFIED live.** This release does not establish completion of deposit financial posting, checkout billing, knock-off, refunds, final checkout, BEC, or door-card integration. Exact original sandbox missing field remains unobserved; clearer diagnostics must be checked if the error persists.
+
+Owner UAT: open HH from the N3 sandbox, go to Settings → payment-method names, verify loading (or capture the specific diagnostic), uncheck Show → Save method → reload, then re-enable → Save method and verify the deposit picker. Do not confirm an N3 deposit during this preference test. This updated checkpoint belongs in HH1.0 Project Sources only; replace an older copy of the same filename.
+
+This final deployment evidence update is a local documentation checkpoint after publishing; the deployed release SHA above remains `6feacf34`.
 
 ## Latest release authorization — 01/10/2026
 
@@ -64,7 +84,7 @@ Confirmed JSONB NOT NULL default `{}`, object constraint, empty function search 
 
 Recovery: old application is compatible with this additive schema. Keep the column, function and ledger; do not drop data or blindly rerun the migration.
 
-### Release blocked before source upload
+### Historical source-upload block — resolved by explicit approval on 01/10/2026
 
 Automatic approval review rejected `github_create_tree` because it uploads reviewed source code to a repository considered unverified/public, and required explicit source-disclosure approval. A read-only identity check then confirmed repository ID `1305313263`, owner `mugs-AI`, canonical name `mugs-AI/hotel-hub`, public visibility, and current connection admin/push permissions. The repository is the existing HotelHub target, but it is public.
 

@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { buildMappedStockSet } from "@/lib/room-picker";
@@ -231,7 +232,17 @@ function ReadinessCard({
   );
 }
 
-function SectionHeader({ label, accent, tag }: { label: string; accent: string; tag: string }) {
+function SectionHeader({
+  label,
+  accent,
+  tag,
+  help,
+}: {
+  label: string;
+  accent: string;
+  tag: string;
+  help?: string;
+}) {
   return (
     <div className="flex items-center gap-2">
       <span
@@ -242,6 +253,7 @@ function SectionHeader({ label, accent, tag }: { label: string; accent: string; 
       <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
         {label}
       </h2>
+      {help ? <CardInfoPopover label={`About ${label}`}>{help}</CardInfoPopover> : null}
       <span
         className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
         style={{ backgroundColor: `${accent}22`, color: accent }}
@@ -255,11 +267,12 @@ function SectionHeader({ label, accent, tag }: { label: string; accent: string; 
 function PropertySettingsPointer() {
   return (
     <div className={CARD} style={{ borderColor: `${NAVY}22`, borderLeft: `4px solid ${NAVY}` }}>
-      <SectionHeader label="Property settings" accent={NAVY} tag="Moved" />
-      <p className="mt-2 text-xs text-muted-foreground">
-        Currency, timezone, standard check-in / check-out times, guest-editing controls and the
-        default N3 walk-in customer now live in the Settings workspace.
-      </p>
+      <SectionHeader
+        label="Property settings"
+        accent={NAVY}
+        tag="Moved"
+        help="Currency, timezone, standard check-in / check-out times, guest-editing controls and the default N3 walk-in customer now live in the Settings workspace."
+      />
       <Link
         to="/settings"
         className="mt-3 inline-flex rounded-md px-3 py-1.5 text-xs font-medium text-white"
@@ -287,11 +300,12 @@ function RoomsCard({
     <section className={CARD} style={{ borderColor: `${TEAL}33`, borderLeft: `4px solid ${TEAL}` }}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <SectionHeader label="Rooms" accent={TEAL} tag="Inventory" />
-          <p className="mt-1 text-xs text-muted-foreground">
-            Room number equals the verified N3 stock code. Type, floor, max guests, display name and
-            base rate start from N3 Category, Group, Class, Stock Name and List Price.
-          </p>
+          <SectionHeader
+            label="Rooms"
+            accent={TEAL}
+            tag="Inventory"
+            help="Room number equals the verified N3 stock code. Type, floor, max guests, display name and base rate start from N3 Category, Group, Class, Stock Name and List Price."
+          />
         </div>
         {canSetup ? (
           <button

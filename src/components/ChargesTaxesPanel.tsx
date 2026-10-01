@@ -1,3 +1,4 @@
+import { CardHeading, CardInfoPopover } from "@/components/CardInfoPopover";
 // HH-GOLIVE-01A UAT correction — Owner-only "Charges & Taxes" workspace.
 //
 // Three concerns live here: the add-on catalogue (what can be charged, and how
@@ -162,13 +163,10 @@ export function ChargesTaxesPanel() {
         className="rounded-xl border bg-white p-5 shadow-sm"
         style={{ borderColor: `${NAVY}1F` }}
       >
-        <h2 className="text-base font-semibold" style={{ color: NAVY }}>
-          Charges, taxes and levies
-        </h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+        <CardHeading title="Charges, taxes and levies">
           The left switch is the only on/off control. Select a type to configure its details and N3
           mapping on the right.
-        </p>
+        </CardHeading>
         {settings.data?.settings ? (
           <TaxSettingsForm
             disabled={!canManage || saveSettings.isPending}
@@ -215,17 +213,14 @@ export function ChargesTaxesPanel() {
         style={{ borderColor: `${NAVY}1F` }}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold" style={{ color: NAVY }}>
-            Charge catalogue
-          </h2>
+          <CardHeading title="Charge catalogue">
+            An item can only be charged once its N3 stock, unit of measure and tax code are chosen
+            and verified.
+          </CardHeading>
           <span className="text-sm text-muted-foreground">
             {catalogue.data?.items.length ?? 0} items
           </span>
         </div>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          An item can only be charged once its N3 stock, unit of measure and tax code are chosen and
-          verified.
-        </p>
 
         <ul className="mt-4 space-y-2">
           {(catalogue.data?.items ?? []).map((item) => (
@@ -867,9 +862,25 @@ function TaxSettingsForm({
 
         <div className="min-w-0 p-4">
           <div className="flex items-center justify-between gap-3 border-b pb-3">
-            <h3 className="font-semibold" style={{ color: NAVY }}>
-              {TAX_SETTINGS_SECTION_LABELS[activeSection]}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold" style={{ color: NAVY }}>
+                {TAX_SETTINGS_SECTION_LABELS[activeSection]}
+              </h3>
+              {activePostingComponent || activeSection === "service_tax" ? (
+                <CardInfoPopover label={`About ${TAX_SETTINGS_SECTION_LABELS[activeSection]}`}>
+                  {activePostingComponent ? (
+                    <p>{POSTING_COMPONENT_HINTS[activePostingComponent]}</p>
+                  ) : null}
+                  {activeSection === "service_tax" ? (
+                    <p>
+                      Map each class separately because accommodation, food and beverage, parking
+                      and other services may use different rates. The selected N3 rate is used
+                      automatically.
+                    </p>
+                  ) : null}
+                </CardInfoPopover>
+              ) : null}
+            </div>
             <span
               className="rounded-full px-2 py-0.5 text-xs font-medium"
               style={{
@@ -881,18 +892,8 @@ function TaxSettingsForm({
             </span>
           </div>
 
-          {activePostingComponent ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {POSTING_COMPONENT_HINTS[activePostingComponent]}
-            </p>
-          ) : null}
-
           {activeSection === "service_tax" ? (
             <div className="mt-4 space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Map each class separately because accommodation, food and beverage, parking and
-                other services may use different rates. The selected N3 rate is used automatically.
-              </p>
               {TAXABLE_CLASSES.map((c) => (
                 <div key={c} className="grid gap-3 rounded-md border p-3 sm:grid-cols-[11rem_1fr]">
                   <div>
