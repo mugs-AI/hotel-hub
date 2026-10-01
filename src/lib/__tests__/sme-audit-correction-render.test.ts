@@ -37,7 +37,16 @@ vi.mock("@/lib/deposits-client", async (importOriginal) => ({
   ...((await importOriginal()) as object),
   useReservationDeposits: () => ({
     isPending: false,
-    data: { deposits: deposits.list, capability: deposits.capability },
+    data: {
+      deposits: deposits.list,
+      capability: deposits.capability,
+      summary: {
+        total: deposits.list
+          .filter((d) => d.status === "posted")
+          .reduce((total, d) => total + d.amount, 0),
+        currency: "MYR",
+      },
+    },
   }),
   useCreateDeposit: () => ({ mutate: () => {}, reset: () => {}, isPending: false }),
   useReconcileDeposit: () => ({ mutate: () => {}, reset: () => {}, isPending: false }),

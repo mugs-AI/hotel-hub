@@ -2,11 +2,14 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { DepositDTO } from "@/lib/deposits-client";
 
 const view = vi.hoisted(() => ({
   status: "confirmed",
   error: null as { code: string } | null,
   review: false,
+  deposits: [] as DepositDTO[],
+  total: 0,
   preview: undefined as
     | undefined
     | {
@@ -84,7 +87,17 @@ vi.mock("@/lib/workspace-context", async (original) => {
 });
 vi.mock("@/lib/deposits-client", async (original) => ({
   ...(await original<typeof import("@/lib/deposits-client")>()),
-  useReservationDeposits: () => ({ data: { deposits: [], capability: { canCreate: true } } }),
+  useReservationDeposits: () => ({
+    data: {
+      deposits: view.deposits,
+      summary: {
+        total: view.total,
+        currency: "MYR",
+        count: view.deposits.filter((d) => d.status === "posted").length,
+      },
+      capability: { canCreate: true },
+    },
+  }),
   usePaymentAccounts: () => ({
     isSuccess: true,
     data: { accounts: [{ id: "bank", label: "DuitNow", code: "700-0310" }] },
@@ -109,8 +122,54 @@ beforeEach(() => {
   view.review = false;
   view.error = null;
   view.preview = undefined;
+  view.deposits = [];
+  view.total = 0;
 });
 describe("saved reservation deposit flow", () => {
+  it("shows a compact posted receipt and saved payment name, with its posted total independent of empty entry fields", () => {
+    view.deposits = [
+      {
+        id: "posted",
+        status: "posted",
+        amount: 50,
+        currency: "MYR",
+        n3DocCode: "OR2610/001",
+        n3ReceiptId: "n3",
+        customerLabel: "THX SDN BHD, KENNY WONG",
+        accountLabel: "700-0310 — MAYBANK",
+        paymentLines: [
+          {
+            code: "700-0310",
+            displayName: "DuitNow",
+            accountLabel: "700-0310 — MAYBANK",
+            amount: 50,
+          },
+        ],
+        description: "Deposit",
+        createdByLabel: "KSLEE",
+        createdAt: "2026-09-30T18:00:00Z",
+        errorCode: null,
+      },
+    ];
+    view.total = 50;
+    const html = render(
+      createElement(DepositsCard, {
+        reservationId: "r",
+        canView: true,
+        canCreate: true,
+        eligible: true,
+      }),
+    );
+    expect(html).toContain("OR2610/001");
+    expect(html).toContain("01/10/2026");
+    expect(html).toContain("700-0310 (DuitNow)");
+    expect(html).toContain("Total Deposits:");
+    expect(html).toContain("RM 50.00");
+    expect(html).not.toContain("N3 document</dt>");
+    expect(html).not.toContain("Recorded by</dt>");
+    expect(html).toContain('aria-label="Deposit OR2610/001 details"');
+    expect(html).toContain('aria-label="About this deposit entry"');
+  });
   it("shows deposit entry before the folio on a checked-in reservation", () => {
     view.status = "checked_in";
     const html = render(createElement(Route.options.component!));

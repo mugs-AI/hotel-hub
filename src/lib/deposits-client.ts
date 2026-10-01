@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSessionMe } from "./session-client";
 import { paymentAccountErrorMessage } from "./payment-account-messages";
+import type { RecordedDepositSummary } from "./recorded-deposits";
 
 export type DepositDTO = {
   id: string;
@@ -15,7 +16,12 @@ export type DepositDTO = {
   n3ReceiptId: string | null;
   customerLabel: string | null;
   accountLabel: string | null;
-  paymentLines: Array<{ accountLabel: string; amount: number }>;
+  paymentLines: Array<{
+    accountLabel: string;
+    code?: string;
+    displayName?: string;
+    amount: number;
+  }>;
   description: string | null;
   /** Safe staff label, or null when no real directory name/email exists. */
   createdByLabel: string | null;
@@ -48,6 +54,7 @@ export function usePaymentAccounts(enabled: boolean) {
 }
 
 export type DepositsResponse = {
+  summary?: RecordedDepositSummary;
   deposits: DepositDTO[];
   capability: { canCreate: boolean; canSplit?: boolean };
 };
@@ -118,6 +125,7 @@ export function useCreateDeposit(reservationId: string) {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: depositsKey(tenantKey, reservationId) });
+      qc.invalidateQueries({ queryKey: ["folio"] });
     },
   });
 }
@@ -158,6 +166,7 @@ export function useReconcileDeposit(reservationId: string) {
       ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: depositsKey(tenantKey, reservationId) });
+      qc.invalidateQueries({ queryKey: ["folio"] });
     },
   });
 }
@@ -182,6 +191,10 @@ export function depositStatusLabel(s: DepositDTO["status"]): string {
 
 export function depositErrorMessage(code: string | null | undefined): string {
   switch (code) {
+    case "receipt_contact_too_long":
+      return "Shorten the saved Bill-to details: address must fit two 100-character remarks; phone and email must each fit 100 characters. Nothing was posted.";
+    case "receipt_contact_unavailable":
+      return "Could not read saved guest billing details. Check Bill-to details before retrying. Nothing was posted.";
     case "n3_receipt_access_denied":
     case "n3_account_access_denied":
       return paymentAccountErrorMessage(code);

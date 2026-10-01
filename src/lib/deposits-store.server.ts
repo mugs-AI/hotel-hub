@@ -13,6 +13,7 @@ import { todayInKualaLumpurIso } from "./malaysia-date";
 import { isDepositReservationEligible } from "./deposit-entry";
 import { getOrCreateHotelSettings } from "./hotel-store.server";
 import { logAudit } from "./audit.server";
+import { readReceiptContact, type ReceiptContact } from "./receipt-contact.server";
 import {
   isRealN3Id,
   isSafeReferenceNo,
@@ -55,6 +56,8 @@ export function isDepositWriteEnabled(
 
 export const DEPOSIT_ERROR_CODES = new Set([
   "invalid_amount",
+  "receipt_contact_unavailable",
+  "receipt_contact_too_long",
   "invalid_client_request_id",
   "invalid_payment_lines",
   "payment_method_hidden",
@@ -505,6 +508,7 @@ export type DepositPayloadInput = {
   description: string;
   docDate: string;
   paymentLines?: VerifiedPaymentLine[];
+  contact?: ReceiptContact;
 };
 
 /**
@@ -532,6 +536,7 @@ export function buildDepositPayload(input: DepositPayloadInput): Record<string, 
     docType: "AROR",
     docDate,
     customerId: customerNumber,
+    ...input.contact,
     currencyId: currencyNumber,
     currencyRate: defaults.currencyRate,
     ...(multi
@@ -1250,6 +1255,7 @@ export async function createDeposit(
   const account = paymentLines.length === 1 ? paymentLines[0] : null;
 
   const description = buildDepositDescription(reservation.booking_reference);
+  const contact = await readReceiptContact(input.tenantId, input.reservationId);
 
   // Atomically claim the idempotency key BEFORE any outbound call.
   const sb = await admin();
@@ -1270,7 +1276,7 @@ export async function createDeposit(
       status: "submitting",
       n3_customer_id: settings.walkInCustomer.n3Id,
       n3_customer_code: settings.walkInCustomer.n3Code,
-      n3_customer_name: settings.walkInCustomer.n3Name,
+      n3_customer_name: contact.customerName,
       n3_account_id: account?.id ?? null,
       n3_account_code: account?.code ?? null,
       n3_account_name: account?.name ?? null,
@@ -1438,6 +1444,7 @@ export async function createDeposit(
     description,
     docDate: todayInKualaLumpurIso(),
     paymentLines,
+    contact,
   });
 
   const created = await n3.create(input.n3Token, payload);
@@ -1725,11 +1732,12 @@ export async function buildDepositPreview(
   }
   const paymentLines = await verifyPaymentLines(n3, input.n3Token, defaults, amount, choices);
 
+  const contact = await readReceiptContact(input.tenantId, input.reservationId);
   const displayAccount = (line: VerifiedPaymentLine) =>
     `${settings.paymentAccountAliases?.[line.id.toLowerCase()] ?? line.name} (${line.code})`;
   return {
     bookingReference: reservation.booking_reference,
-    customerLabel: settings.walkInCustomer.n3Name ?? settings.walkInCustomer.n3Code,
+    customerLabel: contact.customerName,
     amount,
     currency: settings.currency,
     accountLabel: paymentLines.length === 1 ? displayAccount(paymentLines[0]!) : null,
@@ -1742,7 +1750,11 @@ export async function buildDepositPreview(
 }
 
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
-export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, string>) {
+export function toDepositDTO(
+  d: DepositRecord,
+  labels?: ReadonlyMap<string, string>,
+  aliases?: Readonly<Record<string, string>>,
+) {
   return {
     id: d.id,
     clientRequestId: d.clientRequestId ?? null,
@@ -1758,6 +1770,8 @@ export function toDepositDTO(d: DepositRecord, labels?: ReadonlyMap<string, stri
         : (d.n3AccountCode ?? d.n3AccountName),
     paymentLines: d.paymentLines.map((l) => ({
       accountLabel: `${l.code} — ${l.name}`,
+      code: l.code,
+      displayName: aliases?.[l.id.toLowerCase()] || l.name,
       amount: l.amount,
     })),
     description: d.description,

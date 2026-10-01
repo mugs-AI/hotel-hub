@@ -308,7 +308,7 @@ export function FolioCard({ reservationId, canView }: { reservationId: string; c
             <dt className="border-t pt-2 text-base font-bold" style={{ color: NAVY }}>
               Prepared total
             </dt>
-            <dd className="border-t pt-2 text-right text-xl font-bold" style={{ color: NAVY }}>
+            <dd className="border-t pt-2 text-right text-lg font-bold" style={{ color: NAVY }}>
               {formatFolioMoney(dto.totals.grandTotal, dto.reservation.currency)}
             </dd>
           </dl>

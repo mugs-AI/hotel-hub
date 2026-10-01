@@ -18,7 +18,7 @@ import {
   visibleFolioTotalRows,
 } from "@/lib/folio-view";
 import { useCheckoutPreview } from "@/lib/checkout-client";
-import { isoToMyDate } from "@/lib/malaysia-date";
+import { isoToMyDate, formatMyTimestamp } from "@/lib/malaysia-date";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { folioLineTitle } from "@/lib/folio-presentation";
 import { useFolioBillTo } from "@/lib/folio-bill-to-client";
@@ -67,6 +67,7 @@ function FolioPrintPage() {
   useEffect(() => {
     if (
       !query.data ||
+      !query.data.recordedDeposits ||
       !printSettings.data ||
       !billTo.data ||
       typeof window === "undefined" ||
@@ -111,6 +112,11 @@ function FolioPrintPage() {
     );
 
   const dto = query.data;
+  if (!dto.recordedDeposits)
+    return (
+      <main className="p-8 text-sm">Unable to load recorded deposits. Reload to try again.</main>
+    );
+  const recorded = dto.recordedDeposits;
   const currency = dto.reservation.currency;
   const settlement = includeVerifiedSettlement ? (preview.data ?? null) : null;
   const guestRows = guestFacingFolioRows(dto);
@@ -125,7 +131,7 @@ function FolioPrintPage() {
       style={
         {
           "--folio-body-pt": `${printSettings.data.settings.folioBodyPt}pt`,
-          "--folio-note-pt": `${printSettings.data.settings.folioNotePt}pt`,
+          "--folio-note-pt": `calc(${printSettings.data.settings.folioNotePt}pt + 1pt)`,
         } as CSSProperties
       }
     >
@@ -171,7 +177,9 @@ function FolioPrintPage() {
         .totals dl { display: grid; grid-template-columns: 1fr auto; gap: 1mm 4mm; margin: 0; }
         .totals dt { color: #4a5568; }
         .totals dd { margin: 0; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .grand { font-weight: 800; font-size: 12pt; color: #102A43; border-top: 2px solid #102A43; padding-top: 2mm; }
+        .prepared-total { font-weight: 700; font-size: calc(var(--folio-body-pt) + 1pt); border-top: 1px solid #102A43; padding-top: 2mm; }
+        .grand { font-weight: 800; font-size: calc(var(--folio-body-pt) + 1.5pt); color: #102A43; border-top: 2px solid #102A43; padding-top: 2mm; }
+        .deposit-list { margin-top: 4mm; }
         .signature-block { display: grid; grid-template-columns: 1fr 1fr; gap: 16mm; margin-top: 12mm; }
         .signature { border-top: 1px solid #102A43; padding-top: 1.5mm; }
         .guest-name { margin-top: 5mm; }
@@ -324,6 +332,34 @@ function FolioPrintPage() {
           </tbody>
         </table>
 
+        <section className="deposit-list">
+          <h2 className="section">Deposits ({currency})</h2>
+          {recorded.items.length ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Receipt</th>
+                  <th>Date</th>
+                  <th className="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recorded.items.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.n3DocCode ?? "—"}</td>
+                    <td>{formatMyTimestamp(item.createdAt).slice(0, 10)}</td>
+                    <td className="num">{paperNumber(item.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p>No posted deposits.</p>
+          )}
+          {recorded.hasUnconfirmed ? (
+            <p>Unconfirmed deposits are excluded. Check N3 before final settlement.</p>
+          ) : null}
+        </section>
         <div className="totals">
           <dl>
             {visibleFolioTotalRows(dto).map((row) => (
@@ -332,8 +368,12 @@ function FolioPrintPage() {
                 <dd>{paperNumber(row.amount)}</dd>
               </div>
             ))}
-            <dt className="grand">Prepared total</dt>
-            <dd className="grand">{formatFolioMoney(dto.totals.grandTotal, currency)}</dd>
+            <dt className="prepared-total">Prepared total</dt>
+            <dd className="prepared-total">{formatFolioMoney(dto.totals.grandTotal, currency)}</dd>
+            <dt>Less deposits</dt>
+            <dd>{formatFolioMoney(recorded.total, currency)}</dd>
+            <dt className="grand">Net figure</dt>
+            <dd className="grand">{formatFolioMoney(recorded.netFigure, currency)}</dd>
             {settlement ? (
               <>
                 <dt>Verified deposits / credits</dt>
@@ -368,9 +408,8 @@ function FolioPrintPage() {
         </div>
 
         <p className="note">
-          This is a prepared statement for guest review only. It is not a tax invoice or a receipt:
-          nothing here has been posted to accounting, no deposit has been matched and no refund has
-          been issued.
+          Prepared folio. Deposits deducted; balance subject to final settlement. Not a tax invoice
+          or receipt.
         </p>
       </section>
     </div>

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { depositEntry, formatDepositInput } from "@/lib/deposit-entry";
 import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
+import { formatMyTimestamp } from "@/lib/malaysia-date";
 import {
   depositErrorMessage,
   DepositApiError,
@@ -215,6 +216,8 @@ export function DepositsCard({
         error instanceof DepositApiError &&
         [
           "invalid_amount",
+          "receipt_contact_too_long",
+          "receipt_contact_unavailable",
           "invalid_payment_lines",
           "invalid_client_request_id",
           "deposit_writes_disabled",
@@ -253,7 +256,10 @@ export function DepositsCard({
 
   const p = preview.data?.preview;
 
-  const total = deposits.reduce((sum, d) => sum + d.amount, 0);
+  const total = q.data?.summary?.total ?? 0;
+  const totalLabel = q.data?.summary
+    ? `${q.data.summary.currency === "MYR" ? "RM" : (q.data.summary.currency ?? "")} ${q.data.summary.total.toFixed(2)}`.trim()
+    : "Unavailable";
   const headline = depositsHeadline({
     count: deposits.length,
     currency: deposits[0]?.currency ?? null,
@@ -285,7 +291,13 @@ export function DepositsCard({
           </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
-          {q.isPending ? "Loading…" : q.isError ? "Deposits unavailable" : headline}
+          {q.isPending
+            ? "Loading…"
+            : q.isError
+              ? "Deposits unavailable"
+              : q.data?.summary
+                ? headline
+                : "Deposit total unavailable"}
         </span>
       </div>
       {attention ? (
@@ -301,52 +313,50 @@ export function DepositsCard({
           {deposits.map((d) => (
             <li
               key={d.id}
-              className="rounded-md border p-3 text-xs"
+              className="rounded-md border px-3 py-2 text-base"
               style={{ borderColor: `${NAVY}22` }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                <span className="font-mono font-medium">{d.n3DocCode ?? "—"}</span>
+                <time dateTime={d.createdAt}>{formatMyTimestamp(d.createdAt).slice(0, 10)}</time>
+                <span>
+                  {d.paymentLines?.length
+                    ? d.paymentLines
+                        .map((l) =>
+                          l.code && l.displayName ? `${l.code} (${l.displayName})` : l.accountLabel,
+                        )
+                        .join("; ")
+                    : (d.accountLabel ?? "—")}
+                </span>
                 <span className="font-semibold tabular-nums" style={{ color: NAVY }}>
-                  {d.currency} {d.amount.toFixed(2)}
+                  {d.currency === "MYR" ? "RM" : d.currency} {d.amount.toFixed(2)}
                 </span>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                  style={{
-                    backgroundColor:
-                      d.status === "posted"
-                        ? `${TEAL}22`
-                        : d.status === "failed"
-                          ? `${ERR}1A`
-                          : `${GOLD}22`,
-                    color: d.status === "posted" ? TEAL : d.status === "failed" ? ERR : GOLD,
-                  }}
-                >
-                  {depositStatusLabel(d.status)}
-                </span>
+                <CardInfoPopover label={`Deposit ${d.n3DocCode ?? "unconfirmed"} details`}>
+                  <p>{depositStatusLabel(d.status)}</p>
+                  <p>Customer: {d.customerLabel ?? "—"}</p>
+                  <p>Recorded by: {d.createdByLabel ?? "System"}</p>
+                  <p>Recorded: {formatMyTimestamp(d.createdAt)}</p>
+                  <p>{d.description}</p>
+                  {d.paymentLines?.length > 1
+                    ? d.paymentLines.map((line, index) => (
+                        <p key={index}>
+                          {line.accountLabel}: {d.currency} {line.amount.toFixed(2)}
+                        </p>
+                      ))
+                    : null}
+                </CardInfoPopover>
+                {d.status !== "posted" ? (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    style={{
+                      backgroundColor: d.status === "failed" ? `${ERR}1A` : `${GOLD}22`,
+                      color: d.status === "failed" ? ERR : GOLD,
+                    }}
+                  >
+                    {depositStatusLabel(d.status)}
+                  </span>
+                ) : null}
               </div>
-              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-                <div>
-                  <dt className="text-muted-foreground">N3 document</dt>
-                  <dd className="font-mono">{d.n3DocCode ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Customer</dt>
-                  <dd>{d.customerLabel ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Account</dt>
-                  <dd>
-                    {d.paymentLines?.length
-                      ? d.paymentLines
-                          .map((l) => `${l.accountLabel} (${d.currency} ${l.amount.toFixed(2)})`)
-                          .join("; ")
-                      : (d.accountLabel ?? "—")}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Recorded by</dt>
-                  <dd>{d.createdByLabel ?? "System"}</dd>
-                </div>
-              </dl>
               {isRecoverableDeposit(d.status) ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span style={{ color: GOLD }}>
@@ -391,7 +401,7 @@ export function DepositsCard({
           Only the Owner can add a deposit. You can view recorded deposits here.
         </p>
       ) : (
-        <div className="mt-4 border-t pt-4">
+        <div className="mt-3 border-t pt-3">
           {!gateOpen ? (
             <p className="text-xs text-muted-foreground">
               Deposit collection is not enabled for this property. Refer to Admin.
@@ -405,18 +415,13 @@ export function DepositsCard({
               Check the unconfirmed deposit in N3 before adding another deposit.
             </p>
           ) : !attempt ? (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold tabular-nums" style={{ color: NAVY }}>
-                Deposit total: {entry.ok ? entry.amount.toFixed(2) : "—"}
-              </p>
+            <div className="flex flex-wrap items-center gap-3">
               {lines.map((line, index) => (
-                <div key={index} className="flex flex-wrap items-end gap-2">
-                  <label className="text-xs">
-                    <span className="block text-muted-foreground">
-                      {index === 0 ? "Deposit to N3 account" : `Payment ${index + 1} account`}
-                    </span>
+                <div key={index} className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <span>{index === 0 ? "Deposit to" : `Payment ${index + 1}`}</span>
                     <select
-                      className="mt-1 rounded-md border border-input bg-white px-2 py-1 text-sm"
+                      className="min-w-0 max-w-full rounded-md border border-input bg-white px-2 py-2 text-sm"
                       value={line.accountId}
                       onChange={(e) =>
                         setLines((current) =>
@@ -434,11 +439,11 @@ export function DepositsCard({
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs">
-                    <span className="block text-muted-foreground">Amount</span>
+                  <label className="flex items-center gap-2 text-sm">
+                    <span>Amount</span>
                     <input
                       inputMode="decimal"
-                      className="mt-1 w-32 rounded-md border border-input px-2 py-1 text-sm"
+                      className="w-28 rounded-md border border-input bg-white px-2 py-2 text-sm"
                       value={line.amount}
                       placeholder="0.00"
                       onBlur={() =>
@@ -497,11 +502,7 @@ export function DepositsCard({
                   >
                     Add another payment method
                   </button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    One payment method per deposit.
-                  </span>
-                )}
+                ) : null}
                 <button
                   type="button"
                   disabled={
@@ -518,6 +519,20 @@ export function DepositsCard({
                 >
                   Add deposit
                 </button>
+                <CardInfoPopover label="About this deposit entry">
+                  <p>
+                    {canSplit
+                      ? "Choose the enabled payment methods and their amounts."
+                      : "One payment method per deposit."}
+                  </p>
+                  <p>
+                    Total Deposits includes posted payments only. Failed and unconfirmed entries are
+                    excluded.
+                  </p>
+                </CardInfoPopover>
+                <span className="ml-2 text-sm font-semibold tabular-nums">
+                  Total Deposits: {totalLabel}
+                </span>
               </div>
               {!entry.ok && lines.some((l) => l.amount.trim()) ? (
                 <p className="text-xs" style={{ color: ERR }}>
@@ -534,7 +549,7 @@ export function DepositsCard({
               ) : null}
             </div>
           ) : (
-            <div className="rounded-md border p-3 text-xs" style={{ borderColor: `${GOLD}55` }}>
+            <div className="flex flex-wrap items-center gap-3 text-sm">
               {attempt.phase === "posting" ? (
                 <p role="status">Posting this deposit to N3…</p>
               ) : attempt.phase === "unknown" ? (
@@ -568,37 +583,28 @@ export function DepositsCard({
               ) : preview.error ? (
                 <p style={{ color: ERR }}>{depositErrorMessage(preview.error.code)}</p>
               ) : p ? (
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-                  <div>
-                    <dt className="text-muted-foreground">Booking</dt>
-                    <dd className="font-mono">{p.bookingReference}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Customer</dt>
-                    <dd>{p.customerLabel}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Amount</dt>
-                    <dd className="tabular-nums">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span>
+                    Deposit to{" "}
+                    <strong>{p.paymentLines.map((l) => l.accountLabel).join("; ")}</strong>
+                  </span>
+                  <span>
+                    Amount{" "}
+                    <strong className="tabular-nums">
                       {p.currency} {p.amount.toFixed(2)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Payment account</dt>
-                    <dd>
-                      {p.paymentLines
-                        .map((l) => `${l.accountLabel}: ${p.currency} ${l.amount.toFixed(2)}`)
-                        .join("; ")}
-                    </dd>
-                  </div>
-                </dl>
+                    </strong>
+                  </span>
+                </div>
               ) : null}
               {p && !preview.error && !preview.isPending && attempt.phase === "review" ? (
-                <p className="mt-2 font-semibold" style={{ color: NAVY }}>
-                  {p.warning} It cannot be undone from HotelHub.
-                </p>
+                <CardInfoPopover label="About confirming this deposit">
+                  <p>
+                    {p.bookingReference} · {p.customerLabel}
+                  </p>
+                  <p>One payment method per deposit unless split payments are enabled.</p>
+                </CardInfoPopover>
               ) : null}
-              <div className="mt-2 flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={submit}
@@ -623,7 +629,15 @@ export function DepositsCard({
                 >
                   Cancel
                 </button>
+                <span className="ml-2 font-semibold tabular-nums">
+                  Total Deposits: {totalLabel}
+                </span>
               </div>
+              {p && !preview.error && !preview.isPending && attempt.phase === "review" ? (
+                <p className="w-full text-sm" style={{ color: NAVY }}>
+                  {p.warning} It cannot be undone from HotelHub.
+                </p>
+              ) : null}
             </div>
           )}
           {create.error ? (

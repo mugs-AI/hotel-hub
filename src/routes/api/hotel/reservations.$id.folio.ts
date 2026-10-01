@@ -7,6 +7,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isUuid } from "@/lib/reservations-store.server";
 import { buildFolioView } from "@/lib/folio-store.server";
+import { listDeposits } from "@/lib/deposits-store.server";
+import { recordedDepositStatement } from "@/lib/recorded-deposits";
 import { folioDeny, folioFailure, folioJson, requireFolioActor } from "@/lib/folio-api.server";
 
 export async function handleReadFolio({ params }: { params: { id?: string } }): Promise<Response> {
@@ -28,7 +30,15 @@ export async function handleReadFolio({ params }: { params: { id?: string } }): 
         canManageCharges: actor.can("hotel:charges:manage"),
       },
     });
-    return folioJson(dto);
+    const deposits = await listDeposits(actor.tenantId, id);
+    return folioJson({
+      ...dto,
+      recordedDeposits: recordedDepositStatement(
+        deposits,
+        dto.reservation.currency,
+        dto.totals.grandTotal,
+      ),
+    });
   } catch (err) {
     return folioFailure(err, { tenantId: actor.tenantId, actorKey: actor.actorKey });
   }

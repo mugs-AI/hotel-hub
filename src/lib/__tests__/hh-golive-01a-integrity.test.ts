@@ -248,7 +248,7 @@ describe("completed operational UI", () => {
   it("provides a printable guest folio that never states it is an invoice", () => {
     const print = read("src/routes/reservations.$id_.folio-print.tsx");
     expect(print).toContain('createFileRoute("/reservations/$id_/folio-print")');
-    expect(print).toContain("not a tax invoice");
+    expect(print.toLowerCase()).toContain("not a tax invoice");
   });
 
   it("completes the Owner charges and taxes configuration", () => {

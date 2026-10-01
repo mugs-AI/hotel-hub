@@ -5,6 +5,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { destroySession, requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
 import { hasPermission } from "@/lib/rbac";
+import { summarizePostedDeposits } from "@/lib/recorded-deposits";
+import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 import {
   createDeposit,
   DepositError,
@@ -57,6 +59,8 @@ export function statusForDepositError(code: string): number {
     case "reference_conflict":
     case "multi_payment_contract_unverified":
     case "payment_method_hidden":
+    case "receipt_contact_too_long":
+    case "receipt_contact_unavailable":
       return 409;
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
@@ -95,6 +99,7 @@ export async function handleDepositsList({
   if (!isUuidLike(id)) return deny(400, "invalid_id");
   try {
     const rowsList = await listDeposits(ctx.session.tenantId!, id);
+    const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
     const { resolveActorLabels } = await import("@/lib/tenant-store.server");
     const labels = await resolveActorLabels(
       ctx.session.tenantId!,
@@ -105,7 +110,8 @@ export async function handleDepositsList({
       isDepositWriteEnabled(ctx.session.n3TenantKey);
     return Response.json(
       {
-        deposits: rowsList.map((d) => toDepositDTO(d, labels)),
+        deposits: rowsList.map((d) => toDepositDTO(d, labels, settings?.paymentAccountAliases)),
+        summary: summarizePostedDeposits(rowsList, settings?.currency),
         capability: {
           canCreate,
           canSplit: canCreate && process.env.HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED === "true",

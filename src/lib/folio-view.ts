@@ -6,6 +6,7 @@
 import type { FolioBlocker, FolioLineType, FolioLineStatus, GuestTaxClass } from "./folio";
 import type { TaxClass } from "./charges-catalogue";
 import type { FolioReadiness } from "./folio-readiness";
+import type { RecordedDepositStatement } from "./recorded-deposits";
 
 export type FolioLineDTO = {
   id: string;
@@ -134,6 +135,7 @@ export type FolioCapabilityDTO = {
 };
 
 export type FolioViewDTO = {
+  recordedDeposits?: RecordedDepositStatement;
   reservation: {
     id: string;
     bookingReference: string;

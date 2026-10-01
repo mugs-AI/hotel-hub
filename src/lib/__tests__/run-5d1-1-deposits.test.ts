@@ -39,6 +39,7 @@ type MockBuilder = {
   select(): MockBuilder;
   eq(column: string, value: unknown): MockBuilder;
   order(): MockBuilder;
+  limit(): MockBuilder;
   insert(row: Row): MockBuilder;
   update(patch: Row): MockBuilder;
   maybeSingle(): Promise<QueryResult>;
@@ -60,6 +61,9 @@ function makeBuilder(table: string): MockBuilder {
       return builder;
     },
     order() {
+      return builder;
+    },
+    limit() {
       return builder;
     },
     insert(row: Row) {
@@ -241,6 +245,19 @@ beforeEach(() => {
   visibility.aliases = {};
   auditEvents.length = 0;
   tables.hotel_reservation_deposits = [];
+  tables.hotel_reservation_guests = [];
+  tables.hotel_guests = [];
+  tables.hotel_folio_bill_to = [
+    {
+      tenant_id: TENANT,
+      reservation_id: RESERVATION_ID,
+      name: "KENNY WONG",
+      company: "THX SDN BHD",
+      address: "12 Example Road, 35000 Sample Town.",
+      phone: "0120000000",
+      email: "kenny@example.com",
+    },
+  ];
   tables.hotel_reservations = [
     {
       id: RESERVATION_ID,
@@ -252,6 +269,112 @@ beforeEach(() => {
   ];
 });
 describe("saved reservation deposits", () => {
+  it("uses the booking guest when bill-to is unsaved and ignores another tenant's bill-to", async () => {
+    tables.hotel_folio_bill_to[0]!.tenant_id = "other-tenant";
+    tables.hotel_reservation_guests = [
+      { tenant_id: TENANT, reservation_id: RESERVATION_ID, guest_id: "guest-1", is_primary: true },
+    ];
+    tables.hotel_guests = [
+      {
+        tenant_id: TENANT,
+        id: "guest-1",
+        full_name: "Booking Guest",
+        mobile: "0123456789",
+        email: "guest@example.com",
+        address_line_1: "12 Road",
+        postcode: "35000",
+        city: "Gopeng",
+      },
+    ];
+    const { client } = makeN3();
+    let outgoing: unknown;
+    client.create = async (_token, payload) => {
+      outgoing = payload;
+      return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+    };
+    await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    expect(outgoing).toMatchObject({
+      customerName: "Booking Guest",
+      remark1: "12 Road 35000 Gopeng",
+      remark2: "",
+      remark3: "0123456789",
+      remark4: "guest@example.com",
+    });
+  });
+  it("rejects a guest belonging to another tenant without claiming or posting", async () => {
+    tables.hotel_folio_bill_to = [];
+    tables.hotel_reservation_guests = [
+      { tenant_id: TENANT, reservation_id: RESERVATION_ID, guest_id: "guest-1" },
+    ];
+    tables.hotel_guests = [{ tenant_id: "other-tenant", id: "guest-1", full_name: "Other guest" }];
+    const { client, calls } = makeN3();
+    await expect(
+      createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code: "receipt_contact_unavailable" });
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+  it.each(["A".repeat(200), "A".repeat(99) + "😀" + "B".repeat(98)])(
+    "preserves an address at the two-remark boundary %s",
+    async (address) => {
+      tables.hotel_folio_bill_to[0]!.address = address;
+      const { client } = makeN3();
+      let outgoing: Record<string, string> = {};
+      client.create = async (_token, payload) => {
+        outgoing = payload as Record<string, string>;
+        return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+      };
+      await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+      expect(outgoing.remark1.length).toBeLessThanOrEqual(100);
+      expect(outgoing.remark2.length).toBeLessThanOrEqual(100);
+      expect(outgoing.remark1 + outgoing.remark2).toBe(address);
+      expect(outgoing.remark1).not.toMatch(/[\uD800-\uDBFF]$/);
+    },
+  );
+  it("sends saved company/guest and contact remarks on the receipt without changing the mapped customer", async () => {
+    const { client } = makeN3();
+    let outgoing: unknown;
+    client.create = async (_token, payload) => {
+      outgoing = payload;
+      return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+    };
+    await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    expect(outgoing).toMatchObject({
+      customerId: 1,
+      customerName: "THX SDN BHD, KENNY WONG",
+      remark1: "12 Example Road, 35000 Sample Town.",
+      remark2: "",
+      remark3: "0120000000",
+      remark4: "kenny@example.com",
+    });
+    expect(tables.hotel_reservation_deposits[0]!.n3_customer_name).toBe("THX SDN BHD, KENNY WONG");
+  });
+  it("splits a 150-character address into two remarks without dropping the remainder", async () => {
+    tables.hotel_folio_bill_to[0]!.address = "A".repeat(100) + "B".repeat(50);
+    const { client } = makeN3();
+    let outgoing: unknown;
+    client.create = async (_token, payload) => {
+      outgoing = payload;
+      return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+    };
+    await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    expect(outgoing).toMatchObject({ remark1: "A".repeat(100), remark2: "B".repeat(50) });
+  });
+  it.each([{ address: "A".repeat(201) }, { phone: "1".repeat(101) }, { email: "a".repeat(101) }])(
+    "blocks oversized receipt contact fields before claiming or posting %j",
+    async (fields) => {
+      Object.assign(tables.hotel_folio_bill_to[0]!, fields);
+      const { client, calls } = makeN3();
+      await expect(
+        buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+      ).rejects.toMatchObject({ code: "receipt_contact_too_long" });
+      await expect(
+        createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+      ).rejects.toMatchObject({ code: "receipt_contact_too_long" });
+      expect(calls.create).toBe(0);
+      expect(tables.hotel_reservation_deposits).toHaveLength(0);
+    },
+  );
   it("previews a checked-in booking without posting or claiming a deposit", async () => {
     tables.hotel_reservations[0]!.status = "checked_in";
     const { client, calls } = makeN3();
@@ -857,7 +980,7 @@ describe("5D1.1 confirmation preview", () => {
     );
     expect(calls.create).toBe(0);
     expect(preview.bookingReference).toBe("BK-0001");
-    expect(preview.customerLabel).toBe("Walk In Guest");
+    expect(preview.customerLabel).toBe("THX SDN BHD, KENNY WONG");
     expect(preview.accountLabel).toBe("Maybank Current (700-0310)");
     expect(preview.warning).toContain("real accounting document");
     const serialized = JSON.stringify(preview);

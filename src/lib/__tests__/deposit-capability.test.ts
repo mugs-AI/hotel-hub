@@ -7,6 +7,9 @@ vi.mock("@/lib/session-context.server", () => ({
   }),
 }));
 vi.mock("@/lib/tenant-store.server", () => ({ resolveActorLabels: async () => new Map() }));
+vi.mock("@/lib/hotel-store.server", () => ({
+  getHotelSettingsReadOnly: async () => ({ currency: "MYR", paymentAccountAliases: {} }),
+}));
 vi.mock("@/lib/deposits-store.server", async (original) => ({
   ...(await original<object>()),
   listDeposits: async () => [],

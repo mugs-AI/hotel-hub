@@ -25,7 +25,16 @@ vi.mock("@/lib/deposits-client", async (importOriginal) => ({
   ...((await importOriginal()) as object),
   useReservationDeposits: () => ({
     isPending: false,
-    data: { deposits: deposits.list, capability: deposits.capability },
+    data: {
+      deposits: deposits.list,
+      capability: deposits.capability,
+      summary: {
+        total: deposits.list
+          .filter((d) => d.status === "posted")
+          .reduce((total, d) => total + d.amount, 0),
+        currency: "MYR",
+      },
+    },
   }),
   useCreateDeposit: () => ({ mutate: () => {}, reset: () => {}, isPending: false }),
   useReconcileDeposit: () => ({ mutate: () => {}, reset: () => {}, isPending: false }),
@@ -61,19 +70,21 @@ describe("Deposits compact summary — real amount AND real status", () => {
 
   it("shows a failed single deposit honestly and keeps the warning always visible", () => {
     const html = depositCard([failed]);
-    expect(html).toContain("1 deposit · MYR 100.00 · Failed");
+    expect(html).toContain("1 deposit · MYR 0.00 · Failed");
+    expect(html).toContain("RM 100.00");
     expect(html).toContain("1 failed");
   });
 
   it("shows an unconfirmed deposit and the do-not-re-post warning", () => {
     const html = depositCard([unknown]);
-    expect(html).toContain("1 deposit · MYR 50.00 · Unconfirmed");
+    expect(html).toContain("1 deposit · MYR 0.00 · Unconfirmed");
+    expect(html).toContain("RM 50.00");
     expect(html).toContain("do not re-post, check N3 first");
   });
 
   it("shows compact status counts for mixed deposits", () => {
     const html = depositCard([posted, unknown]);
-    expect(html).toContain("2 deposits · MYR 300.00 · Posted 1 · Unconfirmed 1");
+    expect(html).toContain("2 deposits · MYR 250.00 · Posted 1 · Unconfirmed 1");
     expect(html).toContain("do not re-post, check N3 first");
   });
 
