@@ -16,6 +16,7 @@ import { countryName } from "@/lib/iso-countries";
 import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
+import { isDepositReservationEligible } from "@/lib/deposit-entry";
 import { PaymentStatusCard } from "@/components/PaymentStatusCard";
 import { WorkspaceHeader } from "@/components/WorkspaceHeader";
 import { useReservationTabLabel } from "@/lib/workspace-context";
@@ -394,6 +395,14 @@ function Detail({
         </div>
       </section>
 
+      <DepositsCard
+        key={data.id}
+        reservationId={data.id}
+        canView={canViewDeposits}
+        canCreate={canCreateDeposits}
+        eligible={isDepositReservationEligible(data.status)}
+      />
+
       {hasPermission(role, "hotel:folio:view") ? (
         <FolioBillToCard
           reservationId={data.id}
@@ -403,14 +412,6 @@ function Detail({
       <FolioCard reservationId={data.id} canView={hasPermission(role, "hotel:folio:view")} />
 
       {hasPermission(role, "hotel:folio:view") ? <PaymentStatusCard /> : null}
-
-      <DepositsCard
-        key={data.id}
-        reservationId={data.id}
-        canView={canViewDeposits}
-        canCreate={canCreateDeposits}
-        eligible={data.status === "confirmed"}
-      />
 
       <ReservationActionsCard
         reservationId={data.id}

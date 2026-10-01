@@ -10,6 +10,7 @@
 // - Ambiguous outcomes become `unknown` and are never auto-retried.
 
 import { todayInKualaLumpurIso } from "./malaysia-date";
+import { isDepositReservationEligible } from "./deposit-entry";
 import { getOrCreateHotelSettings } from "./hotel-store.server";
 import { logAudit } from "./audit.server";
 import {
@@ -64,6 +65,14 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "walk_in_customer_not_mapped",
   "n3_defaults_unavailable",
   "n3_defaults_invalid",
+  "n3_defaults_rejected",
+  "n3_defaults_type_invalid",
+  "n3_defaults_currency_missing",
+  "n3_defaults_currency_invalid",
+  "n3_defaults_currency_code_missing",
+  "n3_defaults_currency_conflict",
+  "n3_defaults_rate_invalid",
+  "n3_defaults_account_invalid",
   "n3_deposit_account_unavailable",
   "n3_deposit_account_invalid",
   "n3_preflight_unavailable",
@@ -184,6 +193,18 @@ function fieldsAgree(obj: unknown, keys: string[], check: (value: unknown) => bo
   return valuesFor(obj, keys).every(check);
 }
 
+/** Both /New consumers accept casing variants and reject ambiguous envelopes. */
+function unwrapReceiptDefaults(body: unknown): any {
+  const envelopes = valuesFor(body, ["data"]);
+  if (envelopes.some((value) => JSON.stringify(value) !== JSON.stringify(envelopes[0])))
+    return null;
+  const envelope = envelopes.length ? envelopes[0] : body;
+  const values = valuesFor(envelope, ["value"]);
+  if (values.some((value) => JSON.stringify(value) !== JSON.stringify(values[0]))) return null;
+  const value = values.length ? values[0] : envelope;
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
 /** N3 OpenAPI JSON responses carry a business code even when HTTP is 200. */
 function successfulEnvelope(body: unknown): boolean {
   return (
@@ -202,7 +223,7 @@ export type N3ReceiptDefaults = {
   currencyId: string;
   currencyCode: string;
   currencyRate: number;
-  accountId: string;
+  accountId: string | null;
   accountCode: string | null;
   accountName: string | null;
 };
@@ -214,7 +235,8 @@ export function readPaymentAccountCurrency(
   if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300)
     return { ok: false, error: "n3_defaults_unavailable" };
   if (!successfulEnvelope(outcome.body)) return { ok: false, error: "n3_defaults_rejected" };
-  const v = unwrap(outcome.body);
+  const v = unwrapReceiptDefaults(outcome.body);
+  if (!v) return { ok: false, error: "n3_defaults_invalid" };
   const rawId = pick(v, ["currencyId"]);
   if (rawId === undefined) return { ok: false, error: "n3_defaults_currency_missing" };
   const id = positiveInt(rawId);
@@ -238,23 +260,31 @@ export function readPaymentAccountCurrency(
 }
 
 /**
- * Validate `GET /api/ARReceipts/New`. Fails closed unless the tenant-specific
- * currency and default payment account can be proven.
+ * Verify tenant-specific receipt defaults without inventing financial values.
+ * Preview/Create already require independently verified payment lines, so a
+ * blank /New default account must not override or block the chosen account.
  */
-export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults | null {
-  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300) return null;
-  if (!successfulEnvelope(outcome.body)) return null;
-  const v = unwrap(outcome.body);
-  if (!v || typeof v !== "object") return null;
-  const docType = str(pick(v, ["docType", "DocType"]));
-  if (docType !== "AROR") return null;
-  const currencyIdNumber = positiveInt(pick(v, ["currencyId", "CurrencyId"]));
-  const currencyId = currencyIdNumber === null ? null : String(currencyIdNumber);
+export function readNewReceiptDefaults(
+  outcome: N3Outcome,
+  requireDefaultAccount = true,
+): { ok: true; defaults: N3ReceiptDefaults } | { ok: false; error: string } {
+  const fail = (error: string) => ({ ok: false as const, error });
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300)
+    return fail("n3_defaults_unavailable");
+  if (!successfulEnvelope(outcome.body)) return fail("n3_defaults_rejected");
+  const v = unwrapReceiptDefaults(outcome.body);
+  if (!v) return fail("n3_defaults_invalid");
+  const docType = str(pick(v, ["docType"]));
+  if (docType !== "AROR" || !fieldsAgree(v, ["docType"], (value) => str(value) === "AROR"))
+    return fail("n3_defaults_type_invalid");
+  const rawCurrencyId = pick(v, ["currencyId"]);
+  if (rawCurrencyId === undefined) return fail("n3_defaults_currency_missing");
+  const currencyIdNumber = positiveInt(rawCurrencyId);
+  if (currencyIdNumber === null) return fail("n3_defaults_currency_invalid");
+  const currencyId = String(currencyIdNumber);
   const currency = pick(v, ["currency"]);
   const currencyCode = str(pick(v, ["currencyCode"])) ?? str(pick(currency, ["code"]));
-  const currencyRate = num(pick(v, ["currencyRate", "CurrencyRate"]));
-  const accountId = str(pick(v, ["accountId", "AccountId"]));
-  if (!currencyId || !currencyCode || !isRealN3Id(accountId)) return null;
+  if (!currencyCode) return fail("n3_defaults_currency_code_missing");
   if (
     !fieldsAgree(v, ["currencyId"], (value) => str(value) === currencyId) ||
     !valuesFor(v, ["currency"]).every((obj) =>
@@ -273,20 +303,57 @@ export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults |
       ),
     )
   )
-    return null;
-  if (currencyRate === null || currencyRate <= 0) return null;
-  const accountObj = pick(v, ["account", "Account"]);
+    return fail("n3_defaults_currency_conflict");
+  const currencyRate = num(pick(v, ["currencyRate"]));
+  if (
+    currencyRate === null ||
+    currencyRate <= 0 ||
+    !fieldsAgree(v, ["currencyRate"], (value) => num(value) === currencyRate)
+  )
+    return fail("n3_defaults_rate_invalid");
+  const suppliedAccountId = pick(v, ["accountId"]);
+  const rawAccountId = str(suppliedAccountId);
+  const accountId = isRealN3Id(rawAccountId) ? rawAccountId : null;
+  const blankAccount = (value: unknown) =>
+    value === undefined ||
+    value === null ||
+    (typeof value === "string" &&
+      (!value.trim() || value.trim() === "00000000-0000-0000-0000-000000000000"));
+  if (
+    (requireDefaultAccount && !accountId) ||
+    (!accountId && !blankAccount(suppliedAccountId)) ||
+    !fieldsAgree(v, ["accountId"], (value) =>
+      accountId ? str(value)?.toLowerCase() === accountId.toLowerCase() : blankAccount(value),
+    )
+  )
+    return fail("n3_defaults_account_invalid");
+  const accountObj = pick(v, ["account"]);
   return {
-    docType,
-    currencyId,
-    currencyCode: currencyCode.toUpperCase(),
-    currencyRate,
-    accountId,
-    accountCode: str(pick(v, ["accountCode", "AccountCode"])) ?? str(pick(accountObj, ["code"])),
-    accountName: str(pick(v, ["accountName", "AccountName"])) ?? str(pick(accountObj, ["name"])),
+    ok: true,
+    defaults: {
+      docType,
+      currencyId,
+      currencyCode: currencyCode.toUpperCase(),
+      currencyRate,
+      accountId,
+      accountCode: str(pick(v, ["accountCode"])) ?? str(pick(accountObj, ["code"])),
+      accountName: str(pick(v, ["accountName"])) ?? str(pick(accountObj, ["name"])),
+    },
   };
 }
 
+/** Strict compatibility parser for callers that need a default account. */
+export function parseNewReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults | null {
+  const result = readNewReceiptDefaults(outcome);
+  return result.ok ? result.defaults : null;
+}
+
+function requireReceiptDefaults(outcome: N3Outcome): N3ReceiptDefaults {
+  if (outcome.kind === "response" && outcome.status === 401) throw new DepositError("unauthorized");
+  const result = readNewReceiptDefaults(outcome, false);
+  if (!result.ok) throw new DepositError(result.error);
+  return result.defaults;
+}
 export type VerifiedDepositAccount = {
   id: string;
   code: string;
@@ -325,7 +392,7 @@ async function verifyDepositAccount(
   n3: N3ReceiptsClient,
   token: string,
   defaults: N3ReceiptDefaults,
-  selectedId: string = defaults.accountId,
+  selectedId: string | null = defaults.accountId,
 ): Promise<VerifiedDepositAccount> {
   if (!isRealN3Id(selectedId)) throw new DepositError("invalid_payment_lines");
   const outcome = await n3.getAccountById(token, selectedId);
@@ -459,6 +526,8 @@ export function buildDepositPayload(input: DepositPayloadInput): Record<string, 
       lines.map((l) => ({ accountId: l.id, amount: l.amount })),
     );
   const multi = Boolean(lines && lines.length > 1);
+  if (!multi && !isRealN3Id(lines?.[0]?.id ?? defaults.accountId))
+    throw new DepositError("invalid_payment_lines");
   return {
     docType: "AROR",
     docDate,
@@ -1112,7 +1181,8 @@ async function loadEligibleReservation(tenantId: string, reservationId: string) 
     .maybeSingle();
   if (res.error) throw new DepositError("deposit_write_failed");
   if (!res.data) throw new DepositError("reservation_not_found");
-  if (res.data.status !== "confirmed") throw new DepositError("reservation_not_eligible");
+  if (!isDepositReservationEligible(res.data.status))
+    throw new DepositError("reservation_not_eligible");
   return res.data as { id: string; booking_reference: string; status: string; currency: string };
 }
 
@@ -1165,20 +1235,13 @@ export async function createDeposit(
     // Forbidden is not expiry: fail closed without touching the session.
     throw new DepositError("n3_defaults_unavailable");
   }
-  const defaults = parseNewReceiptDefaults(defaultsOutcome);
-  if (!defaults) {
-    throw new DepositError(
-      defaultsOutcome.kind === "transport_error"
-        ? "n3_defaults_unavailable"
-        : "n3_defaults_invalid",
-    );
-  }
+  const defaults = requireReceiptDefaults(defaultsOutcome);
 
   if (
     defaults.currencyCode !== settings.currency.toUpperCase() ||
     reservation.currency.toUpperCase() !== settings.currency.toUpperCase()
   )
-    throw new DepositError("n3_defaults_invalid");
+    throw new DepositError("n3_defaults_currency_conflict");
 
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");
@@ -1529,8 +1592,9 @@ export async function reconcileDeposit(
   const defaultsOutcome = await n3.getNew(input.n3Token);
   if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 401)
     throw new DepositError("unauthorized");
-  const defaults = parseNewReceiptDefaults(defaultsOutcome);
-  if (!defaults) return uncertain("n3_receipt_readback_uncertain");
+  const defaultsRead = readNewReceiptDefaults(defaultsOutcome, false);
+  if (!defaultsRead.ok) return uncertain("n3_receipt_readback_uncertain");
+  const defaults = defaultsRead.defaults;
   if (defaults.currencyCode !== deposit.currencyCode.toUpperCase())
     return uncertain("n3_receipt_readback_uncertain");
   if (deposit.n3ReceiptId && deposit.n3DocCode) {
@@ -1648,18 +1712,13 @@ export async function buildDepositPreview(
   if (outcome.kind === "response" && outcome.status === 403) {
     throw new DepositError("n3_defaults_unavailable");
   }
-  const defaults = parseNewReceiptDefaults(outcome);
-  if (!defaults) {
-    throw new DepositError(
-      outcome.kind === "transport_error" ? "n3_defaults_unavailable" : "n3_defaults_invalid",
-    );
-  }
+  const defaults = requireReceiptDefaults(outcome);
 
   if (
     defaults.currencyCode !== settings.currency.toUpperCase() ||
     reservation.currency.toUpperCase() !== settings.currency.toUpperCase()
   )
-    throw new DepositError("n3_defaults_invalid");
+    throw new DepositError("n3_defaults_currency_conflict");
 
   if (positiveInt(settings.walkInCustomer.n3Id) === null) {
     throw new DepositError("walk_in_customer_not_mapped");

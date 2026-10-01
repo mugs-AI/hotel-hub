@@ -61,6 +61,14 @@ export function statusForDepositError(code: string): number {
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
     case "n3_defaults_invalid":
+    case "n3_defaults_rejected":
+    case "n3_defaults_type_invalid":
+    case "n3_defaults_currency_missing":
+    case "n3_defaults_currency_invalid":
+    case "n3_defaults_currency_code_missing":
+    case "n3_defaults_currency_conflict":
+    case "n3_defaults_rate_invalid":
+    case "n3_defaults_account_invalid":
     case "n3_deposit_account_unavailable":
     case "n3_deposit_account_invalid":
     case "n3_preflight_unavailable":

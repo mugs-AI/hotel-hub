@@ -182,10 +182,6 @@ export function depositStatusLabel(s: DepositDTO["status"]): string {
 
 export function depositErrorMessage(code: string | null | undefined): string {
   switch (code) {
-    case "n3_defaults_currency_missing":
-    case "n3_defaults_currency_invalid":
-    case "n3_defaults_currency_conflict":
-    case "n3_defaults_rejected":
     case "n3_receipt_access_denied":
     case "n3_account_access_denied":
       return paymentAccountErrorMessage(code);
@@ -196,6 +192,21 @@ export function depositErrorMessage(code: string | null | undefined): string {
     case "walk_in_customer_not_mapped":
       return "Map the N3 walk-in customer in Settings before posting a deposit.";
     case "n3_defaults_unavailable":
+      return "HotelHub could not load receipt defaults from N3. Nothing was posted. Try again later.";
+    case "n3_defaults_rejected":
+      return "N3 rejected the receipt-defaults request. Nothing was posted.";
+    case "n3_defaults_type_invalid":
+      return "N3 did not provide valid Receive Payment receipt defaults. Nothing was posted.";
+    case "n3_defaults_currency_missing":
+    case "n3_defaults_currency_invalid":
+    case "n3_defaults_currency_code_missing":
+      return "N3 did not provide a valid receipt currency. Nothing was posted.";
+    case "n3_defaults_currency_conflict":
+      return "N3 receipt currency does not match this property, or its currency details conflict. Nothing was posted.";
+    case "n3_defaults_rate_invalid":
+      return "N3 did not provide a valid receipt exchange rate. Nothing was posted.";
+    case "n3_defaults_account_invalid":
+      return "N3 returned an invalid default payment account. Nothing was posted.";
     case "n3_defaults_invalid":
       return "N3 did not return valid receipt defaults. Nothing was posted.";
     case "n3_deposit_account_unavailable":
@@ -205,7 +216,7 @@ export function depositErrorMessage(code: string | null | undefined): string {
     case "n3_preflight_unavailable":
       return "HotelHub could not verify N3 before posting, so nothing was created. Try again later.";
     case "reservation_not_eligible":
-      return "Only confirmed reservations can take a deposit.";
+      return "Deposits are available on saved Confirmed or Checked-in reservations.";
     case "reference_conflict":
       return "A conflicting N3 document already uses this reference. Nothing was posted.";
     case "n3_rejected":

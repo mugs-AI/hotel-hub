@@ -251,6 +251,164 @@ beforeEach(() => {
     },
   ];
 });
+describe("saved reservation deposits", () => {
+  it("previews a checked-in booking without posting or claiming a deposit", async () => {
+    tables.hotel_reservations[0]!.status = "checked_in";
+    const { client, calls } = makeN3();
+    const preview = await buildDepositPreview(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(preview.bookingReference).toBe("BK-0001");
+    expect(preview.amount).toBe(100);
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+  it("accepts checked-in status at create while retaining uncertain-result protection", async () => {
+    tables.hotel_reservations[0]!.status = "checked_in";
+    const { client, calls } = makeN3();
+    const result = await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    expect(result.deposit.status).toBe("unknown");
+    expect(calls.create).toBe(1);
+  });
+  it.each(["checked_out", "cancelled", "no_show", "draft", ""])(
+    "blocks inactive or unsaved status %s before contacting N3",
+    async (status) => {
+      tables.hotel_reservations[0]!.status = status;
+      const { client, calls } = makeN3();
+      await expect(
+        buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+      ).rejects.toMatchObject({ code: "reservation_not_eligible" });
+      await expect(
+        createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+      ).rejects.toMatchObject({ code: "reservation_not_eligible" });
+      expect(calls.getNew).toBe(0);
+      expect(calls.create).toBe(0);
+      expect(tables.hotel_reservation_deposits).toHaveLength(0);
+    },
+  );
+});
+
+describe("receipt defaults diagnostics before posting", () => {
+  it("never builds a receipt with no verified or default payment account", () => {
+    const defaults = parseNewReceiptDefaults(newDefaults() as N3Outcome)!;
+    expect(() =>
+      buildDepositPayload({
+        defaults: { ...defaults, accountId: null },
+        customerId: "1",
+        amount: 50,
+        referenceNo: "HH-0123456789abcdef01234567",
+        description: "DEPOSIT",
+        docDate: "2026-10-01",
+      }),
+    ).toThrow("invalid_payment_lines");
+  });
+  it("posts only the independently verified selected account when the default is blank", async () => {
+    const defaults = newDefaults();
+    const { client, calls } = makeN3({
+      getNew: {
+        ...defaults,
+        body: { ...defaults.body, data: { ...defaults.body.data, accountId: null } },
+      },
+    });
+    const originalCreate = client.create;
+    let outgoing: unknown;
+    client.create = async (token, payload) => {
+      outgoing = payload;
+      return originalCreate(token, payload);
+    };
+    await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    expect(outgoing).toMatchObject({ accountId: ACCOUNT_ID, totalAmount: 100, docType: "AROR" });
+    expect(calls.getAccountById).toBe(1);
+    expect(calls.create).toBe(1);
+    expect(tables.hotel_reservation_deposits[0]).toMatchObject({
+      n3_account_id: ACCOUNT_ID,
+      status: "unknown",
+    });
+  });
+  it("reads a PascalCase N3 envelope without losing valid receipt defaults", async () => {
+    const { client, calls } = makeN3({
+      getNew: {
+        kind: "response",
+        status: 200,
+        body: {
+          Code: "0000",
+          Data: {
+            DocType: "AROR",
+            CurrencyId: 1,
+            CurrencyCode: "MYR",
+            CurrencyRate: 1,
+            AccountId: ACCOUNT_ID,
+          },
+        },
+      },
+    });
+    const preview = await buildDepositPreview(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(preview.currency).toBe("MYR");
+    expect(preview.accountLabel).toBe("Maybank Current (700-0310)");
+    expect(calls.create).toBe(0);
+  });
+  it("uses the verified chosen payment account when N3 has no default account", async () => {
+    const defaults = newDefaults();
+    const { client, calls } = makeN3({
+      getNew: {
+        ...defaults,
+        body: { ...defaults.body, data: { ...defaults.body.data, accountId: null } },
+      },
+    });
+    const preview = await buildDepositPreview(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(preview.accountLabel).toBe("Maybank Current (700-0310)");
+    expect(calls.getAccountById).toBe(1);
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+  it.each([
+    [{ docType: "UNKNOWN" }, "n3_defaults_type_invalid"],
+    [{ currencyId: null }, "n3_defaults_currency_missing"],
+    [{ currencyId: 0 }, "n3_defaults_currency_invalid"],
+    [{ currencyCode: null }, "n3_defaults_currency_code_missing"],
+    [{ currencyRate: 0 }, "n3_defaults_rate_invalid"],
+    [{ accountId: { bad: true } }, "n3_defaults_account_invalid"],
+    [
+      { accountId: ACCOUNT_ID, AccountId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" },
+      "n3_defaults_account_invalid",
+    ],
+    [{ currency: { id: 2, code: "USD" } }, "n3_defaults_currency_conflict"],
+  ])("reports the failed receipt field without financial side effects %j", async (fields, code) => {
+    const defaults = newDefaults();
+    const { client, calls } = makeN3({
+      getNew: {
+        ...defaults,
+        body: { ...defaults.body, data: { ...defaults.body.data, ...fields } },
+      },
+    });
+    await expect(
+      buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code });
+    await expect(
+      createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code });
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+  it.each([
+    [{ kind: "transport_error", reason: "timeout" }, "n3_defaults_unavailable"],
+    [{ kind: "response", status: 503, body: null }, "n3_defaults_unavailable"],
+    [{ kind: "response", status: 200, body: { code: "E001" } }, "n3_defaults_rejected"],
+  ])("distinguishes unavailable or rejected defaults %j", async (outcome, code) => {
+    const { client, calls } = makeN3({ getNew: outcome as TestOutcome });
+    await expect(
+      buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code });
+    expect(calls.create).toBe(0);
+  });
+});
 
 describe("payment method visibility", () => {
   it("keeps the display name when a verified N3 ID uses uppercase letters", async () => {
@@ -1262,7 +1420,7 @@ describe("deposit currency must be proved before any financial side effect", () 
     });
     await expect(
       buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
-    ).rejects.toMatchObject({ code: "n3_defaults_invalid" });
+    ).rejects.toMatchObject({ code: "n3_defaults_currency_conflict" });
   });
   it("never adopts a contradictory Create identity", () => {
     const outcome = n3Response({
@@ -1284,7 +1442,12 @@ describe("deposit currency must be proved before any financial side effect", () 
       });
       await expect(
         createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
-      ).rejects.toMatchObject({ code: "n3_defaults_invalid" });
+      ).rejects.toMatchObject({
+        code:
+          currencyCode === undefined
+            ? "n3_defaults_currency_code_missing"
+            : "n3_defaults_currency_conflict",
+      });
       expect(calls.create).toBe(0);
       expect(tables.hotel_reservation_deposits).toHaveLength(0);
     },
@@ -1317,7 +1480,7 @@ describe("duplicate nested financial evidence", () => {
     });
     await expect(
       createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
-    ).rejects.toMatchObject({ code: "n3_defaults_invalid" });
+    ).rejects.toMatchObject({ code: "n3_defaults_currency_conflict" });
     expect(calls.create).toBe(0);
   });
   it("rejects a conflicting duplicate split-payment array", () => {

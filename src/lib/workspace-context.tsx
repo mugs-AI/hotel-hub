@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useLocation, useRouter } from "@tanstack/react-router";
-import { useSessionMe } from "./session-client";
+import { useSessionMe, type SessionMe } from "./session-client";
 import { WorkspaceStore, workspaceTab, type WorkTab } from "./workspace-tabs";
 
 const Context = createContext<{
@@ -19,8 +19,8 @@ const Context = createContext<{
   isCurrent: () => boolean;
 } | null>(null);
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const session = useSessionMe().data;
-  const actor = session?.authenticated ? session : null;
+  const session: SessionMe | undefined = useSessionMe().data;
+  const actor = session && session.authenticated === true ? session : null;
   const scope = actor
     ? `${actor.tenant.tenantId}:${actor.user.n3UserKey}:${actor.role}:${actor.housekeepingMode}`
     : "anonymous";

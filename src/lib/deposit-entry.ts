@@ -3,6 +3,11 @@ import type { PaymentLine } from "./deposits-client";
 export type DepositInputLine = { accountId: string; amount: string };
 const LIMIT_CENTS = 100_000_000;
 
+/** A saved, active booking can collect advance payments before or during the stay. */
+export function isDepositReservationEligible(status: string): boolean {
+  return status === "confirmed" || status === "checked_in";
+}
+
 function cents(raw: string): number | null {
   const value = raw.trim();
   if (!/^\d+(?:\.\d{0,2})?$/.test(value)) return null;

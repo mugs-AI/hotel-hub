@@ -2,7 +2,37 @@
 
 Date: 01/10/2026 (Malaysia).
 
-Status: HH1.0 Hotel c6 correction COMMITTED LOCALLY; publication authorized and in progress. The current correction section is authoritative for this working checkout. The prior published release below remains historical deployment evidence, not proof that these corrections are live.
+Status: The previous HH1.0 Hotel c6 correction remains PUBLISHED AND SOURCE VERIFIED at `c8dfc87f06ca01f51719b822322cdd209faf2527`. The newly approved saved-reservation deposit correction below is IMPLEMENTED AND VERIFIED LOCALLY, NOT PUBLISHED. Signed-in historical-reservation and N3 financial acceptance remain pending.
+
+## Saved-reservation deposit correction — prepared 01/10/2026
+
+- Owner approved the bounded design after reporting BK260920001's missing entry form and BK260925001's RM50 preview failure. This approval authorizes implementation; publication remains a separate release step under the recovery handover. The prior publication approval below was explicitly limited to that previous release.
+- Fresh checkout started from the actual GitHub main and Lovable source `c8dfc87f06ca01f51719b822322cdd209faf2527`, rather than assuming any prior correction completed. Branch: `fix/deposit-saved-reservations`. Local checkout: `work/hotel-hub-deposit-correction` beneath this recovery workspace.
+- Deposits now appears after Rooms, before Bill-to/Folio/Payment. Both the page and server allow saved Confirmed and Checked-in reservations; other statuses retain deposit history but cannot create a new deposit. Existing role, tenant and activation permissions still apply.
+- The account picker and receipt preview share casing-aware N3 `/New` envelope handling, including `Data.Value`. Conflicting envelopes and malformed account defaults fail closed. A blank default account no longer blocks an explicitly selected payment method that is independently verified against N3; no missing currency, rate or receipt type is invented.
+- Receipt-default errors now distinguish unavailable responses, business rejection, receipt type, currency, rate and account problems. The irreversible-posting warning appears only with a valid confirmation preview. Failed previews disable confirmation and do not call N3 Create.
+- Small prerequisite typing correction: explicitly type the session response to restore authenticated-user narrowing under the installed React Query/TypeScript combination. Runtime authentication and permissions are unchanged.
+- Regression coverage: 30 additional tests, including checked-in eligibility, card order, invalid and valid confirmation messages, PascalCase account-choice lookup, conflicting envelopes, malformed defaults and verified selected-account payloads. Each newly exposed review regression failed before its fix.
+- Final verification: **1,603 passed / 20 existing skips**, 102 test files passed / 3 skipped. TypeScript no-emit and production build passed. Changed-source lint passed with 0 errors / 9 existing Fast Refresh warnings; formatting and whitespace checks passed. Whole-project lint currently has 8 errors / 32 warnings; every error file is unchanged. It is not green.
+- Independent review: initial account-picker casing and malformed-account diagnostic findings resolved; no remaining Critical/Important findings. Build-generated route ordering was verified to contain identical line multisets and excluded.
+- No schema, financial configuration, activation settings, secrets or real N3 financial documents were changed. All financial test responses were simulated.
+- Limitation: the actual tenant `/New` response behind BK260925001's original error was unavailable. The exact live failure and a successful real deposit are not established by these tests. After publishing, perform a signed-in Owner preview check on both bookings; any real N3 posting remains separately authorized.
+- Production remains the previous release until publication is approved and verified. This section supersedes earlier local candidate status for the new correction only; the historical publication record below remains valid.
+
+## Approved c6 publication — verified 01/10/2026, 19:24 Malaysia
+
+- Authorization: Owner “Approve” to publishing the reviewed correction to the existing HotelHub project, financial settings unchanged and no N3 transactions. This supersedes the earlier local-only release restriction for this publication only.
+- Cloud execution stopped during source upload with “Your workspace is out of credits. Add credits to continue.” The local controller recovered the complete 26-file export from the recorded command output and verified every UTF-8 Git blob SHA before uploading the remaining blobs through the existing GitHub connector. No new Lovable AI build or project was created.
+- Reviewed application/source/script tree: `a03af358759da76802811bb423ffb46e0d0f5d32`. Source preservation manifest SHA-256: `331ee3f2a2030a6316d30212dfa352f7e52c8a94f7c502e564c49fe229ab07e1`.
+- Exact 26-file release tree, including the stable checkpoint: `55178efa0861b4b1d1c385f8c2e628ccebee0029`, identical to the recovered candidate tree. Release commit: `c8dfc87f06ca01f51719b822322cdd209faf2527`; parent: `53345af7b9ef000eefcbd62344d8508281bc04a4`. GitHub main advanced without force or history rewriting.
+- GitHub main and Lovable latest source were re-read after publication; both equal the full release commit above. Lovable reports ready, agentFinished true, no project error, and the existing public publication audience.
+- Deployment ID: `2d52e66d-7f24-44ec-abd9-507512a834b4`. Initial deploy response was pending. The public site subsequently returned HTTP 200 with an `x-deployment-id` containing this exact deployment ID at `/`, `/reservations`, `/reservations/calendar`, and `/housekeeping`. This confirms the requested deployment is serving production, independently of the initial pending response.
+- Live URL: https://hotelrooms.lovable.app/ . The browser reached the expected “Sign in from N3” gate, with no captured browser error logs. Screenshot: `HH_RELEASE_LIVE_SIGN_IN.png`. These are unauthenticated release smoke checks, not evidence of signed-in UI behavior or financial settlement.
+- The local browser could not access the private Lovable editor, and the private static preview returned Unauthorized. Neither is represented as a successful editor/preview acceptance check.
+- Existing reviewed verification remains applicable because the published application/source/script blobs are unchanged: 1,573 tests passed / 20 existing skips; 39 fixture browser assertions passed; typecheck, production build and changed-file checks passed. Whole-project lint still has 15 errors in unchanged files.
+- No financial settings, secrets, database/schema, or N3 financial documents were changed by this publication. No actual deposit, receipt, journal, refund or checkout transaction was performed.
+- Pending: signed-in historical-reservation first-open/Add Deposit acceptance, signed-in tab/navigation acceptance, and separately authorized Owner-run N3 receipt/journal/replay proof. Publication does not establish an accepted financial baseline.
+- This latest local checkpoint update is documentation only. It does not move the published source commit or initiate another deployment. Replace only this stable UI checkpoint in HH1.0 Project Sources when saving the handover; retain existing deposit/payment checkpoints.
 
 ## Current c6 work tabs and Add Deposit correction — 01/10/2026
 
@@ -46,7 +76,7 @@ Status: HH1.0 Hotel c6 correction COMMITTED LOCALLY; publication authorized and 
 
 ### Remaining limits and next state
 
-- Correction source is committed locally with an exact reviewed tree. Publication is in progress; terminal release evidence will be recorded below.
+- Correction source was published with the exact reviewed source tree. The current release evidence is recorded above. Signed-in acceptance remains pending.
 - Draft retention covers the tested existing reservation editor/deposit forms and workspace filters/scroll within the current authenticated browser session. Refresh, sign-out or scope change clears private UI memory.
 - The exact live cause of old reservation deposit fields appearing only after Edit → Discard was not reproduced against the real backend. First-open loading, failure and permission states are covered by fixtures; live historical-record acceptance remains pending.
 - No actual HotelHub-created N3 receipt/journal/replay proof was performed. Existing tenant/Owner-only/single-method financial guards remain unchanged. Split activation, Cash Memo, allocation, balance payment, refund and final checkout remain outside this build and incomplete.

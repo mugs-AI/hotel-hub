@@ -82,6 +82,28 @@ beforeEach(() => {
   });
 });
 describe("Settings lookup versus receipt posting proof", () => {
+  it("loads payment choices from PascalCase nested receipt defaults", async () => {
+    stubs.getNew.mockResolvedValue({
+      kind: "response",
+      status: 200,
+      body: { Code: "0000", Data: { Value: { CurrencyId: 1, AccountId: null } } },
+      durationMs: 0,
+    });
+    const result = await handlePaymentAccountsGet();
+    expect(result.status).toBe(200);
+    expect((await result.json()).accounts[0]).toMatchObject({ id: ID, label: "QR DuitNow" });
+    expect(stubs.list).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { code: "0000", data: { currencyId: 1 }, Data: { currencyId: 2 } },
+    { code: "0000", Data: { value: { currencyId: 1 }, Value: { currencyId: 2 } } },
+  ])("rejects conflicting receipt envelopes before account lookup %j", async (body) => {
+    stubs.getNew.mockResolvedValue({ kind: "response", status: 200, body, durationMs: 0 });
+    const result = await handlePaymentAccountsGet();
+    expect(result.status).toBe(502);
+    expect(await result.json()).toEqual({ error: "n3_defaults_invalid" });
+    expect(stubs.list).not.toHaveBeenCalled();
+  });
   it("loads bank accounts without default account, receipt type, rate or currency code", async () => {
     const outcome = response({ currencyId: 1, accountId: null });
     expect(readPaymentAccountCurrency(outcome)).toEqual({ ok: true, currencyId: "1" });

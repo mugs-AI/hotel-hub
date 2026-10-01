@@ -193,6 +193,7 @@ export function DepositsCard({
       attempt.phase !== "review" ||
       submitClaim.current ||
       !preview.data?.preview ||
+      preview.error ||
       preview.isPending
     )
       return;
@@ -225,6 +226,14 @@ export function DepositsCard({
           "walk_in_customer_not_mapped",
           "n3_defaults_unavailable",
           "n3_defaults_invalid",
+          "n3_defaults_rejected",
+          "n3_defaults_type_invalid",
+          "n3_defaults_currency_missing",
+          "n3_defaults_currency_invalid",
+          "n3_defaults_currency_code_missing",
+          "n3_defaults_currency_conflict",
+          "n3_defaults_rate_invalid",
+          "n3_defaults_account_invalid",
           "n3_deposit_account_unavailable",
           "n3_deposit_account_invalid",
           "n3_preflight_unavailable",
@@ -270,9 +279,9 @@ export function DepositsCard({
           </h2>
           <CardInfoPopover label="About deposits">
             Deposits are advance payments recorded through N3. After an approved N3 tenant is
-            enabled by the HotelHub administrator, an Owner can add one while the booking is
-            Confirmed. It remains unapplied until a Cash Memo is posted and matched. Unconfirmed N3
-            results are always shown for checking.
+            enabled by the HotelHub administrator, an Owner can add one after saving a Confirmed
+            booking, including while the guest is Checked in. It remains unapplied until a Cash Memo
+            is posted and matched. Unconfirmed N3 results are always shown for checking.
           </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
@@ -389,7 +398,7 @@ export function DepositsCard({
             </p>
           ) : !eligible ? (
             <p className="text-xs text-muted-foreground">
-              You can only take a deposit on a confirmed booking.
+              Deposits are available on saved Confirmed or Checked-in reservations.
             </p>
           ) : !attempt && unresolved ? (
             <p className="text-sm" style={{ color: GOLD }}>
@@ -584,16 +593,21 @@ export function DepositsCard({
                   </div>
                 </dl>
               ) : null}
-              <p className="mt-2 font-semibold" style={{ color: NAVY }}>
-                {p?.warning ?? "This creates a real accounting document in N3."} It cannot be undone
-                from HotelHub.
-              </p>
+              {p && !preview.error && !preview.isPending && attempt.phase === "review" ? (
+                <p className="mt-2 font-semibold" style={{ color: NAVY }}>
+                  {p.warning} It cannot be undone from HotelHub.
+                </p>
+              ) : null}
               <div className="mt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={submit}
                   disabled={
-                    attempt.phase !== "review" || create.isPending || preview.isPending || !p
+                    attempt.phase !== "review" ||
+                    create.isPending ||
+                    preview.isPending ||
+                    Boolean(preview.error) ||
+                    !p
                   }
                   className="rounded-md px-3 py-1.5 font-medium text-white disabled:opacity-50"
                   style={{ backgroundColor: NAVY }}
