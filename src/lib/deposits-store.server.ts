@@ -56,6 +56,7 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "invalid_amount",
   "invalid_client_request_id",
   "invalid_payment_lines",
+  "payment_method_hidden",
   "multi_payment_contract_unverified",
   "deposit_writes_disabled",
   "reservation_not_found",
@@ -206,6 +207,36 @@ export type N3ReceiptDefaults = {
   accountName: string | null;
 };
 
+/** Account lookup needs currency proof, not the defaults needed to POST a receipt. */
+export function readPaymentAccountCurrency(
+  outcome: N3Outcome,
+): { ok: true; currencyId: string } | { ok: false; error: string } {
+  if (outcome.kind !== "response" || outcome.status < 200 || outcome.status >= 300)
+    return { ok: false, error: "n3_defaults_unavailable" };
+  if (!successfulEnvelope(outcome.body)) return { ok: false, error: "n3_defaults_rejected" };
+  const v = unwrap(outcome.body);
+  const rawId = pick(v, ["currencyId"]);
+  if (rawId === undefined) return { ok: false, error: "n3_defaults_currency_missing" };
+  const id = positiveInt(rawId);
+  if (id === null) return { ok: false, error: "n3_defaults_currency_invalid" };
+  const currencyId = String(id);
+  const currencies = valuesFor(v, ["currency"]);
+  const codes = [
+    ...valuesFor(v, ["currencyCode"]),
+    ...currencies.flatMap((currency) => valuesFor(currency, ["code"])),
+  ];
+  const code = str(codes[0])?.toUpperCase();
+  if (
+    !fieldsAgree(v, ["currencyId"], (value) => str(value) === currencyId) ||
+    !currencies.every((currency) =>
+      fieldsAgree(currency, ["id"], (value) => str(value) === currencyId),
+    ) ||
+    (codes.length > 0 && (!code || !codes.every((value) => str(value)?.toUpperCase() === code)))
+  )
+    return { ok: false, error: "n3_defaults_currency_conflict" };
+  return { ok: true, currencyId };
+}
+
 /**
  * Validate `GET /api/ARReceipts/New`. Fails closed unless the tenant-specific
  * currency and default payment account can be proven.
@@ -311,6 +342,14 @@ async function verifyDepositAccount(
 
 export type PaymentChoice = { accountId: string; amount: number };
 export type VerifiedPaymentLine = VerifiedDepositAccount & { amount: number };
+
+function requireShownPaymentMethods(
+  choices: PaymentChoice[],
+  visibility: Record<string, boolean> = {},
+): void {
+  if (choices.some((line) => visibility[line.accountId.toLowerCase()] === false))
+    throw new DepositError("payment_method_hidden");
+}
 
 export function validatePaymentChoices(amount: number, choices: unknown): PaymentChoice[] {
   if (!Array.isArray(choices) || choices.length < 1 || choices.length > 10)
@@ -1111,6 +1150,7 @@ export async function createDeposit(
 
   const reservation = await loadEligibleReservation(input.tenantId, input.reservationId);
   const settings = await getOrCreateHotelSettings(input.tenantId);
+  requireShownPaymentMethods(choices, settings.paymentAccountVisibility);
   if (!settings.walkInCustomer?.n3Id || !settings.walkInCustomer?.n3Code) {
     throw new DepositError("walk_in_customer_not_mapped");
   }
@@ -1594,6 +1634,7 @@ export async function buildDepositPreview(
 
   const reservation = await loadEligibleReservation(input.tenantId, input.reservationId);
   const settings = await getOrCreateHotelSettings(input.tenantId);
+  requireShownPaymentMethods(choices, settings.paymentAccountVisibility);
   if (!settings.walkInCustomer?.n3Id || !settings.walkInCustomer?.n3Code) {
     throw new DepositError("walk_in_customer_not_mapped");
   }
@@ -1624,7 +1665,7 @@ export async function buildDepositPreview(
   const paymentLines = await verifyPaymentLines(n3, input.n3Token, defaults, amount, choices);
 
   const displayAccount = (line: VerifiedPaymentLine) =>
-    `${settings.paymentAccountAliases?.[line.id] ?? line.name} (${line.code})`;
+    `${settings.paymentAccountAliases?.[line.id.toLowerCase()] ?? line.name} (${line.code})`;
   return {
     bookingReference: reservation.booking_reference,
     customerLabel: settings.walkInCustomer.n3Name ?? settings.walkInCustomer.n3Code,

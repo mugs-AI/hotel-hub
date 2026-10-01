@@ -1099,6 +1099,7 @@ export type Database = {
           folio_contact_address: string
           folio_contact_phone: string
           folio_contact_email: string
+          payment_account_visibility: Json
           payment_account_aliases: Json
           created_at: string
           currency: string
@@ -1123,6 +1124,7 @@ export type Database = {
           folio_contact_address?: string
           folio_contact_phone?: string
           folio_contact_email?: string
+          payment_account_visibility?: Json
           payment_account_aliases?: Json
           created_at?: string
           currency?: string
@@ -1147,6 +1149,7 @@ export type Database = {
           folio_contact_address?: string
           folio_contact_phone?: string
           folio_contact_email?: string
+          payment_account_visibility?: Json
           payment_account_aliases?: Json
           created_at?: string
           currency?: string
@@ -1285,6 +1288,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      hotelhub_set_payment_account_preferences: {
+        Args: { p_tenant_id: string; p_account_id: string; p_label?: string | null; p_show?: boolean | null }
+        Returns: Database["public"]["Tables"]["hotel_settings"]["Row"][]
+      }
       hotelhub_assign_guest_rooms_v2: {
         Args: {
           p_actor_n3_user_key: string

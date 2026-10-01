@@ -19,9 +19,15 @@ vi.mock("@/lib/audit.server", () => ({
 }));
 
 // ---------- hotel settings ----------
+const visibility = vi.hoisted(() => ({
+  value: {} as Record<string, boolean>,
+  aliases: {} as Record<string, string>,
+}));
 vi.mock("@/lib/hotel-store.server", () => ({
   getOrCreateHotelSettings: async () => ({
     currency: "MYR",
+    paymentAccountAliases: visibility.aliases,
+    paymentAccountVisibility: visibility.value,
     walkInCustomer: { n3Id: "1", n3Code: "WALKIN", n3Name: "Walk In Guest" },
   }),
 }));
@@ -230,6 +236,8 @@ function baseInput(clientRequestId: string) {
 }
 
 beforeEach(() => {
+  visibility.value = {};
+  visibility.aliases = {};
   auditEvents.length = 0;
   tables.hotel_reservation_deposits = [];
   tables.hotel_reservations = [
@@ -241,6 +249,51 @@ beforeEach(() => {
       currency: "MYR",
     },
   ];
+});
+
+describe("payment method visibility", () => {
+  it("keeps the display name when a verified N3 ID uses uppercase letters", async () => {
+    visibility.aliases[ACCOUNT_ID] = "QR DuitNow";
+    const { client } = makeN3({ getAccountById: accountResult({ id: ACCOUNT_ID.toUpperCase() }) });
+    const preview = await buildDepositPreview(baseInput(crypto.randomUUID()), {
+      n3: client,
+      env: ENV,
+    });
+    expect(preview.accountLabel).toBe("QR DuitNow (700-0310)");
+  });
+  it("blocks hidden account IDs before claiming a new deposit or calling N3", async () => {
+    visibility.value[ACCOUNT_ID] = false;
+    const { client, calls } = makeN3();
+    const input = baseInput(crypto.randomUUID());
+    input.paymentLines[0]!.accountId = ACCOUNT_ID.toUpperCase();
+    await expect(createDeposit(input, { n3: client, env: ENV })).rejects.toMatchObject({
+      code: "payment_method_hidden",
+    });
+    expect(calls.getNew).toBe(0);
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+
+  it("blocks a confirmation preview for a hidden method", async () => {
+    visibility.value[ACCOUNT_ID] = false;
+    const { client, calls } = makeN3();
+    await expect(
+      buildDepositPreview(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code: "payment_method_hidden" });
+    expect(calls.getNew).toBe(0);
+  });
+
+  it("preserves the original idempotent result and account snapshot after hiding", async () => {
+    const { client, calls } = makeN3();
+    const input = baseInput(crypto.randomUUID());
+    const original = await createDeposit(input, { n3: client, env: ENV });
+    const stored = JSON.stringify(tables.hotel_reservation_deposits);
+    visibility.value[ACCOUNT_ID] = false;
+    const replay = await createDeposit(input, { n3: client, env: ENV });
+    expect(replay).toEqual({ deposit: original.deposit, reused: true });
+    expect(JSON.stringify(tables.hotel_reservation_deposits)).toBe(stored);
+    expect(calls.create).toBe(1);
+  });
 });
 
 describe("N3 Cloud receipt contract and Deposit To account", () => {

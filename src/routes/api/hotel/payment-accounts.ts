@@ -1,13 +1,13 @@
-// Read-only N3 Chart of Accounts choices; Owner may set display names by immutable account ID.
+// Read-only N3 choices; Owner controls local names and visibility by immutable account ID.
 import { createFileRoute } from "@tanstack/react-router";
 import { requirePermission } from "@/lib/session-context.server";
 import { logAudit } from "@/lib/audit.server";
-import { getHotelSettingsReadOnly, setPaymentAccountAlias } from "@/lib/hotel-store.server";
+import { getHotelSettingsReadOnly, setPaymentAccountPreferences } from "@/lib/hotel-store.server";
 import {
   DepositError,
   listEligiblePaymentAccounts,
   parseDepositAccount,
-  parseNewReceiptDefaults,
+  readPaymentAccountCurrency,
 } from "@/lib/deposits-store.server";
 import { isRealN3Id, n3Receipts } from "@/lib/n3-receipts.server";
 import { deny, denyN3Unauthorized, isSameOriginWrite } from "./reservations.$id.deposits";
@@ -21,8 +21,8 @@ export async function handlePaymentAccountsGet(): Promise<Response> {
       return denyN3Unauthorized("payment-accounts.get");
     if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 403)
       return deny(403, "n3_receipt_access_denied");
-    const defaults = parseNewReceiptDefaults(defaultsOutcome);
-    if (!defaults) return deny(502, "n3_defaults_unavailable");
+    const defaults = readPaymentAccountCurrency(defaultsOutcome);
+    if (!defaults.ok) return deny(502, defaults.error);
     const accounts = await listEligiblePaymentAccounts(
       n3Receipts,
       ctx.session.n3Token,
@@ -37,7 +37,8 @@ export async function handlePaymentAccountsGet(): Promise<Response> {
           code: a.code,
           name: a.name,
           kind: a.kind,
-          label: aliases[a.id] || `${a.code} — ${a.name}`,
+          label: aliases[a.id.toLowerCase()] || `${a.code} — ${a.name}`,
+          show: settings?.paymentAccountVisibility?.[a.id.toLowerCase()] !== false,
         })),
       },
       { headers: { "cache-control": "no-store" } },
@@ -68,33 +69,53 @@ export async function handlePaymentAccountAliasPatch({
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) return deny(400, "invalid_body");
   const b = body as Record<string, unknown>;
-  if (Object.keys(b).some((k) => k !== "accountId" && k !== "label"))
+  if (Object.keys(b).some((k) => k !== "accountId" && k !== "label" && k !== "show"))
     return deny(400, "unknown_field");
+  const hasLabel = Object.hasOwn(b, "label");
+  const hasShow = Object.hasOwn(b, "show");
   const label = typeof b.label === "string" ? b.label.trim() : null;
   if (
     !isRealN3Id(b.accountId) ||
-    label === null ||
-    label.length > 40 ||
-    [...label].some((c) => c.charCodeAt(0) < 32 || c === "<" || c === ">")
+    (!hasLabel && !hasShow) ||
+    (hasShow && typeof b.show !== "boolean") ||
+    (hasLabel &&
+      (label === null ||
+        label.length > 40 ||
+        [...label].some((c) => c.charCodeAt(0) < 32 || c === "<" || c === ">")))
   )
-    return deny(400, "invalid_alias");
+    return deny(400, "invalid_payment_preferences");
   try {
     const defaultsOutcome = await n3Receipts.getNew(ctx.session.n3Token);
     if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 401)
       return denyN3Unauthorized("payment-accounts.patch");
-    const defaults = parseNewReceiptDefaults(defaultsOutcome);
-    if (!defaults) return deny(502, "n3_defaults_unavailable");
+    if (defaultsOutcome.kind === "response" && defaultsOutcome.status === 403)
+      return deny(403, "n3_receipt_access_denied");
+    const defaults = readPaymentAccountCurrency(defaultsOutcome);
+    if (!defaults.ok) return deny(502, defaults.error);
     const outcome = await n3Receipts.getAccountById(ctx.session.n3Token, b.accountId);
     if (outcome.kind === "response" && outcome.status === 401)
       return denyN3Unauthorized("payment-accounts.patch");
+    if (outcome.kind === "response" && outcome.status === 403)
+      return deny(403, "n3_account_access_denied");
     const verified = parseDepositAccount(outcome, b.accountId, defaults.currencyId);
     if (!verified) return deny(400, "n3_deposit_account_invalid");
-    const settings = await setPaymentAccountAlias(ctx.session.tenantId!, verified.id, label);
+    const settings = await setPaymentAccountPreferences(
+      ctx.session.tenantId!,
+      verified.id.toLowerCase(),
+      {
+        ...(hasLabel ? { label: label! } : {}),
+        ...(hasShow ? { show: b.show as boolean } : {}),
+      },
+    );
     await logAudit({
       tenantId: ctx.session.tenantId!,
       n3UserKey: ctx.session.n3UserKey,
-      eventType: "hotel.payment_account.alias_updated",
-      detail: { accountCode: verified.code },
+      eventType: "hotel.payment_account.preferences_updated",
+      detail: {
+        accountCode: verified.code,
+        nameChanged: hasLabel,
+        ...(hasShow ? { show: b.show } : {}),
+      },
     });
     return Response.json({ settings }, { headers: { "cache-control": "no-store" } });
   } catch (error) {

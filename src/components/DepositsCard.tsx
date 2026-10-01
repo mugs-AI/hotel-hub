@@ -397,6 +397,11 @@ export function DepositsCard({
                   {depositErrorMessage(accounts.error.code)}
                 </p>
               ) : null}
+              {accounts.isSuccess && accounts.data.accounts.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No shown bank or cash payment methods. Check Payment method names in Settings.
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"

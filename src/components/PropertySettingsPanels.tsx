@@ -10,6 +10,8 @@ import { N3Picker } from "@/components/N3Picker";
 import { hotelJson, type HotelSettingsDTO } from "@/lib/hotel-settings-client";
 import { friendlyError } from "@/lib/reservations-ui";
 import type { PaymentAccountChoice } from "@/lib/deposits-client";
+import { PaymentMethodRow } from "@/components/PaymentMethodRow";
+import { paymentAccountErrorMessage } from "@/lib/payment-account-messages";
 import {
   FOLIO_BODY_PT,
   FOLIO_NOTE_PT,
@@ -1008,11 +1010,13 @@ function PaymentAccountAliasesPanel({
   onChange: (s: HotelSettingsDTO) => void;
   onN3Unauthorized: () => void;
 }) {
+  const qc = useQueryClient();
   const [accounts, setAccounts] = useState<PaymentAccountChoice[]>([]);
   const [error, setError] = useState("");
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountRetry, setAccountRetry] = useState(0);
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [editingShow, setEditingShow] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const unauthorizedRef = useRef(onN3Unauthorized);
   unauthorizedRef.current = onN3Unauthorized;
@@ -1020,6 +1024,7 @@ function PaymentAccountAliasesPanel({
   useEffect(() => {
     let cancelled = false;
     setLoadingAccounts(true);
+    setAccounts([]);
     setError("");
     void hotelJson<{ accounts: PaymentAccountChoice[] }>("/api/hotel/payment-accounts")
       .then((r) => {
@@ -1029,15 +1034,7 @@ function PaymentAccountAliasesPanel({
         if (cancelled) return;
         const code = (e as Error).message;
         if (code === "unauthorized") unauthorizedRef.current();
-        setError(
-          code === "n3_receipt_access_denied"
-            ? "N3 denied access to Receive Payment defaults. Ask your N3 administrator to check this user's permission."
-            : code === "n3_account_access_denied"
-              ? "N3 denied access to bank and cash accounts. Ask your N3 administrator to check this user's permission."
-              : code === "n3_defaults_unavailable"
-                ? "Could not read N3 Receive Payment defaults. Retry the connection."
-                : "Could not load N3 bank and cash accounts. Retry the connection.",
-        );
+        setError(paymentAccountErrorMessage(code));
       })
       .finally(() => {
         if (!cancelled) setLoadingAccounts(false);
@@ -1050,21 +1047,42 @@ function PaymentAccountAliasesPanel({
   const save = async (account: PaymentAccountChoice) => {
     const label = (
       editing[account.id] ??
-      settings.paymentAccountAliases?.[account.id] ??
+      settings.paymentAccountAliases?.[account.id.toLowerCase()] ??
       ""
     ).trim();
+    const show =
+      editingShow[account.id] ??
+      settings.paymentAccountVisibility?.[account.id.toLowerCase()] ??
+      account.show;
     setSaving(account.id);
     try {
       const r = await hotelJson<{ settings: HotelSettingsDTO }>("/api/hotel/payment-accounts", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ accountId: account.id, label }),
+        body: JSON.stringify({ accountId: account.id, label, show }),
       });
       onChange(r.settings);
-      toast.success("Payment name saved");
+      setAccounts((current) => current.map((a) => (a.id === account.id ? { ...a, show } : a)));
+      setEditing((current) => {
+        const next = { ...current };
+        delete next[account.id];
+        return next;
+      });
+      setEditingShow((current) => {
+        const next = { ...current };
+        delete next[account.id];
+        return next;
+      });
+      await qc.invalidateQueries({ queryKey: ["payment-accounts"] });
+      toast.success("Payment method saved");
     } catch (e) {
       if ((e as Error).message === "unauthorized") onN3Unauthorized();
-      toast.error("Could not save payment name.");
+      const code = (e as Error).message;
+      toast.error(
+        code.startsWith("n3_")
+          ? paymentAccountErrorMessage(code)
+          : "Could not save payment method. Your changes have not been saved.",
+      );
     } finally {
       setSaving(null);
     }
@@ -1077,7 +1095,8 @@ function PaymentAccountAliasesPanel({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Name each N3 bank or cash account for the front desk, such as QR DuitNow or CashNote. Its N3
-        account code stays the same.
+        account code stays the same. Tick Show to offer it for new deposits, then select Save
+        method. Hiding a method keeps previous deposits unchanged.
       </p>
       {loadingAccounts ? (
         <p className="mt-2 text-sm text-muted-foreground">Loading N3 accounts…</p>
@@ -1097,30 +1116,29 @@ function PaymentAccountAliasesPanel({
       ) : null}
       <div className="mt-3 space-y-2">
         {accounts.map((account) => (
-          <div key={account.id} className="flex flex-wrap items-end gap-2">
-            <label className="text-xs">
-              <span className="block font-mono">
-                {account.code} — {account.name}
-              </span>
-              <input
-                className={INPUT}
-                maxLength={40}
-                placeholder={account.name}
-                value={editing[account.id] ?? settings.paymentAccountAliases?.[account.id] ?? ""}
-                onChange={(e) =>
-                  setEditing((current) => ({ ...current, [account.id]: e.target.value }))
-                }
-              />
-            </label>
-            <button
-              type="button"
-              className="rounded-md border px-3 py-2 text-xs"
-              disabled={saving !== null}
-              onClick={() => void save(account)}
-            >
-              {saving === account.id ? "Saving…" : "Save name"}
-            </button>
-          </div>
+          <PaymentMethodRow
+            key={account.id}
+            account={account}
+            label={
+              editing[account.id] ??
+              settings.paymentAccountAliases?.[account.id.toLowerCase()] ??
+              ""
+            }
+            show={
+              editingShow[account.id] ??
+              settings.paymentAccountVisibility?.[account.id.toLowerCase()] ??
+              account.show
+            }
+            saving={saving === account.id}
+            disabled={saving !== null}
+            onLabelChange={(label) =>
+              setEditing((current) => ({ ...current, [account.id]: label }))
+            }
+            onShowChange={(show) =>
+              setEditingShow((current) => ({ ...current, [account.id]: show }))
+            }
+            onSave={() => void save(account)}
+          />
         ))}
       </div>
     </section>

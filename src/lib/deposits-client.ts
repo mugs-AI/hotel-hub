@@ -2,6 +2,7 @@
 // no direct Supabase or N3 access. Server re-verifies selected account IDs.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSessionMe } from "./session-client";
+import { paymentAccountErrorMessage } from "./payment-account-messages";
 
 export type DepositDTO = {
   id: string;
@@ -27,12 +28,18 @@ export type PaymentAccountChoice = {
   name: string;
   kind: "bank" | "cash";
   label: string;
+  show: boolean;
 };
+
+export function shownPaymentAccounts(data: { accounts: PaymentAccountChoice[] }) {
+  return { accounts: data.accounts.filter((account) => account.show !== false) };
+}
 
 export function usePaymentAccounts(enabled: boolean) {
   return useQuery<{ accounts: PaymentAccountChoice[] }, DepositApiError>({
     queryKey: ["payment-accounts"],
     queryFn: () => depositFetch("/api/hotel/payment-accounts"),
+    select: shownPaymentAccounts,
     enabled,
     retry: false,
   });
@@ -173,6 +180,15 @@ export function depositStatusLabel(s: DepositDTO["status"]): string {
 
 export function depositErrorMessage(code: string | null | undefined): string {
   switch (code) {
+    case "n3_defaults_currency_missing":
+    case "n3_defaults_currency_invalid":
+    case "n3_defaults_currency_conflict":
+    case "n3_defaults_rejected":
+    case "n3_receipt_access_denied":
+    case "n3_account_access_denied":
+      return paymentAccountErrorMessage(code);
+    case "payment_method_hidden":
+      return "This payment method is hidden in Settings. Choose a shown method. Nothing was posted.";
     case "deposit_writes_disabled":
       return "Deposit posting is not enabled for this property yet.";
     case "walk_in_customer_not_mapped":

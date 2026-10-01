@@ -19,6 +19,7 @@ export type HotelSettingsDTO = {
   folioContactPhone: string;
   folioContactEmail: string;
   paymentAccountAliases: Record<string, string>;
+  paymentAccountVisibility: Record<string, boolean>;
   walkInCustomer: { n3Id: string; n3Code: string; n3Name: string | null } | null;
 };
 

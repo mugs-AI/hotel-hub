@@ -37,6 +37,7 @@ export type HotelSettings = {
   folioContactPhone: string;
   folioContactEmail: string;
   paymentAccountAliases: Record<string, string>;
+  paymentAccountVisibility: Record<string, boolean>;
 
   walkInCustomer: {
     n3Id: string;
@@ -77,6 +78,7 @@ type SettingsRow = {
   folio_contact_phone: string;
   folio_contact_email: string;
   payment_account_aliases?: unknown;
+  payment_account_visibility?: unknown;
   n3_walk_in_customer_id: string | null;
   n3_walk_in_customer_code: string | null;
   n3_walk_in_customer_name: string | null;
@@ -84,13 +86,29 @@ type SettingsRow = {
 
 function toSettings(row: SettingsRow): HotelSettings {
   const aliases: Record<string, string> = {};
+  const visibility: Record<string, boolean> = {};
+  if (
+    row.payment_account_visibility &&
+    typeof row.payment_account_visibility === "object" &&
+    !Array.isArray(row.payment_account_visibility)
+  ) {
+    for (const [id, show] of Object.entries(row.payment_account_visibility)) {
+      if (typeof show === "boolean") visibility[id.toLowerCase()] = show;
+    }
+  }
   if (
     row.payment_account_aliases &&
     typeof row.payment_account_aliases === "object" &&
     !Array.isArray(row.payment_account_aliases)
   ) {
     for (const [id, label] of Object.entries(row.payment_account_aliases)) {
-      if (typeof label === "string" && label.trim()) aliases[id] = label;
+      const canonicalId = id.toLowerCase();
+      if (
+        typeof label === "string" &&
+        label.trim() &&
+        (id === canonicalId || aliases[canonicalId] === undefined)
+      )
+        aliases[canonicalId] = label;
     }
   }
   return {
@@ -107,6 +125,7 @@ function toSettings(row: SettingsRow): HotelSettings {
     folioContactPhone: row.folio_contact_phone,
     folioContactEmail: row.folio_contact_email,
     paymentAccountAliases: aliases,
+    paymentAccountVisibility: visibility,
 
     postCheckInGuestEditPolicy:
       row.post_check_in_guest_edit_policy === "locked" ? "locked" : "contact_only",
@@ -126,7 +145,7 @@ function toSettings(row: SettingsRow): HotelSettings {
 }
 
 const SETTINGS_COLS =
-  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, folio_body_pt, folio_note_pt, folio_contact_address, folio_contact_phone, folio_contact_email, payment_account_aliases, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
+  "tenant_id, currency, timezone, standard_check_in_time, standard_check_out_time, post_check_in_guest_edit_policy, allow_owner_primary_guest_change_after_check_in, housekeeping_mode, exception_approval_mode, display_size, folio_body_pt, folio_note_pt, folio_contact_address, folio_contact_phone, folio_contact_email, payment_account_aliases, payment_account_visibility, n3_walk_in_customer_id, n3_walk_in_customer_code, n3_walk_in_customer_name";
 
 /**
  * SELECT-only, tenant-scoped settings read. Used by genuinely read-only flows
@@ -224,25 +243,24 @@ export async function updateHotelSettings(
 }
 
 /** Caller verifies eligibility against N3 and enforces Owner permission. */
-export async function setPaymentAccountAlias(
+export async function setPaymentAccountPreferences(
   tenantId: string,
   accountId: string,
-  label: string,
+  patch: { label?: string; show?: boolean },
 ): Promise<HotelSettings> {
-  const current = await getOrCreateHotelSettings(tenantId);
-  const aliases = { ...current.paymentAccountAliases };
-  if (label) aliases[accountId] = label;
-  else delete aliases[accountId];
+  await getOrCreateHotelSettings(tenantId);
   const { supabaseAdmin: _sa } = await import("@/integrations/supabase/client.server");
-  const sb = _sa as unknown as { from: (t: string) => any };
-  const res = await sb
-    .from("hotel_settings" as never)
-    .update({ payment_account_aliases: aliases } as never)
-    .eq("tenant_id", tenantId)
-    .select(SETTINGS_COLS)
+  // Row-locked JSONB patch: concurrent edits never replace another account's preferences.
+  const res = await _sa
+    .rpc("hotelhub_set_payment_account_preferences", {
+      p_tenant_id: tenantId,
+      p_account_id: accountId.toLowerCase(),
+      p_label: patch.label ?? null,
+      p_show: patch.show ?? null,
+    })
     .single();
-  if (res.error || !res.data) throw new Error("payment account alias save failed");
-  return toSettings(res.data as SettingsRow);
+  if (res.error || !res.data) throw new Error("payment account preferences save failed");
+  return toSettings(res.data as unknown as SettingsRow);
 }
 
 export async function setWalkInCustomer(

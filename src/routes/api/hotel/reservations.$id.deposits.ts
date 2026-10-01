@@ -55,6 +55,7 @@ export function statusForDepositError(code: string): number {
     case "deposit_not_recoverable":
     case "reference_conflict":
     case "multi_payment_contract_unverified":
+    case "payment_method_hidden":
       return 409;
     case "walk_in_customer_not_mapped":
     case "n3_defaults_unavailable":
