@@ -258,7 +258,10 @@ export function ReceiptControlRequestDialog({
             ) : null}
             {original.isError ? (
               <p role="alert" className="text-red-700">
-                Saved receipt details could not be read from N3. Try again.
+                Saved receipt details could not be read from N3.{" "}
+                {receiptControlMessage(
+                  original.error instanceof ReceiptControlClientError ? original.error.code : "",
+                )}
               </p>
             ) : null}
             <label className="flex items-center gap-2">
