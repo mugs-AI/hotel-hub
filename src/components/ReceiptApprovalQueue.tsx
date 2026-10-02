@@ -16,6 +16,7 @@ import {
   invalidateReceiptEffects,
   purgeForeignReceiptCache,
   receiptControlsKey,
+  identityFromSession,
   receiptIdentityKey,
   verifyReceiptControl,
   recoverReceiptControl,
@@ -140,10 +141,12 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   const qc = useQueryClient();
   const [error, setError] = useState("");
   const me = useSessionMe();
-  const identity = receiptIdentityKey(me.data);
-  // Auth switch: drop every receipt snapshot cached for another tenant/user/role.
+  const identity = identityFromSession(me);
+  // Auth switch: drop every receipt snapshot cached for another tenant/user/role
+  // and any captured error from the previous identity.
   useEffect(() => {
     purgeForeignReceiptCache(qc, identity);
+    setError("");
   }, [qc, identity]);
   const q = useInfiniteQuery({
     queryKey: receiptControlsKey(identity ?? "none", "queue"),
@@ -160,17 +163,20 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   const fail = (e: unknown) =>
     setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
   const decide = useMutation({
+    mutationKey: ["receipt-controls", identity ?? "none", "decide"],
     mutationFn: (v: { r: ReceiptControlRequestDTO; decision: "approve" | "reject" }) =>
       decideReceiptControl(v.r.id, { decision: v.decision, expectedVersion: v.r.version }),
     onSuccess: done,
     onError: fail,
   });
   const verify = useMutation({
+    mutationKey: ["receipt-controls", identity ?? "none", "verify"],
     mutationFn: (r: ReceiptControlRequestDTO) => verifyReceiptControl(r.id, r.version),
     onSuccess: done,
     onError: fail,
   });
   const recover = useMutation({
+    mutationKey: ["receipt-controls", identity ?? "none", "recover"],
     mutationFn: (r: ReceiptControlRequestDTO) => recoverReceiptControl(r.id, r.version),
     onSuccess: done,
     onError: fail,

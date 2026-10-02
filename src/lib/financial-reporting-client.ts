@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSessionMe } from "./session-client";
-import { receiptIdentityKey } from "./receipt-controls-client";
+import { identityFromSession } from "./receipt-controls-client";
 import {
   reportFilterParams,
   type MonthlyFinancialDTO,
