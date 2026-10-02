@@ -59,6 +59,8 @@ function memoryDb() {
   const versions: any[] = [];
   const alerts: any[] = [];
   const claims = new Map<string, string>();
+  const claimedAt = new Map<string, number>();
+  const clock = { now: 0 };
   let n = 0;
   const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
   const active = ["pending", "approved_awaiting_n3", "applying", "failed", "needs_review"];
@@ -146,6 +148,7 @@ function memoryDb() {
       if (claims.has(r.id)) return null;
       const c = id();
       claims.set(r.id, c);
+      claimedAt.set(r.id, clock.now);
       rows.set(r.id, {
         ...r,
         state: r.state === "approved_awaiting_n3" ? "applying" : r.state,
@@ -169,15 +172,42 @@ function memoryDb() {
       rows.set(r.id, next);
       return next;
     },
+    async verifyAtomic(a) {
+      // Mirrors staged SQL: claim + complete in one transaction.
+      const c = await db.claim({ ...a, step: "verify" });
+      if (!c) throw new ReceiptControlError("claim_conflict");
+      return db.complete({ ...a, executionId: c });
+    },
+    async recover(a) {
+      const r = rows.get(a.requestId)!;
+      if (r.version !== a.expectedVersion) throw new ReceiptControlError("version_conflict");
+      if (!["applying", "needs_review"].includes(r.state) || !r.approvedAt)
+        throw new ReceiptControlError("invalid_transition");
+      if (!claims.has(r.id)) throw new ReceiptControlError("claim_not_found");
+      if (clock.now - claimedAt.get(r.id)! < a.staleSeconds * 1000)
+        throw new ReceiptControlError("claim_conflict");
+      claims.delete(r.id);
+      decisions.push({ requestId: r.id, decision: "recover", actor: a.actor, selfApproved: false, createdAt: "1" });
+      const next = {
+        ...r,
+        state: r.state === "applying" ? ("approved_awaiting_n3" as const) : r.state,
+        version: r.version + 1,
+        outcomeCode: "verification_interrupted",
+      };
+      rows.set(r.id, next);
+      return next;
+    },
     async get(_t, rid) {
       return rows.get(rid) ?? null;
     },
     async list(_t, f) {
-      return [...rows.values()].filter(
+      const all = [...rows.values()].filter(
         (r) =>
           (!f.requestedBy || r.requestedBy === f.requestedBy) &&
+          (!f.reservationId || r.reservationId === f.reservationId) &&
           (!f.states || f.states.includes(r.state)),
       );
+      return { rows: all.slice(f.offset, f.offset + f.limit), total: all.length };
     },
     async decisions() {
       return decisions;
@@ -186,7 +216,7 @@ function memoryDb() {
       return alerts;
     },
   };
-  return { db, rows, decisions, versions, claims };
+  return { db, rows, decisions, versions, claims, clock };
 }
 
 function deps(over: Partial<StoreDeps> & { evidence?: () => ReceiptSnapshot } = {}) {
@@ -380,8 +410,8 @@ describe("list scope", () => {
   it("Front Desk sees only own requests; Owner sees all", async () => {
     const { d } = deps();
     await createReceiptControlRequest(owner, correction(), d);
-    expect(await listReceiptControlRequests(fd, {}, d)).toHaveLength(0);
-    expect(await listReceiptControlRequests(owner, {}, d)).toHaveLength(1);
+    expect((await listReceiptControlRequests(fd, {}, d)).requests).toHaveLength(0);
+    expect((await listReceiptControlRequests(owner, {}, d)).requests).toHaveLength(1);
   });
 });
 
@@ -708,7 +738,7 @@ describe("UI rendering", () => {
   it("queue card renders Approve/Reject for a pending Owner view and the self-approval note", async () => {
     const { d } = deps();
     await createReceiptControlRequest(owner, correction(), d);
-    const [dto] = await listReceiptControlRequests(owner, {}, d);
+    const [dto] = (await listReceiptControlRequests(owner, {}, d)).requests;
     const html = renderToStaticMarkup(
       createElement(ReceiptRequestCard, { r: { ...dto!, selfApproved: true } }),
     );
