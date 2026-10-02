@@ -7,7 +7,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-// @ts-ignore — dev-only dependency resolved via NODE_PATH, not a project dependency.
+// @ts-expect-error — dev-only dependency resolved via NODE_PATH, not a project dependency.
 import { PGlite } from "@electric-sql/pglite";
 
 const dir = join(import.meta.dir, "..");

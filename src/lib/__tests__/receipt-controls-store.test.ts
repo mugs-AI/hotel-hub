@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped service-role rows for staged (ungenerated) tables */
 // Service-level tests with an in-memory DB double that mirrors the staged SQL
 // transaction functions (the real SQL is exercised separately with PGlite in
 // db/migrations-pending/checks). No N3 or database calls.

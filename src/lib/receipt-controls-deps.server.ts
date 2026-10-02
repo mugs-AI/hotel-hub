@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped service-role rows for staged (ungenerated) tables */
 // Production wiring for receipt controls. GET-only N3 reads; service-role
 // database access through the staged transaction functions.
 import { logAudit } from "./audit.server";

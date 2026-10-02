@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped service-role rows for staged (ungenerated) tables */
 // Server-only durable store for receipt correction/void requests.
 // All writes go through service-role transaction functions (staged migration
 // 20261002110000). Until that migration is applied every call fails closed

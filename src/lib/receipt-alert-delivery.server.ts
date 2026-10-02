@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped service-role rows for staged (ungenerated) tables */
 // Receipt alert delivery. Transport is DISABLED: no provider, channel or
 // recipient is configured, so claimed alerts are settled as "disabled" and
 // nothing leaves the system. A future provider must be chosen by the Owner.

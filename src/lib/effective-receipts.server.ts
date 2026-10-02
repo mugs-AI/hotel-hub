@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped service-role rows for staged (ungenerated) tables */
 // Server-only loader for the shared effective-receipt overlay. Before the
 // staged receipt-controls migration is applied the tables do not exist and
 // the overlay is empty, so every figure stays exactly as today.
