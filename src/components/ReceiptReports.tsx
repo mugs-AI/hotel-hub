@@ -59,21 +59,23 @@ export function ReceiptReports({
           />
         </Field>
         <Field label="From">
-          <input
-            type="date"
+          <MalaysianDateInput
             value={filter.fromDate ?? ""}
-            min={`${filter.month}-01`}
-            onChange={(e) => set({ fromDate: e.target.value || undefined })}
-            className={inp}
+            minIso={`${filter.month}-01`}
+            maxIso={lastDay(filter.month)}
+            pickerLabel="Choose the start date"
+            aria-label="From date"
+            onChange={(iso) => set({ fromDate: iso || undefined })}
           />
         </Field>
         <Field label="To">
-          <input
-            type="date"
+          <MalaysianDateInput
             value={filter.toDate ?? ""}
-            min={`${filter.month}-01`}
-            onChange={(e) => set({ toDate: e.target.value || undefined })}
-            className={inp}
+            minIso={filter.fromDate ?? `${filter.month}-01`}
+            maxIso={lastDay(filter.month)}
+            pickerLabel="Choose the end date"
+            aria-label="To date"
+            onChange={(iso) => set({ toDate: iso || undefined })}
           />
         </Field>
         <Field label="Booking ref">
