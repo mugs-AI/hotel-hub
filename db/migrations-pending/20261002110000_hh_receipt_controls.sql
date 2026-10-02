@@ -349,6 +349,64 @@ BEGIN
   RETURN NEXT v;
 END $$;
 
+-- Manual Verify in ONE transaction: claim + complete (+ effective version) commit
+-- together or not at all. A crash or RPC failure can no longer leave a request
+-- Applying with a claim held forever. The N3 GET readback happens before this
+-- call; no N3 write or retry exists here.
+CREATE OR REPLACE FUNCTION public.hotelhub_receipt_control_verify_atomic(
+  p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text,
+  p_to_state text, p_outcome_code text, p_version jsonb)
+RETURNS SETOF public.hotel_receipt_control_requests
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_exec uuid;
+BEGIN
+  v_exec := public.hotelhub_receipt_control_claim(p_tenant_id, p_request_id, p_expected_version, 'verify', p_actor);
+  IF v_exec IS NULL THEN RAISE EXCEPTION 'claim_conflict'; END IF;
+  RETURN QUERY SELECT * FROM public.hotelhub_receipt_control_complete(
+    p_tenant_id, p_request_id, v_exec, p_to_state, p_outcome_code, p_actor, p_version);
+END $$;
+
+-- Owner recovery of an interrupted verification (legacy split claim/complete or
+-- any crashed worker). Read-only toward N3. Only a claim older than the stale
+-- window is released; the request version is bumped so the old worker's
+-- complete() fails (its claim is no longer 'claimed' and the version moved).
+-- Applying returns to approved_awaiting_n3 (approval kept) so the Owner can
+-- Verify again against fresh N3 readback. Terminal states are never touched.
+CREATE OR REPLACE FUNCTION public.hotelhub_receipt_control_recover(
+  p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text,
+  p_stale_seconds integer)
+RETURNS SETOF public.hotel_receipt_control_requests
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v public.hotel_receipt_control_requests; v_exec public.hotel_receipt_control_executions; v_from text;
+BEGIN
+  IF p_stale_seconds IS NULL OR p_stale_seconds < 60 THEN RAISE EXCEPTION 'invalid_transition'; END IF;
+  SELECT * INTO v FROM public.hotel_receipt_control_requests
+    WHERE id = p_request_id AND tenant_id = p_tenant_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'request_not_found'; END IF;
+  IF v.version <> p_expected_version THEN RAISE EXCEPTION 'version_conflict'; END IF;
+  IF v.state NOT IN ('applying','needs_review') OR v.approved_at IS NULL THEN
+    RAISE EXCEPTION 'invalid_transition';
+  END IF;
+  SELECT * INTO v_exec FROM public.hotel_receipt_control_executions
+    WHERE request_id = v.id AND tenant_id = p_tenant_id AND state = 'claimed' FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'claim_not_found'; END IF;
+  IF v_exec.created_at > now() - make_interval(secs => p_stale_seconds) THEN
+    RAISE EXCEPTION 'claim_conflict';
+  END IF;
+  UPDATE public.hotel_receipt_control_executions
+    SET state = 'released', result_code = 'recovered', completed_at = now() WHERE id = v_exec.id;
+  v_from := v.state;
+  UPDATE public.hotel_receipt_control_requests
+    SET state = CASE WHEN v.state = 'applying' THEN 'approved_awaiting_n3' ELSE v.state END,
+        version = version + 1, outcome_code = 'verification_interrupted'
+    WHERE id = v.id RETURNING * INTO v;
+  INSERT INTO public.hotel_receipt_control_decisions (tenant_id, request_id, decision, from_state, to_state,
+    actor_n3_user_key, requester_n3_user_key, self_approved, outcome_code)
+  VALUES (p_tenant_id, v.id, 'recover', v_from, v.state, p_actor, v.requested_by_n3_user_key,
+    p_actor = v.requested_by_n3_user_key, 'verification_interrupted');
+  RETURN NEXT v;
+END $$;
+
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_create(uuid,uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb,bigint,bigint,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_decide(uuid,uuid,integer,text,text,text,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_claim(uuid,uuid,integer,text,text) FROM PUBLIC, anon, authenticated;
@@ -360,6 +418,10 @@ GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_create(uuid,uuid,uuid,
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_decide(uuid,uuid,integer,text,text,text,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_claim(uuid,uuid,integer,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_complete(uuid,uuid,uuid,text,text,text,jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_verify_atomic(uuid,uuid,integer,text,text,text,jsonb) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_recover(uuid,uuid,integer,text,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_verify_atomic(uuid,uuid,integer,text,text,text,jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_recover(uuid,uuid,integer,text,integer) TO service_role;
 
 -- Rollback (manual, reviewed): DROP FUNCTION the four hotelhub_receipt_control_* functions and the guard,
 -- then DROP TABLE hotel_receipt_alert_outbox, hotel_receipt_versions, hotel_receipt_control_executions,
