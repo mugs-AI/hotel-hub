@@ -567,6 +567,12 @@ export async function readReceiptOriginalForDialog(
     accountId: line?.accountId ?? null,
     accountLabel: line ? line.savedName || line.code : null,
     contact: { ...o.contact },
+    // Journal proof gate shown before Send. Reason codes are Owner-only.
+    journal: {
+      exact: o.journalExact === true,
+      reasons:
+        o.journalExact === true || actor.role !== "owner" ? [] : (o.journalDiagnostics ?? []),
+    },
   };
 }
 

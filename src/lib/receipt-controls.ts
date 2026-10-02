@@ -59,6 +59,8 @@ export type ReceiptSnapshot = {
   reference?: string | null;
   /** GL posting exactly equals this receipt (accounts, totals, doc, reference). */
   journalExact?: boolean;
+  /** Safe reason codes when journalExact is false. Never contains N3 values. */
+  journalDiagnostics?: string[];
   sourceFingerprint: string;
   verifiedAt: string;
 };

@@ -402,6 +402,11 @@ export async function readReceiptControlEvidence(
     };
   });
   const journal = readJournal(await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId));
+  const journalReasons = journalMismatchReasons(
+    journal,
+    { amountCents, docCode, reference: dep.n3ReferenceNo, customerCode: dep.n3CustomerCode ?? null },
+    paymentLines,
+  );
   const contact = {
     customerName,
     remark1: str(pick(r, "remark1")) ?? "",
@@ -419,16 +424,7 @@ export async function readReceiptControlEvidence(
     amountCents,
     paymentLines,
     contact,
-    journalExact: journalMatchesReceipt(
-      journal,
-      {
-        amountCents,
-        docCode,
-        reference: dep.n3ReferenceNo,
-        customerCode: dep.n3CustomerCode ?? null,
-      },
-      paymentLines,
-    ),
+    journalExact: journalReasons.length === 0,
     // A journal that is not the exact receipt posting is not evidence.
     documentState,
     matchingState,
@@ -436,6 +432,8 @@ export async function readReceiptControlEvidence(
     verifiedAt: (deps.now ?? (() => new Date().toISOString()))(),
   };
   snap.sourceFingerprint = receiptFingerprint(snap, journal.digest);
+  // Safe reason codes only; never persisted (request creation refuses first).
+  if (journalReasons.length) snap.journalDiagnostics = journalReasons;
   return snap;
 }
 
