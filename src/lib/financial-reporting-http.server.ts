@@ -3,6 +3,7 @@
 import { FinancialReportError, validateReceiptReportFilter } from "./financial-reporting";
 import type { FinancialReportingDeps } from "./financial-reporting-store.server";
 import {
+  defaultFinancialReportingDeps,
   readMonthlyFinancialDashboard,
   readReceiptReportSnapshot,
 } from "./financial-reporting-store.server";
@@ -116,10 +117,7 @@ export function defaultFinancialHttpDeps(): FinancialHttpDeps {
         },
       };
     },
-    data() {
-      // Lazily resolved so the module stays light.
-      return lazyDeps();
-    },
+    data: defaultFinancialReportingDeps,
     async onDenied(reason) {
       const { logAudit } = await import("./audit.server");
       await logAudit({ eventType: "hotel.financial_reports.denied", detail: { reason } });
@@ -127,14 +125,3 @@ export function defaultFinancialHttpDeps(): FinancialHttpDeps {
   };
 }
 
-let cached: FinancialReportingDeps | null = null;
-function lazyDeps(): FinancialReportingDeps {
-  if (!cached) {
-    // Imported synchronously by callers through the dynamic route import.
-    throw new Error("financial deps not initialised");
-  }
-  return cached;
-}
-export function setFinancialDeps(d: FinancialReportingDeps) {
-  cached = d;
-}
