@@ -309,9 +309,24 @@ export function summarizeFinancialMonth(
   const docDate = (e: HotelFinancialEvent) => e.documentDate || null;
   const activeMoney = (e: HotelFinancialEvent) => MONEY_KINDS.has(e.kind) && e.state === "active";
 
-  const deposits = pick(receipts, (e) => e.kind === "deposit" && e.state === "active", docDate, period);
-  const voids = pick(receipts, (e) => e.kind === "void", (e) => voidDate(e, period.timezone), period);
-  const salesPicked = pick(sales, (e) => e.kind === "sale" && e.state === "active", docDate, period);
+  const deposits = pick(
+    receipts,
+    (e) => e.kind === "deposit" && e.state === "active",
+    docDate,
+    period,
+  );
+  const voids = pick(
+    receipts,
+    (e) => e.kind === "void",
+    (e) => voidDate(e, period.timezone),
+    period,
+  );
+  const salesPicked = pick(
+    sales,
+    (e) => e.kind === "sale" && e.state === "active",
+    docDate,
+    period,
+  );
   const depositMoney = pick(receipts, activeMoney, docDate, period);
   const otherMoney = pick(otherCollections, activeMoney, docDate, period);
   const collectionsStatus = worst(depositMoney.status, otherMoney.status);
@@ -371,14 +386,17 @@ export function validateReceiptReportFilter(
   input: URLSearchParams,
   period: FinancialMonth,
 ): ReceiptReportFilter {
-  for (const key of input.keys()) if (!FILTER_KEYS.has(key)) throw new FinancialReportError("unknown_filter");
-  for (const key of FILTER_KEYS) if (input.getAll(key).length > 1) throw new FinancialReportError("invalid_filter");
+  for (const key of input.keys())
+    if (!FILTER_KEYS.has(key)) throw new FinancialReportError("unknown_filter");
+  for (const key of FILTER_KEYS)
+    if (input.getAll(key).length > 1) throw new FinancialReportError("invalid_filter");
   const month = input.get("month");
   if (month !== null && month !== period.month) throw new FinancialReportError("invalid_month");
   const tab = input.get("tab") ?? "receipts";
   if (tab !== "receipts" && tab !== "voided") throw new FinancialReportError("invalid_filter");
   const sort = input.get("sort") ?? "documentDate";
-  if (sort !== "documentDate" && sort !== "documentCode") throw new FinancialReportError("invalid_filter");
+  if (sort !== "documentDate" && sort !== "documentCode")
+    throw new FinancialReportError("invalid_filter");
   const direction = input.get("direction") ?? "desc";
   if (direction !== "asc" && direction !== "desc") throw new FinancialReportError("invalid_filter");
   const limitRaw = input.get("limit") ?? "25";
@@ -391,7 +409,8 @@ export function validateReceiptReportFilter(
   const fromDate = text(input, "fromDate");
   const toDate = text(input, "toDate");
   for (const d of [fromDate, toDate])
-    if (d !== undefined && !inMonth(d, period)) throw new FinancialReportError("invalid_date_range");
+    if (d !== undefined && !inMonth(d, period))
+      throw new FinancialReportError("invalid_date_range");
   if (fromDate && toDate && fromDate > toDate) throw new FinancialReportError("invalid_date_range");
   const status = text(input, "status");
   if (status !== undefined && !STATUSES.has(status as ReceiptRowStatus))
@@ -424,7 +443,14 @@ export function reportFilterParams(f: ReceiptReportFilter): URLSearchParams {
   p.set("direction", f.direction);
   p.set("limit", String(f.limit));
   p.set("offset", String(f.offset));
-  for (const k of ["fromDate", "toDate", "bookingReference", "receiptNumber", "paymentAccountId", "status"] as const) {
+  for (const k of [
+    "fromDate",
+    "toDate",
+    "bookingReference",
+    "receiptNumber",
+    "paymentAccountId",
+    "status",
+  ] as const) {
     const v = f[k];
     if (v) p.set(k, v);
   }

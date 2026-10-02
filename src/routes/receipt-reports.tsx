@@ -11,22 +11,28 @@ type Search = { month?: string; tab?: "receipts" | "voided" };
 
 export const Route = createFileRoute("/receipt-reports")({
   validateSearch: (s: Record<string, unknown>): Search => ({
-    month: typeof s.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.month) ? s.month : undefined,
+    month:
+      typeof s.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(s.month) ? s.month : undefined,
     tab: s.tab === "voided" ? "voided" : s.tab === "receipts" ? "receipts" : undefined,
   }),
   head: () => ({
     meta: [
       { title: "Receipt reports — HotelHub" },
-      { name: "description", content: "Owner receipt and voided-receipt reports with audit details." },
+      {
+        name: "description",
+        content: "Owner receipt and voided-receipt reports with audit details.",
+      },
       { property: "og:title", content: "Receipt reports — HotelHub" },
-      { property: "og:description", content: "Owner receipt and voided-receipt reports with audit details." },
+      {
+        property: "og:description",
+        content: "Owner receipt and voided-receipt reports with audit details.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ReceiptReportsPage,
 });
-
 
 function ReceiptReportsPage() {
   const search = Route.useSearch();

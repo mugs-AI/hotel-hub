@@ -186,7 +186,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Link>
     );
   };
-  const isTool = (item: NavItem) => item.to === "/rooms-rates" || item.to === "/settings" || item.to === "/receipt-reports";
+  const isTool = (item: NavItem) =>
+    item.to === "/rooms-rates" || item.to === "/settings" || item.to === "/receipt-reports";
   const navigationLinks = NAV_ITEMS.filter((item) => !item.disabled && !isTool(item)).map(
     renderLink,
   );

@@ -8,7 +8,11 @@ import type { MonthlyFinancialDTO, ReceiptReportDTO } from "../financial-reporti
 import { financialMonth } from "../financial-reporting";
 import { workspaceTab } from "../workspace-tabs";
 
-const state = vi.hoisted(() => ({ dto: undefined as any, report: undefined as any, calls: [] as any[] }));
+const state = vi.hoisted(() => ({
+  dto: undefined as any,
+  report: undefined as any,
+  calls: [] as any[],
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, search, className }: any) =>
@@ -52,7 +56,8 @@ describe("FinancialDashboard", () => {
       currentVerifiedState: true,
     } satisfies MonthlyFinancialDTO;
     const html = renderToStaticMarkup(createElement(FinancialDashboard, { enabled: true }));
-    for (const l of ["Sales", "Deposits", "Collections", "Voided receipts"]) expect(html).toContain(l);
+    for (const l of ["Sales", "Deposits", "Collections", "Voided receipts"])
+      expect(html).toContain(l);
     expect(html).toContain("MYR 50.00");
     expect(html).toContain("MYR 80.00");
     expect(html).toContain("Unavailable — final billing source not connected.");
@@ -67,16 +72,27 @@ describe("FinancialDashboard", () => {
 describe("Dashboard wiring", () => {
   const src = readFileSync(resolve(__dirname, "../../routes/index.tsx"), "utf8");
   it("keeps the four operational cards on the property day and adds finance separately", () => {
-    for (const l of ["Confirmed arrivals", "Departures today", "Overdue occupied", "Rooms needing attention"])
+    for (const l of [
+      "Confirmed arrivals",
+      "Departures today",
+      "Overdue occupied",
+      "Rooms needing attention",
+    ])
       expect(src).toContain(l);
-    expect(src).toContain('<FinancialDashboard enabled={hasPermission(role, "hotel:financial_reports:view")} />');
+    expect(src).toContain(
+      '<FinancialDashboard enabled={hasPermission(role, "hotel:financial_reports:view")} />',
+    );
     expect(src).toMatch(/arrivalFrom: propertyDate/);
   });
   it("report tab and Tools link are Owner-only", () => {
-    expect(workspaceTab("/receipt-reports", "", "owner" as any, "simple")?.label).toBe("Receipt reports");
-    expect(workspaceTab("/receipt-reports", "", "front_desk" as any, "simple")).toBeNull();
+    expect(workspaceTab("/receipt-reports", {}, "owner" as any, "simple")?.label).toBe(
+      "Receipt reports",
+    );
+    expect(workspaceTab("/receipt-reports", {}, "front_desk" as any, "simple")).toBeNull();
     const shell = readFileSync(resolve(__dirname, "../../components/AppShell.tsx"), "utf8");
-    expect(shell).toMatch(/to: "\/receipt-reports",\s+label: "Receipt reports",\s+permission: "hotel:financial_reports:view"/);
+    expect(shell).toMatch(
+      /to: "\/receipt-reports",\s+label: "Receipt reports",\s+permission: "hotel:financial_reports:view"/,
+    );
   });
 });
 
@@ -102,9 +118,25 @@ describe("ReceiptReportTable", () => {
     confirmedVoidAt: "2026-10-05T01:00:00Z",
   };
   it("voided tab shows pre-void amount, audit fields, replacement link and N3 print", () => {
-    const data: ReceiptReportDTO = { period, items: [base], total: 1, sourceStatus: "complete", verifiedAt: "2026-10-02T03:00:00Z" };
+    const data: ReceiptReportDTO = {
+      period,
+      items: [base],
+      total: 1,
+      sourceStatus: "complete",
+      verifiedAt: "2026-10-02T03:00:00Z",
+    };
     const html = renderToStaticMarkup(
-      createElement(ReceiptReportTable, { data, filter: { month: "2026-10", tab: "voided", sort: "documentDate", direction: "desc", limit: 25, offset: 0 } }),
+      createElement(ReceiptReportTable, {
+        data,
+        filter: {
+          month: "2026-10",
+          tab: "voided",
+          sort: "documentDate",
+          direction: "desc",
+          limit: 25,
+          offset: 0,
+        },
+      }),
     );
     expect(html).toContain("Amount before void");
     expect(html).toContain("MYR 80.00");
@@ -116,12 +148,32 @@ describe("ReceiptReportTable", () => {
     expect(html).toContain("Print in N3");
   });
   it("no Print link for an unsafe receipt identity; failed source visibly Unavailable", () => {
-    const data: ReceiptReportDTO = { period, items: [{ ...base, receiptId: "00000000-0000-0000-0000-000000000000" }], total: 1, sourceStatus: "complete", verifiedAt: null };
+    const data: ReceiptReportDTO = {
+      period,
+      items: [{ ...base, receiptId: "00000000-0000-0000-0000-000000000000" }],
+      total: 1,
+      sourceStatus: "complete",
+      verifiedAt: null,
+    };
     const html = renderToStaticMarkup(
-      createElement(ReceiptReportTable, { data, filter: { month: "2026-10", tab: "receipts", sort: "documentDate", direction: "desc", limit: 25, offset: 0 } }),
+      createElement(ReceiptReportTable, {
+        data,
+        filter: {
+          month: "2026-10",
+          tab: "receipts",
+          sort: "documentDate",
+          direction: "desc",
+          limit: 25,
+          offset: 0,
+        },
+      }),
     );
     expect(html).not.toContain("Print in N3");
-    const status = renderToStaticMarkup(createElement(ReportStatus, { data: { ...data, items: [], total: 0, sourceStatus: "unavailable" } }));
+    const status = renderToStaticMarkup(
+      createElement(ReportStatus, {
+        data: { ...data, items: [], total: 0, sourceStatus: "unavailable" },
+      }),
+    );
     expect(status).toContain("Unavailable");
   });
 });

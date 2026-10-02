@@ -49,6 +49,7 @@ export type AuditEventType =
   | "hotel.receipt_control.decided"
   | "hotel.receipt_control.verified"
   | "hotel.receipt_control.denied"
+  | "hotel.financial_reports.denied"
   | "hotel.reservation.check_in"
   | "hotel.reservation.check_in_failed"
   | "hotel.reservation.guests_assigned"

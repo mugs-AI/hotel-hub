@@ -1,7 +1,11 @@
 // CSV audit/report export for receipt and void reports. Never an N3 voucher.
 // Text cells are quoted and leading spreadsheet formula triggers are escaped;
 // amounts stay numeric.
-import { RECEIPT_STATUS_LABEL, type FinancialMonth, type ReceiptReportRow } from "./financial-reporting";
+import {
+  RECEIPT_STATUS_LABEL,
+  type FinancialMonth,
+  type ReceiptReportRow,
+} from "./financial-reporting";
 
 const FORMULA = /^[=+\-@\t\r]/;
 
@@ -63,7 +67,12 @@ export function receiptReportCsv(rows: readonly ReceiptReportRow[]): string {
 
 export function receiptReportCsvDocument(
   rows: readonly ReceiptReportRow[],
-  meta: { period: FinancialMonth; tab: "receipts" | "voided"; currency: string; verifiedAt: string | null },
+  meta: {
+    period: FinancialMonth;
+    tab: "receipts" | "voided";
+    currency: string;
+    verifiedAt: string | null;
+  },
 ): string {
   const head = [
     `${csvText("HotelHub receipt report — current verified state, not a closing balance")}`,

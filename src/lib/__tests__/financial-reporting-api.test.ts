@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { handleFinancialRequest, type ActorResult, type FinancialHttpDeps } from "../financial-reporting-http.server";
-import { clearFinancialCache, type FinancialReportingDeps } from "../financial-reporting-store.server";
+import {
+  handleFinancialRequest,
+  type ActorResult,
+  type FinancialHttpDeps,
+} from "../financial-reporting-http.server";
+import {
+  clearFinancialCache,
+  type FinancialReportingDeps,
+} from "../financial-reporting-store.server";
 import type { ReceiptSnapshot } from "../receipt-controls";
 import { hasPermission } from "../rbac";
 
@@ -92,19 +99,43 @@ describe("financial report APIs", () => {
   });
 
   it("rejects browser tenant/actor/currency overrides and bad input", async () => {
-    for (const q of ["tenantId=tenant-b", "currency=USD", "actor=x", "month=2026-13", "month=2026-10&month=2026-11"]) {
-      const res = await handleFinancialRequest(req(`/api/hotel/financial-dashboard?${q}`), "dashboard", http({ ok: true, actor: owner }));
+    for (const q of [
+      "tenantId=tenant-b",
+      "currency=USD",
+      "actor=x",
+      "month=2026-13",
+      "month=2026-10&month=2026-11",
+    ]) {
+      const res = await handleFinancialRequest(
+        req(`/api/hotel/financial-dashboard?${q}`),
+        "dashboard",
+        http({ ok: true, actor: owner }),
+      );
       expect(res.status).toBe(400);
     }
-    for (const q of ["tenantId=b", "limit=1000", "offset=-5", `receiptNumber=${"x".repeat(101)}`, "fromDate=2026-11-01"]) {
-      const res = await handleFinancialRequest(req(`/api/hotel/receipt-reports?month=2026-10&${q}`), "report", http({ ok: true, actor: owner }));
+    for (const q of [
+      "tenantId=b",
+      "limit=1000",
+      "offset=-5",
+      `receiptNumber=${"x".repeat(101)}`,
+      "fromDate=2026-11-01",
+    ]) {
+      const res = await handleFinancialRequest(
+        req(`/api/hotel/receipt-reports?month=2026-10&${q}`),
+        "report",
+        http({ ok: true, actor: owner }),
+      );
       expect(res.status).toBe(400);
     }
   });
 
   it("dashboard returns no-store Owner DTO from the session tenant", async () => {
     const h = http({ ok: true, actor: owner });
-    const res = await handleFinancialRequest(req("/api/hotel/financial-dashboard?month=2026-10"), "dashboard", h);
+    const res = await handleFinancialRequest(
+      req("/api/hotel/financial-dashboard?month=2026-10"),
+      "dashboard",
+      h,
+    );
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
     expect(body.deposits.amount).toBe(150);
@@ -114,7 +145,13 @@ describe("financial report APIs", () => {
 
   it("report sorts/filters/paginates server-side and counts the full set", async () => {
     const h = http({ ok: true, actor: owner }, data(30));
-    const res = await handleFinancialRequest(req("/api/hotel/receipt-reports?month=2026-10&limit=25&offset=25&sort=documentCode&direction=asc"), "report", h);
+    const res = await handleFinancialRequest(
+      req(
+        "/api/hotel/receipt-reports?month=2026-10&limit=25&offset=25&sort=documentCode&direction=asc",
+      ),
+      "report",
+      h,
+    );
     const body = await res.json();
     expect(body.total).toBe(30);
     expect(body.items).toHaveLength(5);
@@ -122,7 +159,11 @@ describe("financial report APIs", () => {
 
   it("export contains the complete matching set, escaped, reconciling with the report", async () => {
     const h = http({ ok: true, actor: owner }, data(30));
-    const res = await handleFinancialRequest(req("/api/hotel/receipt-reports/export?month=2026-10"), "export", h);
+    const res = await handleFinancialRequest(
+      req("/api/hotel/receipt-reports/export?month=2026-10"),
+      "export",
+      h,
+    );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/csv");
     const csv = await res.text();
@@ -136,7 +177,11 @@ describe("financial report APIs", () => {
 
   it("export refuses an incomplete source instead of an empty file", async () => {
     const h = http({ ok: true, actor: owner }, data(3, true));
-    const res = await handleFinancialRequest(req("/api/hotel/receipt-reports/export?month=2026-10"), "export", h);
+    const res = await handleFinancialRequest(
+      req("/api/hotel/receipt-reports/export?month=2026-10"),
+      "export",
+      h,
+    );
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "report_source_incomplete" });
   });
