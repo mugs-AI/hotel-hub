@@ -39,6 +39,11 @@ const SECTIONS: Record<string, { label: string; permission: Permission; search?:
   "/housekeeping": { label: "Housekeeping", permission: "hotel:housekeeping:view" },
   "/rooms-rates": { label: "Rooms & Rates", permission: "hotel:rooms:view" },
   "/settings": { label: "Settings", permission: "hotel:setup" },
+  "/receipt-reports": {
+    label: "Receipt reports",
+    permission: "hotel:financial_reports:view",
+    search: ["month", "tab"],
+  },
 };
 
 /** Navigation metadata only. Tokens, arbitrary paths and print pages never become tabs. */

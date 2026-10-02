@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
+import { Route as ReceiptReportsRouteImport } from './routes/receipt-reports'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
 import { Route as DeparturesRouteImport } from './routes/departures'
@@ -35,9 +36,11 @@ import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/setting
 import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
 import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
 import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
+import { Route as ApiHotelReceiptReportsRouteImport } from './routes/api/hotel/receipt-reports'
 import { Route as ApiHotelReceiptControlsRouteImport } from './routes/api/hotel/receipt-controls'
 import { Route as ApiHotelPaymentAccountsRouteImport } from './routes/api/hotel/payment-accounts'
 import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/housekeeping'
+import { Route as ApiHotelFinancialDashboardRouteImport } from './routes/api/hotel/financial-dashboard'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
@@ -51,6 +54,7 @@ import { Route as ApiN3ProbeProbeRouteImport } from './routes/api/n3/probe/$prob
 import { Route as ApiN3CustomersAllRouteImport } from './routes/api/n3/customers.all'
 import { Route as ApiHotelRoomsIdRouteImport } from './routes/api/hotel/rooms.$id'
 import { Route as ApiHotelReservationsIdRouteImport } from './routes/api/hotel/reservations.$id'
+import { Route as ApiHotelReceiptReportsExportRouteImport } from './routes/api/hotel/receipt-reports.export'
 import { Route as ApiHotelHousekeepingPurgeRouteImport } from './routes/api/hotel/housekeeping.purge'
 import { Route as ApiHotelCompanyNameRefreshRouteImport } from './routes/api/hotel/company-name.refresh'
 import { Route as ApiHotelChargesSettingsRouteImport } from './routes/api/hotel/charges.settings'
@@ -93,6 +97,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const RoomsRatesRoute = RoomsRatesRouteImport.update({
   id: '/rooms-rates',
   path: '/rooms-rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReceiptReportsRoute = ReceiptReportsRouteImport.update({
+  id: '/receipt-reports',
+  path: '/receipt-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LaunchErrorRoute = LaunchErrorRouteImport.update({
@@ -214,6 +223,11 @@ const ApiHotelReservationCalendarRoute =
     path: '/api/hotel/reservation-calendar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHotelReceiptReportsRoute = ApiHotelReceiptReportsRouteImport.update({
+  id: '/api/hotel/receipt-reports',
+  path: '/api/hotel/receipt-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHotelReceiptControlsRoute = ApiHotelReceiptControlsRouteImport.update({
   id: '/api/hotel/receipt-controls',
   path: '/api/hotel/receipt-controls',
@@ -229,6 +243,12 @@ const ApiHotelHousekeepingRoute = ApiHotelHousekeepingRouteImport.update({
   path: '/api/hotel/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotelFinancialDashboardRoute =
+  ApiHotelFinancialDashboardRouteImport.update({
+    id: '/api/hotel/financial-dashboard',
+    path: '/api/hotel/financial-dashboard',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   id: '/api/hotel/departures',
   path: '/api/hotel/departures',
@@ -294,6 +314,12 @@ const ApiHotelReservationsIdRoute = ApiHotelReservationsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiHotelReservationsRoute,
 } as any)
+const ApiHotelReceiptReportsExportRoute =
+  ApiHotelReceiptReportsExportRouteImport.update({
+    id: '/export',
+    path: '/export',
+    getParentRoute: () => ApiHotelReceiptReportsRoute,
+  } as any)
 const ApiHotelHousekeepingPurgeRoute =
   ApiHotelHousekeepingPurgeRouteImport.update({
     id: '/purge',
@@ -467,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -481,9 +508,11 @@ export interface FileRoutesByFullPath {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
+  '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -503,6 +532,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/charges/settings': typeof ApiHotelChargesSettingsRoute
   '/api/hotel/company-name/refresh': typeof ApiHotelCompanyNameRefreshRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
+  '/api/hotel/receipt-reports/export': typeof ApiHotelReceiptReportsExportRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -539,6 +569,7 @@ export interface FileRoutesByTo {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -553,9 +584,11 @@ export interface FileRoutesByTo {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
+  '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -575,6 +608,7 @@ export interface FileRoutesByTo {
   '/api/hotel/charges/settings': typeof ApiHotelChargesSettingsRoute
   '/api/hotel/company-name/refresh': typeof ApiHotelCompanyNameRefreshRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
+  '/api/hotel/receipt-reports/export': typeof ApiHotelReceiptReportsExportRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -612,6 +646,7 @@ export interface FileRoutesById {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -626,9 +661,11 @@ export interface FileRoutesById {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
+  '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -648,6 +685,7 @@ export interface FileRoutesById {
   '/api/hotel/charges/settings': typeof ApiHotelChargesSettingsRoute
   '/api/hotel/company-name/refresh': typeof ApiHotelCompanyNameRefreshRoute
   '/api/hotel/housekeeping/purge': typeof ApiHotelHousekeepingPurgeRoute
+  '/api/hotel/receipt-reports/export': typeof ApiHotelReceiptReportsExportRoute
   '/api/hotel/reservations/$id': typeof ApiHotelReservationsIdRouteWithChildren
   '/api/hotel/rooms/$id': typeof ApiHotelRoomsIdRoute
   '/api/n3/customers/all': typeof ApiN3CustomersAllRoute
@@ -686,6 +724,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -700,9 +739,11 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/financial-dashboard'
     | '/api/hotel/housekeeping'
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
+    | '/api/hotel/receipt-reports'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -722,6 +763,7 @@ export interface FileRouteTypes {
     | '/api/hotel/charges/settings'
     | '/api/hotel/company-name/refresh'
     | '/api/hotel/housekeeping/purge'
+    | '/api/hotel/receipt-reports/export'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -758,6 +800,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -772,9 +815,11 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/financial-dashboard'
     | '/api/hotel/housekeeping'
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
+    | '/api/hotel/receipt-reports'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -794,6 +839,7 @@ export interface FileRouteTypes {
     | '/api/hotel/charges/settings'
     | '/api/hotel/company-name/refresh'
     | '/api/hotel/housekeeping/purge'
+    | '/api/hotel/receipt-reports/export'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -830,6 +876,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -844,9 +891,11 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/financial-dashboard'
     | '/api/hotel/housekeeping'
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
+    | '/api/hotel/receipt-reports'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -866,6 +915,7 @@ export interface FileRouteTypes {
     | '/api/hotel/charges/settings'
     | '/api/hotel/company-name/refresh'
     | '/api/hotel/housekeeping/purge'
+    | '/api/hotel/receipt-reports/export'
     | '/api/hotel/reservations/$id'
     | '/api/hotel/rooms/$id'
     | '/api/n3/customers/all'
@@ -903,6 +953,7 @@ export interface RootRouteChildren {
   DeparturesRoute: typeof DeparturesRoute
   HousekeepingRoute: typeof HousekeepingRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
+  ReceiptReportsRoute: typeof ReceiptReportsRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
   SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
@@ -917,9 +968,11 @@ export interface RootRouteChildren {
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
+  ApiHotelFinancialDashboardRoute: typeof ApiHotelFinancialDashboardRoute
   ApiHotelHousekeepingRoute: typeof ApiHotelHousekeepingRouteWithChildren
   ApiHotelPaymentAccountsRoute: typeof ApiHotelPaymentAccountsRoute
   ApiHotelReceiptControlsRoute: typeof ApiHotelReceiptControlsRouteWithChildren
+  ApiHotelReceiptReportsRoute: typeof ApiHotelReceiptReportsRouteWithChildren
   ApiHotelReservationCalendarRoute: typeof ApiHotelReservationCalendarRoute
   ApiHotelReservationsRoute: typeof ApiHotelReservationsRouteWithChildren
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
@@ -963,6 +1016,13 @@ declare module '@tanstack/react-router' {
       path: '/rooms-rates'
       fullPath: '/rooms-rates'
       preLoaderRoute: typeof RoomsRatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/receipt-reports': {
+      id: '/receipt-reports'
+      path: '/receipt-reports'
+      fullPath: '/receipt-reports'
+      preLoaderRoute: typeof ReceiptReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/launch-error': {
@@ -1126,6 +1186,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel/receipt-reports': {
+      id: '/api/hotel/receipt-reports'
+      path: '/api/hotel/receipt-reports'
+      fullPath: '/api/hotel/receipt-reports'
+      preLoaderRoute: typeof ApiHotelReceiptReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/receipt-controls': {
       id: '/api/hotel/receipt-controls'
       path: '/api/hotel/receipt-controls'
@@ -1145,6 +1212,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hotel/housekeeping'
       fullPath: '/api/hotel/housekeeping'
       preLoaderRoute: typeof ApiHotelHousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/financial-dashboard': {
+      id: '/api/hotel/financial-dashboard'
+      path: '/api/hotel/financial-dashboard'
+      fullPath: '/api/hotel/financial-dashboard'
+      preLoaderRoute: typeof ApiHotelFinancialDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/departures': {
@@ -1237,6 +1311,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/hotel/reservations/$id'
       preLoaderRoute: typeof ApiHotelReservationsIdRouteImport
       parentRoute: typeof ApiHotelReservationsRoute
+    }
+    '/api/hotel/receipt-reports/export': {
+      id: '/api/hotel/receipt-reports/export'
+      path: '/export'
+      fullPath: '/api/hotel/receipt-reports/export'
+      preLoaderRoute: typeof ApiHotelReceiptReportsExportRouteImport
+      parentRoute: typeof ApiHotelReceiptReportsRoute
     }
     '/api/hotel/housekeeping/purge': {
       id: '/api/hotel/housekeeping/purge'
@@ -1485,6 +1566,20 @@ const ApiHotelReceiptControlsRouteWithChildren =
     ApiHotelReceiptControlsRouteChildren,
   )
 
+interface ApiHotelReceiptReportsRouteChildren {
+  ApiHotelReceiptReportsExportRoute: typeof ApiHotelReceiptReportsExportRoute
+}
+
+const ApiHotelReceiptReportsRouteChildren: ApiHotelReceiptReportsRouteChildren =
+  {
+    ApiHotelReceiptReportsExportRoute: ApiHotelReceiptReportsExportRoute,
+  }
+
+const ApiHotelReceiptReportsRouteWithChildren =
+  ApiHotelReceiptReportsRoute._addFileChildren(
+    ApiHotelReceiptReportsRouteChildren,
+  )
+
 interface ApiHotelReservationsIdDepositsRouteChildren {
   ApiHotelReservationsIdDepositsPreviewRoute: typeof ApiHotelReservationsIdDepositsPreviewRoute
   ApiHotelReservationsIdDepositsDepositIdReceiptRequestsRoute: typeof ApiHotelReservationsIdDepositsDepositIdReceiptRequestsRoute
@@ -1675,6 +1770,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeparturesRoute: DeparturesRoute,
   HousekeepingRoute: HousekeepingRoute,
   LaunchErrorRoute: LaunchErrorRoute,
+  ReceiptReportsRoute: ReceiptReportsRoute,
   RoomsRatesRoute: RoomsRatesRoute,
   SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,
@@ -1689,9 +1785,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
+  ApiHotelFinancialDashboardRoute: ApiHotelFinancialDashboardRoute,
   ApiHotelHousekeepingRoute: ApiHotelHousekeepingRouteWithChildren,
   ApiHotelPaymentAccountsRoute: ApiHotelPaymentAccountsRoute,
   ApiHotelReceiptControlsRoute: ApiHotelReceiptControlsRouteWithChildren,
+  ApiHotelReceiptReportsRoute: ApiHotelReceiptReportsRouteWithChildren,
   ApiHotelReservationCalendarRoute: ApiHotelReservationCalendarRoute,
   ApiHotelReservationsRoute: ApiHotelReservationsRouteWithChildren,
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,
