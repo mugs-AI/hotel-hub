@@ -70,7 +70,7 @@ of the diagnostic gap, not a captured live N3 response.
 | ESLint src | Exit 0; 0 errors / 37 unchanged warnings |
 | Prettier src | Exit 0; all files formatted |
 | Vite production build | Exit 0; Nitro worker built |
-| Whitespace and protected diff | Exit 0; no protected changes |
+| Follow-up whitespace and protected diff | Exit 0; no protected changes |
 
 Full commands use Node to run installed Vitest/TypeScript/ESLint/Prettier/Vite
 entrypoints, matching prior recovery gates. Relevant DB/N3 runtime credentials
@@ -87,6 +87,12 @@ projection and no added upstream operation. Reviewer independently ran the
 76 focused fixture tests. The SSR disabled-button caveat above is its one Minor
 finding; it is documented and does not claim journal-only click coverage.
 Exact commands/results are in `evidence/HH_RECEIPT_DIAGNOSTIC_GATES_20261002.txt`.
+
+The full branch comparison against main additionally flags seven trailing-space
+lines in the two previously copied MDB originals. They are intentional Markdown
+hard line breaks already present in the supplied sources. Originals remain
+byte-identical; no application/test file or current diagnostic follow-up has a
+whitespace finding. This inherited formatting is not silently labelled clean.
 
 ## Release lanes and next proof
 

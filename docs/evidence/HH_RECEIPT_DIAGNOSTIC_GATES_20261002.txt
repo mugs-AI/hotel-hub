@@ -35,7 +35,13 @@ Exit 0. Nitro worker and production artifacts built. No deployment occurred.
 
 DIFF:
 git diff --check
-Exit 0.
+Exit 0 for current working changes.
+git diff --check f2ac118ae4aba3c803dfcc3a9b006ea17ec3c84a e753b4e884bf332ca1cc0f375398eb72a2e7b8db
+Exit 0 for diagnostic follow-up.
+git diff --check origin/main e753b4e884bf332ca1cc0f375398eb72a2e7b8db
+Exit 2: seven intentional Markdown hard-line-break endings in the two inherited
+MDB source copies (protocol lines 3-6, adoption lines 3-5). Copies preserve the
+uploaded originals byte-for-byte; no diagnostic application/test whitespace issue.
 git diff --quiet a68664f56e38bfb74e32972c14becdc6e6938449 -- AGENTS.md package.json bun.lock src/start.ts src/integrations src/lib/hotel-store.server.ts
 Exit 0. Protected baseline identical, including working tree.
 
