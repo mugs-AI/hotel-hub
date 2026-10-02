@@ -921,9 +921,7 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
       const { n3Receipts } = await import("./n3-receipts.server");
       const { parseMonthPage } = await import("./n3-month-receipts.server");
       if (!n3Receipts.listByDocDate) throw new MonthListError("n3_month_list_unavailable");
-      return parseMonthPage(
-        await n3Receipts.listByDocDate(actor.n3Token, { ...range, skip, top }),
-      );
+      return parseMonthPage(await n3Receipts.listByDocDate(actor.n3Token, { ...range, skip, top }));
     },
     async verifyReceipt(actor, depositId, signal) {
       if (signal?.aborted) throw new ReceiptControlError("n3_evidence_unavailable");

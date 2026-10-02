@@ -116,9 +116,7 @@ export function docDateListPath(q: DocDateListQuery): string {
     throw new Error("listByDocDate: unsafe top");
   if (!Number.isSafeInteger(q.skip) || q.skip < 0 || q.skip > 100_000 || q.skip % q.top !== 0)
     throw new Error("listByDocDate: unsafe skip");
-  const filter = encodeURIComponent(
-    `docDate ge ${q.startDate} and docDate lt ${q.endExclusive}`,
-  );
+  const filter = encodeURIComponent(`docDate ge ${q.startDate} and docDate lt ${q.endExclusive}`);
   const orderby = encodeURIComponent("docDate desc,docCode desc");
   return `/api/ARReceipts/List?$filter=${filter}&$orderby=${orderby}&$skip=${q.skip}&$top=${q.top}`;
 }

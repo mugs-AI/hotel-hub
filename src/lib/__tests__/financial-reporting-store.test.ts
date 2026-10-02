@@ -155,7 +155,17 @@ function makeDeps(world: World) {
           const s = world.snaps.get(d.id);
           const date = s && !(s instanceof ReceiptControlError) ? s.documentDate : "2026-10-01";
           return date >= range.startDate && date < range.endExclusive
-            ? [{ id: d.n3ReceiptId, docDate: date, docCode: d.n3DocCode ?? "", referenceNo: null, isCancelled: null, customerCode: null, currencyCode: null }]
+            ? [
+                {
+                  id: d.n3ReceiptId,
+                  docDate: date,
+                  docCode: d.n3DocCode ?? "",
+                  referenceNo: null,
+                  isCancelled: null,
+                  customerCode: null,
+                  currencyCode: null,
+                },
+              ]
             : [];
         });
       rows.sort((a, b) => (a.docDate < b.docDate ? 1 : a.docDate > b.docDate ? -1 : 0));
@@ -599,8 +609,24 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
     const d = dep(1);
     const w = world([d], {
       list: () => [
-        { id: d.n3ReceiptId, docDate: "2026-10-02", docCode: "a", referenceNo: null, isCancelled: null, customerCode: null, currencyCode: null },
-        { id: rid(77), docDate: "2026-09-30", docCode: "b", referenceNo: null, isCancelled: null, customerCode: null, currencyCode: null },
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-02",
+          docCode: "a",
+          referenceNo: null,
+          isCancelled: null,
+          customerCode: null,
+          currencyCode: null,
+        },
+        {
+          id: rid(77),
+          docDate: "2026-09-30",
+          docCode: "b",
+          referenceNo: null,
+          isCancelled: null,
+          customerCode: null,
+          currencyCode: null,
+        },
       ],
     });
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
@@ -610,9 +636,20 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
   it("count changing between pages, duplicates, truncation and wrong order fail closed", async () => {
     const many = Array.from({ length: 150 }, (_, i) => dep(i + 1));
     const rowsOf = (n: number) =>
-      many.slice(0, n).map((d) => ({ id: d.n3ReceiptId.toLowerCase(), docDate: "2026-10-05", docCode: d.n3DocCode!, referenceNo: null, isCancelled: null, customerCode: null, currencyCode: null }));
+      many.slice(0, n).map((d) => ({
+        id: d.n3ReceiptId.toLowerCase(),
+        docDate: "2026-10-05",
+        docCode: d.n3DocCode!,
+        referenceNo: null,
+        isCancelled: null,
+        customerCode: null,
+        currencyCode: null,
+      }));
     const cases: FinancialReportingDeps["listMonthReceipts"][] = [
-      async (_a, _r, skip, top) => ({ count: skip ? 151 : 150, rows: rowsOf(150).slice(skip, skip + top) }),
+      async (_a, _r, skip, top) => ({
+        count: skip ? 151 : 150,
+        rows: rowsOf(150).slice(skip, skip + top),
+      }),
       async (_a, _r, _skip, top) => ({ count: 150, rows: rowsOf(150).slice(0, top) }), // repeats page 1
       async (_a, _r, skip, top) => ({ count: 150, rows: rowsOf(120).slice(skip, skip + top) }), // truncated
       async () => ({
@@ -659,8 +696,24 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
     const d = dep(1);
     const w = world([d], {
       list: () => [
-        { id: d.n3ReceiptId, docDate: "2026-10-03", docCode: "OR1", referenceNo: "HH-1", isCancelled: false, customerCode: "WALKIN", currencyCode: "MYR" },
-        { id: rid(500), docDate: "2026-10-02", docCode: "OR2", referenceNo: "HH-500", isCancelled: false, customerCode: "WALKIN", currencyCode: "MYR" },
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: false,
+          customerCode: "WALKIN",
+          currencyCode: "MYR",
+        },
+        {
+          id: rid(500),
+          docDate: "2026-10-02",
+          docCode: "OR2",
+          referenceNo: "HH-500",
+          isCancelled: false,
+          customerCode: "WALKIN",
+          currencyCode: "MYR",
+        },
       ],
     });
     const { deps, calls } = makeDeps(w);
@@ -673,7 +726,15 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
     const d = dep(1);
     const w = world([d], {
       list: () => [
-        { id: d.n3ReceiptId, docDate: "2026-10-03", docCode: "OR1", referenceNo: "HH-1", isCancelled: true, customerCode: null, currencyCode: "MYR" },
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: true,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
       ],
     });
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
@@ -685,7 +746,15 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
     const d = dep(1);
     const w = world([d], {
       list: () => [
-        { id: d.n3ReceiptId, docDate: "2026-10-03", docCode: "OR1", referenceNo: "OTHER", isCancelled: false, customerCode: null, currencyCode: "MYR" },
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "OTHER",
+          isCancelled: false,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
       ],
     });
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
@@ -701,7 +770,10 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
     const seen: Array<{ startDate: string; endExclusive: string }> = [];
     const { deps } = makeDeps(w);
     const base = deps.listMonthReceipts;
-    deps.listMonthReceipts = (ac, range, s, t, sig) => (seen.push(range), base(ac, range, s, t, sig));
+    deps.listMonthReceipts = (ac, range, s, t, sig) => (
+      seen.push(range),
+      base(ac, range, s, t, sig)
+    );
     const r = await readMonthlyFinancialDashboard(owner, "2028-02", deps);
     expect(seen[0]).toEqual({ startDate: "2028-02-01", endExclusive: "2028-03-01" });
     expect(r.deposits).toMatchObject({ status: "complete", amount: 50 });
@@ -711,7 +783,12 @@ describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", ()
 describe("ARReceipts/List month query and strict page parsing", () => {
   it("builds a validated, encoded, stably ordered docDate query", async () => {
     const { docDateListPath } = await import("../n3-receipts.server");
-    const p = docDateListPath({ startDate: "2028-02-01", endExclusive: "2028-03-01", skip: 100, top: 100 });
+    const p = docDateListPath({
+      startDate: "2028-02-01",
+      endExclusive: "2028-03-01",
+      skip: 100,
+      top: 100,
+    });
     expect(decodeURIComponent(p)).toBe(
       "/api/ARReceipts/List?$filter=docDate ge 2028-02-01 and docDate lt 2028-03-01&$orderby=docDate desc,docCode desc&$skip=100&$top=100",
     );
@@ -726,10 +803,25 @@ describe("ARReceipts/List month query and strict page parsing", () => {
 
   it("accepts only the official '0000' envelope with data.value + data.count", async () => {
     const { parseMonthPage } = await import("../n3-month-receipts.server");
-    const row = { id: rid(1), docDate: "2026-10-03T00:00:00", docCode: "OR1", referenceNo: "HH-1", isCancelled: false, customerCode: "C", currencyCode: "MYR", netTotalAmount: 50, accountCode: "310" };
+    const row = {
+      id: rid(1),
+      docDate: "2026-10-03T00:00:00",
+      docCode: "OR1",
+      referenceNo: "HH-1",
+      isCancelled: false,
+      customerCode: "C",
+      currencyCode: "MYR",
+      netTotalAmount: 50,
+      accountCode: "310",
+    };
     const ok = (body: unknown) => ({ kind: "response" as const, status: 200, durationMs: 1, body });
-    const page = parseMonthPage(ok({ code: "0000", success: true, data: { value: [row], count: 1 } }));
-    expect(page).toMatchObject({ count: 1, rows: [{ docDate: "2026-10-03", referenceNo: "HH-1" }] });
+    const page = parseMonthPage(
+      ok({ code: "0000", success: true, data: { value: [row], count: 1 } }),
+    );
+    expect(page).toMatchObject({
+      count: 1,
+      rows: [{ docDate: "2026-10-03", referenceNo: "HH-1" }],
+    });
     for (const body of [
       { code: "0", data: { value: [row], count: 1 } },
       { code: "0000", Code: "E001", data: { value: [row], count: 1 } },
@@ -740,8 +832,8 @@ describe("ARReceipts/List month query and strict page parsing", () => {
       { code: "0000", data: { value: [{ ...row, id: "1" }], count: 1 } },
     ])
       expect(() => parseMonthPage(ok(body))).toThrow();
-    expect(() => parseMonthPage({ kind: "response", status: 401, durationMs: 1, body: {} })).toThrow(
-      "unauthorized",
-    );
+    expect(() =>
+      parseMonthPage({ kind: "response", status: 401, durationMs: 1, body: {} }),
+    ).toThrow("unauthorized");
   });
 });

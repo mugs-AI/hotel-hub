@@ -74,11 +74,22 @@ export function parseMonthPage(outcome: N3Outcome): N3MonthPage {
     const cust = str(r, "customerCode");
     const cur = str(r, "currencyCode");
     const canc = single(r, "isCancelled");
-    if (!id || !isRealN3Id(id) || !date || code === false || ref === false || cust === false || cur === false)
+    if (
+      !id ||
+      !isRealN3Id(id) ||
+      !date ||
+      code === false ||
+      ref === false ||
+      cust === false ||
+      cur === false
+    )
       throw new MonthListError("n3_month_list_malformed");
     const day = date.slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`)) ||
-      new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) !== day)
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(day) ||
+      Number.isNaN(Date.parse(`${day}T00:00:00Z`)) ||
+      new Date(`${day}T00:00:00Z`).toISOString().slice(0, 10) !== day
+    )
       throw new MonthListError("n3_month_list_malformed");
     if (!canc.ok || (canc.v !== undefined && canc.v !== null && typeof canc.v !== "boolean"))
       throw new MonthListError("n3_month_list_malformed");
@@ -123,12 +134,12 @@ export async function discoverMonthReceipts(
         throw new MonthListError("n3_filter_ignored");
       if (out.has(r.id)) throw new MonthListError("n3_month_list_inconsistent");
       // docDate desc is required; docCode tiebreak collation is N3's, not enforced here.
-      if (prev && r.docDate > prev.docDate)
-        throw new MonthListError("n3_month_list_inconsistent");
+      if (prev && r.docDate > prev.docDate) throw new MonthListError("n3_month_list_inconsistent");
       prev = r;
       out.set(r.id, r);
     }
     if (out.size === count) return out;
-    if (out.size > count || res.rows.length < top) throw new MonthListError("n3_month_list_inconsistent");
+    if (out.size > count || res.rows.length < top)
+      throw new MonthListError("n3_month_list_inconsistent");
   }
 }
