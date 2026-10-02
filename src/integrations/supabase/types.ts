@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      hotel_addon_catalogue: {
+        Row: {
+          category: Database["public"]["Enums"]["hotel_addon_category"]
+          created_at: string
+          default_unit_price_cents: number
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          n3_stock_code_snapshot: string | null
+          n3_stock_id: string | null
+          n3_stock_name_snapshot: string | null
+          n3_tax_code_id: string | null
+          n3_tax_code_snapshot: string | null
+          n3_uom_id: string | null
+          n3_uom_snapshot: string | null
+          sort_order: number
+          tax_class: Database["public"]["Enums"]["hotel_tax_class"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["hotel_addon_category"]
+          created_at?: string
+          default_unit_price_cents?: number
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          n3_stock_code_snapshot?: string | null
+          n3_stock_id?: string | null
+          n3_stock_name_snapshot?: string | null
+          n3_tax_code_id?: string | null
+          n3_tax_code_snapshot?: string | null
+          n3_uom_id?: string | null
+          n3_uom_snapshot?: string | null
+          sort_order?: number
+          tax_class: Database["public"]["Enums"]["hotel_tax_class"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["hotel_addon_category"]
+          created_at?: string
+          default_unit_price_cents?: number
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          n3_stock_code_snapshot?: string | null
+          n3_stock_id?: string | null
+          n3_stock_name_snapshot?: string | null
+          n3_tax_code_id?: string | null
+          n3_tax_code_snapshot?: string | null
+          n3_uom_id?: string | null
+          n3_uom_snapshot?: string | null
+          sort_order?: number
+          tax_class?: Database["public"]["Enums"]["hotel_tax_class"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_addon_catalogue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_audit_events: {
         Row: {
           created_at: string
@@ -247,6 +318,331 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "hotel_tenants"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_folio_bill_to: {
+        Row: {
+          address: string
+          company: string
+          email: string
+          name: string
+          phone: string
+          reservation_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string
+          company?: string
+          email?: string
+          name?: string
+          phone?: string
+          reservation_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          company?: string
+          email?: string
+          name?: string
+          phone?: string
+          reservation_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_folio_bill_to_tenant_id_reservation_id_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: true
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      hotel_folio_lines: {
+        Row: {
+          actor_n3_user_key: string
+          agreed_rate_cents_snapshot: number | null
+          catalogue_id: string | null
+          client_request_id: string | null
+          created_at: string
+          description_snapshot: string
+          folio_id: string
+          id: string
+          line_type: Database["public"]["Enums"]["hotel_folio_line_type"]
+          n3_stock_code_snapshot: string | null
+          n3_stock_id_snapshot: string | null
+          n3_stock_name_snapshot: string | null
+          n3_tax_code_id_snapshot: string | null
+          n3_uom_id_snapshot: string | null
+          quantity: number
+          reason: string | null
+          reverses_line_id: string | null
+          room_label_snapshot: string | null
+          settings_snapshot: Json | null
+          snapshot_frozen_at: string | null
+          source_hotel_room_id: string | null
+          source_reservation_room_id: string | null
+          status: Database["public"]["Enums"]["hotel_folio_line_status"]
+          stay_date: string | null
+          subtotal_cents: number
+          tax_cents: number
+          tax_class: Database["public"]["Enums"]["hotel_tax_class"] | null
+          tax_snapshot: Json
+          tenant_id: string
+          total_cents: number
+          unit_price_cents: number
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          actor_n3_user_key: string
+          agreed_rate_cents_snapshot?: number | null
+          catalogue_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          description_snapshot: string
+          folio_id: string
+          id?: string
+          line_type: Database["public"]["Enums"]["hotel_folio_line_type"]
+          n3_stock_code_snapshot?: string | null
+          n3_stock_id_snapshot?: string | null
+          n3_stock_name_snapshot?: string | null
+          n3_tax_code_id_snapshot?: string | null
+          n3_uom_id_snapshot?: string | null
+          quantity?: number
+          reason?: string | null
+          reverses_line_id?: string | null
+          room_label_snapshot?: string | null
+          settings_snapshot?: Json | null
+          snapshot_frozen_at?: string | null
+          source_hotel_room_id?: string | null
+          source_reservation_room_id?: string | null
+          status?: Database["public"]["Enums"]["hotel_folio_line_status"]
+          stay_date?: string | null
+          subtotal_cents?: number
+          tax_cents?: number
+          tax_class?: Database["public"]["Enums"]["hotel_tax_class"] | null
+          tax_snapshot?: Json
+          tenant_id: string
+          total_cents?: number
+          unit_price_cents?: number
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          actor_n3_user_key?: string
+          agreed_rate_cents_snapshot?: number | null
+          catalogue_id?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          description_snapshot?: string
+          folio_id?: string
+          id?: string
+          line_type?: Database["public"]["Enums"]["hotel_folio_line_type"]
+          n3_stock_code_snapshot?: string | null
+          n3_stock_id_snapshot?: string | null
+          n3_stock_name_snapshot?: string | null
+          n3_tax_code_id_snapshot?: string | null
+          n3_uom_id_snapshot?: string | null
+          quantity?: number
+          reason?: string | null
+          reverses_line_id?: string | null
+          room_label_snapshot?: string | null
+          settings_snapshot?: Json | null
+          snapshot_frozen_at?: string | null
+          source_hotel_room_id?: string | null
+          source_reservation_room_id?: string | null
+          status?: Database["public"]["Enums"]["hotel_folio_line_status"]
+          stay_date?: string | null
+          subtotal_cents?: number
+          tax_cents?: number
+          tax_class?: Database["public"]["Enums"]["hotel_tax_class"] | null
+          tax_snapshot?: Json
+          tenant_id?: string
+          total_cents?: number
+          unit_price_cents?: number
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_folio_lines_catalogue_id_fkey"
+            columns: ["catalogue_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_addon_catalogue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_lines_reverses_line_id_fkey"
+            columns: ["reverses_line_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_folio_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_lines_source_hotel_room_id_fkey"
+            columns: ["source_hotel_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_lines_source_reservation_room_id_fkey"
+            columns: ["source_reservation_room_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_lines_tenant_folio_fkey"
+            columns: ["tenant_id", "folio_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_folios"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_folio_operations: {
+        Row: {
+          actor_n3_user_key: string
+          client_request_id: string
+          created_at: string
+          folio_id: string | null
+          id: string
+          operation: string
+          request_fingerprint: string
+          reservation_id: string
+          result_evidence_id: string | null
+          result_line_id: string | null
+          target_line_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          actor_n3_user_key: string
+          client_request_id: string
+          created_at?: string
+          folio_id?: string | null
+          id?: string
+          operation: string
+          request_fingerprint: string
+          reservation_id: string
+          result_evidence_id?: string | null
+          result_line_id?: string | null
+          target_line_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          actor_n3_user_key?: string
+          client_request_id?: string
+          created_at?: string
+          folio_id?: string | null
+          id?: string
+          operation?: string
+          request_fingerprint?: string
+          reservation_id?: string
+          result_evidence_id?: string | null
+          result_line_id?: string | null
+          target_line_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_evidence_fkey"
+            columns: ["tenant_id", "result_evidence_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tourism_tax_evidence"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_folio_fkey"
+            columns: ["tenant_id", "folio_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_folios"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_res_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_result_fkey"
+            columns: ["tenant_id", "result_line_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_folio_lines"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_folio_operations_tenant_target_fkey"
+            columns: ["tenant_id", "target_line_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_folio_lines"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      hotel_folios: {
+        Row: {
+          created_at: string
+          currency: string
+          id: string
+          reservation_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          id?: string
+          reservation_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          id?: string
+          reservation_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_folios_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_folios_tenant_reservation_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -501,7 +897,6 @@ export type Database = {
       hotel_reservation_deposits: {
         Row: {
           amount: number
-          payment_lines: Json | null
           created_at: string
           created_by_n3_user_key: string
           currency_code: string
@@ -518,6 +913,7 @@ export type Database = {
           n3_doc_code: string | null
           n3_receipt_id: string | null
           n3_reference_no: string
+          payment_lines: Json | null
           reservation_id: string
           status: string
           tenant_id: string
@@ -525,7 +921,6 @@ export type Database = {
         }
         Insert: {
           amount: number
-          payment_lines?: Json | null
           created_at?: string
           created_by_n3_user_key: string
           currency_code: string
@@ -542,6 +937,7 @@ export type Database = {
           n3_doc_code?: string | null
           n3_receipt_id?: string | null
           n3_reference_no: string
+          payment_lines?: Json | null
           reservation_id: string
           status?: string
           tenant_id: string
@@ -549,7 +945,6 @@ export type Database = {
         }
         Update: {
           amount?: number
-          payment_lines?: Json | null
           created_at?: string
           created_by_n3_user_key?: string
           currency_code?: string
@@ -566,6 +961,7 @@ export type Database = {
           n3_doc_code?: string | null
           n3_receipt_id?: string | null
           n3_reference_no?: string
+          payment_lines?: Json | null
           reservation_id?: string
           status?: string
           tenant_id?: string
@@ -849,44 +1245,47 @@ export type Database = {
           },
         ]
       }
-      hotel_folio_bill_to: {
+      hotel_reservation_tax_profile: {
         Row: {
-          tenant_id: string
+          evidence_note: string | null
+          guest_tax_class: Database["public"]["Enums"]["hotel_guest_tax_class"]
           reservation_id: string
-          name: string
-          company: string
-          address: string
-          phone: string
-          email: string
+          tenant_id: string
           updated_at: string
+          updated_by_n3_user_key: string | null
         }
         Insert: {
-          tenant_id: string
+          evidence_note?: string | null
+          guest_tax_class?: Database["public"]["Enums"]["hotel_guest_tax_class"]
           reservation_id: string
-          name?: string
-          company?: string
-          address?: string
-          phone?: string
-          email?: string
+          tenant_id: string
           updated_at?: string
+          updated_by_n3_user_key?: string | null
         }
         Update: {
-          tenant_id?: string
+          evidence_note?: string | null
+          guest_tax_class?: Database["public"]["Enums"]["hotel_guest_tax_class"]
           reservation_id?: string
-          name?: string
-          company?: string
-          address?: string
-          phone?: string
-          email?: string
+          tenant_id?: string
           updated_at?: string
+          updated_by_n3_user_key?: string | null
         }
-        Relationships: [{
-          foreignKeyName: "hotel_folio_bill_to_tenant_id_reservation_id_fkey"
-          columns: ["tenant_id", "reservation_id"]
-          isOneToOne: true
-          referencedRelation: "hotel_reservations"
-          referencedColumns: ["tenant_id", "id"]
-        }]
+        Relationships: [
+          {
+            foreignKeyName: "hotel_reservation_tax_profile_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_reservation_tax_profile_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       hotel_reservations: {
         Row: {
@@ -1094,22 +1493,22 @@ export type Database = {
       hotel_settings: {
         Row: {
           allow_owner_primary_guest_change_after_check_in: boolean
-          folio_body_pt: number
-          folio_note_pt: number
-          folio_contact_address: string
-          folio_contact_phone: string
-          folio_contact_email: string
-          payment_account_visibility: Json
-          payment_account_aliases: Json
           created_at: string
           currency: string
           display_size: number
           exception_approval_mode: string
+          folio_body_pt: number
+          folio_contact_address: string
+          folio_contact_email: string
+          folio_contact_phone: string
+          folio_note_pt: number
           housekeeping_mode: string
           id: string
           n3_walk_in_customer_code: string | null
           n3_walk_in_customer_id: string | null
           n3_walk_in_customer_name: string | null
+          payment_account_aliases: Json
+          payment_account_visibility: Json
           post_check_in_guest_edit_policy: string
           standard_check_in_time: string
           standard_check_out_time: string
@@ -1119,22 +1518,22 @@ export type Database = {
         }
         Insert: {
           allow_owner_primary_guest_change_after_check_in?: boolean
-          folio_body_pt?: number
-          folio_note_pt?: number
-          folio_contact_address?: string
-          folio_contact_phone?: string
-          folio_contact_email?: string
-          payment_account_visibility?: Json
-          payment_account_aliases?: Json
           created_at?: string
           currency?: string
           display_size?: number
           exception_approval_mode?: string
+          folio_body_pt?: number
+          folio_contact_address?: string
+          folio_contact_email?: string
+          folio_contact_phone?: string
+          folio_note_pt?: number
           housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
           n3_walk_in_customer_name?: string | null
+          payment_account_aliases?: Json
+          payment_account_visibility?: Json
           post_check_in_guest_edit_policy?: string
           standard_check_in_time?: string
           standard_check_out_time?: string
@@ -1144,22 +1543,22 @@ export type Database = {
         }
         Update: {
           allow_owner_primary_guest_change_after_check_in?: boolean
-          folio_body_pt?: number
-          folio_note_pt?: number
-          folio_contact_address?: string
-          folio_contact_phone?: string
-          folio_contact_email?: string
-          payment_account_visibility?: Json
-          payment_account_aliases?: Json
           created_at?: string
           currency?: string
           display_size?: number
           exception_approval_mode?: string
+          folio_body_pt?: number
+          folio_contact_address?: string
+          folio_contact_email?: string
+          folio_contact_phone?: string
+          folio_note_pt?: number
           housekeeping_mode?: string
           id?: string
           n3_walk_in_customer_code?: string | null
           n3_walk_in_customer_id?: string | null
           n3_walk_in_customer_name?: string | null
+          payment_account_aliases?: Json
+          payment_account_visibility?: Json
           post_check_in_guest_edit_policy?: string
           standard_check_in_time?: string
           standard_check_out_time?: string
@@ -1206,6 +1605,63 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      hotel_tourism_tax_evidence: {
+        Row: {
+          actor_n3_user_key: string
+          amount_cents: number
+          client_request_id: string | null
+          collected_on: string | null
+          created_at: string
+          id: string
+          note: string | null
+          reference: string | null
+          reservation_id: string
+          source_label: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_n3_user_key: string
+          amount_cents?: number
+          client_request_id?: string | null
+          collected_on?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reference?: string | null
+          reservation_id: string
+          source_label: string
+          tenant_id: string
+        }
+        Update: {
+          actor_n3_user_key?: string
+          amount_cents?: number
+          client_request_id?: string | null
+          collected_on?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          reference?: string | null
+          reservation_id?: string
+          source_label?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_tourism_tax_evidence_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hotel_tourism_tax_evidence_tenant_res_fkey"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
       }
       hotel_user_directory: {
         Row: {
@@ -1288,9 +1744,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      hotelhub_set_payment_account_preferences: {
-        Args: { p_tenant_id: string; p_account_id: string; p_label?: string | null; p_show?: boolean | null }
-        Returns: Database["public"]["Tables"]["hotel_settings"]["Row"][]
+      hotelhub_add_folio_line: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_catalogue_id: string
+          p_client_request_id: string
+          p_description: string
+          p_line_type: Database["public"]["Enums"]["hotel_folio_line_type"]
+          p_operation: string
+          p_quantity: number
+          p_reason: string
+          p_request_fingerprint: string
+          p_reservation_id: string
+          p_subtotal_cents: number
+          p_tax_cents: number
+          p_tax_class: Database["public"]["Enums"]["hotel_tax_class"]
+          p_tax_snapshot: Json
+          p_tenant_id: string
+          p_total_cents: number
+          p_unit_price_cents: number
+        }
+        Returns: Json
+      }
+      hotelhub_add_tourism_tax_evidence: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_amount_cents: number
+          p_client_request_id: string
+          p_collected_on: string
+          p_note: string
+          p_reference: string
+          p_request_fingerprint: string
+          p_reservation_id: string
+          p_source_label: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       hotelhub_assign_guest_rooms_v2: {
         Args: {
@@ -1341,6 +1830,19 @@ export type Database = {
               out_updated_at: string
             }[]
           }
+      hotelhub_claim_folio_operation: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_client_request_id: string
+          p_folio_id: string
+          p_operation: string
+          p_request_fingerprint: string
+          p_reservation_id: string
+          p_target_line_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       hotelhub_create_reservation: {
         Args: {
           p_arrival_date: string
@@ -1536,6 +2038,14 @@ export type Database = {
           out_deleted: number
         }[]
       }
+      hotelhub_release_folio_operation: {
+        Args: {
+          p_client_request_id: string
+          p_operation: string
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
       hotelhub_request_operation: {
         Args: {
           p_actor_n3_user_key: string
@@ -1549,6 +2059,73 @@ export type Database = {
           out_request_id: string
           out_state: string
         }[]
+      }
+      hotelhub_reverse_folio_line: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_client_request_id: string
+          p_line_id: string
+          p_reason: string
+          p_request_fingerprint: string
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      hotelhub_set_payment_account_preferences: {
+        Args: {
+          p_account_id: string
+          p_label?: string
+          p_show?: boolean
+          p_tenant_id: string
+        }
+        Returns: {
+          allow_owner_primary_guest_change_after_check_in: boolean
+          created_at: string
+          currency: string
+          display_size: number
+          exception_approval_mode: string
+          folio_body_pt: number
+          folio_contact_address: string
+          folio_contact_email: string
+          folio_contact_phone: string
+          folio_note_pt: number
+          housekeeping_mode: string
+          id: string
+          n3_walk_in_customer_code: string | null
+          n3_walk_in_customer_id: string | null
+          n3_walk_in_customer_name: string | null
+          payment_account_aliases: Json
+          payment_account_visibility: Json
+          post_check_in_guest_edit_policy: string
+          standard_check_in_time: string
+          standard_check_out_time: string
+          tenant_id: string
+          timezone: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_settings"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_update_folio_line_quantity: {
+        Args: {
+          p_actor_n3_user_key: string
+          p_client_request_id: string
+          p_expected_version: number
+          p_line_id: string
+          p_quantity: number
+          p_request_fingerprint: string
+          p_reservation_id: string
+          p_subtotal_cents: number
+          p_tax_cents: number
+          p_tenant_id: string
+          p_total_cents: number
+        }
+        Returns: Json
       }
       hotelhub_update_reservation: {
         Args: {
@@ -1594,7 +2171,43 @@ export type Database = {
       }
     }
     Enums: {
+      hotel_addon_category:
+        | "minibar"
+        | "breakfast"
+        | "laundry"
+        | "extra_bed"
+        | "early_check_in"
+        | "late_checkout"
+        | "transport"
+        | "room_service"
+        | "damage_lost_item"
+        | "other"
+      hotel_folio_line_status: "draft" | "committed" | "reversed"
+      hotel_folio_line_type:
+        | "room_night"
+        | "add_on"
+        | "service_charge"
+        | "service_tax"
+        | "tourism_tax"
+        | "local_levy"
+        | "discount"
+        | "manual_adjustment"
+        | "reversal"
+      hotel_guest_tax_class:
+        | "malaysian_citizen"
+        | "malaysian_pr"
+        | "foreign_tourist"
+        | "other_exemption"
+        | "unknown"
       hotel_role: "owner" | "front_desk" | "housekeeper"
+      hotel_tax_class:
+        | "accommodation"
+        | "food_and_beverage"
+        | "parking"
+        | "other_taxable_service"
+        | "non_taxable"
+        | "service_charge"
+        | "damage_compensation"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1610,12 +2223,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1639,11 +2252,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1664,11 +2277,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1689,11 +2302,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1706,11 +2319,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1722,7 +2335,47 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      hotel_addon_category: [
+        "minibar",
+        "breakfast",
+        "laundry",
+        "extra_bed",
+        "early_check_in",
+        "late_checkout",
+        "transport",
+        "room_service",
+        "damage_lost_item",
+        "other",
+      ],
+      hotel_folio_line_status: ["draft", "committed", "reversed"],
+      hotel_folio_line_type: [
+        "room_night",
+        "add_on",
+        "service_charge",
+        "service_tax",
+        "tourism_tax",
+        "local_levy",
+        "discount",
+        "manual_adjustment",
+        "reversal",
+      ],
+      hotel_guest_tax_class: [
+        "malaysian_citizen",
+        "malaysian_pr",
+        "foreign_tourist",
+        "other_exemption",
+        "unknown",
+      ],
       hotel_role: ["owner", "front_desk", "housekeeper"],
+      hotel_tax_class: [
+        "accommodation",
+        "food_and_beverage",
+        "parking",
+        "other_taxable_service",
+        "non_taxable",
+        "service_charge",
+        "damage_compensation",
+      ],
     },
   },
 } as const
