@@ -12,6 +12,7 @@ import {
   ReceiptControlClientError,
   receiptControlMessage,
   type ReceiptControlProposalInput,
+  useReceiptIdentity,
 } from "@/lib/receipt-controls-client";
 
 const NAVY = "#102A43";

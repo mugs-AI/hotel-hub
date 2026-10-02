@@ -17,7 +17,6 @@ import {
   purgeForeignReceiptCache,
   receiptControlsKey,
   identityFromSession,
-  receiptIdentityKey,
   verifyReceiptControl,
   recoverReceiptControl,
 } from "@/lib/receipt-controls-client";
