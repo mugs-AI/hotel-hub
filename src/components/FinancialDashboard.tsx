@@ -14,6 +14,11 @@ import {
 export function FinancialDashboard({ enabled }: { enabled: boolean }) {
   const [month, setMonth] = useState<string | undefined>(undefined);
   const q = useMonthlyFinancialDashboard(month, enabled);
+  // The property's current month, learned from the first default load; it is
+  // the latest month offered (no future months).
+  const currentRef = useRef<string | undefined>(undefined);
+  if (month === undefined && q.data?.period.month && !currentRef.current)
+    currentRef.current = q.data.period.month;
   if (!enabled) return null;
   const shown = month ?? q.data?.period.month;
   return (
@@ -29,18 +34,12 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
             — do not add the two cards together. Prepared folios are never counted as sales.
           </CardInfoPopover>
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          Month
-          <input
-            type="month"
-            aria-label="Financial month"
-            value={shown ?? ""}
-            onChange={(e) =>
-              setMonth(/^\d{4}-\d{2}$/.test(e.target.value) ? e.target.value : undefined)
-            }
-            className="rounded-md border border-input px-2 py-1"
-          />
-        </label>
+        <MonthPicker
+          value={shown}
+          max={currentRef.current ?? shown}
+          onChange={(m) => setMonth(m)}
+        />
+      </div>
       </div>
       {q.isError ? (
         <p role="alert" className="text-sm text-red-800">
