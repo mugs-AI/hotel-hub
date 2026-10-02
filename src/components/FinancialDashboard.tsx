@@ -72,12 +72,6 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
           {financialMessage(errorCode)}
         </p>
       ) : null}
-      </div>
-      {q.isError ? (
-        <p role="alert" className="text-sm text-red-800">
-          {financialMessage(q.error instanceof FinancialClientError ? q.error.code : "")}
-        </p>
-      ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FinanceCard label="Sales" metric={q.data?.sales} loading={loading} />
         <FinanceCard
