@@ -377,13 +377,11 @@ export async function createReceiptControlRequest(
   assertReceiptControllable(original);
   const proposal = validateReceiptControlProposal(input.proposal, original);
   const comparison = compareReceiptControl(original, proposal);
-  if (proposal.kind === "correction") {
+  if (proposal.kind === "correction" && requiresAccountEligibility(original, proposal)) {
     const line = original.paymentLines[0]!;
-    if (line.accountId.toLowerCase() !== proposal.accountId.toLowerCase()) {
-      const label = await deps.resolveAccount(actor, proposal.accountId, line.accountId);
-      if (!label) throw new ReceiptControlError("account_not_allowed");
-      for (const f of comparison.fields) if (f.label === "Deposit to") f.requested = label;
-    }
+    const label = await deps.resolveAccount(actor, proposal.accountId, line.accountId);
+    if (!label) throw new ReceiptControlError("account_not_allowed");
+    for (const f of comparison.fields) if (f.label === "Deposit to") f.requested = label;
   }
   const row = await deps.db.create({
     tenantId: actor.tenantId,
