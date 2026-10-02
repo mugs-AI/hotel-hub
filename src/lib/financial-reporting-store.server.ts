@@ -27,12 +27,12 @@ export const FINANCIAL_LIMITS = {
   idChunk: 200,
   verifyConcurrency: 3,
   verifyCap: 100,
-  verifyBudgetMs: 20_000,
+  /** One shared deadline for every DB and N3 call of a monthly read. */
   totalBudgetMs: 40_000,
+  /** PostgREST response ceiling: every query pages below it with an exact count. */
+  dbPageSize: 500,
   cacheTtlMs: 30_000,
   cacheEntries: 50,
-  /** Days around the month used to find candidate receipts by creation time. */
-  candidateWindowDays: 2,
 } as const;
 
 export type FinancialDeposit = {
@@ -55,27 +55,26 @@ export type RequestAudit = {
   reason: string | null;
 };
 
-type Window = { fromIso: string; toIso: string };
-
 export type FinancialReportingDeps = {
   settings(tenantId: string): Promise<{ timezone: string; currency: string } | null>;
-  /** Posted, HotelHub-created deposits only (immutable reference + receipt id). Ordered by id. */
-  depositPage(
-    tenantId: string,
-    w: Window,
-    afterId: string | null,
-    limit: number,
-  ): Promise<FinancialDeposit[]>;
-  depositsByIds(tenantId: string, ids: string[]): Promise<FinancialDeposit[]>;
-  /** null when receipt controls are not installed. */
-  voidedDepositIds(tenantId: string, w: Window): Promise<string[] | null>;
+  /**
+   * EVERY posted HotelHub-created deposit for the tenant (no creation-date
+   * window: N3 may redate a receipt arbitrarily). Ordered by id, keyset paged.
+   */
+  depositPage(tenantId: string, afterId: string | null, limit: number): Promise<FinancialDeposit[]>;
+  /** null when receipt controls are not installed. Must return ALL rows (paged + counted). */
   versions(tenantId: string, depositIds: string[]): Promise<ReceiptVersionRow[] | null>;
   unresolved(tenantId: string, depositIds: string[]): Promise<string[] | null>;
   requests(tenantId: string, ids: string[]): Promise<RequestAudit[]>;
   bookingRefs(tenantId: string, reservationIds: string[]): Promise<Map<string, string>>;
   userLabels(tenantId: string, keys: string[]): Promise<Map<string, string>>;
   revision(tenantId: string): Promise<string>;
-  verifyReceipt(actor: ReceiptControlActor, depositId: string): Promise<ReceiptSnapshot>;
+  /** GET-only. The signal fires at the shared deadline; late results are discarded. */
+  verifyReceipt(
+    actor: ReceiptControlActor,
+    depositId: string,
+    signal?: AbortSignal,
+  ): Promise<ReceiptSnapshot>;
   /** Optional verified adapters; absent means Unavailable, never zero. */
   sales?: (
     actor: ReceiptControlActor,
@@ -114,11 +113,47 @@ const toCents = (v: unknown): number | null => {
   return Number.isSafeInteger(c) ? c : null;
 };
 
-function shiftDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString();
+/** One deadline shared by every DB and N3 call; nothing outlives it. */
+export class Deadline {
+  readonly controller = new AbortController();
+  constructor(
+    private readonly clock: () => number,
+    private readonly endsAt: number,
+  ) {}
+  remaining() {
+    return this.endsAt - this.clock();
+  }
+  async run<T>(p: () => Promise<T>): Promise<T> {
+    const left = this.remaining();
+    if (left <= 0 || this.controller.signal.aborted) {
+      this.controller.abort();
+      throw new SourceIncomplete("time_budget");
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const expire = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        this.controller.abort();
+        reject(new SourceIncomplete("time_budget"));
+      }, left);
+    });
+    try {
+      return await Promise.race([p(), expire]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }
+
+const sameLines = (
+  a: ReadonlyArray<{ accountId: string; amountCents: number }>,
+  b: ReadonlyArray<{ accountId: string; amountCents: number }>,
+) => {
+  const key = (l: { accountId: string; amountCents: number }) =>
+    `${l.accountId.toLowerCase()}|${l.amountCents}`;
+  const x = a.map(key).sort();
+  const y = b.map(key).sort();
+  return x.length > 0 && x.length === y.length && x.every((k, i) => k === y[i]);
+};
 
 const unavailable = (reasonCode: string): FinancialSource<HotelFinancialEvent> => ({
   status: "unavailable",
@@ -147,28 +182,30 @@ async function chunked<T>(
   return out;
 }
 
-/** Bounded parallel GET verification. Stops STARTING reads after the budget. */
+/** Bounded parallel GET verification under the shared deadline. */
 async function verifyBounded(
   actor: ReceiptControlActor,
   ids: string[],
   deps: FinancialReportingDeps,
-  clock: () => number,
+  deadline: Deadline,
 ): Promise<Map<string, ReceiptSnapshot | ReceiptControlError>> {
-  const started = clock();
   const out = new Map<string, ReceiptSnapshot | ReceiptControlError>();
   let next = 0;
-  let budgetHit = false;
   let unauthorized = false;
+  let expired = false;
   const worker = async () => {
-    while (next < ids.length && !unauthorized) {
-      if (clock() - started > FINANCIAL_LIMITS.verifyBudgetMs) {
-        budgetHit = true;
-        return;
-      }
+    while (next < ids.length && !unauthorized && !expired) {
       const id = ids[next++]!;
       try {
-        out.set(id, await deps.verifyReceipt(actor, id));
+        out.set(
+          id,
+          await deadline.run(() => deps.verifyReceipt(actor, id, deadline.controller.signal)),
+        );
       } catch (err) {
+        if (err instanceof SourceIncomplete) {
+          expired = true;
+          return;
+        }
         const e =
           err instanceof ReceiptControlError
             ? err
@@ -182,7 +219,7 @@ async function verifyBounded(
     Array.from({ length: Math.min(FINANCIAL_LIMITS.verifyConcurrency, ids.length) }, worker),
   );
   if (unauthorized) throw new ReceiptControlError("unauthorized");
-  if (budgetHit || out.size < ids.length) throw new SourceIncomplete("verification_budget");
+  if (expired || out.size < ids.length) throw new SourceIncomplete("verification_budget");
   return out;
 }
 
@@ -197,46 +234,37 @@ export async function readReceiptEvents(
   currency: string,
   deps: FinancialReportingDeps,
   clock: () => number,
+  shared?: Deadline,
 ): Promise<FinancialSource<HotelFinancialEvent>> {
-  const t0 = clock();
-  const overBudget = () => clock() - t0 > FINANCIAL_LIMITS.totalBudgetMs;
+  const deadline = shared ?? new Deadline(clock, clock() + FINANCIAL_LIMITS.totalBudgetMs);
   const tenantId = actor.tenantId;
-  const w: Window = {
-    fromIso: shiftDays(period.startDate, -FINANCIAL_LIMITS.candidateWindowDays),
-    toIso: shiftDays(period.endExclusive, FINANCIAL_LIMITS.candidateWindowDays),
-  };
   try {
-    // 1. Candidate HotelHub deposits, complete stable-id paging with a hard cap.
-    const candidates: FinancialDeposit[] = [];
+    // 1. Every HotelHub-linked posted deposit (bounded keyset paging). No
+    //    creation-date heuristic: the N3 document date decides the month.
+    const all: FinancialDeposit[] = [];
     let after: string | null = null;
     for (;;) {
-      if (overBudget()) throw new SourceIncomplete("source_incomplete");
-      const page = await deps.depositPage(tenantId, w, after, FINANCIAL_LIMITS.localPageSize);
-      candidates.push(...page);
-      if (candidates.length > FINANCIAL_LIMITS.localCap)
-        throw new SourceIncomplete("source_incomplete");
+      const page = await deadline.run(() =>
+        deps.depositPage(tenantId, after, FINANCIAL_LIMITS.localPageSize),
+      );
+      all.push(...page);
+      if (all.length > FINANCIAL_LIMITS.localCap) throw new SourceIncomplete("source_incomplete");
       if (page.length < FINANCIAL_LIMITS.localPageSize) break;
       after = page[page.length - 1]!.id;
     }
-    const inWindow = new Set(candidates.map((d) => d.id));
-    // 2. Deposits whose void was confirmed around this month (may be older).
-    const voidedIds = await deps.voidedDepositIds(tenantId, w);
-    const installed = voidedIds !== null;
-    const extra = (voidedIds ?? []).filter((id) => !inWindow.has(id));
-    const all = [...candidates];
-    if (extra.length) {
-      const more = await chunked(extra, FINANCIAL_LIMITS.idChunk, (c) =>
-        deps.depositsByIds(tenantId, c),
-      );
-      all.push(...(more ?? []));
-    }
+    // Without an authoritative N3 document-date index every receipt must be
+    // re-read; over the cap the source is Unavailable, never partial.
+    if (all.length > FINANCIAL_LIMITS.verifyCap) throw new SourceIncomplete("verification_cap");
     const ids = all.map((d) => d.id);
-    const versions = installed
-      ? ((await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) => deps.versions(tenantId, c))) ?? [])
-      : [];
-    const unresolved = installed
-      ? ((await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) => deps.unresolved(tenantId, c))) ?? [])
-      : [];
+    const versionsRaw = await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) =>
+      deadline.run(() => deps.versions(tenantId, c)),
+    );
+    const installed = versionsRaw !== null || ids.length === 0;
+    const versions = versionsRaw ?? [];
+    const unresolved =
+      (await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) =>
+        deadline.run(() => deps.unresolved(tenantId, c)),
+      )) ?? [];
     const overlay = computeReceiptOverlay(versions, new Set(unresolved));
     const byDeposit = new Map<string, ReceiptVersionRow[]>();
     for (const v of versions) {
@@ -246,17 +274,15 @@ export async function readReceiptEvents(
     }
     for (const l of byDeposit.values()) l.sort((a, b) => a.versionNo - b.versionNo);
 
-    // 3. Originals with no verified version need authoritative N3 dates/amounts.
-    const needGet = candidates
-      .filter((d) => (overlay.get(d.id)?.confirmed.state ?? "original") === "original")
-      .map((d) => d.id);
-    if (needGet.length > FINANCIAL_LIMITS.verifyCap) throw new SourceIncomplete("verification_cap");
-    const snaps = await verifyBounded(actor, needGet, deps, clock);
-    if (overBudget()) throw new SourceIncomplete("source_incomplete");
+    // 2. Live GET for EVERY receipt, including corrected/voided ones: stored
+    //    versions are never trusted forever.
+    const snaps = await verifyBounded(actor, ids, deps, deadline);
 
     // 4. Audit labels.
     const requestIds = [...new Set(versions.map((v) => v.requestId))];
-    const audits = new Map((await deps.requests(tenantId, requestIds)).map((r) => [r.id, r]));
+    const audits = new Map(
+      (await deadline.run(() => deps.requests(tenantId, requestIds))).map((r) => [r.id, r]),
+    );
     const keys = [
       ...new Set(
         [...audits.values()]
@@ -264,9 +290,11 @@ export async function readReceiptEvents(
           .filter(Boolean) as string[],
       ),
     ];
-    const labels = await deps.userLabels(tenantId, keys);
+    const labels = await deadline.run(() => deps.userLabels(tenantId, keys));
     const label = (k: string | null) => (k ? (labels.get(k) ?? "Staff") : null);
-    const refs = await deps.bookingRefs(tenantId, [...new Set(all.map((d) => d.reservationId))]);
+    const refs = await deadline.run(() =>
+      deps.bookingRefs(tenantId, [...new Set(all.map((d) => d.reservationId))]),
+    );
 
     const rows: HotelFinancialEvent[] = [];
     let anyUnavailable = false;
@@ -325,10 +353,17 @@ export async function readReceiptEvents(
           current = null;
         }
       }
-      if (!inWindow.has(d.id)) continue; // older receipt: only its void event belongs here
 
       const latest = list[list.length - 1];
       const c = o.confirmed;
+      const live = snaps.get(d.id);
+      if (
+        !live ||
+        (live instanceof ReceiptControlError && live.code === "n3_evidence_unavailable")
+      ) {
+        anyUnavailable = true;
+        continue;
+      }
       if (c.state === "voided") {
         const voidRow = [...list].reverse().find((v) => v.state === "voided");
         const ownActive = [...list]
@@ -344,25 +379,44 @@ export async function readReceiptEvents(
           amountCents: 0,
           kind: "deposit",
           state: "voided",
-          receiptStatus: o.needsReview ? "needs_review" : "voided",
+          receiptStatus:
+            o.needsReview || live instanceof ReceiptControlError || live.documentState !== "voided"
+              ? "needs_review"
+              : "voided",
           replacementOf: null,
           replacementReceiptId: null,
           confirmedVoidAt: voidRow?.verifiedAt ?? null,
         });
+      } else if (c.state === "active" && c.replacementOf) {
+        // The replacement receipt cannot be re-read through the deposit's own
+        // receipt id; stale evidence is Unavailable, never trusted.
+        anyUnavailable = true;
+        continue;
       } else if (c.state === "active") {
-        const v = list.find((x) => x.receiptId === c.receiptId && x.state === "active") ?? latest;
+        // Latest effective version for this receipt (not the first): its audit applies.
+        const v =
+          [...list].reverse().find((x) => x.receiptId === c.receiptId && x.state === "active") ??
+          latest;
+        const liveOk =
+          !(live instanceof ReceiptControlError) &&
+          live.receiptId.toLowerCase() === c.receiptId.toLowerCase() &&
+          live.documentState === "active" &&
+          live.amountCents === c.amountCents &&
+          live.currency.toUpperCase() === (v?.currency ?? d.currency).toUpperCase() &&
+          live.journalExact === true &&
+          sameLines(live.paymentLines, c.paymentLines);
         rows.push({
           ...base,
           ...auditFor(v?.requestId),
           transactionId: c.receiptId,
           documentId: c.receiptId,
           documentCode: c.docCode,
-          documentDate: v?.documentDate ?? "",
+          documentDate: live instanceof ReceiptControlError ? "" : live.documentDate,
           currency: v?.currency ?? d.currency,
           amountCents: c.amountCents,
           kind: "deposit",
           state: "active",
-          receiptStatus: o.needsReview ? "needs_review" : "corrected",
+          receiptStatus: o.needsReview || !liveOk ? "needs_review" : "corrected",
           savedPaymentName:
             c.paymentLines.map((l) => l.savedName).join(" + ") || base.savedPaymentName,
           paymentAccountId: c.paymentLines[0]?.accountId ?? base.paymentAccountId,
@@ -391,16 +445,8 @@ export async function readReceiptEvents(
           });
         }
       } else {
-        const s = snaps.get(d.id);
-        if (!s) {
-          anyUnavailable = true;
-          continue;
-        }
+        const s = live;
         if (s instanceof ReceiptControlError) {
-          if (s.code === "n3_evidence_unavailable") {
-            anyUnavailable = true;
-            continue;
-          }
           // External edit / mismatch: held, never dated from local creation time.
           rows.push({
             ...base,
@@ -423,7 +469,13 @@ export async function readReceiptEvents(
           s.documentState === "active" &&
           s.amountCents === d.amountCents &&
           s.currency.toUpperCase() === d.currency.toUpperCase() &&
-          s.journalExact === true;
+          s.journalExact === true &&
+          // Immutable creation payment lines: an external bank change at the
+          // same amount is account drift, held Needs review.
+          sameLines(
+            s.paymentLines,
+            d.paymentLines.map((l) => ({ accountId: l.id, amountCents: toCents(l.amount) ?? -1 })),
+          );
         rows.push({
           ...base,
           ...auditFor(latest?.requestId),
@@ -473,11 +525,20 @@ export async function readMonthlyFinancialSources(
 ): Promise<MonthlySources> {
   assertOwner(actor);
   const clock = deps.now ?? Date.now;
-  const settings = currency
-    ? { currency, timezone: period.timezone }
-    : await deps.settings(actor.tenantId);
-  if (!settings) throw new FinancialReportError("hotel_settings_missing");
-  const revision = await deps.revision(actor.tenantId);
+  const deadline = new Deadline(clock, clock() + FINANCIAL_LIMITS.totalBudgetMs);
+  let settings: { currency: string; timezone: string } | null;
+  let revision: string;
+  try {
+    settings = currency
+      ? { currency, timezone: period.timezone }
+      : await deadline.run(() => deps.settings(actor.tenantId));
+    if (!settings) throw new FinancialReportError("hotel_settings_missing");
+    revision = await deadline.run(() => deps.revision(actor.tenantId));
+  } catch (err) {
+    if (!(err instanceof SourceIncomplete)) throw err;
+    const u = unavailable(err.reason);
+    return { period, currency: currency ?? "", receipts: u, sales: u, otherCollections: u };
+  }
   const key = `${actor.tenantId}|${period.month}|${period.timezone}|${revision}`;
   const hit = cache.get(key);
   if (hit && clock() - hit.at <= FINANCIAL_LIMITS.cacheTtlMs) return hit.value;
@@ -486,13 +547,13 @@ export async function readMonthlyFinancialSources(
   ): Promise<FinancialSource<HotelFinancialEvent>> => {
     if (!fn) return unavailable(UNAVAILABLE_FINAL_BILLING);
     try {
-      return await fn(actor, period);
+      return await deadline.run(() => fn(actor, period));
     } catch {
       return unavailable("source_incomplete");
     }
   };
   const [receipts, sales, otherCollections] = await Promise.all([
-    readReceiptEvents(actor, period, settings.currency, deps, clock),
+    readReceiptEvents(actor, period, settings.currency, deps, clock, deadline),
     adapter(deps.sales),
     adapter(deps.otherCollections),
   ]);
@@ -632,6 +693,38 @@ function versionRow(r: any): ReceiptVersionRow {
   };
 }
 
+/**
+ * Stable-order range paging with an exact count. Returns null when the table is
+ * not installed; throws SourceIncomplete if pages and count disagree.
+ */
+export async function pagedAll(
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: any[] | null; error: any; count: number | null }>,
+  size: number = FINANCIAL_LIMITS.dbPageSize,
+  cap: number = FINANCIAL_LIMITS.localCap,
+): Promise<any[] | null> {
+  const out: any[] = [];
+  let total: number | null = null;
+  for (let from = 0; ; from += size) {
+    const res = await page(from, from + size - 1);
+    if (res.error) {
+      if (MISSING.has(res.error.code)) return null;
+      fail(res);
+    }
+    if (typeof res.count !== "number") throw new SourceIncomplete("source_incomplete");
+    if (total === null) total = res.count;
+    else if (res.count !== total) throw new SourceIncomplete("source_incomplete"); // moved underneath us
+    if (total > cap) throw new SourceIncomplete("source_incomplete");
+    const data = res.data ?? [];
+    out.push(...data);
+    if (out.length >= total || data.length === 0) break;
+  }
+  if (out.length !== total) throw new SourceIncomplete("source_incomplete");
+  return out;
+}
+
 function fail(res: { error: any }): never {
   throw new Error(`financial read failed ${res.error?.code ?? ""}`);
 }
@@ -643,15 +736,13 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
       const s = await getHotelSettingsReadOnly(tenantId);
       return s ? { timezone: s.timezone, currency: s.currency } : null;
     },
-    async depositPage(tenantId, w, afterId, limit) {
+    async depositPage(tenantId, afterId, limit) {
       let q = (await admin())
         .from("hotel_reservation_deposits")
         .select(DEPOSIT_COLS)
         .eq("tenant_id", tenantId)
         .eq("status", "posted")
         .not("n3_receipt_id", "is", null)
-        .gte("created_at", w.fromIso)
-        .lt("created_at", w.toIso)
         .order("id", { ascending: true })
         .limit(limit);
       if (afterId) q = q.gt("id", afterId);
@@ -659,62 +750,37 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
       if (res.error) fail(res);
       return (res.data ?? []).map(toDeposit);
     },
-    async depositsByIds(tenantId, ids) {
-      const res = await (await admin())
-        .from("hotel_reservation_deposits")
-        .select(DEPOSIT_COLS)
-        .eq("tenant_id", tenantId)
-        .eq("status", "posted")
-        .not("n3_receipt_id", "is", null)
-        .in("id", ids);
-      if (res.error) fail(res);
-      return (res.data ?? []).map(toDeposit);
-    },
-    async voidedDepositIds(tenantId, w) {
-      const res = await (
-        await admin()
-      )
-        .from("hotel_receipt_versions")
-        .select("deposit_id")
-        .eq("tenant_id", tenantId)
-        .eq("state", "voided")
-        .gte("verified_at", w.fromIso)
-        .lt("verified_at", w.toIso)
-        .limit(FINANCIAL_LIMITS.localCap + 1);
-      if (res.error) {
-        if (MISSING.has(res.error.code)) return null;
-        fail(res);
-      }
-      if ((res.data ?? []).length > FINANCIAL_LIMITS.localCap)
-        throw new SourceIncomplete("source_incomplete");
-      return [...new Set<string>((res.data ?? []).map((r: any) => r.deposit_id as string))];
-    },
     async versions(tenantId, ids) {
-      const res = await (await admin())
-        .from("hotel_receipt_versions")
-        .select(
-          "deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at",
-        )
-        .eq("tenant_id", tenantId)
-        .in("deposit_id", ids);
-      if (res.error) {
-        if (MISSING.has(res.error.code)) return null;
-        fail(res);
-      }
-      return (res.data ?? []).map(versionRow);
+      const sb = await admin();
+      const rows = await pagedAll((from, to) =>
+        sb
+          .from("hotel_receipt_versions")
+          .select(
+            "id, deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at",
+            { count: "exact" },
+          )
+          .eq("tenant_id", tenantId)
+          .in("deposit_id", ids)
+          .order("deposit_id", { ascending: true })
+          .order("version_no", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      return rows === null ? null : rows.map(versionRow);
     },
     async unresolved(tenantId, ids) {
-      const res = await (await admin())
-        .from("hotel_receipt_control_requests")
-        .select("deposit_id")
-        .eq("tenant_id", tenantId)
-        .in("deposit_id", ids)
-        .in("state", ["applying", "failed", "needs_review"]);
-      if (res.error) {
-        if (MISSING.has(res.error.code)) return null;
-        fail(res);
-      }
-      return (res.data ?? []).map((r: any) => r.deposit_id as string);
+      const sb = await admin();
+      const rows = await pagedAll((from, to) =>
+        sb
+          .from("hotel_receipt_control_requests")
+          .select("id, deposit_id", { count: "exact" })
+          .eq("tenant_id", tenantId)
+          .in("deposit_id", ids)
+          .in("state", ["applying", "failed", "needs_review"])
+          .order("id", { ascending: true })
+          .range(from, to),
+      );
+      return rows === null ? null : rows.map((r: any) => r.deposit_id as string);
     },
     async requests(tenantId, ids) {
       if (!ids.length) return [];
@@ -788,7 +854,8 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
       }
       return parts.join("|");
     },
-    async verifyReceipt(actor, depositId) {
+    async verifyReceipt(actor, depositId, signal) {
+      if (signal?.aborted) throw new ReceiptControlError("n3_evidence_unavailable");
       const { readReceiptControlEvidence } = await import("./receipt-controls-evidence.server");
       const { n3Receipts } = await import("./n3-receipts.server");
       const { loadDeposit } = await import("./receipt-controls-deps.server");

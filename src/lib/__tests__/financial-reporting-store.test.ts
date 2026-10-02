@@ -44,7 +44,12 @@ function snap(d: FinancialDeposit, over: Partial<ReceiptSnapshot> = {}): Receipt
     customerId: "c",
     currency: "MYR",
     amountCents: d.amountCents,
-    paymentLines: [],
+    paymentLines: d.paymentLines.map((l) => ({
+      accountId: l.id,
+      code: l.code,
+      savedName: l.name,
+      amountCents: Math.round(l.amount * 100),
+    })),
     contact: { customerName: "x", remark1: "", remark2: "", remark3: "", remark4: "" },
     documentState: "active",
     matchingState: "unmatched",
@@ -102,20 +107,12 @@ function makeDeps(world: World) {
       calls.settings++;
       return { timezone: "Asia/Kuala_Lumpur", currency: "MYR" };
     },
-    async depositPage(t, _w, after, limit) {
+    async depositPage(t, after, limit) {
       calls.pages++;
       if (world.failPageAt !== undefined && calls.pages >= world.failPageAt)
         throw new Error("page failed");
       const all = [...scope(t)].sort((a, b) => (a.id < b.id ? -1 : 1));
       return all.filter((d) => after === null || d.id > after).slice(0, limit);
-    },
-    async depositsByIds(t, ids) {
-      return scope(t).filter((d) => ids.includes(d.id));
-    },
-    async voidedDepositIds(t) {
-      calls.tenants.add(t);
-      if (world.installed === false) return null;
-      return world.versions.filter((v) => v.state === "voided").map((v) => v.depositId);
     },
     async versions(t, ids) {
       calls.tenants.add(t);
@@ -198,12 +195,14 @@ describe("readMonthlyFinancialDashboard", () => {
   it("pages past 500 local rows and includes every row", async () => {
     const many = Array.from({ length: 520 }, (_, i) => dep(i + 1, { amountCents: 100 }));
     const w = world(many);
-    // Only 100 originals can be N3-checked per request; give them verified versions.
+    // Every page is read; with no N3 date index every receipt must be re-read,
+    // so above the cap the source is Unavailable (never a partial total).
     w.versions = many.map((d) => version(d, { amountCents: 100, versionNo: 1 }));
     const { deps, calls } = makeDeps(w);
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(calls.pages).toBe(2);
-    expect(r.deposits).toMatchObject({ amount: 520, count: 520, status: "complete" });
+    expect(r.deposits).toMatchObject({ amount: null, status: "unavailable" });
+    expect(calls.verify).toBe(0);
   });
 
   it("a page failure marks the source unavailable, never a partial total", async () => {
@@ -266,6 +265,7 @@ describe("readMonthlyFinancialDashboard", () => {
   it("RM50 corrected to 80 then voided: deposits 0, void 80 in the void month", async () => {
     const d = dep(1);
     const w = world([d]);
+    w.snaps.set(d.id, snap(d, { documentState: "voided" }));
     w.versions = [
       version(d, { versionNo: 1, amountCents: 8000 }),
       version(d, {
@@ -280,7 +280,7 @@ describe("readMonthlyFinancialDashboard", () => {
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(r.deposits.amount).toBe(0);
     expect(r.voids).toMatchObject({ amount: 80, count: 1 });
-    expect(calls.verify).toBe(0);
+    expect(calls.verify).toBe(1); // stored versions are re-verified live
     const report = await readReceiptReport(
       owner,
       validateReceiptReportFilter(
@@ -298,7 +298,7 @@ describe("readMonthlyFinancialDashboard", () => {
     });
   });
 
-  it("void plus replacement: one active contribution; original listed as voided with link", async () => {
+  it("void plus replacement: replacement receipt cannot be re-read, so Unavailable (stale, never trusted)", async () => {
     const d = dep(1);
     const w = world([d]);
     w.versions = [
@@ -313,18 +313,7 @@ describe("readMonthlyFinancialDashboard", () => {
     ];
     const { deps } = makeDeps(w);
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
-    expect(r.deposits).toMatchObject({ amount: 80, count: 1 });
-    expect(r.voids.amount).toBe(50);
-    const report = await readReceiptReport(
-      owner,
-      validateReceiptReportFilter(
-        new URLSearchParams(""),
-        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
-      ),
-      deps,
-    );
-    expect(report.total).toBe(2);
-    expect(report.items.find((i) => i.status === "voided")?.replacementReceiptId).toBe(rid(500));
+    expect(r.deposits).toMatchObject({ amount: null, status: "unavailable" });
   });
 
   it("confirmed void + failed replacement + open request never resurrects RM50", async () => {
@@ -378,5 +367,191 @@ describe("readMonthlyFinancialDashboard", () => {
     (deps as unknown as { create: unknown }).create = spy;
     await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("monthly review 5a26829 fixes", () => {
+  it("1. a receipt created long before the month but N3-dated inside it is counted", async () => {
+    const d = dep(1, { createdAt: "2026-06-01T02:00:00Z" });
+    const w = world([d]);
+    w.snaps.set(d.id, snap(d, { documentDate: "2026-10-15" }));
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits).toMatchObject({ amount: 50, status: "complete" });
+  });
+  it("1b. a receipt created in the month but N3-redated out of it is excluded", async () => {
+    const d = dep(1);
+    const w = world([d]);
+    w.snaps.set(d.id, snap(d, { documentDate: "2026-12-01" }));
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits).toMatchObject({ amount: 0, status: "complete" });
+  });
+  it("2. corrected receipts are re-verified live; external change after correction → Needs review", async () => {
+    const d = dep(1);
+    const w = world([d]);
+    w.versions = [version(d, { versionNo: 1, amountCents: 8000 })];
+    w.snaps.set(
+      d.id,
+      snap(d, {
+        amountCents: 8000,
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 8000 },
+        ],
+      }),
+    );
+    const { deps, calls } = makeDeps(w);
+    const ok = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(calls.verify).toBe(1);
+    expect(ok.deposits).toMatchObject({ amount: 80, status: "complete" });
+    clearFinancialCache();
+    w.snaps.set(d.id, snap(d, { amountCents: 9000 }));
+    const drift = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(drift.deposits.status).toBe("needs_review");
+    clearFinancialCache();
+    w.snaps.delete(d.id); // N3 unreadable → stale, Unavailable (never trusted)
+    const stale = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(stale.deposits).toMatchObject({ amount: null, status: "unavailable" });
+  });
+  it("4. repeated corrections use the LATEST effective version's reason/approver", async () => {
+    const d = dep(1);
+    const w = world([d]);
+    w.versions = [
+      version(d, { versionNo: 1, amountCents: 8000, requestId: "req-1" }),
+      version(d, {
+        versionNo: 2,
+        amountCents: 9000,
+        requestId: "req-2",
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 },
+        ],
+      }),
+    ];
+    w.snaps.set(
+      d.id,
+      snap(d, {
+        amountCents: 9000,
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 },
+        ],
+      }),
+    );
+    const { deps } = makeDeps(w);
+    deps.requests = async (_t, ids) =>
+      ids.map((id) => ({
+        id,
+        requestedBy: "u-fd",
+        approvedBy: "u-owner",
+        reason: id === "req-2" ? "Second fix" : "First fix",
+      }));
+    const report = await readReceiptReport(
+      owner,
+      validateReceiptReportFilter(
+        new URLSearchParams(""),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
+      deps,
+    );
+    expect(report.items[0]).toMatchObject({ amount: 90, reason: "Second fix" });
+  });
+  it("5. external bank change at the same amount on an original → Needs review", async () => {
+    const d = dep(1);
+    const w = world([d]);
+    w.snaps.set(
+      d.id,
+      snap(d, {
+        paymentLines: [
+          { accountId: "acc-OTHER", code: "320-000", savedName: "CIMB", amountCents: 5000 },
+        ],
+      }),
+    );
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits.status).toBe("needs_review");
+  });
+  it("6. a hanging source call is cut at the shared 40s deadline (real timers, no mirror)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { deps } = makeDeps(world([dep(1)]));
+      let now = 0;
+      deps.now = () => now;
+      deps.versions = () => new Promise(() => {}); // DB never answers
+      const p = readMonthlyFinancialDashboard(owner, "2026-10", deps);
+      await vi.advanceTimersByTimeAsync(FINANCIAL_LIMITS.totalBudgetMs - 1);
+      now = FINANCIAL_LIMITS.totalBudgetMs + 1;
+      await vi.advanceTimersByTimeAsync(2);
+      const r = await p;
+      expect(r.deposits).toMatchObject({ amount: null, status: "unavailable" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("6b. slow sequential N3 checks cannot exceed the deadline; the signal is aborted", async () => {
+    vi.useFakeTimers();
+    try {
+      const many = Array.from({ length: 9 }, (_, i) => dep(i + 1));
+      const { deps } = makeDeps(world(many));
+      let signal: AbortSignal | undefined;
+      deps.verifyReceipt = (_a, _id, s) => {
+        signal = s;
+        return new Promise(() => {}); // each N3 GET hangs
+      };
+      const p = readMonthlyFinancialDashboard(owner, "2026-10", deps);
+      await vi.advanceTimersByTimeAsync(FINANCIAL_LIMITS.totalBudgetMs + 10);
+      const r = await p;
+      expect(r.deposits.status).toBe("unavailable");
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("pagedAll (PostgREST 1000-row ceiling)", () => {
+  it("reads 2,350 rows across pages with an exact count", async () => {
+    const { pagedAll } = await import("../financial-reporting-store.server");
+    const data = Array.from({ length: 2350 }, (_, i) => ({ i }));
+    const rows = await pagedAll(async (from, to) => ({
+      data: data.slice(from, Math.min(to + 1, from + 1000)), // server caps at 1000
+      error: null,
+      count: data.length,
+    }));
+    expect(rows).toHaveLength(2350);
+  });
+  it("fails closed when the count is missing, changes mid-read, or the server truncates", async () => {
+    const { pagedAll } = await import("../financial-reporting-store.server");
+    await expect(pagedAll(async () => ({ data: [], error: null, count: null }))).rejects.toThrow();
+    let n = 0;
+    await expect(
+      pagedAll(async () => ({ data: [{}, {}], error: null, count: n++ === 0 ? 4 : 5 }), 2),
+    ).rejects.toThrow();
+    await expect(
+      pagedAll(async (from) => ({ data: from === 0 ? [{}, {}] : [], error: null, count: 3 }), 2),
+    ).rejects.toThrow();
+    expect(
+      await pagedAll(async () => ({ data: null, error: { code: "42P01" }, count: null })),
+    ).toBeNull();
+  });
+});
+
+describe("finance client cache namespace", () => {
+  it("purges finance snapshots cached for any other tenant/user/role", async () => {
+    const { purgeForeignFinancialCache, financialKeys } =
+      await import("../financial-reporting-client");
+    const keys = [
+      financialKeys.dashboard("t1|u1|owner", "2026-10"),
+      financialKeys.dashboard("t2|u9|owner", "2026-10"),
+      financialKeys.dashboard("session", "2026-10"),
+    ];
+    const removed: unknown[] = [];
+    purgeForeignFinancialCache(
+      {
+        removeQueries: (f) => keys.forEach((k) => f.predicate({ queryKey: k }) && removed.push(k)),
+      },
+      "t1|u1|owner",
+    );
+    expect(removed).toEqual([keys[1], keys[2]]);
+    const src = (await import("node:fs")).readFileSync(
+      "src/lib/financial-reporting-client.ts",
+      "utf8",
+    );
+    expect(src).not.toMatch(/tenantKey = "session"/);
   });
 });

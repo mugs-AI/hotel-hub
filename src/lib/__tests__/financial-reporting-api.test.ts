@@ -29,13 +29,11 @@ function data(rowsCount = 3, failing = false): { deps: FinancialReportingDeps; r
   }));
   const deps: FinancialReportingDeps = {
     settings: async (t) => (reads.push(t), { timezone: "Asia/Kuala_Lumpur", currency: "MYR" }),
-    depositPage: async (t, _w, after) => {
+    depositPage: async (t, after) => {
       reads.push(t);
       if (failing) throw new Error("down");
       return after ? [] : deposits;
     },
-    depositsByIds: async () => [],
-    voidedDepositIds: async () => [],
     versions: async () => [],
     unresolved: async () => [],
     requests: async () => [],
@@ -51,7 +49,7 @@ function data(rowsCount = 3, failing = false): { deps: FinancialReportingDeps; r
         customerId: "c",
         currency: "MYR",
         amountCents: 5000,
-        paymentLines: [],
+        paymentLines: [{ accountId: "acc", code: "310", savedName: "Bank", amountCents: 5000 }],
         contact: { customerName: "x", remark1: "", remark2: "", remark3: "", remark4: "" },
         documentState: "active",
         matchingState: "unmatched",

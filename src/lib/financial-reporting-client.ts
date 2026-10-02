@@ -1,5 +1,8 @@
 // Browser-safe, same-origin Owner queries for monthly finance and receipt reports.
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSessionMe } from "./session-client";
+import { receiptIdentityKey } from "./receipt-controls-client";
 import {
   reportFilterParams,
   type MonthlyFinancialDTO,
@@ -40,33 +43,58 @@ export const financialKeys = {
     ["financial-reporting", tenantKey, "report", reportFilterParams(f).toString()] as const,
 };
 
-export function useMonthlyFinancialDashboard(
-  month?: string,
-  enabled = true,
-  tenantKey = "session",
+/**
+ * Cache namespace = authenticated tenant/user/role. Finance snapshots cached for
+ * any other identity are removed as soon as the signed-in account changes.
+ */
+export function useFinancialIdentity(): string | null {
+  const qc = useQueryClient();
+  const me = useSessionMe();
+  const identity = receiptIdentityKey(me.data);
+  useEffect(() => {
+    purgeForeignFinancialCache(qc, identity);
+  }, [qc, identity]);
+  return identity;
+}
+
+export function purgeForeignFinancialCache(
+  qc: {
+    removeQueries: (f: {
+      queryKey: readonly unknown[];
+      predicate: (q: { queryKey: readonly unknown[] }) => boolean;
+    }) => unknown;
+  },
+  identity: string | null,
 ) {
+  qc.removeQueries({
+    queryKey: financialKeys.all,
+    predicate: (q) => q.queryKey[1] !== identity,
+  });
+}
+
+export function useMonthlyFinancialDashboard(month?: string, enabled = true) {
+  const identity = useFinancialIdentity();
+  const tenantKey = identity ?? "none";
   return useQuery({
     queryKey: financialKeys.dashboard(tenantKey, month),
     queryFn: () =>
       get<MonthlyFinancialDTO>(
         `/api/hotel/financial-dashboard${month ? `?month=${encodeURIComponent(month)}` : ""}`,
       ),
-    enabled,
+    enabled: enabled && identity !== null,
     retry: false,
     staleTime: 15_000,
   });
 }
 
-export function useReceiptReport(
-  filter: ReceiptReportFilter,
-  enabled = true,
-  tenantKey = "session",
-) {
+export function useReceiptReport(filter: ReceiptReportFilter, enabled = true) {
+  const identity = useFinancialIdentity();
+  const tenantKey = identity ?? "none";
   return useQuery({
     queryKey: financialKeys.report(tenantKey, filter),
     queryFn: () =>
       get<ReceiptReportDTO>(`/api/hotel/receipt-reports?${reportFilterParams(filter)}`),
-    enabled,
+    enabled: enabled && identity !== null,
     retry: false,
     staleTime: 15_000,
   });
