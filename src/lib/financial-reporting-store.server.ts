@@ -670,7 +670,7 @@ async function periodFor(
   }
   if (!settings) throw new FinancialReportError("hotel_settings_missing");
   return {
-    period: financialMonth(month, settings.timezone),
+    period: financialMonth(month, settings.timezone, new Date(clock())),
     currency: settings.currency,
     deadline,
     timedOut: false,
