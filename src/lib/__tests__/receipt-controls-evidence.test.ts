@@ -185,8 +185,10 @@ describe("receipt control evidence", () => {
       const c = await readReceiptControlEvidence(
         actor,
         "d1",
-        deps({ detail: ok(receiptBody(o)), gl: ok(journal(Number((o as any).totalAmount ?? 50))) })
-          .d,
+        deps({
+          detail: ok(receiptBody(o)),
+          gl: ok(journal(Number((o as { totalAmount?: number }).totalAmount ?? 50))),
+        }).d,
       );
       expect(c.sourceFingerprint).not.toBe(a.sourceFingerprint);
     }
