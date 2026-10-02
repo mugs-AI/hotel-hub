@@ -303,7 +303,10 @@ export function ReceiptControlRequestDialog({
           />
         </label>
         {journalBlocked ? (
-          <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-base text-red-800">
+          <div
+            role="alert"
+            className="rounded-md border border-red-200 bg-red-50 p-2 text-base text-red-800"
+          >
             <p>{receiptControlMessage("journal_unproven")}</p>
             {journalReasons.length ? (
               <ul className="mt-1 list-disc pl-5" aria-label="Journal checks that failed">
@@ -331,7 +334,9 @@ export function ReceiptControlRequestDialog({
             type="button"
             className="rounded px-3 py-1.5 text-base font-semibold text-white"
             style={{ backgroundColor: NAVY }}
-            disabled={submit.isPending || !reasonOk || (kind === "correction" && !saved) || journalBlocked}
+            disabled={
+              submit.isPending || !reasonOk || (kind === "correction" && !saved) || journalBlocked
+            }
             onClick={onSubmit}
           >
             {submit.isPending ? "Sending…" : "Send request"}

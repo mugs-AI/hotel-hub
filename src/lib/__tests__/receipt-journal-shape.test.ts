@@ -3,10 +3,7 @@
 // carries a nested `account` object; rows that name their account only there
 // (and an AR credit without a top-level accountId) are the same posting.
 import { describe, expect, it } from "vitest";
-import {
-  journalMismatchReasons,
-  readJournal,
-} from "../receipt-controls-evidence.server";
+import { journalMismatchReasons, readJournal } from "../receipt-controls-evidence.server";
 import type { N3Outcome } from "../n3-receipts.server";
 
 const BANK = "c3c22459-c2b7-4c43-8e43-8b52a9adabda";

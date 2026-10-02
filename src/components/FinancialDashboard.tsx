@@ -49,7 +49,6 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
           onChange={(m) => setMonth(m)}
         />
       </div>
-      </div>
       {q.isError ? (
         <p role="alert" className="text-sm text-red-800">
           {financialMessage(q.error instanceof FinancialClientError ? q.error.code : "")}

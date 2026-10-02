@@ -201,8 +201,7 @@ export function readJournal(o: N3Outcome): Journal {
     const dn = typeof d === "number" ? d : 0;
     const cn = typeof c === "number" ? c : 0;
     if (dn < 0 || cn < 0) reasons.add("journal_amount_negative");
-    else if (dn > 0 === cn > 0)
-      reasons.add(dn > 0 ? "journal_row_both_sides" : "journal_row_zero");
+    else if (dn > 0 === cn > 0) reasons.add(dn > 0 ? "journal_row_both_sides" : "journal_row_zero");
     const id = idF.value ?? "";
     const code = codeF.value ?? "";
     if (dn > 0) {
@@ -404,7 +403,12 @@ export async function readReceiptControlEvidence(
   const journal = readJournal(await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId));
   const journalReasons = journalMismatchReasons(
     journal,
-    { amountCents, docCode, reference: dep.n3ReferenceNo, customerCode: dep.n3CustomerCode ?? null },
+    {
+      amountCents,
+      docCode,
+      reference: dep.n3ReferenceNo,
+      customerCode: dep.n3CustomerCode ?? null,
+    },
     paymentLines,
   );
   const contact = {
