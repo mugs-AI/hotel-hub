@@ -255,9 +255,8 @@ export async function setPaymentAccountPreferences(
     .rpc("hotelhub_set_payment_account_preferences", {
       p_tenant_id: tenantId,
       p_account_id: accountId.toLowerCase(),
-      // SQL null means "leave unchanged"; generated types mark these optional.
-      p_label: (patch.label ?? null) as string | undefined,
-      p_show: (patch.show ?? null) as boolean | undefined,
+      p_label: patch.label ?? null,
+      p_show: patch.show ?? null,
     })
     .single();
   if (res.error || !res.data) throw new Error("payment account preferences save failed");
