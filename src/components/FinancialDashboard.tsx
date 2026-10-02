@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
-import { formatCurrency } from "@/lib/format-money";
+import { formatCents } from "@/lib/folio-money";
 import type { FinancialMetric } from "@/lib/financial-reporting";
 import {
   FinancialClientError,
@@ -72,7 +72,7 @@ export function FinanceCard({
       ? "—"
       : metric.amount === null
         ? "Unavailable"
-        : formatCurrency(metric.amount, metric.currency);
+        : formatCents(Math.round(metric.amount * 100), metric.currency);
   const body = (
     <>
       <p className="text-xs font-medium uppercase tracking-wide">{label}</p>
