@@ -312,7 +312,11 @@ export type StoreDeps = {
   db: ReceiptControlDb;
   readEvidence(actor: ReceiptControlActor, depositId: string): Promise<ReceiptSnapshot>;
   /** Verified, visible N3 deposit account label, or null when not allowed. */
-  resolveAccount(actor: ReceiptControlActor, accountId: string, currency: string): Promise<string | null>;
+  resolveAccount(
+    actor: ReceiptControlActor,
+    accountId: string,
+    originalAccountId: string,
+  ): Promise<string | null>;
   walkInCustomerId(tenantId: string): Promise<string | null>;
   labels(tenantId: string, keys: string[]): Promise<Map<string, string>>;
   bookingRefs(tenantId: string, reservationIds: string[]): Promise<Map<string, string>>;
@@ -358,7 +362,7 @@ export async function createReceiptControlRequest(
   if (proposal.kind === "correction") {
     const line = original.paymentLines[0]!;
     if (line.accountId.toLowerCase() !== proposal.accountId.toLowerCase()) {
-      const label = await deps.resolveAccount(actor, proposal.accountId, original.currency);
+      const label = await deps.resolveAccount(actor, proposal.accountId, line.accountId);
       if (!label) throw new ReceiptControlError("account_not_allowed");
       for (const f of comparison.fields) if (f.label === "Deposit to") f.requested = label;
     }
@@ -464,7 +468,7 @@ async function approvalHoldReason(
     if (
       line &&
       line.accountId.toLowerCase() !== row.proposal.accountId.toLowerCase() &&
-      !(await deps.resolveAccount(actor, row.proposal.accountId, row.original.currency))
+      !(await deps.resolveAccount(actor, row.proposal.accountId, line.accountId))
     )
       return "account_not_allowed";
   }
