@@ -49,3 +49,15 @@ Evidence: Vitest 1,807 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 
 - Request creation now refuses `journal_unproven` (409) unless the journal is exactly proven; unavailable N3 evidence is an explicit refusal at request and a hold at approval.
 
 Evidence: Vitest 1,821 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 errors on changed files. Protected files re-restored to a68664f. No N3 writes, alerts, migrations or publication.
+
+## Monthly review 5a26829 fixes — 2026-10-02
+
+1. No creation-date window: every posted HotelHub-linked deposit is discovered (keyset paging, 100k cap) and each is re-read by N3 GET; the N3 document date alone decides the month. Above `verifyCap` (100) the source is Unavailable (`verification_cap`), never partial. BLOCKER for larger hotels: no proven N3 document-date-indexed source exists (ARReceipts/List date filtering is unverified), so >100 lifetime HH receipts => Unavailable.
+2. Corrected/voided receipts are re-verified live every read (amount, receipt id, currency, exact journal, payment lines; voided must read voided). Unreadable => Unavailable; drift => Needs review. Replacement-receipt effects cannot be re-read through the deposit and are Unavailable (stale).
+3. Versions/unresolved use `pagedAll`: stable order + `.range()` + exact count; missing/changed count or short read => Unavailable. voidedDepositIds removed (superseded by full discovery).
+4. Audit fields come from the latest effective version for the receipt.
+5. Original exactness compares immutable creation payment lines (account + cents); same-amount bank change => Needs review.
+6. One shared 40 s `Deadline` covers settings, revision, every DB page, audit/labels/booking refs and every N3 GET; each call races the remaining time and the AbortSignal fires at the deadline. Production N3 GETs are not network-aborted by that signal (they keep their own read timeout); late results are discarded.
+7. Finance query keys use authenticated tenant/user/role; snapshots for other identities are purged on account change.
+
+Evidence: Vitest 1,831 passed / 15 skipped (116 files); tsgo 0; ESLint 0; vite production build OK. Protected files restored to a68664f. No N3 writes, alerts, migrations or publication.
