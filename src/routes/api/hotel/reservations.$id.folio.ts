@@ -30,7 +30,10 @@ export async function handleReadFolio({ params }: { params: { id?: string } }): 
         canManageCharges: actor.can("hotel:charges:manage"),
       },
     });
-    const deposits = await listDeposits(actor.tenantId, id);
+    const { withEffectiveReceipts } = await import("@/lib/effective-receipts.server");
+    const deposits = (await withEffectiveReceipts(actor.tenantId, await listDeposits(actor.tenantId, id))).map(
+      (d) => ({ ...d, amount: Number(d.amount) }),
+    );
     return folioJson({
       ...dto,
       recordedDeposits: recordedDepositStatement(

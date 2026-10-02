@@ -1751,7 +1751,11 @@ export async function buildDepositPreview(
 
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
 export function toDepositDTO(
-  d: DepositRecord,
+  d: DepositRecord & {
+    effectiveState?: "active" | "voided" | "needs_review";
+    originalAmount?: number;
+    effectivePaymentLines?: Array<{ accountId: string; code: string; savedName: string; amountCents: number }>;
+  },
   labels?: ReadonlyMap<string, string>,
   aliases?: Readonly<Record<string, string>>,
 ) {
@@ -1768,12 +1772,21 @@ export function toDepositDTO(
       d.n3AccountCode && d.n3AccountName
         ? `${d.n3AccountCode} — ${d.n3AccountName}`
         : (d.n3AccountCode ?? d.n3AccountName),
-    paymentLines: d.paymentLines.map((l) => ({
-      accountLabel: `${l.code} — ${l.name}`,
-      code: l.code,
-      displayName: aliases?.[l.id.toLowerCase()] || l.name,
-      amount: l.amount,
-    })),
+    paymentLines: d.effectivePaymentLines
+      ? d.effectivePaymentLines.map((l) => ({
+          accountLabel: `${l.code} — ${l.savedName}`,
+          code: l.code,
+          displayName: aliases?.[l.accountId.toLowerCase()] || l.savedName,
+          amount: l.amountCents / 100,
+        }))
+      : d.paymentLines.map((l) => ({
+          accountLabel: `${l.code} — ${l.name}`,
+          code: l.code,
+          displayName: aliases?.[l.id.toLowerCase()] || l.name,
+          amount: l.amount,
+        })),
+    effectiveState: d.effectiveState ?? null,
+    originalAmount: d.originalAmount ?? null,
     description: d.description,
     // Run 5D2.1 privacy: the raw N3 user key is NEVER a display value.
     createdByLabel: labels?.get(d.createdByN3UserKey) ?? null,

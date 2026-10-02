@@ -98,7 +98,10 @@ export async function handleDepositsList({
   const id = params.id ?? "";
   if (!isUuidLike(id)) return deny(400, "invalid_id");
   try {
-    const rowsList = await listDeposits(ctx.session.tenantId!, id);
+    const { withEffectiveReceipts } = await import("@/lib/effective-receipts.server");
+    const rowsList = (
+      await withEffectiveReceipts(ctx.session.tenantId!, await listDeposits(ctx.session.tenantId!, id))
+    ).map((d) => ({ ...d, amount: Number(d.amount) }));
     const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
     const { resolveActorLabels } = await import("@/lib/tenant-store.server");
     const labels = await resolveActorLabels(
