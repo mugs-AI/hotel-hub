@@ -997,7 +997,7 @@ describe("interrupted verification recovery (review finding 1)", () => {
     expect((d.readEvidence as any).mock.calls.length).toBe(reads); // no N3 read or write
     expect(mem.versions).toHaveLength(0); // totals unchanged by recovery
     await expect(
-      recoverReceiptControlRequest(owner, { requestId: stuck.id, expectedVersion: stuck.version }, fd as any),
+      recoverReceiptControlRequest(fd, { requestId: stuck.id, expectedVersion: stuck.version }, d),
     ).rejects.toMatchObject({ code: "forbidden" });
   });
 
