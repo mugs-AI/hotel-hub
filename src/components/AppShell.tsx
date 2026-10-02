@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
+import { useSensitiveReceiptCacheGuard } from "@/lib/receipt-controls-client";
 import { useSessionMe, useSignOut, useDevConnect, type SessionMe } from "@/lib/session-client";
 import { hasPermission, type Permission } from "@/lib/rbac";
 import { housekeepingAuthority } from "@/lib/housekeeping";
@@ -68,6 +69,8 @@ const NAV_ITEMS: NavItem[] = [
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const sessionQuery = useSessionMe();
+  // Central auth-transition purge of receipt/finance caches (all pages).
+  useSensitiveReceiptCacheGuard();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
   const [menuOpen, setMenuOpen] = useState(false);

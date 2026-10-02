@@ -36,7 +36,15 @@ export function useSignOut() {
         credentials: "same-origin",
       });
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY }),
+    onSettled: () => {
+      // Sign-out: drop every receipt/finance snapshot and receipt mutation result.
+      for (const prefix of ["receipt-controls", "financial-reporting"]) {
+        qc.removeQueries({ queryKey: [prefix] });
+        for (const m of qc.getMutationCache().getAll())
+          if (m.options.mutationKey?.[0] === prefix) qc.getMutationCache().remove(m);
+      }
+      return qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+    },
   });
 }
 

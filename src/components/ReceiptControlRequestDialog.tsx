@@ -12,6 +12,7 @@ import {
   ReceiptControlClientError,
   receiptControlMessage,
   type ReceiptControlProposalInput,
+  useReceiptIdentity,
 } from "@/lib/receipt-controls-client";
 
 const NAVY = "#102A43";
@@ -89,6 +90,7 @@ export function ReceiptControlRequestDialog({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const identity = useReceiptIdentity();
   const accounts = usePaymentAccounts(kind === "correction");
   const originalCents = Math.round(deposit.amount * 100);
   const [reason, setReason] = useState("");
@@ -102,9 +104,9 @@ export function ReceiptControlRequestDialog({
     email: "",
   });
   const original = useQuery({
-    queryKey: ["receipt-controls", "original", reservationId, deposit.id],
+    queryKey: ["receipt-controls", identity ?? "none", "original", reservationId, deposit.id],
     queryFn: () => getReceiptOriginal(reservationId, deposit.id),
-    enabled: kind === "correction",
+    enabled: kind === "correction" && identity !== null,
     retry: false,
     staleTime: 0,
   });
@@ -118,6 +120,7 @@ export function ReceiptControlRequestDialog({
   const [clientRequestId] = useState(newKey);
   const [error, setError] = useState("");
   const submit = useMutation({
+    mutationKey: ["receipt-controls", identity ?? "none", "request", deposit.id],
     mutationFn: (proposal: ReceiptControlProposalInput) =>
       createReceiptControl(reservationId, deposit.id, {
         clientRequestId,

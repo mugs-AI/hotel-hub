@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSessionMe } from "./session-client";
-import { receiptIdentityKey } from "./receipt-controls-client";
+import { identityFromSession } from "./receipt-controls-client";
 import {
   reportFilterParams,
   type MonthlyFinancialDTO,
@@ -50,7 +50,7 @@ export const financialKeys = {
 export function useFinancialIdentity(): string | null {
   const qc = useQueryClient();
   const me = useSessionMe();
-  const identity = receiptIdentityKey(me.data);
+  const identity = identityFromSession(me);
   useEffect(() => {
     purgeForeignFinancialCache(qc, identity);
   }, [qc, identity]);
@@ -68,7 +68,7 @@ export function purgeForeignFinancialCache(
 ) {
   qc.removeQueries({
     queryKey: financialKeys.all,
-    predicate: (q) => q.queryKey[1] !== identity,
+    predicate: (q) => identity === null || q.queryKey[1] !== identity,
   });
 }
 

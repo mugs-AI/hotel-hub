@@ -1,5 +1,8 @@
 // Browser-safe client for receipt-control endpoints (same-origin only).
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ReceiptControlRequestDTO } from "./receipt-controls";
+import { useSessionMe } from "./session-client";
 
 export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   journal_unproven:
@@ -100,6 +103,67 @@ export function invalidateReceiptEffects(qc: {
   invalidateQueries: (f: { queryKey: readonly unknown[] }) => unknown;
 }) {
   for (const k of RECEIPT_EFFECT_QUERY_PREFIXES) void qc.invalidateQueries({ queryKey: [k] });
+}
+
+/** Query prefixes holding receipt/finance data that must never cross identities. */
+export const SENSITIVE_RECEIPT_PREFIXES = ["receipt-controls", "financial-reporting"] as const;
+
+type PurgeableClient = {
+  removeQueries: (f: {
+    queryKey: readonly unknown[];
+    predicate: (q: { queryKey: readonly unknown[] }) => boolean;
+  }) => unknown;
+  getMutationCache?: () => {
+    getAll: () => Array<{ options: { mutationKey?: readonly unknown[] } }>;
+    remove: (m: never) => void;
+  };
+};
+
+/**
+ * Central auth-transition purge: removes every receipt/finance query and
+ * receipt mutation result cached for any identity other than `identity`
+ * (null = signed out / unknown => remove all). Runs from AppShell, so it
+ * applies even when the Owner dashboard is not mounted.
+ */
+export function purgeSensitiveReceiptData(qc: PurgeableClient, identity: string | null) {
+  for (const prefix of SENSITIVE_RECEIPT_PREFIXES)
+    qc.removeQueries({
+      queryKey: [prefix],
+      predicate: (q) => identity === null || q.queryKey[1] !== identity,
+    });
+  const mc = qc.getMutationCache?.();
+  if (!mc) return;
+  for (const m of mc.getAll()) {
+    const k = m.options.mutationKey;
+    if (
+      k &&
+      SENSITIVE_RECEIPT_PREFIXES.includes(k[0] as never) &&
+      (identity === null || k[1] !== identity)
+    )
+      mc.remove(m as never);
+  }
+}
+
+/** Identity for receipt cache keys. A failed session read is NOT the old identity. */
+export function identityFromSession(me: {
+  isError?: boolean;
+  data?: Parameters<typeof receiptIdentityKey>[0];
+}): string | null {
+  return me.isError ? null : receiptIdentityKey(me.data);
+}
+
+export function useReceiptIdentity(): string | null {
+  return identityFromSession(useSessionMe());
+}
+
+/** Mounted once in AppShell: purge on every identity change, including sign-out. */
+export function useSensitiveReceiptCacheGuard(): string | null {
+  const qc = useQueryClient();
+  const identity = useReceiptIdentity();
+  useEffect(() => {
+    purgeSensitiveReceiptData(qc, identity);
+  }, [qc, identity]);
+  return identity;
 }
 
 /** Drop receipt-control data cached for any other identity (auth switch). */
