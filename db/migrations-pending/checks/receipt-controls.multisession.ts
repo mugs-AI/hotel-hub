@@ -88,7 +88,7 @@ const atomic = (c: any, id: string, ver: number, fp: string) =>
   check("after A commits its claim, B's reject is refused claim_conflict", bRes.includes("claim_conflict"));
   const [st] = await q(`SELECT state FROM public.hotel_receipt_control_requests WHERE id=$1`, [r.id]);
   check("request still needs_review (not rejected, active index not freed)", st.state === "needs_review");
-  const [done] = await q(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4)`, [T, r.id, exec, ev("b")]);
+  const [done] = await q(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4::text::jsonb)`, [T, r.id, exec, ev("b")]);
   check("claimed worker then completes on its fenced version", done.state === "applied");
   A.release(); B.release();
 }
@@ -102,7 +102,7 @@ const atomic = (c: any, id: string, ver: number, fp: string) =>
   const B = await pool.reserve(); const C = await pool.reserve();
   await B.unsafe("BEGIN");
   await B.unsafe(`SELECT * FROM public.hotelhub_receipt_control_recover($1,$2,$3,'owner-1',300)`, [T, r.id, a.version + 1]);
-  const cP = errOf(C.unsafe(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4)`, [T, r.id, oldExec, ev("c")]));
+  const cP = errOf(C.unsafe(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4::text::jsonb)`, [T, r.id, oldExec, ev("c")]));
   await sleep(300);
   await B.unsafe("COMMIT");
   const cRes = await cP;
@@ -121,7 +121,7 @@ const atomic = (c: any, id: string, ver: number, fp: string) =>
   await q(`UPDATE public.hotel_receipt_control_executions SET created_at = now() - interval '6 minutes' WHERE id=$1`, [oldExec]);
   const C = await pool.reserve(); const B = await pool.reserve();
   await C.unsafe("BEGIN");
-  await C.unsafe(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4)`, [T, r.id, oldExec, ev("d")]);
+  await C.unsafe(`SELECT * FROM public.hotelhub_receipt_control_complete($1,$2,$3,'applied','verified','owner-1',$4::text::jsonb)`, [T, r.id, oldExec, ev("d")]);
   const bP = errOf(B.unsafe(`SELECT * FROM public.hotelhub_receipt_control_recover($1,$2,$3,'owner-1',300)`, [T, r.id, a.version + 1]));
   await sleep(300);
   await C.unsafe("COMMIT");
