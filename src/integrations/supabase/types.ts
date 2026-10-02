@@ -894,6 +894,368 @@ export type Database = {
           },
         ]
       }
+      hotel_receipt_alert_outbox: {
+        Row: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event: string
+          id: string
+          last_error_code: string | null
+          next_attempt_at: string
+          request_id: string
+          request_version: number
+          sent_at: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event: string
+          id?: string
+          last_error_code?: string | null
+          next_attempt_at?: string
+          request_id: string
+          request_version: number
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          event?: string
+          id?: string
+          last_error_code?: string | null
+          next_attempt_at?: string
+          request_id?: string
+          request_version?: number
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_receipt_alert_outbox_request_fk"
+            columns: ["tenant_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_receipt_control_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_alert_outbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_receipt_control_decisions: {
+        Row: {
+          actor_n3_user_key: string
+          created_at: string
+          decision: string
+          from_state: string
+          id: string
+          note: string | null
+          outcome_code: string | null
+          request_id: string
+          requester_n3_user_key: string
+          self_approved: boolean
+          tenant_id: string
+          to_state: string
+        }
+        Insert: {
+          actor_n3_user_key: string
+          created_at?: string
+          decision: string
+          from_state: string
+          id?: string
+          note?: string | null
+          outcome_code?: string | null
+          request_id: string
+          requester_n3_user_key: string
+          self_approved: boolean
+          tenant_id: string
+          to_state: string
+        }
+        Update: {
+          actor_n3_user_key?: string
+          created_at?: string
+          decision?: string
+          from_state?: string
+          id?: string
+          note?: string | null
+          outcome_code?: string | null
+          request_id?: string
+          requester_n3_user_key?: string
+          self_approved?: boolean
+          tenant_id?: string
+          to_state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_receipt_control_decisions_request_fk"
+            columns: ["tenant_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_receipt_control_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_control_decisions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_receipt_control_executions: {
+        Row: {
+          claimed_by_n3_user_key: string
+          claimed_version: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          request_id: string
+          result_code: string | null
+          state: string
+          step: string
+          tenant_id: string
+        }
+        Insert: {
+          claimed_by_n3_user_key: string
+          claimed_version: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          request_id: string
+          result_code?: string | null
+          state?: string
+          step: string
+          tenant_id: string
+        }
+        Update: {
+          claimed_by_n3_user_key?: string
+          claimed_version?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          request_id?: string
+          result_code?: string | null
+          state?: string
+          step?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_receipt_control_executions_request_fk"
+            columns: ["tenant_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_receipt_control_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_control_executions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_receipt_control_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by_n3_user_key?: string | null
+          client_request_id: string
+          comparison: Json
+          created_at?: string
+          decided_at?: string | null
+          decided_by_n3_user_key?: string | null
+          deposit_id: string
+          execution_mode?: string
+          id?: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code?: string | null
+          proposal: Json
+          proposed_amount_cents?: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at?: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by_n3_user_key?: string | null
+          client_request_id?: string
+          comparison?: Json
+          created_at?: string
+          decided_at?: string | null
+          decided_by_n3_user_key?: string | null
+          deposit_id?: string
+          execution_mode?: string
+          id?: string
+          kind?: string
+          original?: Json
+          original_amount_cents?: number
+          outcome_code?: string | null
+          proposal?: Json
+          proposed_amount_cents?: number | null
+          reason?: string
+          request_fingerprint?: string
+          requested_at?: string
+          requested_by_n3_user_key?: string
+          reservation_id?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_receipt_control_requests_deposit_fk"
+            columns: ["tenant_id", "reservation_id", "deposit_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_deposits"
+            referencedColumns: ["tenant_id", "reservation_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_control_requests_reservation_fk"
+            columns: ["tenant_id", "reservation_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_control_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hotel_receipt_versions: {
+        Row: {
+          amount_cents: number
+          currency: string
+          deposit_id: string
+          doc_code: string
+          document_date: string
+          evidence_fingerprint: string
+          id: string
+          payment_lines: Json
+          receipt_id: string
+          replacement_of: string | null
+          request_id: string
+          state: string
+          tenant_id: string
+          verified_at: string
+          verified_by_n3_user_key: string
+          version_no: number
+        }
+        Insert: {
+          amount_cents: number
+          currency: string
+          deposit_id: string
+          doc_code: string
+          document_date: string
+          evidence_fingerprint: string
+          id?: string
+          payment_lines: Json
+          receipt_id: string
+          replacement_of?: string | null
+          request_id: string
+          state: string
+          tenant_id: string
+          verified_at?: string
+          verified_by_n3_user_key: string
+          version_no: number
+        }
+        Update: {
+          amount_cents?: number
+          currency?: string
+          deposit_id?: string
+          doc_code?: string
+          document_date?: string
+          evidence_fingerprint?: string
+          id?: string
+          payment_lines?: Json
+          receipt_id?: string
+          replacement_of?: string | null
+          request_id?: string
+          state?: string
+          tenant_id?: string
+          verified_at?: string
+          verified_by_n3_user_key?: string
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hotel_receipt_versions_deposit_fk"
+            columns: ["tenant_id", "deposit_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_reservation_deposits"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_versions_request_fk"
+            columns: ["tenant_id", "request_id", "deposit_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_receipt_control_requests"
+            referencedColumns: ["tenant_id", "id", "deposit_id"]
+          },
+          {
+            foreignKeyName: "hotel_receipt_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "hotel_tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hotel_reservation_deposits: {
         Row: {
           amount: number
@@ -2038,6 +2400,275 @@ export type Database = {
           out_deleted: number
         }[]
       }
+      hotelhub_receipt_alert_claim: {
+        Args: { p_limit: number; p_tenant_id: string }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event: string
+          id: string
+          last_error_code: string | null
+          next_attempt_at: string
+          request_id: string
+          request_version: number
+          sent_at: string | null
+          status: string
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_alert_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_alert_settle: {
+        Args: {
+          p_alert_id: string
+          p_claim_token: string
+          p_error_code: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
+      hotelhub_receipt_control_claim: {
+        Args: {
+          p_actor: string
+          p_expected_version: number
+          p_request_id: string
+          p_step: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      hotelhub_receipt_control_complete: {
+        Args: {
+          p_actor: string
+          p_execution_id: string
+          p_outcome_code: string
+          p_request_id: string
+          p_tenant_id: string
+          p_to_state: string
+          p_version: Json
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_control_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_control_create: {
+        Args: {
+          p_actor: string
+          p_client_request_id: string
+          p_comparison: Json
+          p_deposit_id: string
+          p_fingerprint: string
+          p_kind: string
+          p_original: Json
+          p_original_cents: number
+          p_proposal: Json
+          p_proposed_cents: number
+          p_reason: string
+          p_reservation_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_control_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_control_decide: {
+        Args: {
+          p_actor: string
+          p_decision: string
+          p_expected_version: number
+          p_note: string
+          p_outcome_code: string
+          p_request_id: string
+          p_tenant_id: string
+          p_to_state: string
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_control_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_control_recover: {
+        Args: {
+          p_actor: string
+          p_expected_version: number
+          p_request_id: string
+          p_stale_seconds: number
+          p_tenant_id: string
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_control_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_control_verify_atomic: {
+        Args: {
+          p_actor: string
+          p_expected_version: number
+          p_outcome_code: string
+          p_request_id: string
+          p_tenant_id: string
+          p_to_state: string
+          p_version: Json
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by_n3_user_key: string | null
+          client_request_id: string
+          comparison: Json
+          created_at: string
+          decided_at: string | null
+          decided_by_n3_user_key: string | null
+          deposit_id: string
+          execution_mode: string
+          id: string
+          kind: string
+          original: Json
+          original_amount_cents: number
+          outcome_code: string | null
+          proposal: Json
+          proposed_amount_cents: number | null
+          reason: string
+          request_fingerprint: string
+          requested_at: string
+          requested_by_n3_user_key: string
+          reservation_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_control_requests"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       hotelhub_release_folio_operation: {
         Args: {
           p_client_request_id: string
@@ -2169,6 +2800,7 @@ export type Database = {
           out_updated_at: string
         }[]
       }
+      hotelhub_utf16_length: { Args: { p: string }; Returns: number }
     }
     Enums: {
       hotel_addon_category:
