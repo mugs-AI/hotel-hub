@@ -231,7 +231,7 @@ export function compareReceiptControl(
 
 const EDGES: Record<ReceiptControlState, readonly ReceiptControlState[]> = {
   pending: ["rejected", "approved_awaiting_n3", "needs_review"],
-  approved_awaiting_n3: ["applying", "needs_review", "applied"],
+  approved_awaiting_n3: ["applying", "needs_review"],
   applying: ["applied", "failed", "needs_review"],
   failed: ["needs_review"],
   needs_review: ["rejected", "applied"],
@@ -240,8 +240,8 @@ const EDGES: Record<ReceiptControlState, readonly ReceiptControlState[]> = {
 };
 
 /**
- * approved_awaiting_n3 → applied is only reached by Owner verification with
- * authoritative N3 readback (manual mode); it is never a browser transition.
+ * Manual verification claims approved_awaiting_n3 → applying, then reaches
+ * applied only with authoritative N3 readback. Never a browser transition.
  */
 export function canTransitionReceiptControl(
   from: ReceiptControlState,

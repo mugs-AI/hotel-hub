@@ -1,13 +1,10 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { DepositError } from "./deposits-store.server";
 
-export type ReceiptContact = {
-  customerName: string;
-  remark1: string;
-  remark2: string;
-  remark3: string;
-  remark4: string;
-};
+import { formatReceiptContact, ReceiptContactError } from "./receipt-contact";
+import type { ReceiptContactFields } from "./receipt-contact";
+
+export type ReceiptContact = ReceiptContactFields;
 
 /** Saved bill-to details belong to this booking; never update the N3 customer master. */
 export async function readReceiptContact(
@@ -59,22 +56,10 @@ export async function readReceiptContact(
         .join(" "),
     };
   }
-  const clean = (value: string | null) => (value ?? "").trim().replace(/\s+/g, " ");
-  const customerName = [clean(details.company), clean(details.name)].filter(Boolean).join(", ");
-  const address = clean(details.address),
-    phone = clean(details.phone),
-    email = clean(details.email);
-  if (!customerName) throw new DepositError("receipt_contact_unavailable");
-  // Count conservatively in UTF-16 code units and never split a surrogate pair.
-  let cut = 100;
-  if (address.charCodeAt(99) >= 0xd800 && address.charCodeAt(99) <= 0xdbff) cut = 99;
-  if (address.length > cut + 100 || phone.length > 100 || email.length > 100)
-    throw new DepositError("receipt_contact_too_long");
-  return {
-    customerName,
-    remark1: address.slice(0, cut),
-    remark2: address.slice(cut),
-    remark3: phone,
-    remark4: email,
-  };
+  try {
+    return formatReceiptContact(details);
+  } catch (e) {
+    if (e instanceof ReceiptContactError) throw new DepositError(e.code);
+    throw e;
+  }
 }
