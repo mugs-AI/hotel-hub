@@ -6,7 +6,10 @@ type RecordedDeposit = {
   currencyCode: string;
   n3DocCode: string | null;
   createdAt: string;
+  /** Receipt-controls effective state; voided receipts never count. */
+  effectiveState?: "active" | "voided" | "needs_review";
 };
+const counts = (row: RecordedDeposit) => row.status === "posted" && row.effectiveState !== "voided";
 export type RecordedDepositSummary = {
   total: number;
   currency: string | null;
@@ -22,7 +25,7 @@ export function summarizePostedDeposits(
   rows: readonly RecordedDeposit[],
   expectedCurrency?: string,
 ): RecordedDepositSummary {
-  const posted = rows.filter((row) => row.status === "posted");
+  const posted = rows.filter(counts);
   const currency = expectedCurrency?.toUpperCase() ?? posted[0]?.currencyCode.toUpperCase() ?? null;
   const amounts = posted.map((row) => {
     const cents = parseCents(row.amount);
@@ -36,7 +39,12 @@ export function summarizePostedDeposits(
     total: centsToAmount(total),
     currency,
     count: posted.length,
-    hasUnconfirmed: rows.some((row) => row.status === "unknown" || row.status === "submitting"),
+    hasUnconfirmed: rows.some(
+      (row) =>
+        row.status === "unknown" ||
+        row.status === "submitting" ||
+        row.effectiveState === "needs_review",
+    ),
   };
 }
 export function recordedDepositStatement(
@@ -53,13 +61,11 @@ export function recordedDepositStatement(
   return {
     ...summary,
     netFigure: centsToAmount(grandCents - depositCents),
-    items: rows
-      .filter((row) => row.status === "posted")
-      .map((row) => ({
-        n3DocCode: row.n3DocCode,
-        createdAt: row.createdAt,
-        amount: row.amount,
-        currency,
-      })),
+    items: rows.filter(counts).map((row) => ({
+      n3DocCode: row.n3DocCode,
+      createdAt: row.createdAt,
+      amount: row.amount,
+      currency,
+    })),
   };
 }
