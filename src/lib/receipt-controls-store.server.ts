@@ -8,6 +8,7 @@ import type { HotelRole } from "./rbac";
 import {
   assertReceiptControllable,
   compareReceiptControl,
+  requiresAccountEligibility,
   MANUAL_APPROVAL_MESSAGE,
   ReceiptControlError,
   validateReason,
