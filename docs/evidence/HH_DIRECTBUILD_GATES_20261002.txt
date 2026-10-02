@@ -1,0 +1,50 @@
+HH DirectBuild independent engineering evidence
+Source SHA: 33167f94f8667d1b030b7ab562623723630251e2
+Date: 02/10/2026 (Asia/Kuala_Lumpur)
+Node 24.19.0; Bun 1.4.2; no live DB/N3 credentials.
+
+Tests (exit 0)
+Command: node node_modules/vitest/vitest.mjs run
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/87b64e9e3850/hh-review
+
+
+ Test Files  119 passed | 3 skipped (122)
+      Tests  1868 passed | 20 skipped (1888)
+   Start at  07:56:23
+   Duration  10.42s (transform 8.38s, setup 0ms, import 32.84s, tests 6.65s, environment 12ms)
+
+
+Types (exit 0)
+Command: node node_modules/typescript/bin/tsc --noEmit
+
+
+Lint (exit 0)
+Command: node node_modules/eslint/bin/eslint.js src
+  152:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 37 problems (0 errors, 37 warnings)
+
+
+Style (exit 0)
+Command: node node_modules/prettier/bin/prettier.cjs --check src
+Checking formatting...
+All matched files use Prettier code style!
+
+Production build (exit 0)
+Command: node node_modules/vite/bin/vite.js build
+.output/server/_ssr/router-BX2c8-DZ.mjs                                      451.71 kB │ gzip:  99.66 kB
+.output/server/_libs/@tanstack/react-router+[...].mjs                        655.14 kB │ gzip: 137.73 kB
+
+✓ built in 513ms
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt
+
+Protected comparison (exit 0): git diff --quiet a68664f56e38bfb74e32972c14becdc6e6938449 HEAD -- AGENTS.md package.json bun.lock src/start.ts src/integrations src/lib/hotel-store.server.ts

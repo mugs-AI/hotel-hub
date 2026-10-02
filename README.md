@@ -1,5 +1,14 @@
 # HotelHub
 
+## Current delivery and recovery record
+
+Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE.md),
+[MUGS DirectBuild Protocol](docs/00-MUGS_DIRECTBUILD_PROTOCOL.md),
+[HotelHub adoption](docs/MDB-01_HOTELHUB_ADOPTION.md), and the
+[current recovery checkpoint](docs/HH_DIRECTBUILD_RECOVERY_CHECKPOINT.md).
+The checkpoint separates current source, database, release and acceptance evidence.
+Older status sections below are historical and do not establish current release state.
+
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
 
 ## Project status (through Run 5D3.2, plus the WP1 Housekeeping candidate)
