@@ -560,7 +560,9 @@ describe("alerts (transport disabled)", () => {
   it("claims and settles as disabled; never sends", async () => {
     const settle = vi.fn(async () => {});
     const out = await deliverReceiptAlerts("t1", {
-      claim: async () => [{ id: "a1", tenantId: "t1", requestId: "r1", event: "pending" }],
+      claim: async () => [
+        { id: "a1", tenantId: "t1", requestId: "r1", event: "pending", claimToken: "tok-1" },
+      ],
       settle,
     });
     expect(out).toEqual({ claimed: 1, sent: 0, disabled: 1 });
