@@ -1,6 +1,7 @@
 // Owner receipt / voided-receipt reports: server-filtered, sorted and paged rows
 // from the same verified snapshot as the Dashboard cards.
 import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
+import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { formatCents } from "@/lib/folio-money";
 import { isoToMyDate } from "@/lib/malaysia-date";
 import {
