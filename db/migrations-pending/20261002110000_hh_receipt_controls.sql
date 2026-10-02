@@ -68,7 +68,7 @@ CREATE TABLE public.hotel_receipt_control_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
   request_id uuid NOT NULL,
-  decision text NOT NULL CHECK (decision IN ('approve','reject','hold','verify')),
+  decision text NOT NULL CHECK (decision IN ('approve','reject','hold','verify','recover')),
   from_state text NOT NULL,
   to_state text NOT NULL,
   actor_n3_user_key text NOT NULL,

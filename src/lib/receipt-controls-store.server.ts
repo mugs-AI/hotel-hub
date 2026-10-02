@@ -49,7 +49,7 @@ export type RequestRow = {
 
 export type DecisionRow = {
   requestId: string;
-  decision: "approve" | "reject" | "hold" | "verify";
+  decision: "approve" | "reject" | "hold" | "verify" | "recover";
   actor: string;
   selfApproved: boolean;
   createdAt: string;
