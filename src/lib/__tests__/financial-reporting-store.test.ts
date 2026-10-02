@@ -11,6 +11,7 @@ import {
 import { financialMonth, validateReceiptReportFilter } from "../financial-reporting";
 import { ReceiptControlError, type ReceiptSnapshot } from "../receipt-controls";
 import type { ReceiptControlActor } from "../receipt-controls-evidence.server";
+import type { N3MonthRow } from "../n3-month-receipts.server";
 
 const T = "tenant-a";
 const owner: ReceiptControlActor = {
@@ -86,6 +87,8 @@ type World = {
   snaps: Map<string, ReceiptSnapshot | ReceiptControlError>;
   failPageAt?: number;
   installed?: boolean;
+  /** Override the N3 month list; default derives from snaps' documentDate. */
+  list?: (range: { startDate: string; endExclusive: string }) => N3MonthRow[];
 };
 
 function makeDeps(world: World) {
@@ -96,6 +99,7 @@ function makeDeps(world: World) {
     maxInFlight: 0,
     inFlight: 0,
     settings: 0,
+    lists: 0 as number | undefined,
   };
   const scope = (t: string) => {
     calls.tenants.add(t);
@@ -142,6 +146,20 @@ function makeDeps(world: World) {
     },
     async revision() {
       return `${world.versions.length}`;
+    },
+    async listMonthReceipts(_a, range, skip, top) {
+      calls.lists = (calls.lists ?? 0) + 1;
+      const rows =
+        world.list?.(range) ??
+        [...(world.deposits.get(T) ?? [])].flatMap((d): N3MonthRow[] => {
+          const s = world.snaps.get(d.id);
+          const date = s && !(s instanceof ReceiptControlError) ? s.documentDate : "2026-10-01";
+          return date >= range.startDate && date < range.endExclusive
+            ? [{ id: d.n3ReceiptId, docDate: date, docCode: d.n3DocCode ?? "", referenceNo: null, isCancelled: null, customerCode: null, currencyCode: null }]
+            : [];
+        });
+      rows.sort((a, b) => (a.docDate < b.docDate ? 1 : a.docDate > b.docDate ? -1 : 0));
+      return { count: rows.length, rows: rows.slice(skip, skip + top) };
     },
     async verifyReceipt(_a, id) {
       calls.verify++;

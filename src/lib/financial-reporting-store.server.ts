@@ -270,6 +270,7 @@ export async function readReceiptEvents(
       if (page.length < FINANCIAL_LIMITS.localPageSize) break;
       after = page[page.length - 1]!.id;
     }
+    const ids = all.map((d) => d.id);
     const versionsRaw = await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) =>
       deadline.run(() => deps.versions(tenantId, c)),
     );
@@ -334,7 +335,7 @@ export async function readReceiptEvents(
     const labels = await deadline.run(() => deps.userLabels(tenantId, keys));
     const label = (k: string | null) => (k ? (labels.get(k) ?? "Staff") : null);
     const refs = await deadline.run(() =>
-      deps.bookingRefs(tenantId, [...new Set(all.map((d) => d.reservationId))]),
+      deps.bookingRefs(tenantId, [...new Set(candidates.map((d) => d.reservationId))]),
     );
 
     const rows: HotelFinancialEvent[] = [];
