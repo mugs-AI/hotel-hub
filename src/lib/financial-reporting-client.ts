@@ -39,6 +39,7 @@ export const financialKeys = {
   all: ["financial-reporting"] as const,
   dashboard: (tenantKey: string, month: string | undefined) =>
     ["financial-reporting", tenantKey, "dashboard", month ?? "current"] as const,
+  period: (tenantKey: string) => ["financial-reporting", tenantKey, "period"] as const,
   report: (tenantKey: string, f: ReceiptReportFilter) =>
     ["financial-reporting", tenantKey, "report", reportFilterParams(f).toString()] as const,
 };
@@ -84,6 +85,24 @@ export function useMonthlyFinancialDashboard(month?: string, enabled = true) {
     enabled: enabled && identity !== null,
     retry: false,
     staleTime: 15_000,
+  });
+}
+
+/**
+ * Current property-local month for this authenticated identity (settings-only
+ * server read, never the browser clock). Polled so a mounted page gains the
+ * next month after the property rolls over.
+ */
+export function useCurrentFinancialPeriod(enabled = true) {
+  const identity = useFinancialIdentity();
+  return useQuery({
+    queryKey: financialKeys.period(identity ?? "none"),
+    queryFn: () => get<{ month: string }>("/api/hotel/financial-period"),
+    enabled: enabled && identity !== null,
+    retry: false,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
   });
 }
 

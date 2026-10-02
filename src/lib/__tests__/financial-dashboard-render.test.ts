@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   dto: undefined as any,
   report: undefined as any,
   calls: [] as any[],
+  identity: "t1:u1:owner" as string | null,
+  period: { isError: false, data: { month: "2026-10" } } as any,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -24,6 +26,8 @@ vi.mock("@/lib/financial-reporting-client", async (orig) => ({
     state.calls.push({ month, enabled });
     return { isPending: false, isError: false, data: enabled ? state.dto : undefined };
   },
+  useFinancialIdentity: () => state.identity,
+  useCurrentFinancialPeriod: () => state.period,
   useReceiptReport: () => ({ isPending: false, isError: false, data: state.report }),
 }));
 
@@ -69,8 +73,32 @@ describe("FinancialDashboard", () => {
     expect(html).toContain('aria-label="Next month"');
     expect(html).toMatch(/<option value="10" selected="">October<\/option>/);
     expect(html).toMatch(/<option value="2026" selected="">2026<\/option>/);
-    // Server default month: the browser never picks it.
-    expect(state.calls.at(-1)).toEqual({ month: undefined, enabled: true });
+    // Month comes from the identity's server property month, not the browser.
+    expect(state.calls.at(-1)).toEqual({ month: "2026-10", enabled: true });
+  });
+});
+
+describe("FinancialDashboard identity / property month", () => {
+  const render = () => renderToStaticMarkup(createElement(FinancialDashboard, { enabled: true }));
+  it("no session identity → no controls or old figures", () => {
+    state.identity = null;
+    expect(render()).toBe("");
+    state.identity = "t1:u1:owner";
+  });
+  it("failed period metadata → no month controls, no figures query", () => {
+    state.period = { isError: true, error: new Error("x"), data: undefined };
+    state.calls.length = 0;
+    const html = render();
+    expect(html).not.toContain('aria-label="Next month"');
+    expect(state.calls.at(-1)).toEqual({ month: undefined, enabled: false });
+    state.period = { isError: false, data: { month: "2026-10" } };
+  });
+  it("property month advancing Oct→Nov offers November on the mounted page", () => {
+    state.period = { isError: false, data: { month: "2026-11" } };
+    const html = render();
+    expect(html).toMatch(/<option value="11" selected="">November<\/option>/);
+    expect(state.calls.at(-1)).toEqual({ month: "2026-11", enabled: true });
+    state.period = { isError: false, data: { month: "2026-10" } };
   });
 });
 

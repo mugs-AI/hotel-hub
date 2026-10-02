@@ -1,6 +1,6 @@
 // Owner-only monthly financial section. Its month selector affects only these
 // cards and their reports — never the operational cards above.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
@@ -9,27 +9,43 @@ import type { FinancialMetric } from "@/lib/financial-reporting";
 import {
   FinancialClientError,
   financialMessage,
+  useCurrentFinancialPeriod,
+  useFinancialIdentity,
   useMonthlyFinancialDashboard,
 } from "@/lib/financial-reporting-client";
 import {
   MIN_FINANCIAL_MONTH,
   MONTH_NAMES,
+  type MonthSelection,
   clampMonth,
   formatMonth,
   parseMonth,
+  resolveFinancialMonth,
   shiftMonth,
 } from "@/lib/month-nav";
 
 export function FinancialDashboard({ enabled }: { enabled: boolean }) {
-  const [month, setMonth] = useState<string | undefined>(undefined);
-  const q = useMonthlyFinancialDashboard(month, enabled);
-  // The property's current month, learned from the first default load; it is
-  // the latest month offered (no future months).
-  const currentRef = useRef<string | undefined>(undefined);
-  if (month === undefined && q.data?.period.month && !currentRef.current)
-    currentRef.current = q.data.period.month;
-  if (!enabled) return null;
-  const shown = month ?? q.data?.period.month;
+  const identity = useFinancialIdentity();
+  // A selection belongs to the identity that made it; any account/role switch
+  // drops it, so a previous tenant's month never carries over.
+  const [selection, setSelection] = useState<MonthSelection>(null);
+  const period = useCurrentFinancialPeriod(enabled);
+  // Latest month offered = this identity's server-derived property month,
+  // refreshed independently of the selection (never the browser clock).
+  const max = identity !== null ? period.data?.month : undefined;
+  const shown = resolveFinancialMonth(identity, selection, max);
+  const q = useMonthlyFinancialDashboard(shown, enabled && shown !== undefined);
+  if (!enabled || identity === null) return null;
+  const errorCode = period.isError
+    ? period.error instanceof FinancialClientError
+      ? period.error.code
+      : ""
+    : q.isError
+      ? q.error instanceof FinancialClientError
+        ? q.error.code
+        : ""
+      : null;
+  const loading = !shown || q.isPending;
   return (
     <section
       aria-label="Monthly finance"
@@ -43,31 +59,33 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
             — do not add the two cards together. Prepared folios are never counted as sales.
           </CardInfoPopover>
         </div>
-        <MonthPicker
-          value={shown}
-          max={currentRef.current ?? shown}
-          onChange={(m) => setMonth(m)}
-        />
+        {shown && max ? (
+          <MonthPicker
+            value={shown}
+            max={max}
+            onChange={(m) => setSelection({ identity, month: m })}
+          />
+        ) : null}
       </div>
-      {q.isError ? (
+      {errorCode !== null ? (
         <p role="alert" className="text-sm text-red-800">
-          {financialMessage(q.error instanceof FinancialClientError ? q.error.code : "")}
+          {financialMessage(errorCode)}
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FinanceCard label="Sales" metric={q.data?.sales} loading={q.isPending} />
+        <FinanceCard label="Sales" metric={q.data?.sales} loading={loading} />
         <FinanceCard
           label="Deposits"
           metric={q.data?.deposits}
-          loading={q.isPending}
+          loading={loading}
           month={shown}
           tab="receipts"
         />
-        <FinanceCard label="Collections" metric={q.data?.collections} loading={q.isPending} />
+        <FinanceCard label="Collections" metric={q.data?.collections} loading={loading} />
         <FinanceCard
           label="Voided receipts"
           metric={q.data?.voids}
-          loading={q.isPending}
+          loading={loading}
           month={shown}
           tab="voided"
         />
