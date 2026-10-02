@@ -42,11 +42,11 @@ describe("computeReceiptOverlay", () => {
   });
   it("uses the latest verified correction amount", () => {
     const o = computeReceiptOverlay([v({ versionNo: 1, amountCents: 8000 })], new Set());
-    expect(o.get("d1")).toMatchObject({ state: "active", amountCents: 8000, receiptId: "rcpt-1" });
+    expect(o.get("d1")?.confirmed).toMatchObject({ state: "active", amountCents: 8000, receiptId: "rcpt-1" });
   });
   it("excludes a confirmed void even when no replacement exists", () => {
     const o = computeReceiptOverlay([v({ state: "voided", amountCents: 5000 })], new Set());
-    expect(o.get("d1")).toMatchObject({ state: "voided" });
+    expect(o.get("d1")?.confirmed).toMatchObject({ state: "voided" });
   });
   it("counts a confirmed replacement exactly once and never the voided original", () => {
     const o = computeReceiptOverlay(
@@ -56,18 +56,18 @@ describe("computeReceiptOverlay", () => {
       ],
       new Set(),
     );
-    expect(o.get("d1")).toMatchObject({ state: "active", receiptId: "rcpt-2", amountCents: 8000 });
+    expect(o.get("d1")?.confirmed).toMatchObject({ state: "active", receiptId: "rcpt-2", amountCents: 8000 });
   });
   it("an unconfirmed replacement (no void evidence) does not count", () => {
     const o = computeReceiptOverlay(
       [v({ versionNo: 1, receiptId: "rcpt-2", replacementOf: "rcpt-1" })],
       new Set(),
     );
-    expect(o.get("d1")).toBeUndefined();
+    expect(o.get("d1")).toEqual({ confirmed: { state: "original" }, needsReview: true });
   });
   it("marks unresolved requests Needs review while keeping the last confirmed amount", () => {
     const o = computeReceiptOverlay([], new Set(["d1"]));
-    expect(o.get("d1")).toMatchObject({ state: "needs_review", amountCents: null });
+    expect(o.get("d1")).toEqual({ confirmed: { state: "original" }, needsReview: true });
   });
 });
 
@@ -106,5 +106,53 @@ describe("applyEffectiveReceipts + shared totals", () => {
     applyEffectiveReceipts([original], computeReceiptOverlay([v({})], new Set()));
     expect(original.amount).toBe(50);
     expect(original.n3ReceiptId).toBe("rcpt-1");
+  });
+
+});
+
+describe("review blockers: confirmed contribution vs Needs review", () => {
+  const voidedThenFailed = [v({ versionNo: 1, state: "voided", amountCents: 5000 })];
+  it("confirmed void + failed replacement + unresolved request never resurrects RM50", () => {
+    const rows = applyEffectiveReceipts(
+      [dep("d1", 50), dep("d2", 30)],
+      computeReceiptOverlay(voidedThenFailed, new Set(["d1"])),
+    );
+    expect(rows[0]).toMatchObject({ effectiveState: "voided", needsReview: true });
+    const s = recordedDepositStatement(rows, "MYR", 100);
+    expect(s.total).toBe(30);
+    expect(s.hasUnconfirmed).toBe(true);
+    expect(s.items.map((i) => i.n3DocCode)).toEqual(["OR-2"]);
+  });
+  it("a later voided replacement is not revived by its earlier active row", () => {
+    const o = computeReceiptOverlay(
+      [
+        v({ versionNo: 1, state: "voided" }),
+        v({ versionNo: 2, receiptId: "rcpt-2", replacementOf: "rcpt-1" }),
+        v({ versionNo: 3, state: "voided", receiptId: "rcpt-2", replacementOf: "rcpt-1" }),
+      ],
+      new Set(),
+    );
+    const rows = applyEffectiveReceipts([dep("d1", 50)], o);
+    expect(summarizePostedDeposits(rows, "MYR").total).toBe(0);
+  });
+  it("two replacement rows count once (latest only) in the real totals consumer", () => {
+    const o = computeReceiptOverlay(
+      [
+        v({ versionNo: 1, state: "voided" }),
+        v({ versionNo: 2, receiptId: "rcpt-2", amountCents: 8000, replacementOf: "rcpt-1" }),
+        v({ versionNo: 3, receiptId: "rcpt-3", amountCents: 9000, replacementOf: "rcpt-1" }),
+      ],
+      new Set(),
+    );
+    const rows = applyEffectiveReceipts([dep("d1", 50)], o);
+    expect(summarizePostedDeposits(rows, "MYR")).toMatchObject({ total: 90, count: 1 });
+  });
+  it("confirmed correction + unresolved later request keeps the confirmed RM80, flagged", () => {
+    const rows = applyEffectiveReceipts(
+      [dep("d1", 50)],
+      computeReceiptOverlay([v({ amountCents: 8000 })], new Set(["d1"])),
+    );
+    const s = summarizePostedDeposits(rows, "MYR");
+    expect(s).toMatchObject({ total: 80, hasUnconfirmed: true });
   });
 });
