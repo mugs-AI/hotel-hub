@@ -29,11 +29,12 @@ describe("receiptReportCsv", () => {
     expect(csvText('a,"b"\nc')).toBe('"a,""b""\nc"');
   });
   it("escapes leading formula triggers", () => {
-    for (const t of ["=1+1", "+cmd", "-2", "@SUM(A1)", "\tx", "\rx"]) expect(csvText(t).startsWith(`"'`)).toBe(true);
+    for (const t of ["=1+1", "+cmd", "-2", "@SUM(A1)", "\tx", "\rx"])
+      expect(csvText(t).startsWith(`"'`)).toBe(true);
     expect(csvText("Maybank")).toBe('"Maybank"');
   });
   it("keeps amounts numeric and includes void audit fields", () => {
-    const csv = receiptReportCsv([row({ customerLabel: "=HYPERLINK(\"x\")" })]);
+    const csv = receiptReportCsv([row({ customerLabel: '=HYPERLINK("x")' })]);
     const line = csv.split("\r\n")[1]!;
     expect(line).toContain(",80.00,50.00,");
     expect(line).toContain(`"'=HYPERLINK(""x"")"`);

@@ -60,7 +60,12 @@ type Window = { fromIso: string; toIso: string };
 export type FinancialReportingDeps = {
   settings(tenantId: string): Promise<{ timezone: string; currency: string } | null>;
   /** Posted, HotelHub-created deposits only (immutable reference + receipt id). Ordered by id. */
-  depositPage(tenantId: string, w: Window, afterId: string | null, limit: number): Promise<FinancialDeposit[]>;
+  depositPage(
+    tenantId: string,
+    w: Window,
+    afterId: string | null,
+    limit: number,
+  ): Promise<FinancialDeposit[]>;
   depositsByIds(tenantId: string, ids: string[]): Promise<FinancialDeposit[]>;
   /** null when receipt controls are not installed. */
   voidedDepositIds(tenantId: string, w: Window): Promise<string[] | null>;
@@ -72,8 +77,14 @@ export type FinancialReportingDeps = {
   revision(tenantId: string): Promise<string>;
   verifyReceipt(actor: ReceiptControlActor, depositId: string): Promise<ReceiptSnapshot>;
   /** Optional verified adapters; absent means Unavailable, never zero. */
-  sales?: (actor: ReceiptControlActor, p: FinancialMonth) => Promise<FinancialSource<HotelFinancialEvent>>;
-  otherCollections?: (actor: ReceiptControlActor, p: FinancialMonth) => Promise<FinancialSource<HotelFinancialEvent>>;
+  sales?: (
+    actor: ReceiptControlActor,
+    p: FinancialMonth,
+  ) => Promise<FinancialSource<HotelFinancialEvent>>;
+  otherCollections?: (
+    actor: ReceiptControlActor,
+    p: FinancialMonth,
+  ) => Promise<FinancialSource<HotelFinancialEvent>>;
   now?: () => number;
   sleepless?: boolean;
 };
@@ -122,7 +133,11 @@ function chunks<T>(list: T[], size: number): T[][] {
   return out;
 }
 
-async function chunked<T>(ids: string[], size: number, run: (c: string[]) => Promise<T[] | null>): Promise<T[] | null> {
+async function chunked<T>(
+  ids: string[],
+  size: number,
+  run: (c: string[]) => Promise<T[] | null>,
+): Promise<T[] | null> {
   const out: T[] = [];
   for (const c of chunks(ids, size)) {
     const r = await run(c);
@@ -154,13 +169,18 @@ async function verifyBounded(
       try {
         out.set(id, await deps.verifyReceipt(actor, id));
       } catch (err) {
-        const e = err instanceof ReceiptControlError ? err : new ReceiptControlError("n3_evidence_unavailable");
+        const e =
+          err instanceof ReceiptControlError
+            ? err
+            : new ReceiptControlError("n3_evidence_unavailable");
         if (e.code === "unauthorized") unauthorized = true;
         out.set(id, e);
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(FINANCIAL_LIMITS.verifyConcurrency, ids.length) }, worker));
+  await Promise.all(
+    Array.from({ length: Math.min(FINANCIAL_LIMITS.verifyConcurrency, ids.length) }, worker),
+  );
   if (unauthorized) throw new ReceiptControlError("unauthorized");
   if (budgetHit || out.size < ids.length) throw new SourceIncomplete("verification_budget");
   return out;
@@ -193,7 +213,8 @@ export async function readReceiptEvents(
       if (overBudget()) throw new SourceIncomplete("source_incomplete");
       const page = await deps.depositPage(tenantId, w, after, FINANCIAL_LIMITS.localPageSize);
       candidates.push(...page);
-      if (candidates.length > FINANCIAL_LIMITS.localCap) throw new SourceIncomplete("source_incomplete");
+      if (candidates.length > FINANCIAL_LIMITS.localCap)
+        throw new SourceIncomplete("source_incomplete");
       if (page.length < FINANCIAL_LIMITS.localPageSize) break;
       after = page[page.length - 1]!.id;
     }
@@ -204,7 +225,9 @@ export async function readReceiptEvents(
     const extra = (voidedIds ?? []).filter((id) => !inWindow.has(id));
     const all = [...candidates];
     if (extra.length) {
-      const more = await chunked(extra, FINANCIAL_LIMITS.idChunk, (c) => deps.depositsByIds(tenantId, c));
+      const more = await chunked(extra, FINANCIAL_LIMITS.idChunk, (c) =>
+        deps.depositsByIds(tenantId, c),
+      );
       all.push(...(more ?? []));
     }
     const ids = all.map((d) => d.id);
@@ -234,7 +257,13 @@ export async function readReceiptEvents(
     // 4. Audit labels.
     const requestIds = [...new Set(versions.map((v) => v.requestId))];
     const audits = new Map((await deps.requests(tenantId, requestIds)).map((r) => [r.id, r]));
-    const keys = [...new Set([...audits.values()].flatMap((a) => [a.requestedBy, a.approvedBy]).filter(Boolean) as string[])];
+    const keys = [
+      ...new Set(
+        [...audits.values()]
+          .flatMap((a) => [a.requestedBy, a.approvedBy])
+          .filter(Boolean) as string[],
+      ),
+    ];
     const labels = await deps.userLabels(tenantId, keys);
     const label = (k: string | null) => (k ? (labels.get(k) ?? "Staff") : null);
     const refs = await deps.bookingRefs(tenantId, [...new Set(all.map((d) => d.reservationId))]);
@@ -242,7 +271,10 @@ export async function readReceiptEvents(
     const rows: HotelFinancialEvent[] = [];
     let anyUnavailable = false;
     for (const d of all) {
-      const o = overlay.get(d.id) ?? { confirmed: { state: "original" as const }, needsReview: false };
+      const o = overlay.get(d.id) ?? {
+        confirmed: { state: "original" as const },
+        needsReview: false,
+      };
       const list = byDeposit.get(d.id) ?? [];
       const line = lineOf(d);
       const base = {
@@ -299,7 +331,9 @@ export async function readReceiptEvents(
       const c = o.confirmed;
       if (c.state === "voided") {
         const voidRow = [...list].reverse().find((v) => v.state === "voided");
-        const ownActive = [...list].reverse().find((v) => v.state === "active" && v.replacementOf === null);
+        const ownActive = [...list]
+          .reverse()
+          .find((v) => v.state === "active" && v.replacementOf === null);
         rows.push({
           ...base,
           ...auditFor(voidRow?.requestId),
@@ -329,7 +363,8 @@ export async function readReceiptEvents(
           kind: "deposit",
           state: "active",
           receiptStatus: o.needsReview ? "needs_review" : "corrected",
-          savedPaymentName: c.paymentLines.map((l) => l.savedName).join(" + ") || base.savedPaymentName,
+          savedPaymentName:
+            c.paymentLines.map((l) => l.savedName).join(" + ") || base.savedPaymentName,
           paymentAccountId: c.paymentLines[0]?.accountId ?? base.paymentAccountId,
           accountCode: c.paymentLines[0]?.code ?? base.accountCode,
           replacementOf: c.replacementOf,
@@ -438,7 +473,9 @@ export async function readMonthlyFinancialSources(
 ): Promise<MonthlySources> {
   assertOwner(actor);
   const clock = deps.now ?? Date.now;
-  const settings = currency ? { currency, timezone: period.timezone } : await deps.settings(actor.tenantId);
+  const settings = currency
+    ? { currency, timezone: period.timezone }
+    : await deps.settings(actor.tenantId);
   if (!settings) throw new FinancialReportError("hotel_settings_missing");
   const revision = await deps.revision(actor.tenantId);
   const key = `${actor.tenantId}|${period.month}|${period.timezone}|${revision}`;
@@ -459,7 +496,13 @@ export async function readMonthlyFinancialSources(
     adapter(deps.sales),
     adapter(deps.otherCollections),
   ]);
-  const value: MonthlySources = { period, currency: settings.currency, receipts, sales, otherCollections };
+  const value: MonthlySources = {
+    period,
+    currency: settings.currency,
+    receipts,
+    sales,
+    otherCollections,
+  };
   if (receipts.status !== "unavailable") {
     if (cache.size >= FINANCIAL_LIMITS.cacheEntries) cache.delete(cache.keys().next().value!);
     cache.set(key, { at: clock(), value });
@@ -467,7 +510,11 @@ export async function readMonthlyFinancialSources(
   return value;
 }
 
-async function periodFor(actor: ReceiptControlActor, month: string | undefined, deps: FinancialReportingDeps) {
+async function periodFor(
+  actor: ReceiptControlActor,
+  month: string | undefined,
+  deps: FinancialReportingDeps,
+) {
   assertOwner(actor);
   const settings = await deps.settings(actor.tenantId);
   if (!settings) throw new FinancialReportError("hotel_settings_missing");
@@ -495,7 +542,9 @@ export async function readReceiptReportSnapshot(
   const filter = validate(params, period);
   const sources = await readMonthlyFinancialSources(actor, period, deps, currency);
   const rows =
-    sources.receipts.status === "unavailable" ? [] : selectReportRows(sources.receipts.rows, filter, period);
+    sources.receipts.status === "unavailable"
+      ? []
+      : selectReportRows(sources.receipts.rows, filter, period);
   return { filter, sources, rows };
 }
 
@@ -507,7 +556,8 @@ export async function readReceiptReport(
   const { period, currency } = await periodFor(actor, filter.month, deps);
   const sources = await readMonthlyFinancialSources(actor, period, deps, currency);
   const status = sources.receipts.status;
-  const rows = status === "unavailable" ? [] : selectReportRows(sources.receipts.rows, filter, period);
+  const rows =
+    status === "unavailable" ? [] : selectReportRows(sources.receipts.rows, filter, period);
   return {
     period,
     items: rows.slice(filter.offset, filter.offset + filter.limit),
@@ -533,11 +583,24 @@ const DEPOSIT_COLS =
 function toDeposit(r: any): FinancialDeposit {
   const cents = toCents(r.amount);
   if (cents === null || cents <= 0) throw new SourceIncomplete("source_incomplete");
-  const lines = Array.isArray(r.payment_lines) && r.payment_lines.length
-    ? r.payment_lines.map((l: any) => ({ id: String(l.id), code: String(l.code ?? ""), name: String(l.name ?? l.code ?? ""), amount: Number(l.amount) }))
-    : r.n3_account_id
-      ? [{ id: r.n3_account_id, code: r.n3_account_code ?? "", name: r.n3_account_name ?? r.n3_account_code ?? "", amount: Number(r.amount) }]
-      : [];
+  const lines =
+    Array.isArray(r.payment_lines) && r.payment_lines.length
+      ? r.payment_lines.map((l: any) => ({
+          id: String(l.id),
+          code: String(l.code ?? ""),
+          name: String(l.name ?? l.code ?? ""),
+          amount: Number(l.amount),
+        }))
+      : r.n3_account_id
+        ? [
+            {
+              id: r.n3_account_id,
+              code: r.n3_account_code ?? "",
+              name: r.n3_account_name ?? r.n3_account_code ?? "",
+              amount: Number(r.amount),
+            },
+          ]
+        : [];
   return {
     id: r.id,
     reservationId: r.reservation_id,
@@ -608,7 +671,9 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
       return (res.data ?? []).map(toDeposit);
     },
     async voidedDepositIds(tenantId, w) {
-      const res = await (await admin())
+      const res = await (
+        await admin()
+      )
         .from("hotel_receipt_versions")
         .select("deposit_id")
         .eq("tenant_id", tenantId)
@@ -620,13 +685,16 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         if (MISSING.has(res.error.code)) return null;
         fail(res);
       }
-      if ((res.data ?? []).length > FINANCIAL_LIMITS.localCap) throw new SourceIncomplete("source_incomplete");
+      if ((res.data ?? []).length > FINANCIAL_LIMITS.localCap)
+        throw new SourceIncomplete("source_incomplete");
       return [...new Set<string>((res.data ?? []).map((r: any) => r.deposit_id as string))];
     },
     async versions(tenantId, ids) {
       const res = await (await admin())
         .from("hotel_receipt_versions")
-        .select("deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at")
+        .select(
+          "deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at",
+        )
         .eq("tenant_id", tenantId)
         .in("deposit_id", ids);
       if (res.error) {
@@ -662,7 +730,12 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
           fail(res);
         }
         for (const r of res.data ?? [])
-          out.push({ id: r.id, requestedBy: r.requested_by_n3_user_key ?? null, approvedBy: r.approved_by_n3_user_key ?? null, reason: r.reason ?? null });
+          out.push({
+            id: r.id,
+            requestedBy: r.requested_by_n3_user_key ?? null,
+            approvedBy: r.approved_by_n3_user_key ?? null,
+            reason: r.reason ?? null,
+          });
       }
       return out;
     },
@@ -699,8 +772,19 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         ["hotel_receipt_control_requests", "updated_at"],
         ["hotel_reservation_deposits", "updated_at"],
       ] as const) {
-        const res = await sb.from(table).select(col).eq("tenant_id", tenantId).order(col, { ascending: false }).limit(1);
-        parts.push(res.error ? (MISSING.has(res.error.code) ? "-" : `err${Date.now()}`) : String(res.data?.[0]?.[col] ?? "0"));
+        const res = await sb
+          .from(table)
+          .select(col)
+          .eq("tenant_id", tenantId)
+          .order(col, { ascending: false })
+          .limit(1);
+        parts.push(
+          res.error
+            ? MISSING.has(res.error.code)
+              ? "-"
+              : `err${Date.now()}`
+            : String(res.data?.[0]?.[col] ?? "0"),
+        );
       }
       return parts.join("|");
     },

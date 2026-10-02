@@ -13,7 +13,12 @@ import { ReceiptControlError, type ReceiptSnapshot } from "../receipt-controls";
 import type { ReceiptControlActor } from "../receipt-controls-evidence.server";
 
 const T = "tenant-a";
-const owner: ReceiptControlActor = { tenantId: T, n3UserKey: "u-owner", n3Token: "tok", role: "owner" };
+const owner: ReceiptControlActor = {
+  tenantId: T,
+  n3UserKey: "u-owner",
+  n3Token: "tok",
+  role: "owner",
+};
 const rid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
 function dep(n: number, over: Partial<FinancialDeposit> = {}): FinancialDeposit {
@@ -60,7 +65,9 @@ function version(d: FinancialDeposit, over: Partial<ReceiptVersionRow>): Receipt
     documentDate: "2026-10-01",
     currency: "MYR",
     amountCents: 8000,
-    paymentLines: [{ accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 8000 }],
+    paymentLines: [
+      { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 8000 },
+    ],
     replacementOf: null,
     verifiedAt: "2026-10-03T01:00:00Z",
     ...over,
@@ -77,7 +84,14 @@ type World = {
 };
 
 function makeDeps(world: World) {
-  const calls = { tenants: new Set<string>(), pages: 0, verify: 0, maxInFlight: 0, inFlight: 0, settings: 0 };
+  const calls = {
+    tenants: new Set<string>(),
+    pages: 0,
+    verify: 0,
+    maxInFlight: 0,
+    inFlight: 0,
+    settings: 0,
+  };
   const scope = (t: string) => {
     calls.tenants.add(t);
     return world.deposits.get(t) ?? [];
@@ -90,7 +104,8 @@ function makeDeps(world: World) {
     },
     async depositPage(t, _w, after, limit) {
       calls.pages++;
-      if (world.failPageAt !== undefined && calls.pages >= world.failPageAt) throw new Error("page failed");
+      if (world.failPageAt !== undefined && calls.pages >= world.failPageAt)
+        throw new Error("page failed");
       const all = [...scope(t)].sort((a, b) => (a.id < b.id ? -1 : 1));
       return all.filter((d) => after === null || d.id > after).slice(0, limit);
     },
@@ -104,19 +119,29 @@ function makeDeps(world: World) {
     },
     async versions(t, ids) {
       calls.tenants.add(t);
-      return world.installed === false ? null : world.versions.filter((v) => ids.includes(v.depositId));
+      return world.installed === false
+        ? null
+        : world.versions.filter((v) => ids.includes(v.depositId));
     },
     async unresolved(_t, ids) {
       return world.unresolved.filter((id) => ids.includes(id));
     },
     async requests(_t, ids) {
-      return ids.map((id) => ({ id, requestedBy: "u-fd", approvedBy: "u-owner", reason: "Typo in amount" }));
+      return ids.map((id) => ({
+        id,
+        requestedBy: "u-fd",
+        approvedBy: "u-owner",
+        reason: "Typo in amount",
+      }));
     },
     async bookingRefs() {
       return new Map([["res-1", "BK261001001"]]);
     },
     async userLabels() {
-      return new Map([["u-fd", "Aina"], ["u-owner", "Owner Lim"]]);
+      return new Map([
+        ["u-fd", "Aina"],
+        ["u-owner", "Owner Lim"],
+      ]);
     },
     async revision() {
       return `${world.versions.length}`;
@@ -138,7 +163,10 @@ function makeDeps(world: World) {
 
 function world(deposits: FinancialDeposit[], extra: Partial<World> = {}): World {
   return {
-    deposits: new Map([[T, deposits], ["tenant-b", [dep(999, { id: "other", amountCents: 999900 })]]]),
+    deposits: new Map([
+      [T, deposits],
+      ["tenant-b", [dep(999, { id: "other", amountCents: 999900 })]],
+    ]),
     versions: [],
     unresolved: [],
     snaps: new Map(deposits.map((d) => [d.id, snap(d)])),
@@ -152,7 +180,9 @@ describe("readMonthlyFinancialDashboard", () => {
   it("denies non-Owners before any source read", async () => {
     const { deps, calls } = makeDeps(world([dep(1)]));
     for (const role of ["front_desk", "housekeeper"] as const)
-      await expect(readMonthlyFinancialDashboard({ ...owner, role }, "2026-10", deps)).rejects.toThrow("forbidden");
+      await expect(
+        readMonthlyFinancialDashboard({ ...owner, role }, "2026-10", deps),
+      ).rejects.toThrow("forbidden");
     expect(calls.tenants.size).toBe(0);
   });
 
@@ -238,7 +268,13 @@ describe("readMonthlyFinancialDashboard", () => {
     const w = world([d]);
     w.versions = [
       version(d, { versionNo: 1, amountCents: 8000 }),
-      version(d, { versionNo: 2, state: "voided", amountCents: 0, requestId: "req-2", verifiedAt: "2026-10-05T01:00:00Z" }),
+      version(d, {
+        versionNo: 2,
+        state: "voided",
+        amountCents: 0,
+        requestId: "req-2",
+        verifiedAt: "2026-10-05T01:00:00Z",
+      }),
     ];
     const { deps, calls } = makeDeps(w);
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
@@ -247,10 +283,19 @@ describe("readMonthlyFinancialDashboard", () => {
     expect(calls.verify).toBe(0);
     const report = await readReceiptReport(
       owner,
-      validateReceiptReportFilter(new URLSearchParams("tab=voided"), financialMonth("2026-10", "Asia/Kuala_Lumpur")),
+      validateReceiptReportFilter(
+        new URLSearchParams("tab=voided"),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
       deps,
     );
-    expect(report.items[0]).toMatchObject({ amount: 80, creationAmount: 50, reason: "Typo in amount", requesterLabel: "Aina", approverLabel: "Owner Lim" });
+    expect(report.items[0]).toMatchObject({
+      amount: 80,
+      creationAmount: 50,
+      reason: "Typo in amount",
+      requesterLabel: "Aina",
+      approverLabel: "Owner Lim",
+    });
   });
 
   it("void plus replacement: one active contribution; original listed as voided with link", async () => {
@@ -258,13 +303,26 @@ describe("readMonthlyFinancialDashboard", () => {
     const w = world([d]);
     w.versions = [
       version(d, { versionNo: 1, state: "voided", amountCents: 0 }),
-      version(d, { versionNo: 2, receiptId: rid(500), docCode: "OR2610/500", amountCents: 8000, replacementOf: d.n3ReceiptId }),
+      version(d, {
+        versionNo: 2,
+        receiptId: rid(500),
+        docCode: "OR2610/500",
+        amountCents: 8000,
+        replacementOf: d.n3ReceiptId,
+      }),
     ];
     const { deps } = makeDeps(w);
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(r.deposits).toMatchObject({ amount: 80, count: 1 });
     expect(r.voids.amount).toBe(50);
-    const report = await readReceiptReport(owner, validateReceiptReportFilter(new URLSearchParams(""), financialMonth("2026-10", "Asia/Kuala_Lumpur")), deps);
+    const report = await readReceiptReport(
+      owner,
+      validateReceiptReportFilter(
+        new URLSearchParams(""),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
+      deps,
+    );
     expect(report.total).toBe(2);
     expect(report.items.find((i) => i.status === "voided")?.replacementReceiptId).toBe(rid(500));
   });
@@ -295,7 +353,9 @@ describe("readMonthlyFinancialDashboard", () => {
     const d = dep(1);
     const w = world([d]);
     w.snaps.set(d.id, new ReceiptControlError("unauthorized"));
-    await expect(readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps)).rejects.toThrow("unauthorized");
+    await expect(readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps)).rejects.toThrow(
+      "unauthorized",
+    );
   });
 
   it("all four cards share one source batch; cache is keyed by revision", async () => {

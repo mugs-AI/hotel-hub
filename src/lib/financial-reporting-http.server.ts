@@ -49,9 +49,14 @@ export async function handleFinancialRequest(
   const params = new URL(request.url).searchParams;
   try {
     if (endpoint === "dashboard") {
-      for (const k of params.keys()) if (k !== "month") return json({ error: "unknown_filter" }, 400);
+      for (const k of params.keys())
+        if (k !== "month") return json({ error: "unknown_filter" }, 400);
       if (params.getAll("month").length > 1) return json({ error: "invalid_month" }, 400);
-      const dto = await readMonthlyFinancialDashboard(a.actor, params.get("month") ?? undefined, deps.data());
+      const dto = await readMonthlyFinancialDashboard(
+        a.actor,
+        params.get("month") ?? undefined,
+        deps.data(),
+      );
       return json(dto);
     }
     const { filter, sources, rows } = await readReceiptReportSnapshot(
@@ -124,4 +129,3 @@ export function defaultFinancialHttpDeps(): FinancialHttpDeps {
     },
   };
 }
-

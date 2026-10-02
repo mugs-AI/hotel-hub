@@ -40,7 +40,11 @@ export const financialKeys = {
     ["financial-reporting", tenantKey, "report", reportFilterParams(f).toString()] as const,
 };
 
-export function useMonthlyFinancialDashboard(month?: string, enabled = true, tenantKey = "session") {
+export function useMonthlyFinancialDashboard(
+  month?: string,
+  enabled = true,
+  tenantKey = "session",
+) {
   return useQuery({
     queryKey: financialKeys.dashboard(tenantKey, month),
     queryFn: () =>
@@ -53,10 +57,15 @@ export function useMonthlyFinancialDashboard(month?: string, enabled = true, ten
   });
 }
 
-export function useReceiptReport(filter: ReceiptReportFilter, enabled = true, tenantKey = "session") {
+export function useReceiptReport(
+  filter: ReceiptReportFilter,
+  enabled = true,
+  tenantKey = "session",
+) {
   return useQuery({
     queryKey: financialKeys.report(tenantKey, filter),
-    queryFn: () => get<ReceiptReportDTO>(`/api/hotel/receipt-reports?${reportFilterParams(filter)}`),
+    queryFn: () =>
+      get<ReceiptReportDTO>(`/api/hotel/receipt-reports?${reportFilterParams(filter)}`),
     enabled,
     retry: false,
     staleTime: 15_000,

@@ -18,7 +18,10 @@ async function admin() {
   return supabaseAdmin as unknown as { from: (t: string) => any };
 }
 
-export async function loadDeposit(tenantId: string, depositId: string): Promise<ScopedDeposit | null> {
+export async function loadDeposit(
+  tenantId: string,
+  depositId: string,
+): Promise<ScopedDeposit | null> {
   const res = await (await admin())
     .from("hotel_reservation_deposits")
     .select(
