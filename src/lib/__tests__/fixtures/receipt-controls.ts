@@ -26,6 +26,8 @@ export function receiptSnapshot(overrides: Partial<ReceiptSnapshot> = {}): Recei
     },
     documentState: "active",
     matchingState: "unmatched",
+    reference: "HH-REF-1",
+    journalExact: true,
     sourceFingerprint: "fp-original",
     verifiedAt: "2026-10-02T00:00:00.000Z",
     ...overrides,
