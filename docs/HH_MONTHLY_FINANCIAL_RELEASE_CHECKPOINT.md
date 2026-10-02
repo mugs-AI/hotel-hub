@@ -69,3 +69,9 @@ Evidence: Vitest 1,831 passed / 15 skipped (116 files); tsgo 0; ESLint 0; vite p
 - `tsgo --noEmit` 0 errors; ESLint 0 errors on changed files; `vite build` succeeded.
 - Protected generated files drifted again and were restored to a68664f.
 - Not exercised: live N3 filter (no signed-in GET probe run), real-DB SQL, authenticated E2E, multi-session concurrency. No N3 writes, alerts, migrations or publication.
+
+## Receipt/finance cache identity scoping (review 1c2b) — 2026-10-02
+- All receipt query keys (deposit-card requests, request-dialog original, Owner queue) and finance keys are namespaced `[prefix, tenant:user:role, ...]`; disabled while identity unknown.
+- A failed session refetch yields identity null (never the previous identity).
+- AppShell mounts a central guard (`useSensitiveReceiptCacheGuard`) that removes foreign receipt/finance queries and receipt mutation results on every identity change; sign-out removes all. Deposit dialogs opened under another identity are discarded and remount per identity; queue errors reset.
+- Tests: `receipt-auth-switch-cache.test.ts` (tenant/user/role switch and failed session fetch with the request dialog mounted and no dashboard; central purge of queries + mutations). Full suite 117 files passed, 1,848 tests passed, 15 skipped; tsgo 0 errors; ESLint 0 errors on changed files. Protected files restored to a68664f.
