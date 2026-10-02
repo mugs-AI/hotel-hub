@@ -621,7 +621,7 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         fail(res);
       }
       if ((res.data ?? []).length > FINANCIAL_LIMITS.localCap) throw new SourceIncomplete("source_incomplete");
-      return [...new Set((res.data ?? []).map((r: any) => r.deposit_id as string))];
+      return [...new Set<string>((res.data ?? []).map((r: any) => r.deposit_id as string))];
     },
     async versions(tenantId, ids) {
       const res = await (await admin())
