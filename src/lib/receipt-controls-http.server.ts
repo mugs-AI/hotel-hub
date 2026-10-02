@@ -79,7 +79,19 @@ export async function withReceiptActor(
     role: ctx.role!,
   };
   try {
-    return await run(actor);
+    const res = await run(actor);
+    if (write && res.ok) {
+      // Best effort: with no transport configured this only marks alerts "disabled".
+      try {
+        const { deliverReceiptAlerts, supabaseAlertDeliveryDb } = await import(
+          "./receipt-alert-delivery.server"
+        );
+        await deliverReceiptAlerts(actor.tenantId, supabaseAlertDeliveryDb());
+      } catch {
+        /* outbox keeps the alert pending; status stays visible */
+      }
+    }
+    return res;
   } catch (err) {
     const code = err instanceof ReceiptControlError ? err.code : "receipt_control_store_failed";
     if (code === "unauthorized") {
