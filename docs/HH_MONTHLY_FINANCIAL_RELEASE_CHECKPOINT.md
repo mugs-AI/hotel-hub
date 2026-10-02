@@ -75,3 +75,10 @@ Evidence: Vitest 1,831 passed / 15 skipped (116 files); tsgo 0; ESLint 0; vite p
 - A failed session refetch yields identity null (never the previous identity).
 - AppShell mounts a central guard (`useSensitiveReceiptCacheGuard`) that removes foreign receipt/finance queries and receipt mutation results on every identity change; sign-out removes all. Deposit dialogs opened under another identity are discarded and remount per identity; queue errors reset.
 - Tests: `receipt-auth-switch-cache.test.ts` (tenant/user/role switch and failed session fetch with the request dialog mounted and no dashboard; central purge of queries + mutations). Full suite 117 files passed, 1,848 tests passed, 15 skipped; tsgo 0 errors; ESLint 0 errors on changed files. Protected files restored to a68664f.
+
+## Review e220930 fixes — 2026-10-02
+- Confirmed void events are candidates by property-local `verified_at` month, separate from N3 docDate discovery (empty month list still reports them); report rows keep the receipt's N3 document date (`n3DocumentDate`, CSV "N3 document date"). Only stored void versions count; `VOID_JOURNAL_CONTRACT_PROVEN` stays false.
+- One 40 s deadline now starts before settings/period resolution and covers every DB/N3 lookup; a hanging settings read returns Unavailable (`time_budget`).
+- Audit/user-label lookups limited to selected candidates' versions.
+- Source contract updated (creation-date window and 20 s cutoff removed).
+- Evidence: full Vitest 117 files passed / 2 skipped, 1,853 tests passed / 15 skipped; tsgo 0 errors; ESLint 0 errors on changed files; vite production build OK. Protected files restored to a68664f.
