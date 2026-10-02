@@ -1,6 +1,7 @@
 // Owner-only monthly financial section. Its month selector affects only these
 // cards and their reports — never the operational cards above.
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { formatCents } from "@/lib/folio-money";
@@ -10,6 +11,14 @@ import {
   financialMessage,
   useMonthlyFinancialDashboard,
 } from "@/lib/financial-reporting-client";
+import {
+  MIN_FINANCIAL_MONTH,
+  MONTH_NAMES,
+  clampMonth,
+  formatMonth,
+  parseMonth,
+  shiftMonth,
+} from "@/lib/month-nav";
 
 export function FinancialDashboard({ enabled }: { enabled: boolean }) {
   const [month, setMonth] = useState<string | undefined>(undefined);
@@ -119,4 +128,89 @@ export function FinanceCard({
       </Link>
     );
   return <div className={cls}>{body}</div>;
+}
+
+/**
+ * Portable month selector: Previous / Next buttons plus month and year
+ * dropdowns (no reliance on native type="month", which some browsers render
+ * as a plain text box). Changes only the financial section's month.
+ */
+export function MonthPicker({
+  value,
+  max,
+  onChange,
+}: {
+  value: string | undefined;
+  max: string | undefined;
+  onChange: (month: string) => void;
+}) {
+  const cur = parseMonth(value);
+  const maxP = parseMonth(max);
+  const minP = parseMonth(MIN_FINANCIAL_MONTH)!;
+  const disabled = !cur || !maxP;
+  const go = (next: string | null) => {
+    if (!next || !max) return;
+    onChange(clampMonth(next, MIN_FINANCIAL_MONTH, max));
+  };
+  const prev = value ? shiftMonth(value, -1) : null;
+  const next = value ? shiftMonth(value, 1) : null;
+  const years: number[] = [];
+  if (maxP) for (let y = maxP.y; y >= minP.y; y--) years.push(y);
+  const btn =
+    "inline-flex h-9 items-center gap-1 rounded-md border border-input bg-white px-2 text-sm hover:bg-slate-50 disabled:opacity-40";
+  return (
+    <div role="group" aria-label="Financial month" className="flex flex-wrap items-center gap-2 text-sm">
+      <button
+        type="button"
+        className={btn}
+        aria-label="Previous month"
+        disabled={disabled || !prev || prev < MIN_FINANCIAL_MONTH}
+        onClick={() => go(prev)}
+      >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+        <span className="hidden sm:inline">Previous</span>
+      </button>
+      <select
+        aria-label="Month"
+        className="h-9 rounded-md border border-input bg-white px-2"
+        disabled={disabled}
+        value={cur?.m ?? ""}
+        onChange={(e) => cur && go(formatMonth(cur.y, Number(e.target.value)))}
+      >
+        {!cur ? <option value="">—</option> : null}
+        {MONTH_NAMES.map((name, i) => {
+          const candidate = cur ? formatMonth(cur.y, i + 1) : "";
+          return (
+            <option key={name} value={i + 1} disabled={!!max && candidate > max}>
+              {name}
+            </option>
+          );
+        })}
+      </select>
+      <select
+        aria-label="Year"
+        className="h-9 rounded-md border border-input bg-white px-2"
+        disabled={disabled}
+        value={cur?.y ?? ""}
+        onChange={(e) => cur && go(formatMonth(Number(e.target.value), cur.m))}
+      >
+        {!cur ? <option value="">—</option> : null}
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className={btn}
+        aria-label="Next month"
+        disabled={disabled || !next || !max || next > max}
+        onClick={() => go(next)}
+      >
+        <span className="hidden sm:inline">Next</span>
+        <ChevronRight className="h-4 w-4" aria-hidden />
+      </button>
+    </div>
+  );
 }
