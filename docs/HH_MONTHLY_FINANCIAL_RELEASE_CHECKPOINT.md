@@ -41,3 +41,11 @@ Status: implemented, NOT published. No migration applied; no N3 write; no alert 
 2. `db.list` uses `.range()` + exact count + stable order (requested_at, id); API returns total/nextOffset (default 50, max 100, invalid → 400). Owner queue has "Load more" and "Showing X of Y"; reservation deposits card reads every page, failing closed past 20 pages.
 
 Evidence: Vitest 1,807 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 errors on changed files. Real-DB SQL execution, signed-in E2E and multi-session timing NOT run. Protected files re-restored to a68664f after generated drift.
+
+## Review 2e755 receipt-evidence blockers — 2026-10-02
+
+- Evidence envelope now reuses the deposit adapter's strict `successfulEnvelope` (code must be official "0000", all case variants agree, success true if present) and casing-agnostic data/Value unwrapping; conflicting envelopes fail closed. Journal accepts array, details, lines or value forms; conflicting forms are not exact.
+- The single non-payment credit must carry the deposit's immutable `n3_customer_code`; a wrong-customer credit or missing code is not exact.
+- Request creation now refuses `journal_unproven` (409) unless the journal is exactly proven; unavailable N3 evidence is an explicit refusal at request and a hold at approval.
+
+Evidence: Vitest 1,821 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 errors on changed files. Protected files re-restored to a68664f. No N3 writes, alerts, migrations or publication.
