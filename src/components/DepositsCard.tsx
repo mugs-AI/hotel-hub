@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { depositEntry, formatDepositInput } from "@/lib/deposit-entry";
 import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
+import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
 import {
   depositErrorMessage,
@@ -345,6 +346,7 @@ export function DepositsCard({
                       ))
                     : null}
                 </CardInfoPopover>
+                <N3ReceiptPrintLink status={d.status} receiptId={d.n3ReceiptId} />
                 {d.status !== "posted" ? (
                   <span
                     className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"

@@ -265,6 +265,22 @@ function Detail({
   role: Parameters<typeof hasPermission>[0];
 }) {
   const canViewDeposits = hasPermission(role, "hotel:deposits:view");
+  const [guestSelection, setGuestSelection] = useState({
+    reservationId: data.id,
+    value: "primary",
+  });
+  const guestView =
+    guestSelection.reservationId === data.id &&
+    (guestSelection.value === "primary" ||
+      guestSelection.value === "all" ||
+      data.guests.some((g) => g.id === guestSelection.value))
+      ? guestSelection.value
+      : "primary";
+  const selectedGuest =
+    data.guests.find((g) => g.id === guestView) ??
+    data.guests.find((g) => g.isPrimary) ??
+    data.guests[0];
+  const visibleGuests = guestView === "all" ? data.guests : selectedGuest ? [selectedGuest] : [];
   const canCreateDeposits = hasPermission(role, "hotel:deposits:create");
   const sourcesQ = useBookingSources({ activeOnly: false });
   const sources = sourcesQ.data?.sources ?? [];
@@ -284,6 +300,15 @@ function Detail({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {data.status === "checked_in" && hasPermission(role, "hotel:checkout:view") ? (
+              <Link
+                to="/reservations/$id/checkout"
+                params={{ id: data.id }}
+                className="rounded-md border border-teal-300 bg-teal-50 px-3 py-1.5 text-sm font-medium text-teal-900"
+              >
+                Prepare Checkout
+              </Link>
+            ) : null}
             <span
               className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide"
               style={{ backgroundColor: `${TEAL}22`, color: TEAL }}
@@ -445,11 +470,34 @@ function Detail({
         className="rounded-lg border bg-white p-5 shadow-sm"
         style={{ borderColor: `${GOLD}33`, borderLeft: `4px solid ${GOLD}` }}
       >
-        <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-          Guests ({data.guests.length})
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold" style={{ color: NAVY }}>
+            Guests ({data.guests.length})
+          </h2>
+          {data.guests.length > 1 ? (
+            <label className="flex items-center gap-2 text-sm">
+              Show guest
+              <select
+                value={guestView}
+                onChange={(e) =>
+                  setGuestSelection({ reservationId: data.id, value: e.target.value })
+                }
+                className="min-w-0 max-w-full rounded-md border border-input bg-white px-2 py-2"
+              >
+                <option value="primary">Primary guest</option>
+                {data.guests.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.fullName}
+                    {g.isPrimary ? " (Primary)" : ""}
+                  </option>
+                ))}
+                <option value="all">All guests</option>
+              </select>
+            </label>
+          ) : null}
+        </div>
         <ul className="mt-3 space-y-2 text-sm">
-          {data.guests.map((g) => (
+          {visibleGuests.map((g) => (
             <GuestBlock key={g.id} g={g} />
           ))}
         </ul>
@@ -536,7 +584,7 @@ function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
   return (
     <li className="rounded-md border p-3" style={{ borderColor: `${NAVY}22` }}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-semibold" style={{ color: NAVY }}>
+        <span className="text-base font-semibold" style={{ color: NAVY }}>
           {g.fullName}
         </span>
         {g.isPrimary ? (
@@ -548,7 +596,7 @@ function GuestBlock({ g }: { g: ReservationDetailGuestDTO }) {
           </span>
         ) : null}
       </div>
-      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+      <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 [&_dd]:break-words">
         <div>
           <dt className="text-muted-foreground">Mobile</dt>
           <dd>{g.mobile ?? "—"}</dd>

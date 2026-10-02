@@ -458,8 +458,15 @@ describe("Correction A / Defect 1 — global guest search", () => {
     expect(rpcCalls[0]!.params["p_guest_name"]).toBe("jane");
     expect(rpcCalls[0]!.params["p_limit"]).toBe(1);
     expect(rpcCalls[0]!.params["p_offset"]).toBe(0);
-    // No unbounded Node-side read of the tenant's reservations.
-    expect(calls.some((c) => c.table === "hotel_reservations")).toBe(false);
+    // Financial enrichment reads only the already-paginated page, never the tenant's full set.
+    const financialReads = calls.filter((c) => c.table === "hotel_reservations");
+    expect(financialReads).toHaveLength(1);
+    expect(financialReads[0].filters).toEqual(
+      expect.arrayContaining([
+        { op: "eq", column: "tenant_id", value: "tenant-uuid-1" },
+        { op: "in", column: "id", value: ["res-A"] },
+      ]),
+    );
   });
 
   it("guest search with zero matches returns empty items and total=0", async () => {

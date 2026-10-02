@@ -39,9 +39,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const href = active?.href;
   const key = active?.key;
   const label = active?.label;
+  const view = active?.view;
   useEffect(() => {
-    if (key && label && href) store.open({ key, label, href });
-  }, [store, key, label, href]);
+    if (key && label && href) store.open({ key, label, href, ...(view ? { view } : {}) });
+  }, [store, key, label, href, view]);
   useEffect(
     () =>
       router.subscribe("onBeforeNavigate", () => {

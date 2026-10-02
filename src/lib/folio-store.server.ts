@@ -10,6 +10,7 @@
 //   * All money is integer cents server-side. Display numbers only ever
 //     appear at the DTO boundary.
 import { centsToAmount, parseCents, type RoundingMode } from "./folio-money";
+import { summarizePostedDeposits } from "./recorded-deposits";
 import {
   canReverseLine,
   computeFolio,
@@ -72,6 +73,7 @@ export interface FolioQuery<T> extends PromiseLike<ListRes<T>> {
   eq(col: string, value: unknown): FolioQuery<T>;
   in(col: string, values: readonly unknown[]): FolioQuery<T>;
   order(col: string, opts?: { ascending?: boolean }): FolioQuery<T>;
+  range?(from: number, to: number): FolioQuery<T>;
   limit(n: number): FolioQuery<T>;
   insert(values: unknown): FolioQuery<T>;
   update(values: unknown): FolioQuery<T>;
@@ -1694,6 +1696,19 @@ export type FolioCapabilityInput = {
   canManageCharges: boolean;
 };
 
+type FolioReadData = {
+  reservation: ReservationRow;
+  folio: FolioRow | null;
+  rooms: ReservationRoomRow[];
+  byRoomId: Map<string, RoomRow>;
+  linesResult: { rows: LineRow[]; lines: StoredFolioLine[] };
+  settings: FinancialSettings;
+  taxProfile: TaxProfile;
+  evidence: { rows: EvidenceRow[]; totalCents: number };
+  catalogue: AddonItem[];
+  primaryGuestName: string | null;
+};
+
 export async function buildFolioView(
   input: {
     tenantId: string;
@@ -1703,15 +1718,20 @@ export async function buildFolioView(
     capability: FolioCapabilityInput;
   },
   sb?: FolioDb,
+  source?: FolioReadData,
 ): Promise<FolioViewDTO> {
   const db = await resolveDb(sb);
-  const reservation = await readReservation(input.tenantId, input.reservationId, db);
+  const reservation =
+    source?.reservation ?? (await readReservation(input.tenantId, input.reservationId, db));
   // READ-ONLY. A GET never creates a folio and never snapshots a room night:
   // room-night snapshots are written by the check-in workflow and by the
   // explicit `refreshFolioRoomNights` endpoint.
-  const folio = await readFolioForReservation(input.tenantId, input.reservationId, db);
+  const folio = source
+    ? source.folio
+    : await readFolioForReservation(input.tenantId, input.reservationId, db);
 
-  const { byRoomId, rooms } = await readReservationRooms(input.tenantId, input.reservationId, db);
+  const { byRoomId, rooms } =
+    source ?? (await readReservationRooms(input.tenantId, input.reservationId, db));
   const roomLabelByReservationRoom = new Map<string, string>();
   const unmappedRoomLabels: string[] = [];
   for (const r of rooms) {
@@ -1721,15 +1741,23 @@ export async function buildFolioView(
     if (!hotelRoom?.n3_stock_id) unmappedRoomLabels.push(label);
   }
 
-  const [linesResult, settings, taxProfile, evidence, catalogue] = await Promise.all([
-    folio
-      ? readFolioLines(input.tenantId, folio.id, db)
-      : Promise.resolve({ rows: [] as LineRow[], lines: [] as StoredFolioLine[] }),
-    readFinancialSettings(input.tenantId, db),
-    readTaxProfile(input.tenantId, input.reservationId, db),
-    listTourismTaxEvidence(input.tenantId, input.reservationId, db),
-    listAddonItems(input.tenantId, {}, db),
-  ]);
+  const [linesResult, settings, taxProfile, evidence, catalogue] = source
+    ? ([
+        source.linesResult,
+        source.settings,
+        source.taxProfile,
+        source.evidence,
+        source.catalogue,
+      ] as const)
+    : await Promise.all([
+        folio
+          ? readFolioLines(input.tenantId, folio.id, db)
+          : Promise.resolve({ rows: [] as LineRow[], lines: [] as StoredFolioLine[] }),
+        readFinancialSettings(input.tenantId, db),
+        readTaxProfile(input.tenantId, input.reservationId, db),
+        listTourismTaxEvidence(input.tenantId, input.reservationId, db),
+        listAddonItems(input.tenantId, {}, db),
+      ]);
   const { lines, rows } = linesResult;
 
   const persistedLines: StoredFolioLine[] = lines.map((l) => ({
@@ -1864,7 +1892,9 @@ export async function buildFolioView(
     amount: centsToAmount(d.amountCents),
   }));
 
-  const primaryGuest = await readPrimaryGuestName(input.tenantId, input.reservationId, db);
+  const primaryGuest = source
+    ? source.primaryGuestName
+    : await readPrimaryGuestName(input.tenantId, input.reservationId, db);
 
   const catalogueOptions: FolioCatalogueOptionDTO[] = input.capability.canAddItem
     ? catalogue.filter(isUsableAddon).map((i) => ({
@@ -1929,6 +1959,200 @@ export async function buildFolioView(
     },
     preparationOnly: true,
   };
+}
+
+export type ReservationListAmounts = {
+  id: string;
+  currency: string;
+  totalAmount: number | null;
+  depositAmount: number | null;
+  hasUnconfirmedDeposit: boolean;
+};
+
+/** Page-only, read-only batches. Reuses the exact prepared-folio calculator. */
+export async function buildReservationListAmounts(
+  input: { tenantId: string; reservationIds: readonly string[]; timezone: string },
+  sb?: FolioDb,
+): Promise<ReservationListAmounts[]> {
+  const ids = [...new Set(input.reservationIds)];
+  if (!ids.length) return [];
+  if (!input.tenantId || ids.length > 100) throw new FolioError("invalid_list_page", 400);
+  const db = await resolveDb(sb);
+  async function batch<T>(
+    table: string,
+    columns: string,
+    key: string,
+    values: readonly string[],
+    orderKey = "id",
+  ): Promise<T[]> {
+    if (!values.length) return [];
+    const rows: T[] = [];
+    for (let offset = 0; offset < 100000; offset += 500) {
+      const q = db
+        .from<T>(table)
+        .select(columns)
+        .eq("tenant_id", input.tenantId)
+        .in(key, values)
+        .order(orderKey, { ascending: true });
+      if (!q.range) throw new FolioError("list_amounts_read_failed", 500);
+      const result = await q.range(offset, offset + 499);
+      if (result.error) throw new FolioError("list_amounts_read_failed", 500);
+      const page = result.data ?? [];
+      rows.push(...page);
+      if (page.length < 500) return rows;
+    }
+    throw new FolioError("list_amounts_read_failed", 500);
+  }
+  type Linked<T> = T & { reservation_id: string };
+  type DepositRow = {
+    id: string;
+    reservation_id: string;
+    status: string;
+    amount: number | string;
+    currency_code: string;
+    n3_doc_code: string | null;
+    created_at: string;
+  };
+  const [
+    reservations,
+    reservationRooms,
+    folios,
+    profiles,
+    evidenceRows,
+    deposits,
+    settings,
+    catalogue,
+  ] = await Promise.all([
+    batch<ReservationRow>(
+      "hotel_reservations",
+      "id, booking_reference, arrival_date, departure_date, currency",
+      "id",
+      ids,
+    ),
+    batch<Linked<ReservationRoomRow>>(
+      "hotel_reservation_rooms",
+      "id, reservation_id, hotel_room_id, arrival_date, departure_date, agreed_rate",
+      "reservation_id",
+      ids,
+    ),
+    batch<Linked<FolioRow>>(
+      "hotel_folios",
+      "id, reservation_id, currency, status",
+      "reservation_id",
+      ids,
+    ),
+    batch<Linked<TaxProfileRow>>(
+      "hotel_reservation_tax_profile",
+      "reservation_id, guest_tax_class, evidence_note, updated_at",
+      "reservation_id",
+      ids,
+      "reservation_id",
+    ),
+    batch<Linked<EvidenceRow>>(
+      "hotel_tourism_tax_evidence",
+      `reservation_id, ${EVIDENCE_COLS}`,
+      "reservation_id",
+      ids,
+    ),
+    batch<DepositRow>(
+      "hotel_reservation_deposits",
+      "id, reservation_id, status, amount, currency_code, n3_doc_code, created_at",
+      "reservation_id",
+      ids,
+    ),
+    readFinancialSettings(input.tenantId, db),
+    listAddonItems(input.tenantId, {}, db),
+  ]);
+  const [rooms, allLines] = await Promise.all([
+    batch<RoomRow>(
+      "hotel_rooms",
+      "id, room_number, display_name, n3_stock_id, n3_stock_code, n3_stock_name",
+      "id",
+      [...new Set(reservationRooms.map((r) => r.hotel_room_id))],
+    ),
+    batch<LineRow & { folio_id: string }>(
+      "hotel_folio_lines",
+      `folio_id, ${LINE_COLS}`,
+      "folio_id",
+      folios.map((f) => f.id),
+    ),
+  ]);
+  const byRoomId = new Map(rooms.map((r) => [r.id, r]));
+  return Promise.all(
+    reservations.map(async (reservation) => {
+      const folio = folios.find((f) => f.reservation_id === reservation.id) ?? null;
+      const lines = allLines.filter((l) => l.folio_id === folio?.id);
+      const profile = profiles.find((p) => p.reservation_id === reservation.id);
+      const bookingRooms = reservationRooms.filter((r) => r.reservation_id === reservation.id);
+      const evidence = evidenceRows.filter((e) => e.reservation_id === reservation.id);
+      const view = await buildFolioView(
+        {
+          tenantId: input.tenantId,
+          reservationId: reservation.id,
+          actorKey: "",
+          timezone: input.timezone,
+          capability: {
+            canAddItem: false,
+            canAdjust: false,
+            canSetTaxClass: false,
+            canManageCharges: false,
+          },
+        },
+        db,
+        {
+          reservation,
+          folio,
+          byRoomId,
+          rooms: bookingRooms,
+          linesResult: { rows: lines, lines: lines.map((l) => toStoredLine(l, new Map())) },
+          settings,
+          catalogue,
+          taxProfile: {
+            guestTaxClass: isGuestTaxClass(profile?.guest_tax_class)
+              ? profile!.guest_tax_class
+              : "unknown",
+            evidenceNote: profile?.evidence_note ?? null,
+            updatedAt: profile?.updated_at ?? null,
+          },
+          evidence: {
+            rows: evidence,
+            totalCents: evidence.reduce((sum, e) => sum + Number(e.amount_cents), 0),
+          },
+          primaryGuestName: null,
+        },
+      );
+      let depositAmount: number | null = null;
+      const ledger = deposits.filter((d) => d.reservation_id === reservation.id);
+      try {
+        depositAmount = summarizePostedDeposits(
+          ledger.map((d) => ({
+            status: d.status,
+            amount: Number(d.amount),
+            currencyCode: d.currency_code,
+            n3DocCode: d.n3_doc_code,
+            createdAt: d.created_at,
+          })),
+          reservation.currency,
+        ).total;
+      } catch {
+        /* Unsafe or conflicting evidence stays unavailable. */
+      }
+      return {
+        id: reservation.id,
+        currency: reservation.currency,
+        totalAmount:
+          view.readiness.calculationComplete &&
+          bookingRooms.length > 0 &&
+          bookingRooms.every((room) => parseCents(room.agreed_rate) !== null)
+            ? view.totals.grandTotal
+            : null,
+        depositAmount,
+        hasUnconfirmedDeposit: ledger.some(
+          (d) => d.status === "unknown" || d.status === "submitting",
+        ),
+      };
+    }),
+  );
 }
 
 async function readPrimaryGuestName(

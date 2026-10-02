@@ -6,6 +6,7 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { useCheckoutPreview, checkoutErrorMessage, formatMoney } from "@/lib/checkout-client";
 import { isoToMyDate } from "@/lib/malaysia-date";
+import { useReservationTabLabel } from "@/lib/workspace-context";
 
 export const Route = createFileRoute("/reservations/$id_/checkout")({
   head: () => ({
@@ -31,6 +32,7 @@ function CheckoutPreviewPage() {
   const { id } = useParams({ from: "/reservations/$id_/checkout" });
   const q = useCheckoutPreview(id);
   const d = q.data;
+  useReservationTabLabel(id, d?.reservation.bookingReference);
   const session = useSessionMe();
   const role = session.data?.authenticated === true ? session.data.role : null;
 
@@ -57,7 +59,7 @@ function CheckoutPreviewPage() {
               params={{ id }}
               className="rounded-md border border-input bg-background px-3 py-1.5 font-medium hover:bg-accent"
             >
-              Reservation
+              Edit
             </Link>
           </div>
         </div>

@@ -34,7 +34,7 @@ function OpenedTabs({
         {tabs.map((tab, index) => (
           <div
             key={tab.key}
-            className={`inline-flex shrink-0 items-center rounded-md border text-sm ${active?.key === tab.key ? "border-teal-500 bg-teal-50 text-teal-900" : "border-transparent text-slate-600 hover:bg-slate-100"}`}
+            className={`inline-flex shrink-0 items-center rounded-md border text-sm ${active?.key === tab.key ? (tab.view === "reservation" ? "border-blue-500 bg-blue-50 text-blue-900" : "border-teal-500 bg-teal-50 text-teal-900") : tab.view === "checkout" ? "border-teal-200 bg-teal-50/50 text-teal-900 hover:bg-teal-100" : "border-transparent text-slate-600 hover:bg-slate-100"}`}
           >
             <button
               type="button"
@@ -44,6 +44,9 @@ function OpenedTabs({
               className="min-h-10 px-3 font-medium"
             >
               {tab.label}
+              {tab.view === "checkout" ? (
+                <span className="ml-2 rounded bg-teal-100 px-1.5 py-0.5 text-xs">Checkout</span>
+              ) : null}
             </button>
             <button
               type="button"

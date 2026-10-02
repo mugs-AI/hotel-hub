@@ -3,6 +3,29 @@ import { WorkspaceStore, workspaceTab } from "@/lib/workspace-tabs";
 const id = "11111111-1111-4111-8111-111111111111";
 const tab = workspaceTab(`/reservations/${id}`, {}, "owner", "dedicated")!;
 describe("opened HotelHub workspaces", () => {
+  it("updates view metadata on an already opened booking without discarding its draft", () => {
+    const store = new WorkspaceStore();
+    store.open({ key: tab.key, label: "BK260920001", href: tab.href });
+    store.setDraft(tab.key, "deposit", "50.00", true);
+    store.open({ ...tab, label: "BK260920001" });
+    expect(store.getSnapshot().tabs[0].view).toBe("reservation");
+    expect(store.getDraft(tab.key, "deposit", "")).toBe("50.00");
+  });
+  it("keeps a loaded booking reference and deposit draft when switching checkout and reservation views", () => {
+    const store = new WorkspaceStore();
+    store.open(tab);
+    store.label(tab.key, "BK260920001");
+    store.setDraft(tab.key, "deposit", "50.00", true);
+    store.open(workspaceTab(`/reservations/${id}/checkout`, {}, "owner", "dedicated")!);
+    expect(store.getSnapshot().tabs).toHaveLength(1);
+    expect(store.getSnapshot().tabs[0]).toMatchObject({ label: "BK260920001", view: "checkout" });
+    store.open(workspaceTab(`/reservations/${id}`, {}, "owner", "dedicated")!);
+    expect(store.getSnapshot().tabs[0]).toMatchObject({
+      label: "BK260920001",
+      view: "reservation",
+    });
+    expect(store.getDraft(tab.key, "deposit", "")).toBe("50.00");
+  });
   it("deduplicates a reservation and keeps its editor as the last open view", () => {
     const store = new WorkspaceStore();
     store.open(tab);

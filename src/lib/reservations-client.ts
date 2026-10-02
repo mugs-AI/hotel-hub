@@ -96,6 +96,10 @@ export type ReservationListItem = {
   roomLabels: string[];
   guestCount: number;
   createdAt: string;
+  currency?: string | null;
+  totalAmount?: number | null;
+  depositAmount?: number | null;
+  hasUnconfirmedDeposit?: boolean;
 };
 export type ReservationListResponse = {
   items: ReservationListItem[];

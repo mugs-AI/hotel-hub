@@ -1,7 +1,12 @@
 import { hasPermission, type HotelRole, type Permission } from "./rbac";
 import { housekeepingAuthority } from "./housekeeping";
 
-export type WorkTab = { key: string; label: string; href: string };
+export type WorkTab = {
+  key: string;
+  label: string;
+  href: string;
+  view?: "reservation" | "checkout";
+};
 export type ViewScroll = { x: number; y: number };
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 const RESERVATION = new RegExp(`^/reservations/(${UUID})(?:/(edit|checkout))?$`, "i");
@@ -71,6 +76,14 @@ export function workspaceTab(
     key: record ? `reservation:${record[1].toLowerCase()}` : settings ? "/settings" : path,
     label: section.label,
     href: path + (query ? `?${query}` : ""),
+    ...(record
+      ? {
+          view:
+            record[2]?.toLowerCase() === "checkout"
+              ? ("checkout" as const)
+              : ("reservation" as const),
+        }
+      : {}),
   };
 }
 
@@ -105,7 +118,7 @@ export class WorkspaceStore {
           ? (old?.label ?? tab.label)
           : tab.label,
     };
-    if (old?.href === next.href && old.label === next.label) return;
+    if (old?.href === next.href && old.label === next.label && old.view === next.view) return;
     this.emit(
       old
         ? this.snapshot.tabs.map((t) => (t.key === tab.key ? next : t))

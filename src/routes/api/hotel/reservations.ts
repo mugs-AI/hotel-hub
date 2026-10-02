@@ -24,6 +24,9 @@ import { isValidMalaysianStateCode } from "@/lib/malaysia-states";
 import { logAudit } from "@/lib/audit.server";
 import { todayInKualaLumpurIso } from "@/lib/malaysia-date";
 import { resolvePropertyToday } from "@/lib/checkout-preview.server";
+import { buildReservationListAmounts, type ReservationListAmounts } from "@/lib/folio-store.server";
+import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
+import { hasPermission } from "@/lib/rbac";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -173,9 +176,34 @@ export async function handleListReservations({ request }: { request: Request }):
       sortDir: sortDirRaw !== null && isSortDirection(sortDirRaw) ? sortDirRaw : undefined,
     });
     // Run 5D2.1 privacy: never forward the raw N3 actor key to the browser.
+    let amounts: ReservationListAmounts[] = [];
+    if (
+      result.items.length &&
+      hasPermission(ctx.role, "hotel:folio:view") &&
+      hasPermission(ctx.role, "hotel:deposits:view")
+    ) {
+      try {
+        const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
+        amounts = await buildReservationListAmounts({
+          tenantId: ctx.session.tenantId!,
+          reservationIds: result.items.map((r) => r.id),
+          timezone: settings?.timezone ?? "Asia/Kuala_Lumpur",
+        });
+      } catch {
+        // Preserve the operational list; unavailable money is never replaced by zero.
+      }
+    }
+    const byId = new Map(amounts.map((a) => [a.id, a]));
     const items = result.items.map(({ createdByN3UserKey: _omit, ...rest }) => {
       void _omit;
-      return rest;
+      const value = byId.get(rest.id);
+      return {
+        ...rest,
+        currency: value?.currency ?? null,
+        totalAmount: value?.totalAmount ?? null,
+        depositAmount: value?.depositAmount ?? null,
+        hasUnconfirmedDeposit: value?.hasUnconfirmedDeposit ?? false,
+      };
     });
     const propertyDate = await resolvePropertyToday(ctx.session.tenantId!).catch(() =>
       todayInKualaLumpurIso(),

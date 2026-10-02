@@ -7,7 +7,6 @@ import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import {
   EMPTY_FILTERS,
-  formatCreatedAt,
   formatIsoDate,
   formatRoomLabelsList,
   friendlyError,
@@ -483,6 +482,10 @@ function ResultsCard(props: {
     roomLabels: string[];
     guestCount: number;
     createdAt: string;
+    currency?: string | null;
+    totalAmount?: number | null;
+    depositAmount?: number | null;
+    hasUnconfirmedDeposit?: boolean;
   }>;
   total: number;
   currentPage: number;
@@ -589,7 +592,6 @@ function ResultsCard(props: {
                   ["guestCount", "Guests"],
                   ["bookingSource", "Source"],
                   ["status", "Status"],
-                  ["createdAt", "Created"],
                 ] as Array<[SortKey, string]>
               ).map(([key, label]) => (
                 <SortHeader
@@ -601,6 +603,18 @@ function ResultsCard(props: {
                   onSort={onSort}
                 />
               ))}
+              <th
+                className="py-2 pr-4 text-right"
+                title="Prepared folio amount, including charges, taxes, discounts and rounding. Provisional until final billing."
+              >
+                Total amount
+              </th>
+              <th
+                className="py-2 pr-4 text-right"
+                title="Posted deposits only. Unconfirmed attempts are excluded."
+              >
+                Deposits
+              </th>
               <th className="py-2 pr-4"></th>
             </tr>
           </thead>
@@ -608,14 +622,14 @@ function ResultsCard(props: {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-t border-border/50">
-                  <td colSpan={10} className="py-3">
+                  <td colSpan={11} className="py-3">
                     <div className="h-4 w-full animate-pulse rounded bg-muted" />
                   </td>
                 </tr>
               ))
             ) : rows.length === 0 && !error ? (
               <tr>
-                <td colSpan={10} className="py-8 text-center text-muted-foreground">
+                <td colSpan={11} className="py-8 text-center text-muted-foreground">
                   <CalendarClock className="mx-auto mb-2 h-5 w-5" aria-hidden />
                   <p>No reservations match your filters.</p>
                   {canCreate ? (
@@ -652,6 +666,8 @@ function ResultsCard(props: {
                             guestName: r.primaryGuestName,
                             mobile: r.primaryGuestMobile,
                             bookingReference: r.bookingReference,
+                            reservationId: r.id,
+                            createdAt: r.createdAt,
                           })
                         }
                       >
@@ -691,8 +707,28 @@ function ResultsCard(props: {
                       </span>
                     ) : null}
                   </td>
-                  <td className="py-2 pr-4 text-sm text-muted-foreground">
-                    {formatCreatedAt(r.createdAt)}
+                  <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums">
+                    {r.currency && typeof r.totalAmount === "number" ? (
+                      `${r.currency === "MYR" ? "RM" : r.currency} ${r.totalAmount.toFixed(2)}`
+                    ) : (
+                      <span className="text-muted-foreground">Unavailable</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap py-2 pr-4 text-right tabular-nums">
+                    {r.currency && typeof r.depositAmount === "number" ? (
+                      `${r.currency === "MYR" ? "RM" : r.currency} ${r.depositAmount.toFixed(2)}`
+                    ) : (
+                      <span className="text-muted-foreground">Unavailable</span>
+                    )}
+                    {r.hasUnconfirmedDeposit ? (
+                      <span
+                        className="ml-1 text-amber-800"
+                        title="An unconfirmed deposit is excluded. Check its N3 result in the reservation."
+                        aria-label="Unconfirmed deposit requires review"
+                      >
+                        ⓘ
+                      </span>
+                    ) : null}
                   </td>
                   <td className="py-2 pr-4">
                     <Link

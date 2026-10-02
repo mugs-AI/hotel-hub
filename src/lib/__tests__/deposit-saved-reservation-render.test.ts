@@ -3,12 +3,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DepositDTO } from "@/lib/deposits-client";
+import type { ReservationDetailGuestDTO } from "@/lib/reservations-client";
 
 const view = vi.hoisted(() => ({
   status: "confirmed",
   error: null as { code: string } | null,
   review: false,
   deposits: [] as DepositDTO[],
+  guests: [] as ReservationDetailGuestDTO[],
   total: 0,
   preview: undefined as
     | undefined
@@ -59,7 +61,7 @@ vi.mock("@/lib/reservations-client", async (original) => ({
         createdAt: "2026-09-20T08:40:00Z",
         updatedAt: "2026-09-24T14:29:00Z",
         rooms: [],
-        guests: [],
+        guests: view.guests,
       },
       editCapabilities: { canAssignGuestRooms: false },
       checkInAction: null,
@@ -123,9 +125,40 @@ beforeEach(() => {
   view.error = null;
   view.preview = undefined;
   view.deposits = [];
+  view.guests = [];
   view.total = 0;
 });
 describe("saved reservation deposit flow", () => {
+  it("defaults to the primary guest even when another guest is listed first, and offers all saved guests", () => {
+    const guest = (id: string, isPrimary: boolean, mobile: string): ReservationDetailGuestDTO => ({
+      id,
+      guestId: id,
+      fullName: `Guest ${id}`,
+      isPrimary,
+      mobile,
+      email: `${id}@example.test`,
+      nationality: null,
+      nationalityCode: "MYS",
+      identityType: null,
+      identityNumberMasked: null,
+      notes: null,
+      addressLine1: null,
+      addressLine2: null,
+      addressLine3: null,
+      city: null,
+      postcode: null,
+      countryCode: "MYS",
+      stateCode: null,
+      stateProvince: null,
+      assignedReservationRoomId: null,
+    });
+    view.guests = [guest("second", false, "011-secondary"), guest("primary", true, "012-primary")];
+    const html = render(createElement(Route.options.component!));
+    expect(html).toContain("012-primary");
+    expect(html).not.toContain("011-secondary");
+    expect(html).toContain("All guests");
+    expect(html).toContain('value="second"');
+  });
   it("shows a compact posted receipt and saved payment name, with its posted total independent of empty entry fields", () => {
     view.deposits = [
       {
@@ -134,7 +167,7 @@ describe("saved reservation deposit flow", () => {
         amount: 50,
         currency: "MYR",
         n3DocCode: "OR2610/001",
-        n3ReceiptId: "n3",
+        n3ReceiptId: "f13a847f-4535-4223-1a1e-08df1f9d36fb",
         customerLabel: "THX SDN BHD, KENNY WONG",
         accountLabel: "700-0310 — MAYBANK",
         paymentLines: [
@@ -169,11 +202,49 @@ describe("saved reservation deposit flow", () => {
     expect(html).not.toContain("Recorded by</dt>");
     expect(html).toContain('aria-label="Deposit OR2610/001 details"');
     expect(html).toContain('aria-label="About this deposit entry"');
+    expect(html).toContain(
+      'href="https://n3.qne.cloud/ar/or/detail/f13a847f-4535-4223-1a1e-08df1f9d36fb"',
+    );
+    expect(html).toContain("Print in N3");
+    view.deposits[0].status = "unknown";
+    const uncertain = render(
+      createElement(DepositsCard, {
+        reservationId: "r",
+        canView: true,
+        canCreate: true,
+        eligible: true,
+      }),
+    );
+    expect(uncertain).not.toContain("Print in N3");
+    view.deposits[0].status = "posted";
+    view.deposits[0].n3ReceiptId = "../../outside";
+    expect(
+      render(
+        createElement(DepositsCard, {
+          reservationId: "r",
+          canView: true,
+          canCreate: true,
+          eligible: true,
+        }),
+      ),
+    ).not.toContain("Print in N3");
+    view.deposits[0].n3ReceiptId = "00000000-0000-0000-0000-000000000000";
+    expect(
+      render(
+        createElement(DepositsCard, {
+          reservationId: "r",
+          canView: true,
+          canCreate: true,
+          eligible: true,
+        }),
+      ),
+    ).not.toContain("Print in N3");
   });
   it("shows deposit entry before the folio on a checked-in reservation", () => {
     view.status = "checked_in";
     const html = render(createElement(Route.options.component!));
     expect(html).toContain("Add deposit");
+    expect(html).toContain("Prepare Checkout");
     expect(html.indexOf(">Deposits<")).toBeLessThan(html.indexOf("Folio (preparation only)"));
   });
   it("shows deposit entry immediately on a saved confirmed reservation", () => {
