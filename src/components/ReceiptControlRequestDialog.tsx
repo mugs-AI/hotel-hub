@@ -1,12 +1,14 @@
 // Request correction / Request void for a posted deposit receipt.
 // Shows original vs requested and the provisional deposit/balance difference.
 // Submitting only records a request; nothing changes in N3 or in totals.
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePaymentAccounts, type DepositDTO } from "@/lib/deposits-client";
 import { formatReceiptDelta, formatReceiptMoney } from "@/lib/receipt-controls";
 import {
   createReceiptControl,
+  getReceiptOriginal,
+  type ReceiptOriginalDTO,
   ReceiptControlClientError,
   receiptControlMessage,
   type ReceiptControlProposalInput,
@@ -34,6 +36,42 @@ export function parseAmountInput(raw: string): number | null {
   return n > 0 ? n : null;
 }
 
+export type ContactDraft = { name: string; address: string; phone: string; email: string };
+
+/** Prefill the edit form from the SAVED N3 contact (never blank). */
+export function contactDraftFromOriginal(c: ReceiptOriginalDTO["contact"]): ContactDraft {
+  return {
+    name: c.customerName,
+    address: `${c.remark1}${c.remark2}`,
+    phone: c.remark3,
+    email: c.remark4,
+  };
+}
+
+/**
+ * Build the correction proposal. Contact is sent ONLY in explicit edit mode
+ * and only when it differs from the saved contact; otherwise the server keeps
+ * the saved N3 name/remarks exactly. An amount-only change never erases them.
+ */
+export function buildCorrectionProposal(args: {
+  amount: number;
+  accountId: string;
+  editContact: boolean;
+  draft: ContactDraft;
+  saved: ContactDraft;
+}): ReceiptControlProposalInput {
+  const out: Extract<ReceiptControlProposalInput, { kind: "correction" }> = {
+    kind: "correction",
+    amount: args.amount,
+    accountId: args.accountId,
+  };
+  const changed = (Object.keys(args.saved) as Array<keyof ContactDraft>).some(
+    (k) => args.draft[k].trim() !== args.saved[k].trim(),
+  );
+  if (args.editContact && changed) out.contact = { ...args.draft };
+  return out;
+}
+
 const newKey = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -56,7 +94,21 @@ export function ReceiptControlRequestDialog({
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(deposit.amount.toFixed(2));
   const [accountId, setAccountId] = useState("");
-  const [contact, setContact] = useState({ name: "", address: "", phone: "", email: "" });
+  const [editContact, setEditContact] = useState(false);
+  const [contact, setContact] = useState<ContactDraft>({ name: "", address: "", phone: "", email: "" });
+  const original = useQuery({
+    queryKey: ["receipt-controls", "original", reservationId, deposit.id],
+    queryFn: () => getReceiptOriginal(reservationId, deposit.id),
+    enabled: kind === "correction",
+    retry: false,
+    staleTime: 0,
+  });
+  const saved = original.data ? contactDraftFromOriginal(original.data.original.contact) : null;
+  useEffect(() => {
+    if (!original.data) return;
+    setContact(contactDraftFromOriginal(original.data.original.contact));
+    setAccountId((cur) => cur || original.data.original.accountId || "");
+  }, [original.data]);
   // Stable identity for this dialog attempt; retries replay the same request.
   const [clientRequestId] = useState(newKey);
   const [error, setError] = useState("");
@@ -87,8 +139,11 @@ export function ReceiptControlRequestDialog({
     if (!reasonOk) return setError(receiptControlMessage("invalid_reason"));
     if (kind === "void") return submit.mutate({ kind: "void" });
     if (parsed === null) return setError(receiptControlMessage("invalid_amount"));
+    if (!saved) return setError(receiptControlMessage("n3_evidence_unavailable"));
     if (!accountId) return setError(receiptControlMessage("invalid_account"));
-    submit.mutate({ kind: "correction", amount: parsed, accountId, contact });
+    submit.mutate(
+      buildCorrectionProposal({ amount: parsed, accountId, editContact, draft: contact, saved }),
+    );
   };
 
   return (
@@ -127,6 +182,26 @@ export function ReceiptControlRequestDialog({
                     : "—"}
               </td>
             </tr>
+            {kind === "correction" && saved
+              ? (
+                  [
+                    ["name", "Bill-to name"],
+                    ["address", "Address"],
+                    ["phone", "Phone"],
+                    ["email", "Email"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <tr key={k}>
+                    <td>{label}</td>
+                    <td>{saved[k] || "—"}</td>
+                    <td>
+                      {!editContact || contact[k].trim() === saved[k].trim()
+                        ? "Unchanged"
+                        : contact[k].trim() || "(cleared)"}
+                    </td>
+                  </tr>
+                ))
+              : null}
           </tbody>
         </table>
         {kind === "correction" ? (
@@ -155,7 +230,27 @@ export function ReceiptControlRequestDialog({
                 ))}
               </select>
             </label>
-            {(["name", "address", "phone", "email"] as const).map((k) => (
+            {original.isPending ? (
+              <p className="text-muted-foreground">Loading saved receipt details from N3…</p>
+            ) : null}
+            {original.isError ? (
+              <p role="alert" className="text-red-700">
+                Saved receipt details could not be read from N3. Try again.
+              </p>
+            ) : null}
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={editContact}
+                disabled={!saved}
+                onChange={(e) => {
+                  setEditContact(e.target.checked);
+                  if (!e.target.checked && saved) setContact(saved);
+                }}
+              />
+              Change bill-to contact (otherwise the saved N3 contact is kept)
+            </label>
+            {editContact && (["name", "address", "phone", "email"] as const).map((k) => (
               <label key={k} className="capitalize">
                 {k === "name" ? "Bill-to name" : k}
                 <input
@@ -193,7 +288,7 @@ export function ReceiptControlRequestDialog({
             type="button"
             className="rounded px-3 py-1.5 text-sm font-semibold text-white"
             style={{ backgroundColor: NAVY }}
-            disabled={submit.isPending || !reasonOk}
+            disabled={submit.isPending || !reasonOk || (kind === "correction" && !saved)}
             onClick={onSubmit}
           >
             {submit.isPending ? "Sending…" : "Send request"}
