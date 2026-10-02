@@ -32,7 +32,17 @@ import { receiptAlertLabel } from "../../components/ReceiptAlertStatus";
 import {
   provisionalDeltaLines,
   parseAmountInput,
+  buildCorrectionProposal,
+  contactDraftFromOriginal,
 } from "../../components/ReceiptControlRequestDialog";
+import { requiresAccountEligibility, validateReceiptControlProposal } from "../receipt-controls";
+import {
+  invalidateReceiptEffects,
+  purgeForeignReceiptCache,
+  receiptIdentityKey,
+  RECEIPT_EFFECT_QUERY_PREFIXES,
+} from "../receipt-controls-client";
+import { readFileSync } from "node:fs";
 
 const RES = "44444444-4444-4444-8444-444444444444";
 const DEP = "55555555-5555-4555-8555-555555555555";
@@ -700,10 +710,147 @@ describe("UI rendering", () => {
     const html = renderToStaticMarkup(
       createElement(ReceiptRequestCard, { r: { ...dto!, selfApproved: true } }),
     );
-    expect(html).toContain("Approve");
+    // Approve is hidden until Review is opened AND the comparison acknowledged.
+    expect(html).not.toMatch(/>Approve</);
     expect(html).toContain("Reject");
     expect(html).toContain("Review");
     expect(html).toContain("audited");
     expect(html).toContain("Notification:");
+  });
+});
+
+
+describe("frozen42f review fixes", () => {
+  const amountOnly = (amount: number, accountId?: string) => ({
+    reservationId: RES,
+    depositId: DEP,
+    clientRequestId: KEY,
+    reason: "Amount keyed wrong",
+    proposal: { kind: "correction", amount, ...(accountId ? { accountId } : {}) },
+  });
+
+  it("amount-only correction preserves the saved N3 bill-to name and remarks exactly", async () => {
+    const { d, mem } = deps();
+    const dto = await createReceiptControlRequest(fd, amountOnly(80), d);
+    const row = [...mem.rows.values()][0]!;
+    expect(row.proposal).toMatchObject({ kind: "correction", amountCents: 8000 });
+    expect((row.proposal as any).contact).toEqual(receiptSnapshot().contact);
+    expect((row.proposal as any).accountId).toBe(ACC);
+    expect(dto.comparison.fields.map((f) => f.label)).toEqual(["Amount"]);
+  });
+
+  it("dialog proposal omits contact unless explicitly edited and changed", () => {
+    const saved = contactDraftFromOriginal(receiptSnapshot().contact);
+    expect(saved).toEqual({
+      name: "Test Guest",
+      address: "1 Test Street",
+      phone: "0100000000",
+      email: "guest@example.test",
+    });
+    const base = { amount: 80, accountId: ACC, draft: saved, saved };
+    expect(buildCorrectionProposal({ ...base, editContact: false })).not.toHaveProperty("contact");
+    expect(buildCorrectionProposal({ ...base, editContact: true })).not.toHaveProperty("contact");
+    const edited = { ...saved, phone: "0111111111" };
+    expect(
+      buildCorrectionProposal({ ...base, editContact: false, draft: edited }),
+    ).not.toHaveProperty("contact");
+    expect(buildCorrectionProposal({ ...base, editContact: true, draft: edited }).contact).toEqual(
+      edited,
+    );
+    // Round-trip: prefilled draft re-formats to the identical saved contact.
+    const v = validateReceiptControlProposal(
+      { kind: "correction", amount: 50, accountId: ACC, contact: { ...saved, phone: "0111111111" } },
+      receiptSnapshot(),
+    );
+    expect(v.kind === "correction" && v.contact.customerName).toBe("Test Guest");
+    expect(v.kind === "correction" && v.contact.remark1).toBe("1 Test Street");
+  });
+
+  it("account policy: contact-only keeps a disabled historical account; money/account change re-verifies even the same id", async () => {
+    const snap = receiptSnapshot();
+    const corr = (amountCents: number, accountId: string) =>
+      ({ kind: "correction", amountCents, accountId, contact: snap.contact }) as const;
+    expect(requiresAccountEligibility(snap, corr(5000, ACC))).toBe(false);
+    expect(requiresAccountEligibility(snap, corr(5000, ACC.toUpperCase()))).toBe(false);
+    expect(requiresAccountEligibility(snap, corr(8000, ACC))).toBe(true);
+    expect(requiresAccountEligibility(snap, corr(5000, "77777777-7777-4777-8777-777777777777"))).toBe(true);
+    expect(requiresAccountEligibility(snap, { kind: "void" })).toBe(false);
+
+    // Contact-only, original account now disabled: allowed, resolver never consulted.
+    const disabled = vi.fn(async () => null);
+    const c1 = deps({ resolveAccount: disabled });
+    await createReceiptControlRequest(
+      fd,
+      { ...amountOnly(50), proposal: { kind: "correction", amount: 50, contact: { ...contact, phone: "0111111111" } } },
+      c1.d,
+    );
+    expect(disabled).not.toHaveBeenCalled();
+
+    // Amount change on the SAME (now disabled) account: refused.
+    const c2 = deps({ resolveAccount: vi.fn(async () => null) });
+    await expect(createReceiptControlRequest(fd, amountOnly(80, ACC), c2.d)).rejects.toMatchObject({
+      code: "account_not_allowed",
+    });
+    expect(c2.d.resolveAccount).toHaveBeenCalledWith(fd, ACC, ACC);
+  });
+
+  it("verification re-checks the same account for a money change and holds Needs review when disabled", async () => {
+    let allowed = true;
+    const { d } = deps({ resolveAccount: vi.fn(async () => (allowed ? "Test Bank" : null)) });
+    const created = await createReceiptControlRequest(owner, amountOnly(80, ACC), d);
+    const approved = await decideReceiptControlRequest(
+      owner,
+      { requestId: created.id, decision: "approve", expectedVersion: created.version },
+      d,
+    );
+    allowed = false;
+    const out = await verifyReceiptControlRequest(
+      owner,
+      { requestId: approved.id, expectedVersion: approved.version },
+      d,
+    ).catch((e) => e);
+    const state = out?.state ?? out?.code;
+    expect(state).not.toBe("applied");
+  });
+
+  it("cache identity is tenant+user+role; foreign snapshots are purged; effects cover every consumer", () => {
+    expect(receiptIdentityKey({ authenticated: false })).toBeNull();
+    const k = receiptIdentityKey({
+      authenticated: true,
+      tenant: { tenantId: "t1" },
+      user: { n3UserKey: "u1" },
+      role: "owner",
+    });
+    expect(k).toBe("t1:u1:owner");
+    expect(
+      receiptIdentityKey({ authenticated: true, tenant: { tenantId: "t1" }, user: { n3UserKey: "u1" }, role: "front_desk" }),
+    ).not.toBe(k);
+    const keys: unknown[][] = [
+      ["receipt-controls", "t0:u0:owner", "queue"],
+      ["receipt-controls", "t1:u1:owner", "queue"],
+    ];
+    const removed: unknown[][] = [];
+    purgeForeignReceiptCache(
+      {
+        removeQueries: ({ predicate }) => {
+          for (const q of keys) if (predicate({ queryKey: q })) removed.push(q);
+        },
+      },
+      k,
+    );
+    expect(removed).toEqual([["receipt-controls", "t0:u0:owner", "queue"]]);
+    const inv: unknown[] = [];
+    invalidateReceiptEffects({ invalidateQueries: ({ queryKey }) => inv.push(queryKey[0]) });
+    for (const need of ["reservations", "departures", "checkout-preview", "financial-reporting", "deposits", "folio"])
+      expect(inv).toContain(need);
+    expect(RECEIPT_EFFECT_QUERY_PREFIXES.length).toBe(inv.length);
+  });
+
+  it("staged SQL: any in-flight claim fences decisions (reject cannot terminate a claimed Needs review)", () => {
+    const sql = readFileSync("db/migrations-pending/20261002110000_hh_receipt_controls.sql", "utf8");
+    const decide = sql.slice(sql.indexOf("FUNCTION public.hotelhub_receipt_control_decide"), sql.indexOf("FUNCTION public.hotelhub_receipt_control_claim"));
+    expect(decide).toMatch(/state = 'claimed'\) THEN\s+RAISE EXCEPTION 'claim_conflict'/);
+    expect(decide.indexOf("claim_conflict")).toBeLessThan(decide.indexOf("UPDATE public.hotel_receipt_control_requests"));
+    expect(mapDbError({ message: "claim_conflict" }).code).toBe("claim_conflict");
   });
 });
