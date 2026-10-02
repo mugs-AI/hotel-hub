@@ -721,7 +721,6 @@ describe("UI rendering", () => {
   });
 });
 
-
 describe("frozen42f review fixes", () => {
   const amountOnly = (amount: number, accountId?: string) => ({
     reservationId: RES,
@@ -756,12 +755,17 @@ describe("frozen42f review fixes", () => {
     expect(
       buildCorrectionProposal({ ...base, editContact: false, draft: edited }),
     ).not.toHaveProperty("contact");
-    expect(buildCorrectionProposal({ ...base, editContact: true, draft: edited }).contact).toEqual(
-      edited,
-    );
+    expect(
+      (buildCorrectionProposal({ ...base, editContact: true, draft: edited }) as any).contact,
+    ).toEqual(edited);
     // Round-trip: prefilled draft re-formats to the identical saved contact.
     const v = validateReceiptControlProposal(
-      { kind: "correction", amount: 50, accountId: ACC, contact: { ...saved, phone: "0111111111" } },
+      {
+        kind: "correction",
+        amount: 50,
+        accountId: ACC,
+        contact: { ...saved, phone: "0111111111" },
+      },
       receiptSnapshot(),
     );
     expect(v.kind === "correction" && v.contact.customerName).toBe("Test Guest");
@@ -775,7 +779,9 @@ describe("frozen42f review fixes", () => {
     expect(requiresAccountEligibility(snap, corr(5000, ACC))).toBe(false);
     expect(requiresAccountEligibility(snap, corr(5000, ACC.toUpperCase()))).toBe(false);
     expect(requiresAccountEligibility(snap, corr(8000, ACC))).toBe(true);
-    expect(requiresAccountEligibility(snap, corr(5000, "77777777-7777-4777-8777-777777777777"))).toBe(true);
+    expect(
+      requiresAccountEligibility(snap, corr(5000, "77777777-7777-4777-8777-777777777777")),
+    ).toBe(true);
     expect(requiresAccountEligibility(snap, { kind: "void" })).toBe(false);
 
     // Contact-only, original account now disabled: allowed, resolver never consulted.
@@ -783,7 +789,10 @@ describe("frozen42f review fixes", () => {
     const c1 = deps({ resolveAccount: disabled });
     await createReceiptControlRequest(
       fd,
-      { ...amountOnly(50), proposal: { kind: "correction", amount: 50, contact: { ...contact, phone: "0111111111" } } },
+      {
+        ...amountOnly(50),
+        proposal: { kind: "correction", amount: 50, contact: { ...contact, phone: "0111111111" } },
+      },
       c1.d,
     );
     expect(disabled).not.toHaveBeenCalled();
@@ -825,7 +834,12 @@ describe("frozen42f review fixes", () => {
     });
     expect(k).toBe("t1:u1:owner");
     expect(
-      receiptIdentityKey({ authenticated: true, tenant: { tenantId: "t1" }, user: { n3UserKey: "u1" }, role: "front_desk" }),
+      receiptIdentityKey({
+        authenticated: true,
+        tenant: { tenantId: "t1" },
+        user: { n3UserKey: "u1" },
+        role: "front_desk",
+      }),
     ).not.toBe(k);
     const keys: unknown[][] = [
       ["receipt-controls", "t0:u0:owner", "queue"],
@@ -843,7 +857,14 @@ describe("frozen42f review fixes", () => {
     expect(removed).toEqual([["receipt-controls", "t0:u0:owner", "queue"]]);
     const inv: unknown[] = [];
     invalidateReceiptEffects({ invalidateQueries: ({ queryKey }) => inv.push(queryKey[0]) });
-    for (const need of ["reservations", "departures", "checkout-preview", "financial-reporting", "deposits", "folio"])
+    for (const need of [
+      "reservations",
+      "departures",
+      "checkout-preview",
+      "financial-reporting",
+      "deposits",
+      "folio",
+    ])
       expect(inv).toContain(need);
     expect(RECEIPT_EFFECT_QUERY_PREFIXES.length).toBe(inv.length);
   });
@@ -881,10 +902,18 @@ describe("frozen42f review fixes", () => {
   });
 
   it("staged SQL: any in-flight claim fences decisions (reject cannot terminate a claimed Needs review)", () => {
-    const sql = readFileSync("db/migrations-pending/20261002110000_hh_receipt_controls.sql", "utf8");
-    const decide = sql.slice(sql.indexOf("FUNCTION public.hotelhub_receipt_control_decide"), sql.indexOf("FUNCTION public.hotelhub_receipt_control_claim"));
+    const sql = readFileSync(
+      "db/migrations-pending/20261002110000_hh_receipt_controls.sql",
+      "utf8",
+    );
+    const decide = sql.slice(
+      sql.indexOf("FUNCTION public.hotelhub_receipt_control_decide"),
+      sql.indexOf("FUNCTION public.hotelhub_receipt_control_claim"),
+    );
     expect(decide).toMatch(/state = 'claimed'\) THEN\s+RAISE EXCEPTION 'claim_conflict'/);
-    expect(decide.indexOf("claim_conflict")).toBeLessThan(decide.indexOf("UPDATE public.hotel_receipt_control_requests"));
+    expect(decide.indexOf("claim_conflict")).toBeLessThan(
+      decide.indexOf("UPDATE public.hotel_receipt_control_requests"),
+    );
     expect(mapDbError({ message: "claim_conflict" }).code).toBe("claim_conflict");
   });
 });
