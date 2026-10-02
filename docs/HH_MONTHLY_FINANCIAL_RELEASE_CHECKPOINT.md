@@ -52,7 +52,7 @@ Evidence: Vitest 1,821 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 
 
 ## Monthly review 5a26829 fixes — 2026-10-02
 
-1. No creation-date window: every posted HotelHub-linked deposit is discovered (keyset paging, 100k cap) and each is re-read by N3 GET; the N3 document date alone decides the month. Above `verifyCap` (100) the source is Unavailable (`verification_cap`), never partial. BLOCKER for larger hotels: no proven N3 document-date-indexed source exists (ARReceipts/List date filtering is unverified), so >100 lifetime HH receipts => Unavailable.
+1. No creation-date window: every posted HotelHub-linked deposit is discovered (keyset paging, 100k cap) and each is re-read by N3 GET; the N3 document date alone decides the month. Above `verifyCap` (100) the source is Unavailable (`verification_cap`), never partial. Superseded: see Month-date discovery section below.
 2. Corrected/voided receipts are re-verified live every read (amount, receipt id, currency, exact journal, payment lines; voided must read voided). Unreadable => Unavailable; drift => Needs review. Replacement-receipt effects cannot be re-read through the deposit and are Unavailable (stale).
 3. Versions/unresolved use `pagedAll`: stable order + `.range()` + exact count; missing/changed count or short read => Unavailable. voidedDepositIds removed (superseded by full discovery).
 4. Audit fields come from the latest effective version for the receipt.
@@ -61,3 +61,11 @@ Evidence: Vitest 1,821 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 
 7. Finance query keys use authenticated tenant/user/role; snapshots for other identities are purged on account change.
 
 Evidence: Vitest 1,831 passed / 15 skipped (116 files); tsgo 0; ESLint 0; vite production build OK. Protected files restored to a68664f. No N3 writes, alerts, migrations or publication.
+
+
+## Month-date discovery (option (a)) — 2026-10-02
+- Replaced lifetime re-read with documented ARReceipts/List docDate month discovery (`src/lib/n3-month-receipts.server.ts`, `docDateListPath` in `n3-receipts.server.ts`). Cap 100 now per selected-month candidates.
+- Tests: `bunx vitest run` => 116 files passed, 2 skipped; 1,843 tests passed, 15 skipped. New: >100 lifetime/<100 month succeeds; >100 month candidates Unavailable; filter ignored; count change/duplicate page/truncation/wrong order; list failure and 401; old-created N3-dated-in-month; non-HH crosslink not counted; isCancelled => Needs review only; reference drift; leap 2028-02 end-exclusive; query encoding/validation; strict '0000' page parsing.
+- `tsgo --noEmit` 0 errors; ESLint 0 errors on changed files; `vite build` succeeded.
+- Protected generated files drifted again and were restored to a68664f.
+- Not exercised: live N3 filter (no signed-in GET probe run), real-DB SQL, authenticated E2E, multi-session concurrency. No N3 writes, alerts, migrations or publication.
