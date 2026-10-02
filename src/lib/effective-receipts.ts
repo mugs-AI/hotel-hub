@@ -21,31 +21,38 @@ export type ReceiptVersionRow = {
   verifiedAt: string;
 };
 
-export type ReceiptOverlay =
-  | {
-      state: "active";
-      amountCents: number;
-      receiptId: string;
-      docCode: string;
-      paymentLines: ReceiptPaymentLine[];
-      verifiedAt: string;
-      replacementOf: string | null;
-    }
-  | { state: "voided"; verifiedAt: string }
-  | {
-      state: "needs_review";
-      amountCents: number | null;
-      receiptId: string | null;
-      docCode: string | null;
-    };
+/**
+ * Confirmed financial contribution, kept SEPARATE from the Needs review flag.
+ * `confirmed` is what verified N3 evidence proves; `needsReview` only warns.
+ * A Needs review warning never resurrects a receipt whose void was confirmed.
+ */
+export type ReceiptOverlay = {
+  confirmed:
+    | {
+        state: "active";
+        amountCents: number;
+        receiptId: string;
+        docCode: string;
+        paymentLines: ReceiptPaymentLine[];
+        verifiedAt: string;
+        replacementOf: string | null;
+      }
+    | { state: "voided"; verifiedAt: string }
+    /** No verified version yet: the original creation record still applies. */
+    | { state: "original" };
+  needsReview: boolean;
+};
 
-export type EffectiveState = "active" | "voided" | "needs_review";
+export type EffectiveState = "active" | "voided";
 
 /**
- * Collapse verified versions per deposit. A replacement counts only after the
- * original's void is confirmed; a confirmed void excludes the original even
- * when the replacement failed. Unresolved requests surface as Needs review and
- * keep the last confirmed figure.
+ * Collapse verified versions per deposit.
+ * - A replacement counts only after the original's void is confirmed.
+ * - A confirmed void excludes the original even when the replacement failed.
+ * - Only the LATEST replacement row counts, once; a later voided replacement
+ *   is never revived by an earlier active row of the same chain.
+ * - Unresolved requests add a Needs review warning without changing the
+ *   confirmed contribution.
  */
 export function computeReceiptOverlay(
   versions: readonly ReceiptVersionRow[],
@@ -62,47 +69,53 @@ export function computeReceiptOverlay(
     list.sort((a, b) => a.versionNo - b.versionNo);
     const own = list.filter((r) => r.replacementOf === null);
     const latestOwn = own[own.length - 1];
-    if (!latestOwn) continue; // replacement without confirmed void evidence never counts
+    if (!latestOwn) {
+      // Replacement without confirmed void evidence never counts.
+      out.set(depositId, { confirmed: { state: "original" }, needsReview: true });
+      continue;
+    }
     if (latestOwn.state === "voided") {
-      const replacement = list
-        .filter(
-          (r) =>
-            r.replacementOf !== null && r.state === "active" && r.versionNo > latestOwn.versionNo,
-        )
+      const latestReplacement = list
+        .filter((r) => r.replacementOf !== null && r.versionNo > latestOwn.versionNo)
         .pop();
-      out.set(
-        depositId,
-        replacement
-          ? {
-              state: "active",
-              amountCents: replacement.amountCents,
-              receiptId: replacement.receiptId,
-              docCode: replacement.docCode,
-              paymentLines: replacement.paymentLines,
-              verifiedAt: replacement.verifiedAt,
-              replacementOf: replacement.replacementOf,
-            }
-          : { state: "voided", verifiedAt: latestOwn.verifiedAt },
-      );
+      out.set(depositId, {
+        needsReview: false,
+        confirmed:
+          latestReplacement && latestReplacement.state === "active"
+            ? {
+                state: "active",
+                amountCents: latestReplacement.amountCents,
+                receiptId: latestReplacement.receiptId,
+                docCode: latestReplacement.docCode,
+                paymentLines: latestReplacement.paymentLines,
+                verifiedAt: latestReplacement.verifiedAt,
+                replacementOf: latestReplacement.replacementOf,
+              }
+            : {
+                state: "voided",
+                verifiedAt: (latestReplacement ?? latestOwn).verifiedAt,
+              },
+      });
     } else {
       out.set(depositId, {
-        state: "active",
-        amountCents: latestOwn.amountCents,
-        receiptId: latestOwn.receiptId,
-        docCode: latestOwn.docCode,
-        paymentLines: latestOwn.paymentLines,
-        verifiedAt: latestOwn.verifiedAt,
-        replacementOf: null,
+        needsReview: false,
+        confirmed: {
+          state: "active",
+          amountCents: latestOwn.amountCents,
+          receiptId: latestOwn.receiptId,
+          docCode: latestOwn.docCode,
+          paymentLines: latestOwn.paymentLines,
+          verifiedAt: latestOwn.verifiedAt,
+          replacementOf: null,
+        },
       });
     }
   }
   for (const depositId of unresolvedDepositIds) {
     const prior = out.get(depositId);
     out.set(depositId, {
-      state: "needs_review",
-      amountCents: prior?.state === "active" ? prior.amountCents : null,
-      receiptId: prior?.state === "active" ? prior.receiptId : null,
-      docCode: prior?.state === "active" ? prior.docCode : null,
+      confirmed: prior?.confirmed ?? { state: "original" },
+      needsReview: true,
     });
   }
   return out;
@@ -116,7 +129,10 @@ type OverlayTarget = {
 };
 
 export type WithEffective<T> = T & {
+  /** Confirmed state; undefined means the original record applies. */
   effectiveState?: EffectiveState;
+  /** Warning only — never changes the confirmed contribution. */
+  needsReview?: boolean;
   /** Creation-time amount when an effective figure replaced it. */
   originalAmount?: number;
   effectivePaymentLines?: ReceiptPaymentLine[];
@@ -130,25 +146,18 @@ export function applyEffectiveReceipts<T extends OverlayTarget>(
   return rows.map((row) => {
     const o = overlay.get(row.id);
     if (!o) return { ...row };
-    if (o.state === "voided") return { ...row, effectiveState: "voided" as const };
-    if (o.state === "needs_review") {
-      if (o.amountCents === null) return { ...row, effectiveState: "needs_review" as const };
-      return {
-        ...row,
-        amount: centsToAmount(o.amountCents),
-        originalAmount: Number(row.amount),
-        n3ReceiptId: o.receiptId,
-        n3DocCode: o.docCode,
-        effectiveState: "needs_review" as const,
-      };
-    }
+    const flag = o.needsReview ? { needsReview: true as const } : {};
+    const c = o.confirmed;
+    if (c.state === "original") return { ...row, ...flag };
+    if (c.state === "voided") return { ...row, ...flag, effectiveState: "voided" as const };
     return {
       ...row,
-      amount: centsToAmount(o.amountCents),
+      ...flag,
+      amount: centsToAmount(c.amountCents),
       originalAmount: Number(row.amount),
-      n3ReceiptId: o.receiptId,
-      n3DocCode: o.docCode,
-      effectivePaymentLines: o.paymentLines,
+      n3ReceiptId: c.receiptId,
+      n3DocCode: c.docCode,
+      effectivePaymentLines: c.paymentLines,
       effectiveState: "active" as const,
     };
   });

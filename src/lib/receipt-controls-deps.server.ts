@@ -22,7 +22,7 @@ async function loadDeposit(tenantId: string, depositId: string): Promise<ScopedD
   const res = await (await admin())
     .from("hotel_reservation_deposits")
     .select(
-      "id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, currency_code, payment_lines",
+      "id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, n3_reference_no, currency_code, payment_lines",
     )
     .eq("tenant_id", tenantId)
     .eq("id", depositId)
@@ -37,6 +37,7 @@ async function loadDeposit(tenantId: string, depositId: string): Promise<ScopedD
     n3ReceiptId: r.n3_receipt_id ?? null,
     n3DocCode: r.n3_doc_code ?? null,
     n3CustomerId: r.n3_customer_id ?? null,
+    n3ReferenceNo: r.n3_reference_no,
     currencyCode: r.currency_code,
     paymentLines: Array.isArray(r.payment_lines) ? r.payment_lines : [],
   };

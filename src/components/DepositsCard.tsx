@@ -415,7 +415,7 @@ export function DepositsCard({
                     </>
                   );
                 })()}
-                {d.effectiveState === "needs_review" ? (
+                {d.needsReview ? (
                   <span className="text-xs font-semibold" style={{ color: GOLD }}>
                     Needs review
                   </span>

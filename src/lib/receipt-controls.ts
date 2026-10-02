@@ -55,6 +55,10 @@ export type ReceiptSnapshot = {
   contact: ReceiptContactFields;
   documentState: "active" | "voided" | "unknown";
   matchingState: "unmatched" | "matched" | "refunded" | "unknown";
+  /** Immutable HotelHub reference bound to this receipt. */
+  reference?: string | null;
+  /** GL posting exactly equals this receipt (accounts, totals, doc, reference). */
+  journalExact?: boolean;
   sourceFingerprint: string;
   verifiedAt: string;
 };

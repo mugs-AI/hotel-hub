@@ -153,4 +153,5 @@ Execution method has not been chosen. Review this plan together with its approve
 - [x] Task 4 manual execute (no N3 write) + GET-only verify with atomic claim/complete
 - [x] Task 5 effective overlay wired into deposits list, folio/print statement, reservation list totals, checkout verification; request dialog + Owner queue
 - [x] Task 6 outbox delivery with transport disabled (alerts settle as "disabled"); status UI
+- [x] Review fixes (15bf): separate confirmed vs Needs review; exact evidence/journal binding; void fails closed; compound FKs; UTF-16 RPC reason; approval-gated claim; fenced complete; alert claim token. PGlite 47/47.
 - [ ] Release: review + apply migrations, then signed-in end-to-end check against the real database

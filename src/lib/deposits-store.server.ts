@@ -1752,7 +1752,8 @@ export async function buildDepositPreview(
 /** Sanitized browser-facing DTO. Never includes N3 internal customer/account ids. */
 export function toDepositDTO(
   d: DepositRecord & {
-    effectiveState?: "active" | "voided" | "needs_review";
+    effectiveState?: "active" | "voided";
+    needsReview?: boolean;
     originalAmount?: number;
     effectivePaymentLines?: Array<{
       accountId: string;
@@ -1791,6 +1792,7 @@ export function toDepositDTO(
           amount: l.amount,
         })),
     effectiveState: d.effectiveState ?? null,
+    needsReview: d.needsReview === true,
     originalAmount: d.originalAmount ?? null,
     description: d.description,
     // Run 5D2.1 privacy: the raw N3 user key is NEVER a display value.

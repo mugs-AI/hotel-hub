@@ -23,6 +23,8 @@ export type ScopedDeposit = {
   n3ReceiptId: string | null;
   n3DocCode: string | null;
   n3CustomerId: string | null;
+  /** Immutable HotelHub reference saved at creation; bound on every read. */
+  n3ReferenceNo: string;
   currencyCode: string;
   paymentLines: Array<{ id: string; code: string; name: string; amount: number }>;
 };
@@ -39,6 +41,13 @@ export type EvidenceDeps = {
  * (docs/HH_RECEIPT_CONTROL_N3_CONTRACT.md). Environment flags are deliberately
  * ignored until a reviewed change records proof and wires them here.
  */
+/**
+ * No official contract proves how an N3 cancellation neutralizes the original
+ * journal. Until it does, a void can never be verified as financially done;
+ * it always lands in Needs review for manual accounting confirmation.
+ */
+export const VOID_JOURNAL_CONTRACT_PROVEN = false as boolean;
+
 export function receiptControlCapabilities(): {
   directEdit: boolean;
   voidReplace: boolean;
@@ -84,35 +93,72 @@ function failOutcome(o: N3Outcome): never {
   throw new ReceiptControlError("n3_evidence_unavailable");
 }
 
-type Journal = { digest: string; balancedCents: number | null; debits: Map<string, number> };
+type Journal = {
+  digest: string;
+  /** Exact per-account debit / credit cents; null when any row is unreadable. */
+  debits: Map<string, number> | null;
+  credits: Map<string, number> | null;
+  /** Every row carries the document code and HotelHub reference it posts. */
+  docRefs: Array<{ docCode: string | null; reference: string | null }>;
+};
 
 function readJournal(o: N3Outcome): Journal {
   if (o.kind !== "response" || o.status < 200 || o.status >= 300) failOutcome(o);
   const data = unwrap(o.body);
   const rows = Array.isArray(data) ? data : (pick(data, "details") ?? pick(data, "lines"));
-  if (!Array.isArray(rows)) return { digest: "unreadable", balancedCents: null, debits: new Map() };
-  let dr = 0,
-    cr = 0,
-    bad = false;
+  if (!Array.isArray(rows) || rows.length === 0)
+    return { digest: "unreadable", debits: null, credits: null, docRefs: [] };
+  let bad = false;
   const debits = new Map<string, number>();
+  const credits = new Map<string, number>();
+  const docRefs: Journal["docRefs"] = [];
   const norm: string[] = [];
   for (const row of rows) {
     const d = cents(pick(row, "debit") ?? pick(row, "debitAmount") ?? 0);
     const c = cents(pick(row, "credit") ?? pick(row, "creditAmount") ?? 0);
     const id = str(pick(row, "accountId") ?? pick(row, "glAccountId"))?.toLowerCase() ?? "";
     const code = str(pick(row, "accountCode") ?? pick(row, "glAccountCode")) ?? "";
-    if (d === null || c === null || d < 0 || c < 0 || d > 0 === c > 0) bad = true;
-    dr += d ?? 0;
-    cr += c ?? 0;
-    if ((d ?? 0) > 0 && id) debits.set(id, (debits.get(id) ?? 0) + (d ?? 0));
+    if (!id || d === null || c === null || d < 0 || c < 0 || d > 0 === c > 0) bad = true;
+    if ((d ?? 0) > 0) debits.set(id, (debits.get(id) ?? 0) + (d ?? 0));
+    if ((c ?? 0) > 0) credits.set(id, (credits.get(id) ?? 0) + (c ?? 0));
+    docRefs.push({
+      docCode: str(pick(row, "docCode") ?? pick(row, "docNo")),
+      reference: str(pick(row, "referenceNo") ?? pick(row, "reference")),
+    });
     norm.push(`${id}|${code}|${d}|${c}`);
   }
   norm.sort();
   return {
     digest: norm.join(";"),
-    balancedCents: !bad && dr === cr && dr > 0 ? dr : null,
-    debits,
+    debits: bad ? null : debits,
+    credits: bad ? null : credits,
+    docRefs,
   };
+}
+
+/**
+ * Exact receipt journal: payment-account debits equal the saved payment lines
+ * account-for-account, one customer (AR) credit equals the receipt total, and
+ * every row names this document and HotelHub reference. Balanced alone is NOT
+ * enough; any unexplained line fails.
+ */
+export function journalMatchesReceipt(
+  j: Journal,
+  receipt: { amountCents: number; docCode: string; reference: string },
+  paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
+): boolean {
+  if (!j.debits || !j.credits) return false;
+  const expected = new Map<string, number>();
+  for (const l of paymentLines) {
+    const k = l.accountId.toLowerCase();
+    expected.set(k, (expected.get(k) ?? 0) + l.amountCents);
+  }
+  if (expected.size !== j.debits.size) return false;
+  for (const [k, v] of expected) if (j.debits.get(k) !== v) return false;
+  if (j.credits.size !== 1) return false;
+  const [creditAccount, creditCents] = [...j.credits][0]!;
+  if (expected.has(creditAccount) || creditCents !== receipt.amountCents) return false;
+  return j.docRefs.every((r) => r.docCode === receipt.docCode && r.reference === receipt.reference);
 }
 
 export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string): string {
@@ -125,6 +171,8 @@ export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string)
     amountCents: snap.amountCents,
     paymentLines: snap.paymentLines.map((l) => [l.accountId.toLowerCase(), l.amountCents]),
     contact: snap.contact,
+    reference: snap.reference ?? null,
+    journalExact: snap.journalExact ?? false,
     documentState: snap.documentState,
     matchingState: snap.matchingState,
     journal: journalDigest,
@@ -154,6 +202,8 @@ export async function readReceiptControlEvidence(
   )?.toUpperCase();
   if (
     id?.toLowerCase() !== dep.n3ReceiptId.toLowerCase() ||
+    (dep.n3DocCode !== null && str(pick(r, "docCode")) !== dep.n3DocCode) ||
+    str(pick(r, "referenceNo")) !== dep.n3ReferenceNo ||
     (docType !== null && docType !== "AROR") ||
     str(pick(r, "customerId"))?.toLowerCase() !== dep.n3CustomerId.toLowerCase() ||
     currency !== dep.currencyCode.toUpperCase()
@@ -162,7 +212,14 @@ export async function readReceiptControlEvidence(
   const amountCents = cents(pick(r, "totalAmount") ?? pick(r, "netTotalAmount"));
   const docCode = str(pick(r, "docCode"));
   const customerName = str(pick(r, "customerName"));
-  if (amountCents === null || !docCode || !customerName)
+  const documentDate = (str(pick(r, "docDate")) ?? "").slice(0, 10);
+  if (
+    amountCents === null ||
+    amountCents <= 0 ||
+    !docCode ||
+    !customerName ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(documentDate)
+  )
     throw new ReceiptControlError("n3_evidence_incomplete");
 
   const cancelled = pick(r, "isCancelled");
@@ -173,7 +230,9 @@ export async function readReceiptControlEvidence(
         ? "active"
         : "unknown";
   const knockoff = pick(r, "knockoff");
-  const refund = cents(pick(r, "refundAmount") ?? 0);
+  // Missing refund data is UNKNOWN, never silently zero.
+  const refundRaw = pick(r, "refundAmount");
+  const refund = refundRaw === undefined || refundRaw === null ? null : cents(refundRaw);
   const outstanding = cents(pick(r, "outstandingAmount"));
   const matchingState: ReceiptSnapshot["matchingState"] =
     refund !== null && refund > 0
@@ -200,8 +259,11 @@ export async function readReceiptControlEvidence(
             amountCents,
           },
         ];
-  if (rawLines.some((l) => !l.accountId || l.amountCents === null))
+  if (rawLines.some((l) => !l.accountId || l.amountCents === null || l.amountCents <= 0))
     throw new ReceiptControlError("n3_evidence_incomplete");
+  const lineTotal = rawLines.reduce((sum, l) => sum + (l.amountCents ?? 0), 0);
+  if (!Number.isSafeInteger(lineTotal) || lineTotal !== amountCents)
+    throw new ReceiptControlError("n3_evidence_mismatch");
   const paymentLines = rawLines.map((l) => {
     const s = saved.get(l.accountId.toLowerCase());
     return {
@@ -222,17 +284,20 @@ export async function readReceiptControlEvidence(
   const snap: ReceiptSnapshot = {
     receiptId: id!,
     docCode,
-    documentDate: (str(pick(r, "docDate")) ?? "").slice(0, 10),
+    documentDate,
+    reference: dep.n3ReferenceNo,
     customerId: dep.n3CustomerId,
     currency: currency!,
     amountCents,
     paymentLines,
     contact,
-    // A journal that does not balance to the receipt amount is not evidence.
-    documentState:
-      documentState === "active" && journal.balancedCents !== amountCents
-        ? "unknown"
-        : documentState,
+    journalExact: journalMatchesReceipt(
+      journal,
+      { amountCents, docCode, reference: dep.n3ReferenceNo },
+      paymentLines,
+    ),
+    // A journal that is not the exact receipt posting is not evidence.
+    documentState,
     matchingState,
     sourceFingerprint: "",
     verifiedAt: (deps.now ?? (() => new Date().toISOString()))(),
@@ -255,15 +320,24 @@ export function verifyReceiptControlResult(
   if (
     evidence.receiptId.toLowerCase() !== original.receiptId.toLowerCase() ||
     evidence.customerId.toLowerCase() !== original.customerId.toLowerCase() ||
-    evidence.currency !== original.currency
+    evidence.currency !== original.currency ||
+    evidence.docCode !== original.docCode ||
+    evidence.documentDate !== original.documentDate ||
+    (evidence.reference ?? null) !== (original.reference ?? null)
   )
     return "mismatch";
   if (proposal.kind === "void") {
-    if (evidence.documentState === "voided") return "verified";
-    return evidence.documentState === "unknown" ? "insufficient" : "mismatch";
+    if (evidence.documentState === "active") return "mismatch";
+    // Cancellation flag alone is not proof the journal was neutralized.
+    if (!VOID_JOURNAL_CONTRACT_PROVEN) return "insufficient";
+    return evidence.documentState === "voided" ? "verified" : "insufficient";
   }
   if (evidence.documentState === "voided") return "mismatch";
-  if (evidence.documentState === "unknown" || evidence.matchingState === "unknown")
+  if (
+    evidence.documentState === "unknown" ||
+    evidence.matchingState === "unknown" ||
+    evidence.journalExact !== true
+  )
     return "insufficient";
   if (evidence.matchingState !== "unmatched") return "mismatch";
   const line = evidence.paymentLines;

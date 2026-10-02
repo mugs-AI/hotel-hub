@@ -48,9 +48,9 @@ export async function verifyReceiptControlRequest(
   if (!row) throw new ReceiptControlError("request_not_found");
   if (row.state !== "approved_awaiting_n3" && row.state !== "needs_review")
     throw new ReceiptControlError("invalid_transition");
-  if (row.state === "needs_review" && !row.decidedBy)
-    // Held before approval: the Owner must reject or re-request, not verify.
-    throw new ReceiptControlError("invalid_transition");
+  if (!row.approvedAt)
+    // Held before approval (pending -> Hold -> Needs review): never verifiable.
+    throw new ReceiptControlError("not_approved");
 
   // Read first: an expired N3 session changes nothing.
   let evidence: ReceiptSnapshot | null = null;

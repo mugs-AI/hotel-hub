@@ -40,6 +40,9 @@ export type RequestRow = {
   requestedAt: string;
   decidedBy: string | null;
   decidedAt: string | null;
+  /** Set only by an Owner approval (never by Hold). Verify requires it. */
+  approvedBy: string | null;
+  approvedAt: string | null;
   outcomeCode: string | null;
 };
 
@@ -132,6 +135,10 @@ const DB_CODES = new Set([
   "invalid_transition",
   "claim_not_found",
   "receipt_control_immutable",
+  "not_approved",
+  "claim_stale",
+  "invalid_reason",
+  "automation_unavailable",
 ]);
 
 /** Map a database error to a safe code; missing objects = staged migration not applied. */
@@ -163,12 +170,14 @@ function toRow(r: any): RequestRow {
     requestedAt: r.requested_at,
     decidedBy: r.decided_by_n3_user_key ?? null,
     decidedAt: r.decided_at ?? null,
+    approvedBy: r.approved_by_n3_user_key ?? null,
+    approvedAt: r.approved_at ?? null,
     outcomeCode: r.outcome_code ?? null,
   };
 }
 
 const REQ_COLS =
-  "id, tenant_id, reservation_id, deposit_id, client_request_id, request_fingerprint, kind, reason, original, proposal, comparison, execution_mode, state, version, requested_by_n3_user_key, requested_at, decided_by_n3_user_key, decided_at, outcome_code";
+  "id, tenant_id, reservation_id, deposit_id, client_request_id, request_fingerprint, kind, reason, original, proposal, comparison, execution_mode, state, version, requested_by_n3_user_key, requested_at, decided_by_n3_user_key, decided_at, approved_by_n3_user_key, approved_at, outcome_code";
 
 /** Production implementation: service-role client, loaded lazily inside calls. */
 export function supabaseReceiptControlDb(): ReceiptControlDb {
@@ -467,6 +476,8 @@ async function approvalHoldReason(
   }
   if (current.documentState !== "active" || current.matchingState !== "unmatched")
     return "receipt_restricted";
+  // Balanced GL is not enough: the posting must exactly equal this receipt.
+  if (current.journalExact !== true) return "journal_unproven";
   if (current.sourceFingerprint !== row.original.sourceFingerprint)
     return "n3_changed_since_request";
   const walkIn = await deps.walkInCustomerId(actor.tenantId);
@@ -562,7 +573,7 @@ export async function toDTOs(
       canVerify:
         owner &&
         (r.state === "approved_awaiting_n3" ||
-          (r.state === "needs_review" && r.decidedBy !== null)),
+          (r.state === "needs_review" && r.approvedAt !== null)),
       outcomeMessage: r.outcomeCode ? (OUTCOME_MESSAGE[r.outcomeCode] ?? null) : null,
       alert: latestAlert
         ? {

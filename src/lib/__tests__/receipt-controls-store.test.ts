@@ -81,6 +81,8 @@ function memoryDb() {
         requestedAt: new Date().toISOString(),
         decidedBy: null,
         decidedAt: null,
+        approvedBy: null,
+        approvedAt: null,
         outcomeCode: null,
       };
       rows.set(row.id, row);
@@ -115,12 +117,15 @@ function memoryDb() {
         version: r.version + 1,
         outcomeCode: a.outcomeCode,
         decidedBy: a.decision === "hold" ? r.decidedBy : a.actor,
+        approvedBy: a.decision === "approve" ? a.actor : r.approvedBy,
+        approvedAt: a.decision === "approve" ? "now" : r.approvedAt,
       };
       rows.set(r.id, next);
       return next;
     },
     async claim(a) {
       const r = rows.get(a.requestId)!;
+      if (!r.approvedAt) throw new ReceiptControlError("not_approved");
       if (
         r.version !== a.expectedVersion ||
         !["approved_awaiting_n3", "needs_review"].includes(r.state)
@@ -140,7 +145,12 @@ function memoryDb() {
       const r = rows.get(a.requestId)!;
       if (claims.get(r.id) !== a.executionId) throw new ReceiptControlError("claim_not_found");
       claims.delete(r.id);
-      if ((a.toState === "applied") !== (a.version !== null))
+      if (!r.approvedAt || !["applying", "needs_review"].includes(r.state))
+        throw new ReceiptControlError("claim_stale");
+      if (
+        (a.toState === "applied" && !a.version) ||
+        (a.toState !== "applied" && a.version && a.version.state !== "voided")
+      )
         throw new ReceiptControlError("invalid_transition");
       if (a.version) versions.push({ depositId: r.depositId, ...a.version });
       const next = { ...r, state: a.toState, version: r.version + 1, outcomeCode: a.outcomeCode };
@@ -453,7 +463,7 @@ describe("execute + verify (manual mode)", () => {
     );
     expect(dto.state).toBe("needs_review");
   });
-  it("confirmed void records a voided version", async () => {
+  it("cancellation flag alone holds Needs review and records NO voided version", async () => {
     const { d, req, mem } = await approved(() => receiptSnapshot({ documentState: "voided" }), {
       ...correction(),
       proposal: { kind: "void" },
@@ -463,8 +473,8 @@ describe("execute + verify (manual mode)", () => {
       { requestId: req.id, expectedVersion: req.version },
       d,
     );
-    expect(dto.state).toBe("applied");
-    expect(mem.versions[0]).toMatchObject({ state: "voided" });
+    expect(dto.state).toBe("needs_review");
+    expect(mem.versions).toHaveLength(0);
   });
   it("expired N3 session changes nothing", async () => {
     const { d, req, mem } = await approved(() => {
@@ -531,7 +541,113 @@ describe("effective overlay loader", () => {
       ],
       unresolved: async () => ["d1"],
     });
-    expect(o.get("d1")).toMatchObject({ state: "needs_review", amountCents: null });
+    expect(o.get("d1")).toEqual({
+      confirmed: { state: "voided", verifiedAt: "t" },
+      needsReview: true,
+    });
+  });
+  it("complete may record CONFIRMED void evidence while the overall step fails", async () => {
+    const mem = memoryDb();
+    const req = await mem.db.create({
+      tenantId: "t1",
+      reservationId: "r1",
+      depositId: "d1",
+      clientRequestId: "k-void",
+      fingerprint: "f".repeat(64),
+      kind: "void",
+      reason: "Duplicate",
+      original: receiptSnapshot(),
+      proposal: { kind: "void" },
+      comparison: { fields: [], depositDeltaCents: -5000, balanceDeltaCents: 5000 },
+      originalCents: 5000,
+      proposedCents: null,
+      actor: "fd",
+    });
+    const a = await mem.db.decide({
+      tenantId: "t1",
+      requestId: req.id,
+      expectedVersion: 1,
+      decision: "approve",
+      toState: "approved_awaiting_n3",
+      actor: "owner",
+      outcomeCode: null,
+      note: null,
+    });
+    const claim = await mem.db.claim({
+      tenantId: "t1",
+      requestId: req.id,
+      expectedVersion: a.version,
+      step: "verify",
+      actor: "owner",
+    });
+    const voided = {
+      state: "voided" as const,
+      receiptId: "x",
+      docCode: "OR",
+      documentDate: "2026-10-01",
+      currency: "MYR",
+      amountCents: 5000,
+      paymentLines: [],
+      replacementOf: null,
+      fingerprint: "f",
+    };
+    const done = await mem.db.complete({
+      tenantId: "t1",
+      requestId: req.id,
+      executionId: claim!,
+      toState: "failed",
+      outcomeCode: "replacement_failed",
+      actor: "owner",
+      version: voided,
+    });
+    expect(done.state).toBe("failed");
+    expect(mem.versions).toEqual([expect.objectContaining({ state: "voided" })]);
+  });
+});
+
+describe("review blocker: verify requires an approval", () => {
+  it("pending -> Hold -> Needs review can never verify into Applied", async () => {
+    const mem = memoryDb();
+    const req = await mem.db.create({
+      tenantId: "t1",
+      reservationId: "r1",
+      depositId: "d1",
+      clientRequestId: "k-hold",
+      fingerprint: "f".repeat(64),
+      kind: "void",
+      reason: "Duplicate",
+      original: receiptSnapshot(),
+      proposal: { kind: "void" },
+      comparison: { fields: [], depositDeltaCents: -5000, balanceDeltaCents: 5000 },
+      originalCents: 5000,
+      proposedCents: null,
+      actor: "fd",
+    });
+    const held = await mem.db.decide({
+      tenantId: "t1",
+      requestId: req.id,
+      expectedVersion: 1,
+      decision: "hold",
+      toState: "needs_review",
+      actor: "owner",
+      outcomeCode: "n3_changed_since_request",
+      note: null,
+    });
+    const d = { ...deps().d, db: mem.db };
+    await expect(
+      verifyReceiptControlRequest(owner, { requestId: held.id, expectedVersion: held.version }, d),
+    ).rejects.toMatchObject({ code: "not_approved" });
+    await expect(
+      mem.db.claim({
+        tenantId: "t1",
+        requestId: held.id,
+        expectedVersion: held.version,
+        step: "verify",
+        actor: "owner",
+      }),
+    ).rejects.toMatchObject({ code: "not_approved" });
+    expect((await mem.db.get("t1", held.id))!.state).toBe("needs_review");
+    expect(mem.versions).toHaveLength(0);
   });
 });
 
@@ -550,11 +666,19 @@ describe("alerts (transport disabled)", () => {
   it("claims and settles as disabled; never sends", async () => {
     const settle = vi.fn(async () => {});
     const out = await deliverReceiptAlerts("t1", {
-      claim: async () => [{ id: "a1", tenantId: "t1", requestId: "r1", event: "pending" }],
+      claim: async () => [
+        { id: "a1", tenantId: "t1", requestId: "r1", event: "pending", claimToken: "tok-1" },
+      ],
       settle,
     });
     expect(out).toEqual({ claimed: 1, sent: 0, disabled: 1 });
-    expect(settle).toHaveBeenCalledWith("t1", "a1", "disabled", "transport_not_configured");
+    expect(settle).toHaveBeenCalledWith(
+      "t1",
+      "a1",
+      "tok-1",
+      "disabled",
+      "transport_not_configured",
+    );
   });
   it("status copy states nothing was sent", () => {
     expect(receiptAlertLabel({ status: "disabled", lastError: null })).toContain("not sent");

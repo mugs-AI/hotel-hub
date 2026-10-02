@@ -28,7 +28,9 @@ export type DepositDTO = {
   createdAt: string;
   errorCode: string | null;
   /** Receipt controls: verified effective state; null when unchanged. */
-  effectiveState?: "active" | "voided" | "needs_review" | null;
+  effectiveState?: "active" | "voided" | null;
+  /** Unresolved request warning; never changes the confirmed amount. */
+  needsReview?: boolean;
   /** Creation-time amount when a verified correction replaced it. */
   originalAmount?: number | null;
 };
