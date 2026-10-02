@@ -1,12 +1,12 @@
 # HotelHub DirectBuild recovery checkpoint
 
 Version: 1.0. Date: 02/10/2026, Asia/Kuala_Lumpur.
-Status: engineering baseline verified; Owner screenshot identifies failed check;
-signed-in upstream journal shape still NOT VERIFIED.
+Status: engineering baseline verified; Owner receipt/journal UI evidence captured;
+diagnostic-only source candidate tested; signed-in API field shape NOT VERIFIED.
 Input/main source: `33167f94f8667d1b030b7ab562623723630251e2`.
 Input tree: `2c366e4fe07a8a9e62136fdfdbc0739631c041af`.
 Review branch: `review/hh-receipt-diagnostic-20261002`.
-Candidate SHA: the Git commit containing this document (documentation only).
+Candidate SHA: the Git commit containing this document (safe diagnostics only).
 Latest formally accepted complete product SHA: NOT re-established here. Main
 and a successful build are not formal acceptance.
 Historical reported deployed source: `33167f94f8667d1b030b7ab562623723630251e2`;
@@ -173,6 +173,17 @@ N3 login/operations to the Owner. Next supporting evidence is the existing
 receipt's Account Journal screenshot; raw upstream shape still requires separate
 sanitized capture before an evidence-based parser fix. See the evidence follow-up.
 
+The Owner then supplied Account Journal: Dr 700-0310 MAYBANK MYR50.00 and
+Cr 700-7001 customer MYR50.00, same HotelHub reference on both lines, dated
+01/10/2026. Displayed journal totals balance. This is supporting N3 UI evidence,
+not captured GLPosting JSON, and the table has no receipt-number column. It does
+not establish whether the missing API field is absent, null, blank or unsupported.
+
+The current candidate adds exactly those safe classifications to existing
+Owner-only reason codes and fixes the pre-submit warning wording. It retains
+the generic missing-number reason and all existing refusal conditions; it never
+copies the receipt header into journal rows. See `HH_RECEIPT_DIAGNOSTIC_CANDIDATE.md`.
+
 ## Independent engineering checks
 
 Node 24.19.0; Bun 1.4.2 used for frozen dependency installation with scripts
@@ -198,11 +209,13 @@ at input SHA; they do not prove live N3 journal compatibility or financial settl
 
 ## Candidate, handover and release state
 
-Only README and documentation/evidence are changed. Application source, routes,
-authentication, generated types, dependencies and migrations remain at input SHA.
-No speculative receipt fix, duplicate implementation, AI build, database mutation,
+Earlier recovery commits changed README/documentation only. The current follow-up
+also changes three application files and three existing test files for diagnostic
+classification and pre-submit wording. Routes, authentication, generated types,
+dependencies and migrations remain at input SHA. No speculative accounting fix,
+duplicate implementation, AI build, database mutation,
 function deploy, N3 financial request/write, external alert, merge or publish occurred.
-The documentation review branch is the durable handover; it is not the synced main.
+The review branch is the durable candidate/handover; it is not the synced main.
 
 Recovery result: PARTIAL — verified source/engineering/schema checkpoint and
 Owner-observed failed journal field; upstream response capture remains blocked.

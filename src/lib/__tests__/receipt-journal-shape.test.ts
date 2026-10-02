@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { journalMismatchReasons, readJournal } from "../receipt-controls-evidence.server";
 import type { N3Outcome } from "../n3-receipts.server";
+import { journalReasonLabel } from "../receipt-controls-client";
 
 const BANK = "c3c22459-c2b7-4c43-8e43-8b52a9adabda";
 const receipt = {
@@ -19,6 +20,61 @@ const ok = (data: unknown): N3Outcome => ({
   status: 200,
   body: { type: "API", success: true, code: "0000", message: "ok", data, error: null },
   durationMs: 1,
+});
+
+describe("Owner receipt-number presence diagnostics", () => {
+  it.each([
+    [{}, "journal_row_doc_code_absent"],
+    [{ DocCode: null }, "journal_row_doc_code_null"],
+    [{ docCode: "  " }, "journal_row_doc_code_blank"],
+    [{ docCode: null, DocNo: "" }, "journal_row_doc_code_blank"],
+    [{ docCode: { privateValue: "DO-NOT-EXPOSE" } }, "journal_row_doc_code_invalid"],
+    [{ docCode: false }, "journal_row_doc_code_invalid"],
+  ] as const)(
+    "classifies missing receipt numbers without accepting them (%s)",
+    (fields, reason) => {
+      const rows = nestedRows.map(({ docCode: _d, ...row }) => ({ ...row, ...fields }));
+      const reasons = journalMismatchReasons(readJournal(ok(rows)), receipt, lines);
+      expect(reasons).toEqual(["journal_row_doc_code_missing", reason]);
+      expect(JSON.stringify(reasons)).not.toContain("DO-NOT-EXPOSE");
+      expect(journalReasonLabel(reason)).not.toBe("unrecognised check");
+    },
+  );
+
+  it("keeps case-insensitive, agreeing alternate receipt-number fields valid", () => {
+    const rows = nestedRows.map(({ docCode, ...row }) => ({
+      ...row,
+      DocCode: null,
+      DOCNO: docCode,
+    }));
+    expect(journalMismatchReasons(readJournal(ok(rows)), receipt, lines)).toEqual([]);
+  });
+
+  it("reports mixed missing states once each while retaining other mismatches", () => {
+    const { docCode: _d, ...bank } = nestedRows[0]!;
+    const rows = [
+      { ...bank, debit: 49 },
+      { ...nestedRows[1], docCode: null, referenceNo: "wrong-reference" },
+    ];
+    expect(journalMismatchReasons(readJournal(ok(rows)), receipt, lines)).toEqual([
+      "journal_debit_amount_mismatch",
+      "journal_row_doc_code_missing",
+      "journal_row_doc_code_absent",
+      "journal_row_doc_code_null",
+      "journal_row_reference_mismatch",
+    ]);
+  });
+
+  it("does not reinterpret a wrong number or conflicting aliases as missing", () => {
+    const wrong = nestedRows.map((row) => ({ ...row, docCode: "OTHER-RECEIPT" }));
+    expect(journalMismatchReasons(readJournal(ok(wrong)), receipt, lines)).toEqual([
+      "journal_row_doc_code_mismatch",
+    ]);
+    const conflict = nestedRows.map((row) => ({ ...row, DocNo: "OTHER-RECEIPT" }));
+    expect(journalMismatchReasons(readJournal(ok(conflict)), receipt, lines)).toEqual([
+      "journal_doc_ref_conflict",
+    ]);
+  });
 });
 const base = { docCode: "OR-T/001", referenceNo: "HH-REF-T", isCancelled: false };
 const nestedRows = [

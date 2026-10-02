@@ -307,7 +307,7 @@ export function ReceiptControlRequestDialog({
             role="alert"
             className="rounded-md border border-red-200 bg-red-50 p-2 text-base text-red-800"
           >
-            <p>{receiptControlMessage("journal_unproven")}</p>
+            <p>This receipt’s N3 journal could not be verified. Sending is blocked.</p>
             {journalReasons.length ? (
               <ul className="mt-1 list-disc pl-5" aria-label="Journal checks that failed">
                 {journalReasons.map((r) => (

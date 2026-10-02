@@ -110,3 +110,29 @@ confirm displayed accounting and row document/reference evidence; it will not
 alone prove the upstream JSON shape. Ask for a menu screenshot if the journal
 action cannot be found, rather than asking the Owner for credentials or raw tokens.
 No application source, database, N3, merge, deployment or publication change occurred.
+
+## Account Journal follow-up — 23:24 MYT
+
+Owner screenshot SHA-256:
+`2d8c50b427a0b31fac2107ee0e4852a722c49446ab5b3ff7281b8d5516fd6954`.
+The same receipt detail URL is visible behind the Account Journal popup.
+
+| Date | Account | Debit MYR | Credit MYR |
+| --- | --- | ---: | ---: |
+| 01/10/2026 | 700-0310 MAYBANK | 50.00 | — |
+| 01/10/2026 | 700-7001 customer AR | — | 50.00 |
+| Total | | 50.00 | 50.00 |
+
+Both rows display the exact saved HotelHub reference. The customer credit
+description includes the booking. The table has no receipt-number column;
+this does not imply that GLPosting JSON omits that field. Evidence establishes
+displayed balanced accounting only. Do not ask the Owner to repeat this UI test.
+
+Current follow-up code refines the existing diagnostic instead of accepting
+this screenshot as server financial authority. It emits fixed codes for absent,
+null, blank and invalid supported receipt-number aliases, while retaining the
+original missing-number refusal. Reasons still pass only through the unchanged
+Owner projection. It adds no upstream operation, raw payload export or token use.
+The popup now says verification blocks sending, rather than implying a failed
+submission when the Owner has only opened it. Application candidate details and
+new engineering evidence are in `../HH_RECEIPT_DIAGNOSTIC_CANDIDATE.md`.

@@ -10,6 +10,7 @@ import {
   decideReceiptControlRequest,
   listReceiptControlRequests,
   mapDbError,
+  readReceiptOriginalForDialog,
   type ReceiptControlDb,
   type RequestRow,
   type StoreDeps,
@@ -1172,6 +1173,27 @@ async function toDTOsFor(row: RequestRow, d: StoreDeps, who: any = owner) {
 }
 
 describe("request requires proven exact journal (review 2e755)", () => {
+  it("read-only diagnostics reach only Owner and cannot authorize a request", async () => {
+    const reasons = ["journal_row_doc_code_missing", "journal_row_doc_code_null"];
+    const { d, mem } = deps({
+      evidence: () => receiptSnapshot({ journalExact: false, journalDiagnostics: reasons }),
+    });
+    expect(
+      await readReceiptOriginalForDialog(owner, { reservationId: RES, depositId: DEP }, d),
+    ).toMatchObject({ journal: { exact: false, reasons } });
+    expect(
+      await readReceiptOriginalForDialog(fd, { reservationId: RES, depositId: DEP }, d),
+    ).toMatchObject({ journal: { exact: false, reasons: [] } });
+    expect(mem.rows.size).toBe(0);
+    for (const actor of [owner, fd])
+      await expect(createReceiptControlRequest(actor, correction(), d)).rejects.toMatchObject({
+        code: "journal_unproven",
+      });
+    expect(mem.rows.size).toBe(0);
+    expect(mem.decisions).toHaveLength(0);
+    expect(mem.versions).toHaveLength(0);
+    expect(mem.claims.size).toBe(0);
+  });
   it("active + unmatched but journal unproven: request refused, nothing stored", async () => {
     const { d, mem } = deps({ evidence: () => receiptSnapshot({ journalExact: false } as any) });
     await expect(createReceiptControlRequest(fd, correction(), d)).rejects.toMatchObject({

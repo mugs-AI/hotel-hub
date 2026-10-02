@@ -225,6 +225,11 @@ export function journalReasonLabel(code: string): string {
     journal_customer_code_not_saved: "HotelHub has no saved customer code for this deposit",
     journal_credit_customer_mismatch: "customer line posts to a different customer",
     journal_row_doc_code_missing: "journal lines do not show the receipt number",
+    journal_row_doc_code_absent: "N3 journal line has no supported receipt-number field",
+    journal_row_doc_code_null: "N3 returned an empty receipt-number field on a journal line",
+    journal_row_doc_code_blank: "N3 returned a blank receipt-number field on a journal line",
+    journal_row_doc_code_invalid:
+      "N3 returned an unreadable receipt-number field on a journal line",
     journal_row_doc_code_mismatch: "journal lines show a different receipt number",
     journal_row_reference_missing: "journal lines do not show the HotelHub reference",
     journal_row_reference_mismatch: "journal lines show a different reference",

@@ -68,6 +68,22 @@ beforeEach(() => {
 });
 
 describe("receipt/finance cache namespace on auth switch (no Owner dashboard mounted)", () => {
+  it("shows a pre-submit verification warning and safely explains a null number field", () => {
+    const qc = seeded();
+    const key = ["receipt-controls", A, "original", RES, deposit.id];
+    const data = qc.getQueryData<{ original: object }>(key)!;
+    qc.setQueryData(key, {
+      original: {
+        ...data.original,
+        journal: { exact: false, reasons: ["journal_row_doc_code_null"] },
+      },
+    });
+    const html = render(qc);
+    expect(html).toContain("This receipt’s N3 journal could not be verified. Sending is blocked.");
+    expect(html).toContain("N3 returned an empty receipt-number field on a journal line");
+    expect(html).not.toContain("The request was not created");
+    expect(html).toMatch(/disabled=""[^>]*>Send request/);
+  });
   it("the same identity sees its own saved original", () => {
     expect(render(seeded())).toContain(SECRET);
   });

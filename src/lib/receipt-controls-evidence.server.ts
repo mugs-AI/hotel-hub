@@ -119,7 +119,12 @@ type Journal = {
   /** Account code per credited account key (for AR/customer binding). */
   creditCodes: Map<string, string>;
   /** Every row carries the document code and HotelHub reference it posts. */
-  docRefs: Array<{ docCode: string | null; reference: string | null }>;
+  docRefs: Array<{
+    docCode: string | null;
+    reference: string | null;
+    /** Field-presence classification only; never an upstream field value. */
+    missingDocCodeReason: string | null;
+  }>;
   /** Safe reason codes only (no values) explaining why rows were unreadable. */
   reasons: string[];
 };
@@ -156,6 +161,16 @@ function resolveMoney(row: unknown, keys: string[]): number | null | "conflict" 
   const cs = vs.map(cents);
   if (cs.some((c) => c === null)) return null;
   return cs.every((c) => c === cs[0]) ? cs[0]! : "conflict";
+}
+
+/** Diagnose unresolved supported aliases without changing the proof predicate. */
+function missingDocCodeReason(row: unknown): string {
+  const fields = valuesFor(row, ["docCode", "docNo"]);
+  if (!fields.length) return "journal_row_doc_code_absent";
+  if (fields.every((v) => v === null || v === undefined)) return "journal_row_doc_code_null";
+  if (fields.every((v) => v === null || v === undefined || (typeof v === "string" && !v.trim())))
+    return "journal_row_doc_code_blank";
+  return "journal_row_doc_code_invalid";
 }
 
 export function readJournal(o: N3Outcome): Journal {
@@ -223,7 +238,11 @@ export function readJournal(o: N3Outcome): Journal {
     const dc = resolveField(row, ["docCode", "docNo"], null);
     const rf = resolveField(row, ["referenceNo", "reference"], null);
     if (dc.conflict || rf.conflict) reasons.add("journal_doc_ref_conflict");
-    docRefs.push({ docCode: dc.value, reference: rf.value });
+    docRefs.push({
+      docCode: dc.value,
+      reference: rf.value,
+      missingDocCodeReason: dc.value === null ? missingDocCodeReason(row) : null,
+    });
     norm.push(`${id}|${code}|${dn}|${cn}`);
   }
   norm.sort();
@@ -272,8 +291,11 @@ export function journalMismatchReasons(
     else if (j.creditCodes.get(creditAccount) !== receipt.customerCode)
       out.push("journal_credit_customer_mismatch");
   }
-  if (j.docRefs.some((r) => r.docCode === null)) out.push("journal_row_doc_code_missing");
-  else if (j.docRefs.some((r) => r.docCode !== receipt.docCode))
+  if (j.docRefs.some((r) => r.docCode === null)) {
+    out.push("journal_row_doc_code_missing");
+    for (const row of j.docRefs)
+      if (row.docCode === null && row.missingDocCodeReason) out.push(row.missingDocCodeReason);
+  } else if (j.docRefs.some((r) => r.docCode !== receipt.docCode))
     out.push("journal_row_doc_code_mismatch");
   if (j.docRefs.some((r) => r.reference === null)) out.push("journal_row_reference_missing");
   else if (j.docRefs.some((r) => r.reference !== receipt.reference))

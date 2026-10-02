@@ -1,0 +1,48 @@
+HH1.0 HotelHub — diagnostic-only candidate gates, 02/10/2026 MYT
+Application input/main: 33167f94f8667d1b030b7ab562623723630251e2
+Follow-up parent: f2ac118ae4aba3c803dfcc3a9b006ea17ec3c84a
+Candidate: Git commit containing this record.
+Node runtime / installed dependencies match recovery baseline; no lock changes.
+
+RED after correcting a test-double assertion:
+node node_modules/vitest/vitest.mjs run src/lib/__tests__/receipt-journal-shape.test.ts src/lib/__tests__/receipt-controls-store.test.ts src/lib/__tests__/receipt-auth-switch-cache.test.ts
+Exit 1. 8 expected failures, 68 passes. Missing new classifiers and warning copy.
+
+GREEN focused, independently repeated by reviewer:
+same command. Exit 0. 3 files passed; 76 tests passed.
+
+FULL TESTS:
+env -u PGHOST -u PGUSER -u PGPASSWORD -u HOTELHUB_LIVE_WRITE -u HOTELHUB_N3_DEPOSIT_WRITES_ENABLED -u HOTELHUB_N3_DEPOSIT_SPLIT_WRITES_ENABLED -u SUPABASE_URL -u SUPABASE_SERVICE_ROLE_KEY -u OPEN_API_BASE_URL node node_modules/vitest/vitest.mjs run
+Exit 0. 119 files passed / 3 skipped (122).
+1,879 tests passed / 20 skipped / 0 failed (1,899). Duration 25.05s.
+Same 20 intentional skips as baseline. No production credentials/live-write opt-in.
+
+TYPES:
+node node_modules/typescript/bin/tsc --noEmit
+Exit 0, no output/errors.
+
+LINT:
+node node_modules/eslint/bin/eslint.js src
+Exit 0. 0 errors / 37 unchanged existing warnings.
+
+STYLE:
+node node_modules/prettier/bin/prettier.cjs --check src
+Exit 0. All matched files use Prettier code style.
+
+BUILD:
+env -u SUPABASE_SERVICE_ROLE_KEY -u HOTELHUB_SESSION_SECRET -u OPEN_API_BASE_URL node node_modules/vite/bin/vite.js build
+Exit 0. Nitro worker and production artifacts built. No deployment occurred.
+
+DIFF:
+git diff --check
+Exit 0.
+git diff --quiet a68664f56e38bfb74e32972c14becdc6e6938449 -- AGENTS.md package.json bun.lock src/start.ts src/integrations src/lib/hotel-store.server.ts
+Exit 0. Protected baseline identical, including working tree.
+
+Independent reviewer: no Critical/Important findings. One Minor coverage caveat:
+SSR button also disabled because reason is blank; not journal-only click proof.
+Owner/staff service negative tests establish no financial request for false proof.
+Live signed-in field shape and correction success remain NOT VERIFIED.
+
+No Lovable AI Build, database migration/write, N3 financial transaction, merge,
+function/runtime deployment, external alert or public publishing performed.
