@@ -145,3 +145,11 @@ it("shows the RM50 to RM80 deposit and balance differences", () => {
 The six tasks cover request/approval, N3 capability discovery, immutable audit/execution evidence, effective consumer figures, phone-accessible in-app alerts and disabled external delivery. Each Review Focus case is pinned to named tests. Monthly reporting is a separate plan and starts after Task 5's effective projection and Task 6's release are verified. Supported N3 automation and external notification setup are explicit capability dependencies, not assumed successes.
 
 Execution method has not been chosen. Review this plan together with its approved spec before implementation. Recommended method: Native, because most tasks share one receipt-state/evidence contract and the existing deposit flow must be changed coherently; use an independent whole-branch review before release.
+
+## Progress (2026-10-02)
+- [x] Task 1 pure contract + formatter (tests green)
+- [x] Task 2 GET-only evidence + capabilities (manual only; 20 tests green)
+- [~] Task 3 migration SQL staged in db/migrations-pending/ (NOT applied); real-SQL PGlite check 26/26 PASS; RBAC permissions + audit event types added. Store service + routes: TODO
+- [~] Task 5 shared effective projection (src/lib/effective-receipts.ts) + totals exclude voided / flag Needs review (10 tests green). Wiring into listings/folio/checkout/print + UI: TODO
+- [ ] Task 4 execution/verify service
+- [~] Task 6 outbox delivery migration staged; delivery service/UI: TODO
