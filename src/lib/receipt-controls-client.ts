@@ -4,7 +4,6 @@ import type { ReceiptControlRequestDTO } from "./receipt-controls";
 export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   journal_unproven:
     "N3 could not prove this receipt's journal exactly matches it. The request was not created.",
-  n3_evidence_unavailable: "N3 could not confirm the receipt right now. Nothing was changed.",
   receipt_control_list_incomplete: "Too many requests to load. Open the Owner queue.",
   invalid_reason: "Enter a reason (up to 500 characters).",
   invalid_amount: "Enter a valid amount.",

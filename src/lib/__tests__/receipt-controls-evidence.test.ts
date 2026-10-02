@@ -22,12 +22,14 @@ const deposit: ScopedDeposit = {
   n3ReceiptId: RID,
   n3DocCode: "OR-TEST/001",
   n3CustomerId: CUST,
+  n3CustomerCode: "300-W001",
   n3ReferenceNo: "HH-REF-1",
   currencyCode: "MYR",
   paymentLines: [{ id: ACC, code: "BANK-T", name: "Test Bank", amount: 50 }],
 };
 const receiptBody = (o: Record<string, unknown> = {}) => ({
-  code: 0,
+  code: "0000",
+  success: true,
   data: {
     id: RID,
     docCode: "OR-TEST/001",
@@ -62,8 +64,9 @@ const gl = (accountId: string, debit: number, credit: number, o: Record<string, 
   ...o,
 });
 const journal = (amount = 50, rows?: unknown[]) => ({
-  code: 0,
-  data: rows ?? [gl(ACC, amount, 0), gl(AR, 0, amount)],
+  code: "0000",
+  success: true,
+  data: rows ?? [gl(ACC, amount, 0), gl(AR, 0, amount, { accountCode: "300-W001" })],
 });
 const ok = (body: unknown): N3Outcome => ({ kind: "response", status: 200, body, durationMs: 1 });
 
