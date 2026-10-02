@@ -43,8 +43,6 @@ export type HotelFinancialEvent = {
   approverLabel: string | null;
   reason: string | null;
   confirmedVoidAt: string | null;
-  /** The receipt's own N3 document date (a void row's month is its void event). */
-  n3DocumentDate: string | null;
 };
 
 export type FinancialMetric = {
@@ -99,6 +97,8 @@ export type ReceiptReportRow = {
   approverLabel: string | null;
   reason: string | null;
   confirmedVoidAt: string | null;
+  /** The receipt's own N3 document date (a void row's month is its void event). */
+  n3DocumentDate: string | null;
 };
 
 export type ReceiptReportDTO = {
