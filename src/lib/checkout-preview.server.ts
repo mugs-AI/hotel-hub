@@ -456,6 +456,8 @@ async function verifyDeposits(input: {
 }> {
   const { deps } = input;
   const all = await deps.loadDeposits(input.tenantId, input.reservationId);
+  // Receipt controls: loaders apply the effective overlay. Confirmed voids are
+  // excluded; Needs review arrives as status "unknown" and blocks as uncertain.
   const blockers: Blocker[] = [];
   const rows: SafeVerifiedDepositRow[] = [];
 
@@ -706,7 +708,8 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       .order("created_at", { ascending: true })
       .limit(100);
     if (res.error) throw new CheckoutPreviewError("checkout_preview_failed");
-    return (res.data ?? []).map((r) => ({
+    const { withEffectiveReceipts } = await import("./effective-receipts.server");
+    const base = (res.data ?? []).map((r) => ({
       id: r.id,
       status: r.status,
       amount: r.amount,
@@ -719,6 +722,13 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       n3CustomerName: r.n3_customer_name ?? null,
       createdAt: r.created_at,
     }));
+    const effective = await withEffectiveReceipts(tenantId, base);
+    return effective
+      .filter((d) => d.effectiveState !== "voided")
+      .map(({ effectiveState, originalAmount: _o, effectivePaymentLines: _p, ...d }) => ({
+        ...d,
+        status: effectiveState === "needs_review" ? "unknown" : d.status,
+      }));
   },
 
   async loadSettings(tenantId) {

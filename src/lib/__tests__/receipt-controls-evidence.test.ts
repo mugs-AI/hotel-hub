@@ -69,7 +69,11 @@ function deps(over: Partial<EvidenceDeps> & { detail?: N3Outcome; gl?: N3Outcome
   };
   return { d, getById, getGLPosting };
 }
-const errCode = async (p: Promise<unknown>) => p.then(() => "no_error", (e) => e.code);
+const errCode = async (p: Promise<unknown>) =>
+  p.then(
+    () => "no_error",
+    (e) => e.code,
+  );
 
 describe("receipt control evidence", () => {
   it("looks up the tenant-scoped deposit before any N3 call", async () => {
@@ -165,8 +169,17 @@ describe("receipt control evidence", () => {
     later.d.now = () => "2027-01-01T00:00:00.000Z";
     const b = await readReceiptControlEvidence(actor, "d1", later.d);
     expect(a.sourceFingerprint).toBe(b.sourceFingerprint);
-    for (const o of [{ totalAmount: 60, outstandingAmount: 60 }, { remark3: "x" }, { knockoff: [{ id: 1 }] }]) {
-      const c = await readReceiptControlEvidence(actor, "d1", deps({ detail: ok(receiptBody(o)), gl: ok(journal(Number((o as any).totalAmount ?? 50))) }).d);
+    for (const o of [
+      { totalAmount: 60, outstandingAmount: 60 },
+      { remark3: "x" },
+      { knockoff: [{ id: 1 }] },
+    ]) {
+      const c = await readReceiptControlEvidence(
+        actor,
+        "d1",
+        deps({ detail: ok(receiptBody(o)), gl: ok(journal(Number((o as any).totalAmount ?? 50))) })
+          .d,
+      );
       expect(c.sourceFingerprint).not.toBe(a.sourceFingerprint);
     }
     expect(receiptFingerprint({ ...a, verifiedAt: "x" }, "j")).not.toBe(receiptFingerprint(a, "k"));
@@ -181,7 +194,11 @@ describe("capabilities", () => {
   it("defaults to manual mode only, even with env flags set", () => {
     process.env.HOTELHUB_RECEIPT_CONTROL_DIRECT_EDIT = "true";
     process.env.HOTELHUB_RECEIPT_CONTROL_VOID_REPLACE = "true";
-    expect(receiptControlCapabilities()).toEqual({ directEdit: false, voidReplace: false, manual: true });
+    expect(receiptControlCapabilities()).toEqual({
+      directEdit: false,
+      voidReplace: false,
+      manual: true,
+    });
     delete process.env.HOTELHUB_RECEIPT_CONTROL_DIRECT_EDIT;
     delete process.env.HOTELHUB_RECEIPT_CONTROL_VOID_REPLACE;
   });
@@ -189,22 +206,59 @@ describe("capabilities", () => {
 
 describe("verifyReceiptControlResult", () => {
   const original = receiptSnapshot();
-  const corr = { kind: "correction" as const, amountCents: 8000, accountId: ACC, contact: original.contact };
+  const corr = {
+    kind: "correction" as const,
+    amountCents: 8000,
+    accountId: ACC,
+    contact: original.contact,
+  };
   it("verifies an expected corrected receipt", () => {
-    const ev = receiptSnapshot({ amountCents: 8000, paymentLines: [{ ...original.paymentLines[0]!, amountCents: 8000 }], sourceFingerprint: "new" });
+    const ev = receiptSnapshot({
+      amountCents: 8000,
+      paymentLines: [{ ...original.paymentLines[0]!, amountCents: 8000 }],
+      sourceFingerprint: "new",
+    });
     expect(verifyReceiptControlResult(original, corr, ev)).toBe("verified");
   });
   it("treats missing evidence as insufficient (no 404 void proof)", () => {
     expect(verifyReceiptControlResult(original, { kind: "void" }, null)).toBe("insufficient");
   });
   it("requires explicit cancellation for a void", () => {
-    expect(verifyReceiptControlResult(original, { kind: "void" }, receiptSnapshot({ documentState: "voided" }))).toBe("verified");
-    expect(verifyReceiptControlResult(original, { kind: "void" }, receiptSnapshot({ documentState: "unknown" }))).toBe("insufficient");
-    expect(verifyReceiptControlResult(original, { kind: "void" }, receiptSnapshot())).toBe("mismatch");
+    expect(
+      verifyReceiptControlResult(
+        original,
+        { kind: "void" },
+        receiptSnapshot({ documentState: "voided" }),
+      ),
+    ).toBe("verified");
+    expect(
+      verifyReceiptControlResult(
+        original,
+        { kind: "void" },
+        receiptSnapshot({ documentState: "unknown" }),
+      ),
+    ).toBe("insufficient");
+    expect(verifyReceiptControlResult(original, { kind: "void" }, receiptSnapshot())).toBe(
+      "mismatch",
+    );
   });
   it("flags unexpected edits and changed identity as mismatch", () => {
-    expect(verifyReceiptControlResult(original, corr, receiptSnapshot({ amountCents: 7000 }))).toBe("mismatch");
-    expect(verifyReceiptControlResult(original, corr, receiptSnapshot({ amountCents: 8000, customerId: "other" }))).toBe("mismatch");
-    expect(verifyReceiptControlResult(original, corr, receiptSnapshot({ amountCents: 8000, matchingState: "unknown" }))).toBe("insufficient");
+    expect(verifyReceiptControlResult(original, corr, receiptSnapshot({ amountCents: 7000 }))).toBe(
+      "mismatch",
+    );
+    expect(
+      verifyReceiptControlResult(
+        original,
+        corr,
+        receiptSnapshot({ amountCents: 8000, customerId: "other" }),
+      ),
+    ).toBe("mismatch");
+    expect(
+      verifyReceiptControlResult(
+        original,
+        corr,
+        receiptSnapshot({ amountCents: 8000, matchingState: "unknown" }),
+      ),
+    ).toBe("insufficient");
   });
 });

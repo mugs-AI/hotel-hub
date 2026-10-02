@@ -7,6 +7,10 @@ import { depositEntry, formatDepositInput } from "@/lib/deposit-entry";
 import { useWorkspaceDraft } from "@/lib/workspace-context";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
+import { ReceiptControlRequestDialog } from "@/components/ReceiptControlRequestDialog";
+import { useQuery } from "@tanstack/react-query";
+import { listReceiptControls, receiptControlsKey } from "@/lib/receipt-controls-client";
+import { ACTIVE_RECEIPT_CONTROL_STATES, RECEIPT_CONTROL_STATE_LABEL } from "@/lib/receipt-controls";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
 import {
   depositErrorMessage,
@@ -106,13 +110,25 @@ export function DepositsCard({
   reservationId,
   canView,
   canCreate,
+  canRequestReceiptChange = false,
   eligible,
 }: {
   reservationId: string;
   canView: boolean;
   canCreate: boolean;
+  canRequestReceiptChange?: boolean;
   eligible: boolean;
 }) {
+  const [receiptDialog, setReceiptDialog] = useState<{
+    depositId: string;
+    kind: "correction" | "void";
+  } | null>(null);
+  const receiptRequests = useQuery({
+    queryKey: receiptControlsKey("session", `reservation:${reservationId}`),
+    queryFn: () => listReceiptControls({ reservationId }),
+    enabled: canView && canRequestReceiptChange,
+    retry: false,
+  });
   const q = useReservationDeposits(reservationId, canView);
   const create = useCreateDeposit(reservationId);
   const reconcile = useReconcileDeposit(reservationId);
@@ -307,6 +323,19 @@ export function DepositsCard({
         </p>
       ) : null}
 
+      {receiptDialog
+        ? (() => {
+            const dep = deposits.find((x) => x.id === receiptDialog.depositId);
+            return dep ? (
+              <ReceiptControlRequestDialog
+                reservationId={reservationId}
+                deposit={dep}
+                kind={receiptDialog.kind}
+                onClose={() => setReceiptDialog(null)}
+              />
+            ) : null;
+          })()
+        : null}
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
       ) : deposits.length === 0 ? null : (
@@ -347,6 +376,55 @@ export function DepositsCard({
                     : null}
                 </CardInfoPopover>
                 <N3ReceiptPrintLink status={d.status} receiptId={d.n3ReceiptId} />
+                {(() => {
+                  const open = (receiptRequests.data?.requests ?? []).find(
+                    (r) => r.depositId === d.id && ACTIVE_RECEIPT_CONTROL_STATES.includes(r.state),
+                  );
+                  if (d.effectiveState === "voided")
+                    return (
+                      <span className="text-xs font-semibold" style={{ color: ERR }}>
+                        Voided in N3 — not counted
+                      </span>
+                    );
+                  if (open)
+                    return (
+                      <span className="text-xs font-medium" style={{ color: GOLD }}>
+                        Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}
+                      </span>
+                    );
+                  if (!canRequestReceiptChange || d.status !== "posted" || receiptRequests.isError)
+                    return null;
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        className="text-xs font-medium underline"
+                        style={{ color: NAVY }}
+                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "correction" })}
+                      >
+                        Request correction
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs font-medium underline"
+                        style={{ color: ERR }}
+                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "void" })}
+                      >
+                        Request void
+                      </button>
+                    </>
+                  );
+                })()}
+                {d.effectiveState === "needs_review" ? (
+                  <span className="text-xs font-semibold" style={{ color: GOLD }}>
+                    Needs review
+                  </span>
+                ) : null}
+                {d.originalAmount != null && d.effectiveState === "active" ? (
+                  <span className="text-xs text-muted-foreground">
+                    Corrected from {d.originalAmount.toFixed(2)}
+                  </span>
+                ) : null}
                 {d.status !== "posted" ? (
                   <span
                     className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"

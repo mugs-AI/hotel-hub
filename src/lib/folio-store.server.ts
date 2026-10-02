@@ -2078,6 +2078,12 @@ export async function buildReservationListAmounts(
     ),
   ]);
   const byRoomId = new Map(rooms.map((r) => [r.id, r]));
+  const { loadReceiptOverlay } = await import("./effective-receipts.server");
+  const { applyEffectiveReceipts } = await import("./effective-receipts");
+  const receiptOverlay = await loadReceiptOverlay(
+    input.tenantId,
+    deposits.map((d) => d.id),
+  );
   return Promise.all(
     reservations.map(async (reservation) => {
       const folio = folios.find((f) => f.reservation_id === reservation.id) ?? null;
@@ -2125,13 +2131,18 @@ export async function buildReservationListAmounts(
       const ledger = deposits.filter((d) => d.reservation_id === reservation.id);
       try {
         depositAmount = summarizePostedDeposits(
-          ledger.map((d) => ({
-            status: d.status,
-            amount: Number(d.amount),
-            currencyCode: d.currency_code,
-            n3DocCode: d.n3_doc_code,
-            createdAt: d.created_at,
-          })),
+          applyEffectiveReceipts(
+            ledger.map((d) => ({
+              id: d.id,
+              status: d.status,
+              amount: Number(d.amount),
+              currencyCode: d.currency_code,
+              n3ReceiptId: null,
+              n3DocCode: d.n3_doc_code,
+              createdAt: d.created_at,
+            })),
+            receiptOverlay,
+          ).map((d) => ({ ...d, amount: Number(d.amount) })),
           reservation.currency,
         ).total;
       } catch {

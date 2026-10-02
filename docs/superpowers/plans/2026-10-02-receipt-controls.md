@@ -147,9 +147,10 @@ The six tasks cover request/approval, N3 capability discovery, immutable audit/e
 Execution method has not been chosen. Review this plan together with its approved spec before implementation. Recommended method: Native, because most tasks share one receipt-state/evidence contract and the existing deposit flow must be changed coherently; use an independent whole-branch review before release.
 
 ## Progress (2026-10-02)
-- [x] Task 1 pure contract + formatter (tests green)
-- [x] Task 2 GET-only evidence + capabilities (manual only; 20 tests green)
-- [~] Task 3 migration SQL staged in db/migrations-pending/ (NOT applied); real-SQL PGlite check 26/26 PASS; RBAC permissions + audit event types added. Store service + routes: TODO
-- [~] Task 5 shared effective projection (src/lib/effective-receipts.ts) + totals exclude voided / flag Needs review (10 tests green). Wiring into listings/folio/checkout/print + UI: TODO
-- [ ] Task 4 execution/verify service
-- [~] Task 6 outbox delivery migration staged; delivery service/UI: TODO
+- [x] Task 1 pure contract + formatter
+- [x] Task 2 GET-only evidence + capabilities (manual only)
+- [x] Task 3 migrations staged in db/migrations-pending/ (NOT applied; PGlite 26/26); store service, RBAC, audit, routes
+- [x] Task 4 manual execute (no N3 write) + GET-only verify with atomic claim/complete
+- [x] Task 5 effective overlay wired into deposits list, folio/print statement, reservation list totals, checkout verification; request dialog + Owner queue
+- [x] Task 6 outbox delivery with transport disabled (alerts settle as "disabled"); status UI
+- [ ] Release: review + apply migrations, then signed-in end-to-end check against the real database

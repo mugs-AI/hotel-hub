@@ -38,7 +38,11 @@ describe("receipt control comparison", () => {
     };
     const cmp = compareReceiptControl(original, proposal);
     expect(cmp).toMatchObject({ depositDeltaCents: 3000, balanceDeltaCents: -3000 });
-    expect(cmp.fields).toContainEqual({ label: "Amount", original: "RM50.00", requested: "RM80.00" });
+    expect(cmp.fields).toContainEqual({
+      label: "Amount",
+      original: "RM50.00",
+      requested: "RM80.00",
+    });
     expect(compareReceiptControl(original, { kind: "void" })).toMatchObject({
       depositDeltaCents: -5000,
       balanceDeltaCents: 5000,
@@ -118,10 +122,17 @@ describe("proposal validation", () => {
     const multi = receiptSnapshot({
       paymentLines: [
         { accountId: ACC2, code: "A", savedName: "A", amountCents: 2500 },
-        { accountId: "55555555-5555-4555-8555-555555555555", code: "B", savedName: "B", amountCents: 2500 },
+        {
+          accountId: "55555555-5555-4555-8555-555555555555",
+          code: "B",
+          savedName: "B",
+          amountCents: 2500,
+        },
       ],
     });
-    expect(code(() => validateReceiptControlProposal(base, multi))).toBe("split_correction_unsupported");
+    expect(code(() => validateReceiptControlProposal(base, multi))).toBe(
+      "split_correction_unsupported",
+    );
   });
 });
 
@@ -150,7 +161,9 @@ describe("contact formatter keeps remark limits without truncation", () => {
     expect(c.remark2.startsWith("😀")).toBe(true);
   });
   it("puts company before guest name", () => {
-    expect(formatReceiptContact(contactInput({ company: "Co" })).customerName).toBe("Co, Test Guest");
+    expect(formatReceiptContact(contactInput({ company: "Co" })).customerName).toBe(
+      "Co, Test Guest",
+    );
   });
 });
 

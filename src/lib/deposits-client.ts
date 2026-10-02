@@ -27,6 +27,10 @@ export type DepositDTO = {
   createdByLabel: string | null;
   createdAt: string;
   errorCode: string | null;
+  /** Receipt controls: verified effective state; null when unchanged. */
+  effectiveState?: "active" | "voided" | "needs_review" | null;
+  /** Creation-time amount when a verified correction replaced it. */
+  originalAmount?: number | null;
 };
 
 export type PaymentLine = { accountId: string; amount: number };
