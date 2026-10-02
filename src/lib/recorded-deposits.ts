@@ -42,10 +42,7 @@ export function summarizePostedDeposits(
     currency,
     count: posted.length,
     hasUnconfirmed: rows.some(
-      (row) =>
-        row.status === "unknown" ||
-        row.status === "submitting" ||
-        row.needsReview === true,
+      (row) => row.status === "unknown" || row.status === "submitting" || row.needsReview === true,
     ),
   };
 }

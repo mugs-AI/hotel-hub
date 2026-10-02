@@ -158,9 +158,7 @@ export function journalMatchesReceipt(
   if (j.credits.size !== 1) return false;
   const [creditAccount, creditCents] = [...j.credits][0]!;
   if (expected.has(creditAccount) || creditCents !== receipt.amountCents) return false;
-  return j.docRefs.every(
-    (r) => r.docCode === receipt.docCode && r.reference === receipt.reference,
-  );
+  return j.docRefs.every((r) => r.docCode === receipt.docCode && r.reference === receipt.reference);
 }
 
 export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string): string {

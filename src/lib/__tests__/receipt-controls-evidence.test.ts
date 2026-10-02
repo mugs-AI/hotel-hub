@@ -281,11 +281,7 @@ describe("review blockers: exact evidence binding", () => {
     }
   });
   it("rejects zero/negative totals, missing date and payment totals that do not add up", async () => {
-    for (const o of [
-      { totalAmount: 0 },
-      { totalAmount: -5 },
-      { docDate: undefined },
-    ]) {
+    for (const o of [{ totalAmount: 0 }, { totalAmount: -5 }, { docDate: undefined }]) {
       const { d } = deps({ detail: ok(receiptBody(o)) });
       expect(await errCode(readReceiptControlEvidence(actor, "d1", d))).toBe(
         "n3_evidence_incomplete",
@@ -298,9 +294,9 @@ describe("review blockers: exact evidence binding", () => {
         { accountId: AR, amount: 10 },
       ],
     });
-    expect(await errCode(readReceiptControlEvidence(actor, "d1", deps({ detail: ok(split) }).d))).toBe(
-      "n3_evidence_mismatch",
-    );
+    expect(
+      await errCode(readReceiptControlEvidence(actor, "d1", deps({ detail: ok(split) }).d)),
+    ).toBe("n3_evidence_mismatch");
   });
   it("missing refund data is unknown, never silently zero", async () => {
     const { d } = deps({ detail: ok(receiptBody({ refundAmount: undefined })) });
@@ -348,4 +344,3 @@ describe("review blockers: exact evidence binding", () => {
       );
   });
 });
-

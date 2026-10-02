@@ -723,15 +723,25 @@ export const liveCheckoutDeps: CheckoutPreviewDeps = {
       createdAt: r.created_at,
     }));
     const effective = await withEffectiveReceipts(tenantId, base);
-    return effective
-      // Confirmed void never counts; a Needs review warning keeps the row as
-      // "unknown" (blocks checkout) but never resurrects a voided amount.
-      .filter((d) => d.effectiveState !== "voided" || d.needsReview)
-      .map(({ effectiveState, needsReview, originalAmount: _o, effectivePaymentLines: _p, ...d }) => ({
-        ...d,
-        amount: effectiveState === "voided" ? 0 : d.amount,
-        status: needsReview ? "unknown" : d.status,
-      }));
+    return (
+      effective
+        // Confirmed void never counts; a Needs review warning keeps the row as
+        // "unknown" (blocks checkout) but never resurrects a voided amount.
+        .filter((d) => d.effectiveState !== "voided" || d.needsReview)
+        .map(
+          ({
+            effectiveState,
+            needsReview,
+            originalAmount: _o,
+            effectivePaymentLines: _p,
+            ...d
+          }) => ({
+            ...d,
+            amount: effectiveState === "voided" ? 0 : d.amount,
+            status: needsReview ? "unknown" : d.status,
+          }),
+        )
+    );
   },
 
   async loadSettings(tenantId) {

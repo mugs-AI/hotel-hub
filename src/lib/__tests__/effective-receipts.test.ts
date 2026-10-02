@@ -42,7 +42,11 @@ describe("computeReceiptOverlay", () => {
   });
   it("uses the latest verified correction amount", () => {
     const o = computeReceiptOverlay([v({ versionNo: 1, amountCents: 8000 })], new Set());
-    expect(o.get("d1")?.confirmed).toMatchObject({ state: "active", amountCents: 8000, receiptId: "rcpt-1" });
+    expect(o.get("d1")?.confirmed).toMatchObject({
+      state: "active",
+      amountCents: 8000,
+      receiptId: "rcpt-1",
+    });
   });
   it("excludes a confirmed void even when no replacement exists", () => {
     const o = computeReceiptOverlay([v({ state: "voided", amountCents: 5000 })], new Set());
@@ -56,7 +60,11 @@ describe("computeReceiptOverlay", () => {
       ],
       new Set(),
     );
-    expect(o.get("d1")?.confirmed).toMatchObject({ state: "active", receiptId: "rcpt-2", amountCents: 8000 });
+    expect(o.get("d1")?.confirmed).toMatchObject({
+      state: "active",
+      receiptId: "rcpt-2",
+      amountCents: 8000,
+    });
   });
   it("an unconfirmed replacement (no void evidence) does not count", () => {
     const o = computeReceiptOverlay(
@@ -107,7 +115,6 @@ describe("applyEffectiveReceipts + shared totals", () => {
     expect(original.amount).toBe(50);
     expect(original.n3ReceiptId).toBe("rcpt-1");
   });
-
 });
 
 describe("review blockers: confirmed contribution vs Needs review", () => {
