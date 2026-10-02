@@ -7,7 +7,9 @@ type RecordedDeposit = {
   n3DocCode: string | null;
   createdAt: string;
   /** Receipt-controls effective state; voided receipts never count. */
-  effectiveState?: "active" | "voided" | "needs_review";
+  effectiveState?: "active" | "voided";
+  /** Warning only; never changes whether a confirmed receipt counts. */
+  needsReview?: boolean;
 };
 const counts = (row: RecordedDeposit) => row.status === "posted" && row.effectiveState !== "voided";
 export type RecordedDepositSummary = {
@@ -43,7 +45,7 @@ export function summarizePostedDeposits(
       (row) =>
         row.status === "unknown" ||
         row.status === "submitting" ||
-        row.effectiveState === "needs_review",
+        row.needsReview === true,
     ),
   };
 }
