@@ -102,7 +102,10 @@ export function invalidateReceiptEffects(qc: {
 /** Drop receipt-control data cached for any other identity (auth switch). */
 export function purgeForeignReceiptCache(
   qc: {
-    removeQueries: (f: { queryKey: readonly unknown[]; predicate: (q: { queryKey: readonly unknown[] }) => boolean }) => unknown;
+    removeQueries: (f: {
+      queryKey: readonly unknown[];
+      predicate: (q: { queryKey: readonly unknown[] }) => boolean;
+    }) => unknown;
   },
   identityKey: string | null,
 ) {

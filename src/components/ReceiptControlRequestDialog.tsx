@@ -95,7 +95,12 @@ export function ReceiptControlRequestDialog({
   const [amount, setAmount] = useState(deposit.amount.toFixed(2));
   const [accountId, setAccountId] = useState("");
   const [editContact, setEditContact] = useState(false);
-  const [contact, setContact] = useState<ContactDraft>({ name: "", address: "", phone: "", email: "" });
+  const [contact, setContact] = useState<ContactDraft>({
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+  });
   const original = useQuery({
     queryKey: ["receipt-controls", "original", reservationId, deposit.id],
     queryFn: () => getReceiptOriginal(reservationId, deposit.id),
@@ -228,8 +233,8 @@ export function ReceiptControlRequestDialog({
                   (a) => a.id.toLowerCase() === original.data.original.accountId!.toLowerCase(),
                 ) ? (
                   <option value={original.data.original.accountId}>
-                    {original.data.original.accountLabel ?? "Current account"} (current — contact-only
-                    changes)
+                    {original.data.original.accountLabel ?? "Current account"} (current —
+                    contact-only changes)
                   </option>
                 ) : null}
                 {(accounts.data?.accounts ?? []).map((a) => (
@@ -259,16 +264,17 @@ export function ReceiptControlRequestDialog({
               />
               Change bill-to contact (otherwise the saved N3 contact is kept)
             </label>
-            {editContact && (["name", "address", "phone", "email"] as const).map((k) => (
-              <label key={k} className="capitalize">
-                {k === "name" ? "Bill-to name" : k}
-                <input
-                  className="mt-1 w-full rounded border px-2 py-1"
-                  value={contact[k]}
-                  onChange={(e) => setContact({ ...contact, [k]: e.target.value })}
-                />
-              </label>
-            ))}
+            {editContact &&
+              (["name", "address", "phone", "email"] as const).map((k) => (
+                <label key={k} className="capitalize">
+                  {k === "name" ? "Bill-to name" : k}
+                  <input
+                    className="mt-1 w-full rounded border px-2 py-1"
+                    value={contact[k]}
+                    onChange={(e) => setContact({ ...contact, [k]: e.target.value })}
+                  />
+                </label>
+              ))}
           </div>
         ) : null}
         <div className="rounded-md bg-amber-50 p-2 text-sm">

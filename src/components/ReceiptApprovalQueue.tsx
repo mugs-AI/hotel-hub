@@ -77,11 +77,17 @@ export function ReceiptRequestCard({
           </tbody>
         </table>
       ) : null}
+      {open && r.canApprove ? (
+        <label className="mt-2 flex items-center gap-2">
+          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I
+          reviewed the original and requested values
+        </label>
+      ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" className="rounded border px-2 py-1" onClick={() => setOpen(!open)}>
           {open ? "Hide" : "Review"}
         </button>
-        {r.canApprove ? (
+        {r.canApprove && open && ack ? (
           <button
             type="button"
             disabled={busy}
