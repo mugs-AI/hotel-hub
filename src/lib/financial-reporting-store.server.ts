@@ -7,6 +7,7 @@ import { computeReceiptOverlay, type ReceiptVersionRow } from "./effective-recei
 import {
   FinancialReportError,
   financialMonth,
+  propertyLocalDate,
   selectReportRows,
   summarizeFinancialMonth,
   UNAVAILABLE_FINAL_BILLING,
@@ -305,7 +306,16 @@ export async function readReceiptEvents(
       // Effective current / replacement receipts listed in the month, and
       // stored version or void events dated in the month.
       return (byDeposit.get(d.id) ?? []).some(
-        (v) => listed.has(v.receiptId.toLowerCase()) || inMonth(v.documentDate),
+        (v) =>
+          listed.has(v.receiptId.toLowerCase()) ||
+          inMonth(v.documentDate) ||
+          // Existing confirmed void events count in the property-local month
+          // of their stored verification, independent of the N3 document
+          // date. Only stored voided versions (written after proof) qualify;
+          // isCancelled / timestamps alone never create one.
+          (v.state === "voided" &&
+            !!v.verifiedAt &&
+            inMonth(propertyLocalDate(v.verifiedAt, period.timezone))),
       );
     });
     if (candidates.length > FINANCIAL_LIMITS.verifyCap)
@@ -321,7 +331,11 @@ export async function readReceiptEvents(
     );
 
     // 4. Audit labels.
-    const requestIds = [...new Set(versions.map((v) => v.requestId))];
+    // Audit/user-label lookups only for the selected candidates' versions.
+    const candidateIds = new Set(candidates.map((d) => d.id));
+    const requestIds = [
+      ...new Set(versions.filter((v) => candidateIds.has(v.depositId)).map((v) => v.requestId)),
+    ];
     const audits = new Map(
       (await deadline.run(() => deps.requests(tenantId, requestIds))).map((r) => [r.id, r]),
     );
@@ -584,10 +598,11 @@ export async function readMonthlyFinancialSources(
   period: FinancialMonth,
   deps: FinancialReportingDeps,
   currency?: string,
+  shared?: Deadline,
 ): Promise<MonthlySources> {
   assertOwner(actor);
   const clock = deps.now ?? Date.now;
-  const deadline = new Deadline(clock, clock() + FINANCIAL_LIMITS.totalBudgetMs);
+  const deadline = shared ?? new Deadline(clock, clock() + FINANCIAL_LIMITS.totalBudgetMs);
   let settings: { currency: string; timezone: string } | null;
   let revision: string;
   try {
@@ -633,15 +648,54 @@ export async function readMonthlyFinancialSources(
   return value;
 }
 
+/**
+ * ONE deadline per request covers settings/period resolution and every DB/N3
+ * lookup; a hanging settings read can no longer outlive the budget.
+ */
 async function periodFor(
   actor: ReceiptControlActor,
   month: string | undefined,
   deps: FinancialReportingDeps,
-) {
+): Promise<{ period: FinancialMonth; currency: string; deadline: Deadline; timedOut: boolean }> {
   assertOwner(actor);
-  const settings = await deps.settings(actor.tenantId);
+  const clock = deps.now ?? Date.now;
+  const deadline = new Deadline(clock, clock() + FINANCIAL_LIMITS.totalBudgetMs);
+  let settings: { timezone: string; currency: string } | null;
+  try {
+    settings = await deadline.run(() => deps.settings(actor.tenantId));
+  } catch (err) {
+    if (!(err instanceof SourceIncomplete)) throw err;
+    // Late settings answers are discarded; the month is reported Unavailable.
+    return { period: financialMonth(month, "UTC"), currency: "", deadline, timedOut: true };
+  }
   if (!settings) throw new FinancialReportError("hotel_settings_missing");
-  return { period: financialMonth(month, settings.timezone), currency: settings.currency };
+  return {
+    period: financialMonth(month, settings.timezone),
+    currency: settings.currency,
+    deadline,
+    timedOut: false,
+  };
+}
+
+async function sourcesFor(
+  actor: ReceiptControlActor,
+  month: string | undefined,
+  deps: FinancialReportingDeps,
+) {
+  const p = await periodFor(actor, month, deps);
+  if (p.timedOut) {
+    const u = unavailable("time_budget");
+    const sources: MonthlySources = {
+      period: p.period,
+      currency: "",
+      receipts: u,
+      sales: u,
+      otherCollections: u,
+    };
+    return { ...p, sources };
+  }
+  const sources = await readMonthlyFinancialSources(actor, p.period, deps, p.currency, p.deadline);
+  return { ...p, sources };
 }
 
 export async function readMonthlyFinancialDashboard(
@@ -649,9 +703,8 @@ export async function readMonthlyFinancialDashboard(
   month: string | undefined,
   deps: FinancialReportingDeps,
 ): Promise<MonthlyFinancialDTO> {
-  const { period, currency } = await periodFor(actor, month, deps);
-  const s = await readMonthlyFinancialSources(actor, period, deps, currency);
-  return summarizeFinancialMonth(period, s, currency);
+  const { period, currency, sources } = await sourcesFor(actor, month, deps);
+  return summarizeFinancialMonth(period, sources, currency);
 }
 
 export async function readReceiptReportSnapshot(
@@ -661,9 +714,8 @@ export async function readReceiptReportSnapshot(
   validate: (p: URLSearchParams, period: FinancialMonth) => ReceiptReportFilter,
 ): Promise<{ filter: ReceiptReportFilter; sources: MonthlySources; rows: ReceiptReportRow[] }> {
   const raw = params.get("month") ?? undefined;
-  const { period, currency } = await periodFor(actor, raw, deps);
+  const { period, sources } = await sourcesFor(actor, raw, deps);
   const filter = validate(params, period);
-  const sources = await readMonthlyFinancialSources(actor, period, deps, currency);
   const rows =
     sources.receipts.status === "unavailable"
       ? []
@@ -676,8 +728,7 @@ export async function readReceiptReport(
   filter: ReceiptReportFilter,
   deps: FinancialReportingDeps,
 ): Promise<ReceiptReportDTO> {
-  const { period, currency } = await periodFor(actor, filter.month, deps);
-  const sources = await readMonthlyFinancialSources(actor, period, deps, currency);
+  const { period, sources } = await sourcesFor(actor, filter.month, deps);
   const status = sources.receipts.status;
   const rows =
     status === "unavailable" ? [] : selectReportRows(sources.receipts.rows, filter, period);
