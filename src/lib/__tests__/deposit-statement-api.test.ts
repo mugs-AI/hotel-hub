@@ -27,6 +27,21 @@ vi.mock("@/lib/deposits-store.server", async (original) => ({
   listDeposits: async (tenantId: string, id: string) =>
     state.deposits.filter((d) => d.tenantId === tenantId && d.reservationId === id),
 }));
+// Deterministic, isolated receipt-overlay reader: the real overlay logic runs,
+// but never against a live database (no receipt versions, nothing unresolved).
+vi.mock("@/lib/effective-receipts.server", async (original) => {
+  const mod = await original<typeof import("@/lib/effective-receipts.server")>();
+  const isolated = { versions: async () => [], unresolved: async () => [] };
+  return {
+    ...mod,
+    withEffectiveReceipts: (tenantId: string, rows: never[]) =>
+      mod.withEffectiveReceipts(tenantId, rows, isolated),
+  };
+});
+// Any attempt to reach the real service-role client fails the test loudly.
+vi.mock("@/integrations/supabase/client.server", () => {
+  throw new Error("unit test must not use the live database");
+});
 const { handleReadFolio } = await import("@/routes/api/hotel/reservations.$id.folio");
 const id = "11111111-1111-4111-8111-111111111111";
 const row = (status: string, amount: number, extra = {}) => ({
