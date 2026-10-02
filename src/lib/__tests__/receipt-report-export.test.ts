@@ -21,6 +21,7 @@ const row = (o: Partial<ReceiptReportRow> = {}): ReceiptReportRow => ({
   approverLabel: "Owner",
   reason: "Wrong amount",
   confirmedVoidAt: "2026-10-05T01:00:00Z",
+  n3DocumentDate: "2026-09-10",
   ...o,
 });
 

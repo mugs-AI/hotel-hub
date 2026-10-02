@@ -97,6 +97,8 @@ export type ReceiptReportRow = {
   approverLabel: string | null;
   reason: string | null;
   confirmedVoidAt: string | null;
+  /** The receipt's own N3 document date (a void row's month is its void event). */
+  n3DocumentDate: string | null;
 };
 
 export type ReceiptReportDTO = {
@@ -514,6 +516,7 @@ function toRow(e: HotelFinancialEvent, date: string): ReceiptReportRow {
     approverLabel: e.approverLabel,
     reason: e.reason,
     confirmedVoidAt: e.confirmedVoidAt,
+    n3DocumentDate: e.documentDate || null,
   };
 }
 

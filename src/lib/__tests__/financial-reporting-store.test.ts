@@ -837,3 +837,117 @@ describe("ARReceipts/List month query and strict page parsing", () => {
     ).toThrow("unauthorized");
   });
 });
+
+describe("review e220930: void-event month and single deadline", () => {
+  it("September receipt corrected to 80, proven void confirmed in October, October list empty", async () => {
+    const d = dep(1, { createdAt: "2026-09-10T02:00:00Z" });
+    const w = world([d], { list: () => [] });
+    w.snaps.set(d.id, snap(d, { documentState: "voided", documentDate: "2026-09-10" }));
+    w.versions = [
+      version(d, { versionNo: 1, amountCents: 8000, documentDate: "2026-09-10" }),
+      version(d, {
+        versionNo: 2,
+        state: "voided",
+        amountCents: 0,
+        requestId: "req-2",
+        documentDate: "2026-09-10",
+        verifiedAt: "2026-10-05T01:00:00Z",
+      }),
+    ];
+    const { deps } = makeDeps(w);
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(r.voids).toMatchObject({ amount: 80, count: 1 });
+    expect(r.deposits.amount).toBe(0);
+    const report = await readReceiptReport(
+      owner,
+      validateReceiptReportFilter(
+        new URLSearchParams("tab=voided"),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
+      deps,
+    );
+    expect(report.items).toHaveLength(1);
+    expect(report.items[0]).toMatchObject({ amount: 80 });
+    expect(report.items[0]).toMatchObject({
+      documentDate: "2026-10-05",
+      n3DocumentDate: "2026-09-10",
+    });
+  });
+
+  it("void verified late on 31 Oct UTC counts in November property-local month", async () => {
+    const d = dep(1);
+    const w = world([d], { list: () => [] });
+    w.snaps.set(d.id, snap(d, { documentState: "voided", documentDate: "2026-09-10" }));
+    w.versions = [
+      version(d, {
+        versionNo: 1,
+        state: "voided",
+        amountCents: 0,
+        documentDate: "2026-09-10",
+        verifiedAt: "2026-10-31T17:00:00Z",
+      }),
+    ];
+    const oct = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(oct.voids.count ?? 0).toBe(0);
+    clearFinancialCache();
+    const nov = await readMonthlyFinancialDashboard(owner, "2026-11", makeDeps(w).deps);
+    expect(nov.voids).toMatchObject({ count: 1, amount: 50 });
+  });
+
+  it("an unproven external cancel (no stored void version) is never a confirmed void", async () => {
+    const d = dep(1);
+    const w = world([d], {
+      list: () => [
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: true,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
+      ],
+    });
+    w.snaps.set(d.id, snap(d, { documentState: "voided", documentDate: "2026-10-03" }));
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.voids.count ?? 0).toBe(0);
+    expect(r.deposits.status).toBe("needs_review");
+  });
+
+  it("a never-resolving settings read returns Unavailable within the shared budget", async () => {
+    const { deps, calls } = makeDeps(world([dep(1)]));
+    deps.settings = () => new Promise(() => {});
+    let t = 0;
+    deps.now = () => t;
+    vi.useFakeTimers();
+    try {
+      const p = readMonthlyFinancialDashboard(owner, "2026-10", deps);
+      t = FINANCIAL_LIMITS.totalBudgetMs + 1;
+      await vi.advanceTimersByTimeAsync(FINANCIAL_LIMITS.totalBudgetMs + 1);
+      const r = await p;
+      expect(r.deposits.status).toBe("unavailable");
+      expect(r.voids.status).toBe("unavailable");
+      expect(calls.verify).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("audit and user-label lookups are limited to selected candidates", async () => {
+    const a = dep(1);
+    const b = dep(2);
+    const w = world([a, b]);
+    w.snaps.set(b.id, snap(b, { documentDate: "2026-09-15" }));
+    w.versions = [
+      version(a, { requestId: "req-a" }),
+      version(b, { requestId: "req-b", documentDate: "2026-09-15" }),
+    ];
+    const { deps } = makeDeps(w);
+    const asked: string[][] = [];
+    const base = deps.requests;
+    deps.requests = (t, ids) => (asked.push(ids), base(t, ids));
+    await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(asked.flat()).toEqual(["req-a"]);
+  });
+});
