@@ -2,16 +2,32 @@
 -- Immutable correction/void requests, append-only Owner decisions, atomic
 -- execution claims, append-only effective receipt versions and an alert
 -- outbox. Existing deposit creation columns are not altered. Service-role only.
+-- Every child row is bound by COMPOUND tenant-scoped foreign keys, so a row can
+-- never point at another tenant's reservation, deposit or request.
+
+-- Exact UTF-16 code-unit length (matches the browser/server JS limit):
+-- astral characters (outside the BMP) count as two units.
+CREATE OR REPLACE FUNCTION public.hotelhub_utf16_length(p text)
+RETURNS integer LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE SET search_path = '' AS $$
+  SELECT char_length(p) + char_length(regexp_replace(p, '[^\U00010000-\U0010FFFF]', '', 'g'))
+$$;
+
+-- Additive unique keys on the existing deposits table so compound FKs can
+-- reference it. id is already the primary key, so these cannot fail on
+-- existing data and change no existing column or behaviour.
+ALTER TABLE public.hotel_reservation_deposits
+  ADD CONSTRAINT hotel_reservation_deposits_tenant_id_uk UNIQUE (tenant_id, id),
+  ADD CONSTRAINT hotel_reservation_deposits_tenant_res_id_uk UNIQUE (tenant_id, reservation_id, id);
 
 CREATE TABLE public.hotel_receipt_control_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
-  reservation_id uuid NOT NULL REFERENCES public.hotel_reservations(id),
-  deposit_id uuid NOT NULL REFERENCES public.hotel_reservation_deposits(id),
+  reservation_id uuid NOT NULL,
+  deposit_id uuid NOT NULL,
   client_request_id uuid NOT NULL,
   request_fingerprint text NOT NULL CHECK (length(request_fingerprint) BETWEEN 16 AND 128),
   kind text NOT NULL CHECK (kind IN ('correction', 'void')),
-  reason text NOT NULL CHECK (reason = btrim(reason) AND length(reason) BETWEEN 1 AND 500),
+  reason text NOT NULL CHECK (reason = btrim(reason) AND public.hotelhub_utf16_length(reason) BETWEEN 1 AND 500),
   original jsonb NOT NULL,
   proposal jsonb NOT NULL,
   comparison jsonb NOT NULL,
@@ -24,10 +40,20 @@ CREATE TABLE public.hotel_receipt_control_requests (
   requested_at timestamptz NOT NULL DEFAULT now(),
   decided_by_n3_user_key text,
   decided_at timestamptz,
+  -- Set once by an Owner approval; a Hold never sets it. Verify requires it.
+  approved_by_n3_user_key text,
+  approved_at timestamptz,
   outcome_code text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT hotel_receipt_control_requests_client_key UNIQUE (tenant_id, client_request_id),
+  CONSTRAINT hotel_receipt_control_requests_tenant_id_uk UNIQUE (tenant_id, id),
+  CONSTRAINT hotel_receipt_control_requests_tenant_id_deposit_uk UNIQUE (tenant_id, id, deposit_id),
+  CONSTRAINT hotel_receipt_control_requests_reservation_fk FOREIGN KEY (tenant_id, reservation_id)
+    REFERENCES public.hotel_reservations (tenant_id, id),
+  CONSTRAINT hotel_receipt_control_requests_deposit_fk FOREIGN KEY (tenant_id, reservation_id, deposit_id)
+    REFERENCES public.hotel_reservation_deposits (tenant_id, reservation_id, id),
+  CONSTRAINT hotel_receipt_control_requests_approval_pair CHECK ((approved_at IS NULL) = (approved_by_n3_user_key IS NULL)),
   CONSTRAINT hotel_receipt_control_requests_kind_amount CHECK ((kind = 'void') = (proposed_amount_cents IS NULL))
 );
 CREATE UNIQUE INDEX hotel_receipt_control_one_active
@@ -41,7 +67,7 @@ CREATE INDEX hotel_receipt_control_requests_reservation
 CREATE TABLE public.hotel_receipt_control_decisions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
-  request_id uuid NOT NULL REFERENCES public.hotel_receipt_control_requests(id),
+  request_id uuid NOT NULL,
   decision text NOT NULL CHECK (decision IN ('approve','reject','hold','verify')),
   from_state text NOT NULL,
   to_state text NOT NULL,
@@ -49,21 +75,27 @@ CREATE TABLE public.hotel_receipt_control_decisions (
   requester_n3_user_key text NOT NULL,
   self_approved boolean NOT NULL,
   outcome_code text,
-  note text CHECK (note IS NULL OR length(note) <= 500),
-  created_at timestamptz NOT NULL DEFAULT now()
+  note text CHECK (note IS NULL OR public.hotelhub_utf16_length(note) <= 500),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT hotel_receipt_control_decisions_request_fk FOREIGN KEY (tenant_id, request_id)
+    REFERENCES public.hotel_receipt_control_requests (tenant_id, id)
 );
 CREATE INDEX hotel_receipt_control_decisions_request ON public.hotel_receipt_control_decisions (request_id);
 
 CREATE TABLE public.hotel_receipt_control_executions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
-  request_id uuid NOT NULL REFERENCES public.hotel_receipt_control_requests(id),
+  request_id uuid NOT NULL,
   step text NOT NULL CHECK (step IN ('verify','edit','void','replace')),
   state text NOT NULL DEFAULT 'claimed' CHECK (state IN ('claimed','completed','released')),
   claimed_by_n3_user_key text NOT NULL,
+  -- Request version produced by this claim; completion must still match it.
+  claimed_version integer NOT NULL,
   result_code text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  CONSTRAINT hotel_receipt_control_executions_request_fk FOREIGN KEY (tenant_id, request_id)
+    REFERENCES public.hotel_receipt_control_requests (tenant_id, id)
 );
 -- One in-flight claim per request; completed write steps can never be claimed twice.
 CREATE UNIQUE INDEX hotel_receipt_control_executions_inflight
@@ -74,8 +106,8 @@ CREATE UNIQUE INDEX hotel_receipt_control_executions_write_once
 CREATE TABLE public.hotel_receipt_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
-  deposit_id uuid NOT NULL REFERENCES public.hotel_reservation_deposits(id),
-  request_id uuid NOT NULL REFERENCES public.hotel_receipt_control_requests(id),
+  deposit_id uuid NOT NULL,
+  request_id uuid NOT NULL,
   version_no integer NOT NULL CHECK (version_no >= 1),
   state text NOT NULL CHECK (state IN ('active','voided')),
   receipt_id text NOT NULL,
@@ -88,18 +120,26 @@ CREATE TABLE public.hotel_receipt_versions (
   evidence_fingerprint text NOT NULL,
   verified_by_n3_user_key text NOT NULL,
   verified_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT hotel_receipt_versions_seq UNIQUE (tenant_id, deposit_id, version_no)
+  CONSTRAINT hotel_receipt_versions_seq UNIQUE (tenant_id, deposit_id, version_no),
+  CONSTRAINT hotel_receipt_versions_deposit_fk FOREIGN KEY (tenant_id, deposit_id)
+    REFERENCES public.hotel_reservation_deposits (tenant_id, id),
+  -- The version's deposit must be the request's deposit.
+  CONSTRAINT hotel_receipt_versions_request_fk FOREIGN KEY (tenant_id, request_id, deposit_id)
+    REFERENCES public.hotel_receipt_control_requests (tenant_id, id, deposit_id),
+  CONSTRAINT hotel_receipt_versions_active_positive CHECK (state = 'voided' OR amount_cents > 0)
 );
 
 CREATE TABLE public.hotel_receipt_alert_outbox (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id),
-  request_id uuid NOT NULL REFERENCES public.hotel_receipt_control_requests(id),
+  request_id uuid NOT NULL,
   event text NOT NULL CHECK (event IN ('pending','decision','execution_failure')),
   request_version integer NOT NULL,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sending','sent','failed','disabled')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT hotel_receipt_alert_outbox_once UNIQUE (tenant_id, request_id, event, request_version)
+  CONSTRAINT hotel_receipt_alert_outbox_once UNIQUE (tenant_id, request_id, event, request_version),
+  CONSTRAINT hotel_receipt_alert_outbox_request_fk FOREIGN KEY (tenant_id, request_id)
+    REFERENCES public.hotel_receipt_control_requests (tenant_id, id)
 );
 
 -- Service-role only. No browser role can read or write these tables.
@@ -126,7 +166,10 @@ BEGIN
      OR NEW.kind <> OLD.kind OR NEW.reason <> OLD.reason OR NEW.original <> OLD.original OR NEW.proposal <> OLD.proposal
      OR NEW.comparison <> OLD.comparison OR NEW.original_amount_cents <> OLD.original_amount_cents
      OR NEW.proposed_amount_cents IS DISTINCT FROM OLD.proposed_amount_cents
-     OR NEW.requested_by_n3_user_key <> OLD.requested_by_n3_user_key OR NEW.requested_at <> OLD.requested_at THEN
+     OR NEW.requested_by_n3_user_key <> OLD.requested_by_n3_user_key OR NEW.requested_at <> OLD.requested_at
+     OR NEW.execution_mode <> OLD.execution_mode
+     OR (OLD.approved_at IS NOT NULL AND (NEW.approved_at IS DISTINCT FROM OLD.approved_at
+         OR NEW.approved_by_n3_user_key IS DISTINCT FROM OLD.approved_by_n3_user_key)) THEN
     RAISE EXCEPTION 'receipt_control_immutable';
   END IF;
   NEW.updated_at := now();
@@ -148,6 +191,12 @@ RETURNS SETOF public.hotel_receipt_control_requests
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v public.hotel_receipt_control_requests;
 BEGIN
+  -- RPC boundary validation mirrors the server contract (UTF-16 units).
+  IF p_reason IS NULL OR p_reason <> btrim(p_reason)
+     OR public.hotelhub_utf16_length(p_reason) NOT BETWEEN 1 AND 500 THEN
+    RAISE EXCEPTION 'invalid_reason';
+  END IF;
+  IF p_kind NOT IN ('correction','void') THEN RAISE EXCEPTION 'invalid_request'; END IF;
   SELECT * INTO v FROM public.hotel_receipt_control_requests
     WHERE tenant_id = p_tenant_id AND client_request_id = p_client_request_id;
   IF FOUND THEN
@@ -199,6 +248,8 @@ BEGIN
   UPDATE public.hotel_receipt_control_requests SET state = p_to_state, version = version + 1,
     decided_by_n3_user_key = CASE WHEN p_decision = 'hold' THEN decided_by_n3_user_key ELSE p_actor END,
     decided_at = CASE WHEN p_decision = 'hold' THEN decided_at ELSE now() END,
+    approved_by_n3_user_key = CASE WHEN p_decision = 'approve' THEN p_actor ELSE approved_by_n3_user_key END,
+    approved_at = CASE WHEN p_decision = 'approve' THEN now() ELSE approved_at END,
     outcome_code = p_outcome_code
     WHERE id = v.id RETURNING * INTO v;
   INSERT INTO public.hotel_receipt_control_decisions (tenant_id, request_id, decision, from_state, to_state,
@@ -211,6 +262,7 @@ BEGIN
 END $$;
 
 -- Atomic execution claim. Returns NULL when another claim is in flight or the state is not claimable.
+-- Only an APPROVED request can be claimed: pending -> Hold -> Needs review has no approval and can never verify.
 CREATE OR REPLACE FUNCTION public.hotelhub_receipt_control_claim(
   p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_step text, p_actor text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -219,9 +271,12 @@ BEGIN
   SELECT * INTO v FROM public.hotel_receipt_control_requests
     WHERE id = p_request_id AND tenant_id = p_tenant_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'request_not_found'; END IF;
+  IF v.approved_at IS NULL THEN RAISE EXCEPTION 'not_approved'; END IF;
+  IF p_step NOT IN ('verify','edit','void','replace') THEN RAISE EXCEPTION 'invalid_transition'; END IF;
+  IF p_step <> 'verify' AND v.execution_mode = 'manual' THEN RAISE EXCEPTION 'automation_unavailable'; END IF;
   IF v.version <> p_expected_version OR v.state NOT IN ('approved_awaiting_n3','needs_review') THEN RETURN NULL; END IF;
-  INSERT INTO public.hotel_receipt_control_executions (tenant_id, request_id, step, claimed_by_n3_user_key)
-    VALUES (p_tenant_id, v.id, p_step, p_actor) ON CONFLICT DO NOTHING RETURNING id INTO v_id;
+  INSERT INTO public.hotel_receipt_control_executions (tenant_id, request_id, step, claimed_by_n3_user_key, claimed_version)
+    VALUES (p_tenant_id, v.id, p_step, p_actor, v.version + 1) ON CONFLICT DO NOTHING RETURNING id INTO v_id;
   IF v_id IS NULL THEN RETURN NULL; END IF;
   IF v.state = 'approved_awaiting_n3' THEN
     UPDATE public.hotel_receipt_control_requests SET state = 'applying', version = version + 1 WHERE id = v.id;
@@ -237,18 +292,29 @@ CREATE OR REPLACE FUNCTION public.hotelhub_receipt_control_complete(
   p_actor text, p_version jsonb)
 RETURNS SETOF public.hotel_receipt_control_requests
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v public.hotel_receipt_control_requests; v_from text; v_no integer;
+DECLARE v public.hotel_receipt_control_requests; v_from text; v_no integer; v_exec public.hotel_receipt_control_executions;
 BEGIN
   SELECT * INTO v FROM public.hotel_receipt_control_requests
     WHERE id = p_request_id AND tenant_id = p_tenant_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'request_not_found'; END IF;
-  UPDATE public.hotel_receipt_control_executions SET state = 'completed', result_code = p_outcome_code, completed_at = now()
-    WHERE id = p_execution_id AND request_id = v.id AND tenant_id = p_tenant_id AND state = 'claimed';
+  -- Fence: the claim must still be the in-flight claim for THIS request version of an approved request.
+  SELECT * INTO v_exec FROM public.hotel_receipt_control_executions
+    WHERE id = p_execution_id AND request_id = v.id AND tenant_id = p_tenant_id AND state = 'claimed' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'claim_not_found'; END IF;
+  IF v.approved_at IS NULL OR v.state NOT IN ('applying','needs_review') OR v.version <> v_exec.claimed_version THEN
+    RAISE EXCEPTION 'claim_stale';
+  END IF;
   v_from := v.state;
-  IF p_to_state NOT IN ('applied','needs_review','failed') OR (p_to_state = 'applied') <> (p_version IS NOT NULL) THEN
+  -- applied needs version evidence. A failed/needs_review outcome may still carry
+  -- CONFIRMED void evidence (void step succeeded, replacement did not) so the
+  -- original is excluded even though the overall request failed.
+  IF p_to_state NOT IN ('applied','needs_review','failed')
+     OR (p_to_state = 'applied' AND p_version IS NULL)
+     OR (p_to_state <> 'applied' AND p_version IS NOT NULL AND p_version->>'state' IS DISTINCT FROM 'voided') THEN
     RAISE EXCEPTION 'invalid_transition';
   END IF;
+  UPDATE public.hotel_receipt_control_executions SET state = 'completed', result_code = p_outcome_code, completed_at = now()
+    WHERE id = v_exec.id;
   IF p_version IS NOT NULL THEN
     SELECT coalesce(max(version_no), 0) + 1 INTO v_no FROM public.hotel_receipt_versions
       WHERE tenant_id = p_tenant_id AND deposit_id = v.deposit_id;
@@ -278,6 +344,8 @@ REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_decide(uuid,uuid,integer,
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_claim(uuid,uuid,integer,text,text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_complete(uuid,uuid,uuid,text,text,text,jsonb) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.hotelhub_receipt_control_guard() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.hotelhub_utf16_length(text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.hotelhub_utf16_length(text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_create(uuid,uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb,bigint,bigint,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_decide(uuid,uuid,integer,text,text,text,text,text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_claim(uuid,uuid,integer,text,text) TO service_role;
@@ -285,4 +353,6 @@ GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_complete(uuid,uuid,uui
 
 -- Rollback (manual, reviewed): DROP FUNCTION the four hotelhub_receipt_control_* functions and the guard,
 -- then DROP TABLE hotel_receipt_alert_outbox, hotel_receipt_versions, hotel_receipt_control_executions,
--- hotel_receipt_control_decisions, hotel_receipt_control_requests. No existing table is modified.
+-- hotel_receipt_control_decisions, hotel_receipt_control_requests, DROP FUNCTION hotelhub_utf16_length,
+-- and ALTER TABLE hotel_reservation_deposits DROP CONSTRAINT the two additive *_uk keys.
+-- No existing column, row or policy is modified.
