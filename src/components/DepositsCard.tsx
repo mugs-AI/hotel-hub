@@ -415,7 +415,9 @@ export function DepositsCard({
                         type="button"
                         className="text-xs font-medium underline"
                         style={{ color: NAVY }}
-                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "correction", identity })}
+                        onClick={() =>
+                          setReceiptDialog({ depositId: d.id, kind: "correction", identity })
+                        }
                       >
                         Request correction
                       </button>
@@ -423,7 +425,9 @@ export function DepositsCard({
                         type="button"
                         className="text-xs font-medium underline"
                         style={{ color: ERR }}
-                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "void", identity })}
+                        onClick={() =>
+                          setReceiptDialog({ depositId: d.id, kind: "void", identity })
+                        }
                       >
                         Request void
                       </button>

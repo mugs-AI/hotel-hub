@@ -135,7 +135,11 @@ export function purgeSensitiveReceiptData(qc: PurgeableClient, identity: string 
   if (!mc) return;
   for (const m of mc.getAll()) {
     const k = m.options.mutationKey;
-    if (k && SENSITIVE_RECEIPT_PREFIXES.includes(k[0] as never) && (identity === null || k[1] !== identity))
+    if (
+      k &&
+      SENSITIVE_RECEIPT_PREFIXES.includes(k[0] as never) &&
+      (identity === null || k[1] !== identity)
+    )
       mc.remove(m as never);
   }
 }

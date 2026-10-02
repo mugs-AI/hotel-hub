@@ -96,12 +96,18 @@ describe("receipt/finance cache namespace on auth switch (no Owner dashboard mou
     qc.getMutationCache().build(qc, { mutationKey: ["receipt-controls", A, "request", "dep-1"] });
     qc.getMutationCache().build(qc, { mutationKey: ["other"] });
     purgeSensitiveReceiptData(qc, "tB:uX:owner");
-    const left = qc.getQueryCache().getAll().map((q) => q.queryKey[0]);
+    const left = qc
+      .getQueryCache()
+      .getAll()
+      .map((q) => q.queryKey[0]);
     expect(left).not.toContain("receipt-controls");
     expect(left).not.toContain("financial-reporting");
-    expect(qc.getMutationCache().getAll().map((m) => m.options.mutationKey?.[0])).toEqual([
-      "other",
-    ]);
+    expect(
+      qc
+        .getMutationCache()
+        .getAll()
+        .map((m) => m.options.mutationKey?.[0]),
+    ).toEqual(["other"]);
   });
 
   it("purge keeps the current identity's data; null identity removes everything", () => {
