@@ -67,3 +67,45 @@ describe("receipt journal shape (documented nested account)", () => {
     expect(reasons.every((r) => /^journal_[a-z_]+$/.test(r))).toBe(true);
   });
 });
+
+describe("receipt journal alias/casing boundaries", () => {
+  it("reads PascalCase keys and nested accountCodeLookup when all copies agree", () => {
+    const rows = [
+      {
+        DocCode: "OR-T/001",
+        ReferenceNo: "HH-REF-T",
+        AccountCodeLookup: { Id: BANK, Code: "700-0310" },
+        Debit: 50,
+        Credit: 0,
+      },
+      {
+        DocCode: "OR-T/001",
+        ReferenceNo: "HH-REF-T",
+        AccountCode: "700-7001",
+        account: { code: "700-7001" },
+        Debit: 0,
+        Credit: 50,
+      },
+    ];
+    expect(journalMismatchReasons(readJournal(ok(rows)), receipt, lines)).toEqual([]);
+  });
+  it("rejects when account and accountCodeLookup disagree", () => {
+    const rows = [
+      {
+        ...base,
+        account: { id: BANK },
+        accountCodeLookup: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" },
+        debit: 50,
+        credit: 0,
+      },
+      nestedRows[1],
+    ];
+    expect(journalMismatchReasons(readJournal(ok(rows)), receipt, lines)).not.toEqual([]);
+  });
+  it("never invents a missing row docCode from the receipt detail", () => {
+    const rows = nestedRows.map(({ docCode: _d, ...r }) => r);
+    expect(journalMismatchReasons(readJournal(ok(rows)), receipt, lines)).toContain(
+      "journal_row_doc_code_missing",
+    );
+  });
+});
