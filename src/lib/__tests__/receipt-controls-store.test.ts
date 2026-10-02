@@ -109,6 +109,8 @@ function memoryDb() {
     async decide(a) {
       const r = rows.get(a.requestId)!;
       if (r.version !== a.expectedVersion) throw new ReceiptControlError("version_conflict");
+      // Mirrors staged SQL: an in-flight claim fences every decision.
+      if (claims.has(r.id)) throw new ReceiptControlError("claim_conflict");
       const ok =
         (a.decision === "approve" && r.state === "pending") ||
         (a.decision === "hold" && ["pending", "approved_awaiting_n3"].includes(r.state)) ||
@@ -809,8 +811,8 @@ describe("frozen42f review fixes", () => {
       { requestId: approved.id, expectedVersion: approved.version },
       d,
     ).catch((e) => e);
-    const state = out?.state ?? out?.code;
-    expect(state).not.toBe("applied");
+    expect(out?.state).toBe("needs_review");
+    expect(out?.outcomeCode ?? "").toContain("account_not_allowed");
   });
 
   it("cache identity is tenant+user+role; foreign snapshots are purged; effects cover every consumer", () => {
@@ -844,6 +846,38 @@ describe("frozen42f review fixes", () => {
     for (const need of ["reservations", "departures", "checkout-preview", "financial-reporting", "deposits", "folio"])
       expect(inv).toContain(need);
     expect(RECEIPT_EFFECT_QUERY_PREFIXES.length).toBe(inv.length);
+  });
+
+  it("race: claimed prior-approved Needs review cannot be rejected; completion stays fenced", async () => {
+    const { d, mem } = deps();
+    const created = await createReceiptControlRequest(owner, amountOnly(80), d);
+    const approved = await decideReceiptControlRequest(
+      owner,
+      { requestId: created.id, decision: "approve", expectedVersion: created.version },
+      d,
+    );
+    // Put the approved request into Needs review (prior-approved), then claim it.
+    mem.rows.set(approved.id, { ...mem.rows.get(approved.id)!, state: "needs_review" });
+    const before = mem.rows.get(approved.id)!;
+    const exec = await mem.db.claim({
+      tenantId: before.tenantId,
+      requestId: before.id,
+      expectedVersion: before.version,
+      step: "verify",
+      actor: "owner-1",
+    } as any);
+    expect(exec).toBeTruthy();
+    const claimed = mem.rows.get(approved.id)!;
+    expect(claimed.state).toBe("needs_review"); // claim leaves state as-is
+    // A refreshed second Owner sees the bumped version and tries Reject.
+    await expect(
+      decideReceiptControlRequest(
+        owner,
+        { requestId: claimed.id, decision: "reject", expectedVersion: claimed.version },
+        d,
+      ),
+    ).rejects.toMatchObject({ code: "claim_conflict" });
+    expect(mem.rows.get(approved.id)!.state).toBe("needs_review"); // not terminal, active index held
   });
 
   it("staged SQL: any in-flight claim fences decisions (reject cannot terminate a claimed Needs review)", () => {
