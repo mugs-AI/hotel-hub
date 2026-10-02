@@ -19,6 +19,11 @@ import {
 
 const money = (n: number, c: string) => formatCents(Math.round(n * 100), c);
 
+function lastDay(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return `${month}-${String(new Date(Date.UTC(y!, m!, 0)).getUTCDate()).padStart(2, "0")}`;
+}
+
 export function ReceiptReports({
   filter,
   onFilterChange,
