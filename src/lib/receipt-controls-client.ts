@@ -48,8 +48,9 @@ export type ReceiptControlProposalInput =
   | {
       kind: "correction";
       amount: number;
-      accountId: string;
-      contact: {
+      accountId?: string;
+      /** Omit to preserve the saved N3 contact exactly. */
+      contact?: {
         name?: string;
         company?: string;
         address?: string;
@@ -58,8 +59,78 @@ export type ReceiptControlProposalInput =
       };
     };
 
-export const receiptControlsKey = (tenantKey: string, scope: string) =>
-  ["receipt-controls", tenantKey, scope] as const;
+export const receiptControlsKey = (identityKey: string, scope: string) =>
+  ["receipt-controls", identityKey, scope] as const;
+
+/** Cache namespace for receipt data: authenticated tenant + user + role. */
+export function receiptIdentityKey(
+  me:
+    | {
+        authenticated: boolean;
+        tenant?: { tenantId: string };
+        user?: { n3UserKey: string };
+        role?: string | null;
+      }
+    | null
+    | undefined,
+): string | null {
+  if (!me || !me.authenticated || !me.tenant || !me.user || !me.role) return null;
+  return `${me.tenant.tenantId}:${me.user.n3UserKey}:${me.role}`;
+}
+
+/**
+ * Every query whose numbers come from the effective receipt projection. A
+ * verified receipt change must refresh all of them so a mounted checkout,
+ * reservation list, departures board or monthly report recalculates at once.
+ */
+export const RECEIPT_EFFECT_QUERY_PREFIXES = [
+  "receipt-controls",
+  "deposits",
+  "folio",
+  "reservations",
+  "departures",
+  "checkout-preview",
+  "financial-reporting",
+] as const;
+
+export function invalidateReceiptEffects(qc: {
+  invalidateQueries: (f: { queryKey: readonly unknown[] }) => unknown;
+}) {
+  for (const k of RECEIPT_EFFECT_QUERY_PREFIXES) void qc.invalidateQueries({ queryKey: [k] });
+}
+
+/** Drop receipt-control data cached for any other identity (auth switch). */
+export function purgeForeignReceiptCache(
+  qc: {
+    removeQueries: (f: { queryKey: readonly unknown[]; predicate: (q: { queryKey: readonly unknown[] }) => boolean }) => unknown;
+  },
+  identityKey: string | null,
+) {
+  qc.removeQueries({
+    queryKey: ["receipt-controls"],
+    predicate: (q) => q.queryKey[1] !== identityKey,
+  });
+}
+
+export type ReceiptOriginalDTO = {
+  amountCents: number;
+  currency: string;
+  accountId: string | null;
+  accountLabel: string | null;
+  contact: {
+    customerName: string;
+    remark1: string;
+    remark2: string;
+    remark3: string;
+    remark4: string;
+  };
+};
+
+export function getReceiptOriginal(reservationId: string, depositId: string) {
+  return call<{ original: ReceiptOriginalDTO }>(
+    `/api/hotel/reservations/${encodeURIComponent(reservationId)}/deposits/${encodeURIComponent(depositId)}/receipt-requests`,
+  );
+}
 
 export function listReceiptControls(opts: { reservationId?: string; queue?: boolean }) {
   const q = new URLSearchParams();

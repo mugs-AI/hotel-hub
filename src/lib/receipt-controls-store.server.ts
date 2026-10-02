@@ -494,6 +494,26 @@ async function approvalHoldReason(
   return null;
 }
 
+/** Safe original projection for the request dialog (contact/account/amount). */
+export async function readReceiptOriginalForDialog(
+  actor: ReceiptControlActor,
+  input: { reservationId: unknown; depositId: unknown },
+  deps: Pick<StoreDeps, "readEvidence">,
+) {
+  if (!CAN_REQUEST.has(actor.role)) throw new ReceiptControlError("forbidden");
+  if (!isUuid(input.reservationId) || !isUuid(input.depositId))
+    throw new ReceiptControlError("invalid_id");
+  const o = await deps.readEvidence(actor, input.depositId);
+  const line = o.paymentLines.length === 1 ? o.paymentLines[0]! : null;
+  return {
+    amountCents: o.amountCents,
+    currency: o.currency,
+    accountId: line?.accountId ?? null,
+    accountLabel: line ? line.savedName || line.code : null,
+    contact: { ...o.contact },
+  };
+}
+
 export async function listReceiptControlRequests(
   actor: ReceiptControlActor,
   f: { reservationId?: string; queue?: boolean },
