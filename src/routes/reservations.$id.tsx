@@ -425,6 +425,7 @@ function Detail({
         reservationId={data.id}
         canView={canViewDeposits}
         canCreate={canCreateDeposits}
+        canRequestReceiptChange={hasPermission(role, "hotel:receipt_controls:request")}
         eligible={isDepositReservationEligible(data.status)}
       />
 

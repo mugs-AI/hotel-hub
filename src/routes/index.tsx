@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
+import { ReceiptApprovalQueue } from "@/components/ReceiptApprovalQueue";
 import { hasPermission } from "@/lib/rbac";
 import { housekeepingAuthority } from "@/lib/housekeeping";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";
@@ -67,6 +68,8 @@ function Dashboard() {
             </span>
           ) : null}
         </div>
+
+        <ReceiptApprovalQueue enabled={hasPermission(role, "hotel:receipt_controls:approve")} />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {canReservations ? (
