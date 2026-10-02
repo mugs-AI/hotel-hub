@@ -40,7 +40,10 @@ vi.mock("@/lib/effective-receipts.server", async (original) => {
 });
 // Any attempt to reach the real service-role client fails the test loudly.
 vi.mock("@/integrations/supabase/client.server", () => {
-  throw new Error("unit test must not use the live database");
+  const banned = () => {
+    throw new Error("unit test must not use the live database");
+  };
+  return { supabaseAdmin: { from: banned, rpc: banned } };
 });
 const { handleReadFolio } = await import("@/routes/api/hotel/reservations.$id.folio");
 const id = "11111111-1111-4111-8111-111111111111";

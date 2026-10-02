@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 // The list read model must use only the injected DB; the live client is banned.
 vi.mock("@/integrations/supabase/client.server", () => {
-  throw new Error("unit test must not use the live database");
+  const banned = () => {
+    throw new Error("unit test must not use the live database");
+  };
+  return { supabaseAdmin: { from: banned, rpc: banned } };
 });
 import * as store from "../folio-store.server";
 type Row = Record<string, unknown>;
