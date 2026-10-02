@@ -213,5 +213,5 @@ export async function listAllReceiptControls(
     if (last.nextOffset === null) return { ...last, requests, offset: 0, nextOffset: null };
     offset = last.nextOffset;
   }
-  throw new ReceiptControlClientError("receipt_control_list_incomplete", 0);
+  throw new ReceiptControlClientError("receipt_control_list_incomplete");
 }
