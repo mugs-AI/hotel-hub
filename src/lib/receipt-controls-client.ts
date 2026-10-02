@@ -135,11 +135,27 @@ export function getReceiptOriginal(reservationId: string, depositId: string) {
   );
 }
 
-export function listReceiptControls(opts: { reservationId?: string; queue?: boolean }) {
+export type ReceiptControlPageDTO = {
+  requests: ReceiptControlRequestDTO[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  transport: { configured: boolean };
+};
+
+export function listReceiptControls(opts: {
+  reservationId?: string;
+  queue?: boolean;
+  offset?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (opts.reservationId) q.set("reservationId", opts.reservationId);
   if (opts.queue) q.set("queue", "1");
-  return call<{ requests: ReceiptControlRequestDTO[]; transport: { configured: boolean } }>(
+  if (opts.offset) q.set("offset", String(opts.offset));
+  if (opts.limit) q.set("limit", String(opts.limit));
+  return call<ReceiptControlPageDTO>(
     `/api/hotel/receipt-controls?${q}`,
   );
 }
@@ -168,6 +184,13 @@ export function decideReceiptControl(
 export function verifyReceiptControl(requestId: string, expectedVersion: number) {
   return call<{ request: ReceiptControlRequestDTO }>(
     `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/verify`,
+    { method: "POST", body: JSON.stringify({ expectedVersion }) },
+  );
+}
+
+export function recoverReceiptControl(requestId: string, expectedVersion: number) {
+  return call<{ request: ReceiptControlRequestDTO }>(
+    `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/recover`,
     { method: "POST", body: JSON.stringify({ expectedVersion }) },
   );
 }
