@@ -2078,11 +2078,13 @@ export async function buildReservationListAmounts(
     ),
   ]);
   const byRoomId = new Map(rooms.map((r) => [r.id, r]));
-  const { loadReceiptOverlay } = await import("./effective-receipts.server");
+  const { loadReceiptOverlay, receiptReader } = await import("./effective-receipts.server");
   const { applyEffectiveReceipts } = await import("./effective-receipts");
+  // Same resolved DB as every other read here (injected in unit tests).
   const receiptOverlay = await loadReceiptOverlay(
     input.tenantId,
     deposits.map((d) => d.id),
+    receiptReader(db as unknown as { from: (t: string) => any }),
   );
   return Promise.all(
     reservations.map(async (reservation) => {
