@@ -16,9 +16,11 @@ import {
 import {
   MIN_FINANCIAL_MONTH,
   MONTH_NAMES,
+  type MonthSelection,
   clampMonth,
   formatMonth,
   parseMonth,
+  resolveFinancialMonth,
   shiftMonth,
 } from "@/lib/month-nav";
 
@@ -26,13 +28,12 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
   const identity = useFinancialIdentity();
   // A selection belongs to the identity that made it; any account/role switch
   // drops it, so a previous tenant's month never carries over.
-  const [selection, setSelection] = useState<{ identity: string; month: string } | null>(null);
+  const [selection, setSelection] = useState<MonthSelection>(null);
   const period = useCurrentFinancialPeriod(enabled);
   // Latest month offered = this identity's server-derived property month,
   // refreshed independently of the selection (never the browser clock).
   const max = identity !== null ? period.data?.month : undefined;
-  const picked = selection && selection.identity === identity ? selection.month : undefined;
-  const shown = max ? (picked ? clampMonth(picked, MIN_FINANCIAL_MONTH, max) : max) : undefined;
+  const shown = resolveFinancialMonth(identity, selection, max);
   const q = useMonthlyFinancialDashboard(shown, enabled && shown !== undefined);
   if (!enabled || identity === null) return null;
   const errorCode = period.isError

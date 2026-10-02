@@ -42,3 +42,20 @@ export function shiftMonth(v: string, delta: number): string | null {
 export function clampMonth(v: string, min: string, max: string): string {
   return v < min ? min : v > max ? max : v;
 }
+
+export type MonthSelection = { identity: string; month: string } | null;
+
+/**
+ * Month shown by the finance section. A selection only applies to the identity
+ * that made it; the maximum is that identity's server-derived property month.
+ * No identity or no fresh maximum → nothing (fail closed, no stale controls).
+ */
+export function resolveFinancialMonth(
+  identity: string | null,
+  selection: MonthSelection,
+  max: string | undefined,
+): string | undefined {
+  if (identity === null || !max || !parseMonth(max)) return undefined;
+  const picked = selection && selection.identity === identity ? selection.month : undefined;
+  return picked ? clampMonth(picked, MIN_FINANCIAL_MONTH, max) : max;
+}
