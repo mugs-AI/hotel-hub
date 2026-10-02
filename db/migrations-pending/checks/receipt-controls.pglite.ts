@@ -398,5 +398,186 @@ const grants =
 const g = grants.rows[0] as any;
 check("browser roles have no table or function access", !g.a && !g.b && !g.c);
 
+
+// ---- Final-SQL checks (atomic verify, stale recovery, fencing, grants, FKs, UTF-16) ----
+const atomic = `SELECT * FROM public.hotelhub_receipt_control_verify_atomic($1,$2,$3,'owner-1',$4,$5,$6)`;
+const recover = `SELECT * FROM public.hotelhub_receipt_control_recover($1,$2,$3,'owner-1',$4)`;
+const voidEvidence = (fp: string) =>
+  JSON.stringify({ state: "voided", receiptId: "rcpt-" + fp, docCode: "OR-V", documentDate: "2026-10-02",
+    currency: "MYR", amountCents: 0, paymentLines: [], replacementOf: null, fingerprint: fp.repeat(64).slice(0, 64) });
+async function footprint(id: string) {
+  const r = (await db.query(`SELECT
+    (SELECT count(*)::int FROM public.hotel_receipt_control_executions WHERE request_id=$1) e,
+    (SELECT count(*)::int FROM public.hotel_receipt_control_executions WHERE request_id=$1 AND state='claimed') ec,
+    (SELECT count(*)::int FROM public.hotel_receipt_versions WHERE request_id=$1) v,
+    (SELECT count(*)::int FROM public.hotel_receipt_control_decisions WHERE request_id=$1) d,
+    (SELECT count(*)::int FROM public.hotel_receipt_alert_outbox WHERE request_id=$1) o,
+    (SELECT state||':'||version FROM public.hotel_receipt_control_requests WHERE id=$1) s`, [id])).rows[0] as any;
+  return JSON.stringify(r);
+}
+async function newDeposit(n: string) {
+  const d = `00000000-0000-4000-8000-0000000009${n}`;
+  await db.query(`INSERT INTO public.hotel_reservation_deposits VALUES ($1,$2,$3,'posted')`, [d, T, R]);
+  return (await db.query(createAt, [T, R, d, n.repeat(32).slice(0, 64), "Final check " + n])).rows[0] as any;
+}
+
+// A. verify_atomic rollback on failed complete.
+const ra = await newDeposit("a1");
+const aa = (await db.query(decide, [T, ra.id, 1, "approve", "approved_awaiting_n3", "owner-1"])).rows[0] as any;
+const fpA = await footprint(ra.id);
+check("verify_atomic: complete failing on bad evidence cast raises",
+  await throws(db, atomic, [T, ra.id, aa.version, "applied", "verified",
+    JSON.stringify({ ...JSON.parse(voidEvidence("b")), amountCents: "not-a-number" })], "invalid input syntax"));
+check("verify_atomic: failed complete leaves no claim/version/decision/outbox/state change", (await footprint(ra.id)) === fpA);
+check("verify_atomic: applied without evidence raises invalid_transition",
+  await throws(db, atomic, [T, ra.id, aa.version, "applied", "verified", null], "invalid_transition"));
+check("verify_atomic: invalid_transition rollback leaves no partial writes", (await footprint(ra.id)) === fpA);
+check("verify_atomic: non-voided evidence on needs_review refused",
+  await throws(db, atomic, [T, ra.id, aa.version, "needs_review", "x", JSON.stringify({ ...JSON.parse(voidEvidence("c")), state: "active", amountCents: 100 })], "invalid_transition"));
+check("verify_atomic: that refusal also writes nothing", (await footprint(ra.id)) === fpA);
+check("verify_atomic: stale expected version -> claim_conflict",
+  await throws(db, atomic, [T, ra.id, aa.version - 1, "applied", "verified", voidEvidence("d")], "claim_conflict"));
+check("verify_atomic: stale-version refusal writes nothing", (await footprint(ra.id)) === fpA);
+const okA = (await db.query(atomic, [T, ra.id, aa.version, "applied", "verified", voidEvidence("e")])).rows[0] as any;
+const fA = JSON.parse(await footprint(ra.id));
+check("verify_atomic: success commits claim+completion+version+decision together",
+  okA.state === "applied" && fA.e === 1 && fA.ec === 0 && fA.v === 1 && okA.version === aa.version + 2);
+check("verify_atomic: applied request cannot verify again",
+  await throws(db, atomic, [T, ra.id, okA.version, "applied", "verified", voidEvidence("f")], "claim_conflict"));
+
+// B. approved-only gating.
+const rb = await newDeposit("b2");
+const fpB = await footprint(rb.id);
+check("verify_atomic: pending (unapproved) request refused not_approved",
+  await throws(db, atomic, [T, rb.id, 1, "applied", "verified", voidEvidence("g")], "not_approved"));
+const hb = (await db.query(decide, [T, rb.id, 1, "hold", "needs_review", "owner-1"])).rows[0] as any;
+check("verify_atomic: pending->Hold->Needs review refused not_approved",
+  await throws(db, atomic, [T, rb.id, hb.version, "applied", "verified", voidEvidence("h")], "not_approved"));
+check("recover: unapproved Needs review refused",
+  await throws(db, recover, [T, rb.id, hb.version, 300], "invalid_transition"));
+check("unapproved refusals leave no execution/version rows",
+  JSON.parse(await footprint(rb.id)).e === 0 && JSON.parse(await footprint(rb.id)).v === 0 && fpB !== "");
+check("verify_atomic: tenant mismatch -> request_not_found",
+  await throws(db, atomic, [T2, ra.id, okA.version, "applied", "verified", voidEvidence("i")], "request_not_found"));
+
+// C. stale recovery version-fences the old worker.
+const rc = await newDeposit("c3");
+const ac = (await db.query(decide, [T, rc.id, 1, "approve", "approved_awaiting_n3", "owner-1"])).rows[0] as any;
+const oldExec = ((await db.query(claim, [T, rc.id, ac.version, "owner-1"])).rows[0] as any).id;
+const applyingV = ac.version + 1;
+check("recover: fresh claim (<stale window) refused claim_conflict",
+  await throws(db, recover, [T, rc.id, applyingV, 300], "claim_conflict"));
+check("recover: stale window under 60s refused", await throws(db, recover, [T, rc.id, applyingV, 10], "invalid_transition"));
+check("recover: wrong expected version refused", await throws(db, recover, [T, rc.id, applyingV - 1, 300], "version_conflict"));
+await db.query(`UPDATE public.hotel_receipt_control_executions SET created_at = now() - interval '6 minutes' WHERE id=$1`, [oldExec]);
+const rec = (await db.query(recover, [T, rc.id, applyingV, 300])).rows[0] as any;
+check("recover: Applying returns to approved, approval kept, version bumped",
+  rec.state === "approved_awaiting_n3" && rec.approved_by_n3_user_key === "owner-1" && rec.version === applyingV + 1);
+const relRow = (await db.query(`SELECT state, result_code FROM public.hotel_receipt_control_executions WHERE id=$1`, [oldExec])).rows[0] as any;
+check("recover: old claim released with result 'recovered'", relRow.state === "released" && relRow.result_code === "recovered");
+const recDec = (await db.query(`SELECT count(*)::int n FROM public.hotel_receipt_control_decisions WHERE request_id=$1 AND decision='recover'`, [rc.id])).rows[0] as any;
+check("recover: audit decision 'recover' recorded once", recDec.n === 1);
+const fpC = await footprint(rc.id);
+check("recover: old worker complete() refused claim_not_found",
+  await throws(db, complete, [T, rc.id, oldExec, "applied", "verified", voidEvidence("j")], "claim_not_found"));
+check("recover: old worker refusal writes nothing", (await footprint(rc.id)) === fpC);
+check("recover: second recovery with nothing claimed refused",
+  await throws(db, recover, [T, rc.id, rec.version, 300], "invalid_transition"));
+const okC = (await db.query(atomic, [T, rc.id, rec.version, "applied", "verified", voidEvidence("k")])).rows[0] as any;
+check("recover: Owner re-verifies to proven result after recovery", okC.state === "applied");
+// New worker re-claims; old worker's id still cannot complete the newer claim.
+const rc2 = await newDeposit("c4");
+const ac2 = (await db.query(decide, [T, rc2.id, 1, "approve", "approved_awaiting_n3", "owner-1"])).rows[0] as any;
+const old2 = ((await db.query(claim, [T, rc2.id, ac2.version, "owner-1"])).rows[0] as any).id;
+await db.query(`UPDATE public.hotel_receipt_control_executions SET created_at = now() - interval '6 minutes' WHERE id=$1`, [old2]);
+const rec2 = (await db.query(recover, [T, rc2.id, ac2.version + 1, 300])).rows[0] as any;
+const new2 = ((await db.query(claim, [T, rc2.id, rec2.version, "owner-2"])).rows[0] as any).id;
+check("recover: old worker cannot complete after a newer claim exists",
+  await throws(db, complete, [T, rc2.id, old2, "applied", "verified", voidEvidence("l")], "claim_not_found"));
+const done2 = (await db.query(complete, [T, rc2.id, new2, "needs_review", "n3_receipt_missing", null])).rows[0] as any;
+check("recover: newer claim completes normally", done2.state === "needs_review");
+// Terminal stays terminal.
+const rterm = await newDeposit("c5");
+const tdec = (await db.query(decide, [T, rterm.id, 1, "reject", "rejected", "owner-1"])).rows[0] as any;
+check("recover: rejected terminal request refused", await throws(db, recover, [T, rterm.id, tdec.version, 300], "invalid_transition"));
+check("verify_atomic: rejected terminal request refused",
+  await throws(db, atomic, [T, rterm.id, tdec.version, "applied", "verified", voidEvidence("m")], "not_approved"));
+
+// D. in-flight decision fencing on previously approved Needs review.
+const rd = await newDeposit("d6");
+const ad = (await db.query(decide, [T, rd.id, 1, "approve", "approved_awaiting_n3", "owner-1"])).rows[0] as any;
+const hd = (await db.query(decide, [T, rd.id, ad.version, "hold", "needs_review", "owner-1"])).rows[0] as any;
+const ed = ((await db.query(claim, [T, rd.id, hd.version, "owner-1"])).rows[0] as any).id;
+const claimedV = hd.version + 1;
+const fpD = await footprint(rd.id);
+check("fencing: reject while claim in flight -> claim_conflict",
+  await throws(db, decide, [T, rd.id, claimedV, "reject", "rejected", "owner-2"], "claim_conflict"));
+check("fencing: hold while claim in flight -> claim_conflict",
+  await throws(db, decide, [T, rd.id, claimedV, "hold", "needs_review", "owner-2"], "claim_conflict"));
+check("fencing: refused decisions write nothing and keep Needs review", (await footprint(rd.id)) === fpD && fpD.includes("needs_review"));
+check("fencing: verify_atomic concurrent with held claim -> claim_conflict",
+  await throws(db, atomic, [T, rd.id, claimedV, "applied", "verified", voidEvidence("n")], "claim_conflict"));
+const cd = (await db.query(complete, [T, rd.id, ed, "applied", "verified", voidEvidence("o")])).rows[0] as any;
+check("fencing: claimed worker completes on its fenced version", cd.state === "applied" && cd.version === claimedV + 1);
+
+// E. grants / RLS.
+const fns = [
+  "hotelhub_receipt_control_create(uuid,uuid,uuid,uuid,text,text,text,jsonb,jsonb,jsonb,bigint,bigint,text)",
+  "hotelhub_receipt_control_decide(uuid,uuid,integer,text,text,text,text,text)",
+  "hotelhub_receipt_control_claim(uuid,uuid,integer,text,text)",
+  "hotelhub_receipt_control_complete(uuid,uuid,uuid,text,text,text,jsonb)",
+  "hotelhub_receipt_control_verify_atomic(uuid,uuid,integer,text,text,text,jsonb)",
+  "hotelhub_receipt_control_recover(uuid,uuid,integer,text,integer)",
+  "hotelhub_utf16_length(text)",
+];
+let fnOk = true;
+for (const f of fns) {
+  const r = (await db.query(`SELECT has_function_privilege('anon','public.${f}','EXECUTE') a,
+    has_function_privilege('authenticated','public.${f}','EXECUTE') b,
+    has_function_privilege('service_role','public.${f}','EXECUTE') s`)).rows[0] as any;
+  if (r.a || r.b || !r.s) { fnOk = false; console.log("  grant mismatch", f, JSON.stringify(r)); }
+}
+check("all 7 receipt RPCs: service_role EXECUTE only (no anon/authenticated/PUBLIC)", fnOk);
+const tables = ["hotel_receipt_control_requests","hotel_receipt_control_decisions","hotel_receipt_control_executions","hotel_receipt_versions","hotel_receipt_alert_outbox"];
+let tOk = true;
+for (const t of tables) {
+  const r = (await db.query(`SELECT c.relrowsecurity rls,
+    (SELECT count(*)::int FROM pg_policies p WHERE p.tablename=$1) pol,
+    has_table_privilege('anon','public.'||$1,'SELECT,INSERT,UPDATE,DELETE') a,
+    has_table_privilege('authenticated','public.'||$1,'SELECT,INSERT,UPDATE,DELETE') b,
+    has_table_privilege('service_role','public.'||$1,'SELECT') s
+    FROM pg_class c WHERE c.relname=$1`, [t])).rows[0] as any;
+  if (!r.rls || r.pol !== 0 || r.a || r.b || !r.s) { tOk = false; console.log("  table mismatch", t, JSON.stringify(r)); }
+}
+check("all 5 receipt tables: RLS on, zero policies, browser roles no privileges, service_role access", tOk);
+
+// F. compound tenant FKs.
+check("RPC: create for another tenant's reservation/deposit refused (deposit_not_found)",
+  await throws(db, createAt, [T2, R, D, "1".repeat(64), "Cross tenant"], "deposit_not_found"));
+const rawReq = `INSERT INTO public.hotel_receipt_control_requests (tenant_id, reservation_id, deposit_id, client_request_id,
+  request_fingerprint, kind, reason, original, proposal, comparison, original_amount_cents, requested_by_n3_user_key)
+  VALUES ($1,$2,$3,gen_random_uuid(),$4,'void','Raw insert','{}','{}','[]',5000,'fd-1')`;
+check("FK (bypassing RPC): request with other tenant's reservation+deposit refused",
+  await throws(db, rawReq, [T2, R, D, "1".repeat(64)], "foreign key"));
+check("FK (bypassing RPC): request with deposit of a different tenant/reservation refused",
+  await throws(db, rawReq, [T, R, D2, "2".repeat(64)], "foreign key"));
+check("FK: decision for request under wrong tenant refused",
+  await throws(db, `INSERT INTO public.hotel_receipt_control_decisions (tenant_id, request_id, decision, from_state, to_state, actor_n3_user_key, requester_n3_user_key, self_approved)
+    VALUES ($1,$2,'approve','pending','approved_awaiting_n3','x','y',false)`, [T2, ra.id], "foreign key"));
+check("FK: receipt version bound to a deposit of another request refused",
+  await throws(db, `INSERT INTO public.hotel_receipt_versions (tenant_id, deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, evidence_fingerprint, verified_by_n3_user_key)
+    VALUES ($1,$2,$3,9,'voided','r','d','2026-10-02','MYR',0,'[]',$4,'x')`, [T, D, ra.id, "z".repeat(64)], "foreign key"));
+check("FK: execution under wrong tenant refused",
+  await throws(db, `INSERT INTO public.hotel_receipt_control_executions (tenant_id, request_id, step, claimed_by_n3_user_key, claimed_version) VALUES ($1,$2,'verify','x',1)`, [T2, ra.id], "foreign key"));
+
+// G. UTF-16 at decision boundary.
+const decideNote = `SELECT * FROM public.hotelhub_receipt_control_decide($1,$2,$3,'reject','rejected','owner-1',null,$4)`;
+const rg = await newDeposit("e7");
+check("UTF-16: decision note of 501 units (250 astral + 1) refused",
+  await throws(db, decideNote, [T, rg.id, 1, astral.repeat(250) + "x"], "check constraint"));
+check("UTF-16: refused note wrote nothing", JSON.parse(await footprint(rg.id)).d === 0);
+const okG = (await db.query(decideNote, [T, rg.id, 1, astral.repeat(250)])).rows[0] as any;
+check("UTF-16: decision note of exactly 500 units accepted", okG.state === "rejected");
+
 console.log(failures === 0 ? "ALL PASS" : `${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);
