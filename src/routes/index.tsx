@@ -192,6 +192,7 @@ function Dashboard() {
             </section>
           ) : null}
         </div>
+        <FinancialDashboard enabled={hasPermission(role, "hotel:financial_reports:view")} />
       </div>
     </AppShell>
   );

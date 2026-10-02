@@ -124,6 +124,7 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
     qc.invalidateQueries({ queryKey: ["receipt-controls"] });
     qc.invalidateQueries({ queryKey: ["deposits"] });
     qc.invalidateQueries({ queryKey: ["folio"] });
+    qc.invalidateQueries({ queryKey: ["financial-reporting"] });
   };
   const fail = (e: unknown) =>
     setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
