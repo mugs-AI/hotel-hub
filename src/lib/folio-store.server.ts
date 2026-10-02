@@ -2084,7 +2084,7 @@ export async function buildReservationListAmounts(
   const receiptOverlay = await loadReceiptOverlay(
     input.tenantId,
     deposits.map((d) => d.id),
-    receiptReader(db as unknown as { from: (t: string) => any }),
+    receiptReader(db as unknown as Parameters<typeof receiptReader>[0]),
   );
   return Promise.all(
     reservations.map(async (reservation) => {
