@@ -45,6 +45,7 @@ export function statusForReceiptControlError(code: string): number {
     case "claim_conflict":
     case "claim_not_found":
     case "receipt_restricted":
+    case "journal_unproven":
     case "deposit_not_controllable":
     case "account_not_allowed":
     case "split_correction_unsupported":

@@ -624,6 +624,7 @@ const OUTCOME_MESSAGE: Record<string, string> = {
   account_not_allowed: "The requested deposit account is not available. Needs review.",
   n3_result_mismatch: "N3 does not show the approved change. Needs review.",
   n3_evidence_insufficient: "N3 could not prove the change (missing or unknown). Needs review.",
+  journal_unproven: "N3 could not prove the receipt journal exactly. Held for review.",
   verification_interrupted: "A verification was interrupted and released. Verify again to read N3.",
 };
 

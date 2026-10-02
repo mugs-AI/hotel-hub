@@ -1,6 +1,6 @@
 // Server-only, read-only N3 receipt evidence for receipt controls.
 // Uses only GET receipt detail and GET GL posting. Never writes to N3.
-import { fieldsAgree, successfulEnvelope, valuesFor } from "./deposits-store.server";
+import { successfulEnvelope, valuesFor } from "./deposits-store.server";
 import { createHash } from "node:crypto";
 import type { N3Outcome, N3ReceiptsClient } from "./n3-receipts.server";
 import type { HotelRole } from "./rbac";
