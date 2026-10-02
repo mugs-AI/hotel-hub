@@ -73,8 +73,8 @@ describe("Dashboard wiring", () => {
     expect(src).toMatch(/arrivalFrom: propertyDate/);
   });
   it("report tab and Tools link are Owner-only", () => {
-    expect(workspaceTab("/receipt-reports", "", "owner" as any, "simple")?.label).toBe("Receipt reports");
-    expect(workspaceTab("/receipt-reports", "", "front_desk" as any, "simple")).toBeNull();
+    expect(workspaceTab("/receipt-reports", {}, "owner" as any, "simple")?.label).toBe("Receipt reports");
+    expect(workspaceTab("/receipt-reports", {}, "front_desk" as any, "simple")).toBeNull();
     const shell = readFileSync(resolve(__dirname, "../../components/AppShell.tsx"), "utf8");
     expect(shell).toMatch(/to: "\/receipt-reports",\s+label: "Receipt reports",\s+permission: "hotel:financial_reports:view"/);
   });
