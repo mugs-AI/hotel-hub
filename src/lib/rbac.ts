@@ -21,6 +21,7 @@ export type Permission =
   | "hotel:receipt_controls:request" // request a correction/void of a posted receipt
   | "hotel:receipt_controls:approve" // approve/reject receipt correction or void requests
   | "hotel:receipt_controls:execute" // complete/verify an approved receipt change
+  | "hotel:financial_reports:view" // monthly financial cards, receipt/void reports and exports
   | "hotel:reservations:check_in" // perform a standard check-in
   | "hotel:reservations:assign_guests" // assign guests to rooms within a reservation
   | "hotel:operations:view" // read the operation request ledger + timeline
@@ -65,6 +66,7 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   "hotel:receipt_controls:request": new Set(["owner", "front_desk"]),
   "hotel:receipt_controls:approve": new Set(["owner"]),
   "hotel:receipt_controls:execute": new Set(["owner"]),
+  "hotel:financial_reports:view": new Set(["owner"]),
 
   // Front-desk reservation operations. Requesting is a front-desk duty;
   // approving an exception (early check-in, late checkout, room change,
