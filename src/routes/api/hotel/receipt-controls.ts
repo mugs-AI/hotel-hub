@@ -9,7 +9,8 @@ export const Route = createFileRoute("/api/hotel/receipt-controls")({
       GET: ({ request }) =>
         withReceiptActor(request, "hotel:receipt_controls:request", false, async (actor) => {
           const url = new URL(request.url);
-          const { listReceiptControlRequests } = await import("@/lib/receipt-controls-store.server");
+          const { listReceiptControlRequests } =
+            await import("@/lib/receipt-controls-store.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
           const requests = await listReceiptControlRequests(
             actor,

@@ -9,9 +9,16 @@ export const Route = createFileRoute("/api/hotel/receipt-controls/$requestId/exe
     handlers: {
       POST: ({ request, params }) =>
         withReceiptActor(request, "hotel:receipt_controls:execute", true, async (actor) => {
-          const { executeReceiptControlRequest } = await import("@/lib/receipt-controls-execution.server");
+          const { executeReceiptControlRequest } =
+            await import("@/lib/receipt-controls-execution.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
-          return json(await executeReceiptControlRequest(actor, params.requestId, defaultReceiptControlDeps()));
+          return json(
+            await executeReceiptControlRequest(
+              actor,
+              params.requestId,
+              defaultReceiptControlDeps(),
+            ),
+          );
         }),
     },
   },

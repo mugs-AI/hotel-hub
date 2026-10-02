@@ -7,9 +7,11 @@ export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   invalid_account: "Choose a deposit account.",
   account_not_allowed: "That deposit account is not available.",
   proposal_unchanged: "Nothing was changed.",
-  receipt_restricted: "This receipt is matched, refunded or cancelled in N3 and cannot be changed here.",
+  receipt_restricted:
+    "This receipt is matched, refunded or cancelled in N3 and cannot be changed here.",
   receipt_control_active_exists: "This receipt already has an open request.",
-  receipt_control_key_conflict: "This request was already sent with different details. Reopen the dialog.",
+  receipt_control_key_conflict:
+    "This request was already sent with different details. Reopen the dialog.",
   version_conflict: "Someone else updated this request. Refresh and try again.",
   claim_conflict: "A verification is already running. Refresh in a moment.",
   invalid_transition: "This request can no longer be changed.",
@@ -47,7 +49,13 @@ export type ReceiptControlProposalInput =
       kind: "correction";
       amount: number;
       accountId: string;
-      contact: { name?: string; company?: string; address?: string; phone?: string; email?: string };
+      contact: {
+        name?: string;
+        company?: string;
+        address?: string;
+        phone?: string;
+        email?: string;
+      };
     };
 
 export const receiptControlsKey = (tenantKey: string, scope: string) =>

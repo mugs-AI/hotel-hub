@@ -332,7 +332,8 @@ export type StoreDeps = {
 };
 
 const isUuid = (v: unknown): v is string =>
-  typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  typeof v === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
 const CAN_REQUEST: ReadonlySet<HotelRole> = new Set(["owner", "front_desk"]);
 const assertOwner = (actor: ReceiptControlActor) => {
@@ -347,7 +348,13 @@ export function requestFingerprint(depositId: string, reason: string, p: Receipt
 
 export async function createReceiptControlRequest(
   actor: ReceiptControlActor,
-  input: { reservationId: unknown; depositId: unknown; clientRequestId: unknown; reason: unknown; proposal: unknown },
+  input: {
+    reservationId: unknown;
+    depositId: unknown;
+    clientRequestId: unknown;
+    reason: unknown;
+    proposal: unknown;
+  },
   deps: StoreDeps,
 ): Promise<ReceiptControlRequestDTO> {
   if (!CAN_REQUEST.has(actor.role)) throw new ReceiptControlError("forbidden");
@@ -459,7 +466,8 @@ async function approvalHoldReason(
   }
   if (current.documentState !== "active" || current.matchingState !== "unmatched")
     return "receipt_restricted";
-  if (current.sourceFingerprint !== row.original.sourceFingerprint) return "n3_changed_since_request";
+  if (current.sourceFingerprint !== row.original.sourceFingerprint)
+    return "n3_changed_since_request";
   const walkIn = await deps.walkInCustomerId(actor.tenantId);
   if (!walkIn || walkIn.toLowerCase() !== row.original.customerId.toLowerCase())
     return "walk_in_mapping_changed";
@@ -487,7 +495,9 @@ export async function listReceiptControlRequests(
     reservationId: f.reservationId,
     // Front Desk sees only its own requests; the Owner sees all.
     requestedBy: actor.role === "owner" ? undefined : actor.n3UserKey,
-    states: f.queue ? ["pending", "approved_awaiting_n3", "applying", "failed", "needs_review"] : undefined,
+    states: f.queue
+      ? ["pending", "approved_awaiting_n3", "applying", "failed", "needs_review"]
+      : undefined,
   });
   return toDTOs(actor, rows, deps);
 }
@@ -496,7 +506,8 @@ const OUTCOME_MESSAGE: Record<string, string> = {
   approved_manual: MANUAL_APPROVAL_MESSAGE,
   rejected: "Rejected. The receipt stays as it is.",
   verified: "Verified in N3. Totals now use the corrected receipt.",
-  n3_changed_since_request: "The receipt changed in N3 after this request. Review it before deciding.",
+  n3_changed_since_request:
+    "The receipt changed in N3 after this request. Review it before deciding.",
   n3_evidence_unavailable: "N3 could not confirm the receipt. Needs review.",
   receipt_restricted: "The receipt is matched, refunded or cancelled in N3. Needs review.",
   walk_in_mapping_changed: "The walk-in customer mapping changed. Needs review.",
@@ -515,7 +526,10 @@ export async function toDTOs(
   const [decisions, alerts, labels, refs] = await Promise.all([
     deps.db.decisions(actor.tenantId, ids),
     deps.db.alerts(actor.tenantId, ids),
-    deps.labels(actor.tenantId, rows.flatMap((r) => [r.requestedBy, r.decidedBy ?? ""]).filter(Boolean)),
+    deps.labels(
+      actor.tenantId,
+      rows.flatMap((r) => [r.requestedBy, r.decidedBy ?? ""]).filter(Boolean),
+    ),
     deps.bookingRefs(actor.tenantId, Array.from(new Set(rows.map((r) => r.reservationId)))),
   ]);
   const owner = actor.role === "owner";
@@ -539,12 +553,15 @@ export async function toDTOs(
       executionMode: r.executionMode,
       decidedByLabel: r.decidedBy ? (labels.get(r.decidedBy) ?? null) : null,
       decidedAt: r.decidedAt,
-      selfApproved: decisions.some((d) => d.requestId === r.id && d.decision === "approve" && d.selfApproved),
+      selfApproved: decisions.some(
+        (d) => d.requestId === r.id && d.decision === "approve" && d.selfApproved,
+      ),
       canApprove: owner && r.state === "pending",
       canReject: owner && (r.state === "pending" || r.state === "needs_review"),
       canVerify:
         owner &&
-        (r.state === "approved_awaiting_n3" || (r.state === "needs_review" && r.decidedBy !== null)),
+        (r.state === "approved_awaiting_n3" ||
+          (r.state === "needs_review" && r.decidedBy !== null)),
       outcomeMessage: r.outcomeCode ? (OUTCOME_MESSAGE[r.outcomeCode] ?? null) : null,
       alert: latestAlert
         ? {

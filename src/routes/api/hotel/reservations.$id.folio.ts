@@ -31,9 +31,9 @@ export async function handleReadFolio({ params }: { params: { id?: string } }): 
       },
     });
     const { withEffectiveReceipts } = await import("@/lib/effective-receipts.server");
-    const deposits = (await withEffectiveReceipts(actor.tenantId, await listDeposits(actor.tenantId, id))).map(
-      (d) => ({ ...d, amount: Number(d.amount) }),
-    );
+    const deposits = (
+      await withEffectiveReceipts(actor.tenantId, await listDeposits(actor.tenantId, id))
+    ).map((d) => ({ ...d, amount: Number(d.amount) }));
     return folioJson({
       ...dto,
       recordedDeposits: recordedDepositStatement(

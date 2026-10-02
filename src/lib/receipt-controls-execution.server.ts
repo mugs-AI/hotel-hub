@@ -70,7 +70,9 @@ export async function verifyReceiptControlRequest(
   });
   if (!executionId) throw new ReceiptControlError("claim_conflict");
 
-  const result = evidence ? verifyReceiptControlResult(row.original, row.proposal, evidence) : "insufficient";
+  const result = evidence
+    ? verifyReceiptControlResult(row.original, row.proposal, evidence)
+    : "insufficient";
   let version: VersionPayload | null = null;
   if (result === "verified" && evidence) {
     version = {

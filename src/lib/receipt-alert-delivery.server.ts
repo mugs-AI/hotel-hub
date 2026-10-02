@@ -9,7 +9,12 @@ export type AlertOutboxRow = { id: string; tenantId: string; requestId: string; 
 
 export type AlertDeliveryDb = {
   claim(tenantId: string, limit: number): Promise<AlertOutboxRow[]>;
-  settle(tenantId: string, alertId: string, status: "sent" | "failed" | "disabled", errorCode: string | null): Promise<void>;
+  settle(
+    tenantId: string,
+    alertId: string,
+    status: "sent" | "failed" | "disabled",
+    errorCode: string | null,
+  ): Promise<void>;
 };
 
 export const RECEIPT_ALERT_TRANSPORT: AlertTransport = { configured: false };
@@ -40,7 +45,9 @@ export function supabaseAlertDeliveryDb(): AlertDeliveryDb {
   };
   return {
     async claim(tenantId, limit) {
-      const res = await (await sb()).rpc("hotelhub_receipt_alert_claim", { p_tenant_id: tenantId, p_limit: limit });
+      const res = await (
+        await sb()
+      ).rpc("hotelhub_receipt_alert_claim", { p_tenant_id: tenantId, p_limit: limit });
       if (res.error) throw new Error("receipt_alert_claim_failed");
       return (res.data ?? []).map((r: any) => ({
         id: r.id,
@@ -50,7 +57,9 @@ export function supabaseAlertDeliveryDb(): AlertDeliveryDb {
       }));
     },
     async settle(tenantId, alertId, status, errorCode) {
-      const res = await (await sb()).rpc("hotelhub_receipt_alert_settle", {
+      const res = await (
+        await sb()
+      ).rpc("hotelhub_receipt_alert_settle", {
         p_tenant_id: tenantId,
         p_alert_id: alertId,
         p_status: status,

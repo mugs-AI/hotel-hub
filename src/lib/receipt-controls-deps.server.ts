@@ -20,7 +20,9 @@ async function admin() {
 async function loadDeposit(tenantId: string, depositId: string): Promise<ScopedDeposit | null> {
   const res = await (await admin())
     .from("hotel_reservation_deposits")
-    .select("id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, currency_code, payment_lines")
+    .select(
+      "id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, currency_code, payment_lines",
+    )
     .eq("tenant_id", tenantId)
     .eq("id", depositId)
     .maybeSingle();
@@ -54,11 +56,13 @@ export function defaultReceiptControlDeps(): StoreDeps {
       const settings = await getHotelSettingsReadOnly(actor.tenantId);
       if (settings?.paymentAccountVisibility?.[accountId.toLowerCase()] === false) return null;
       const orig = await n3Receipts.getAccountById(actor.n3Token, originalAccountId);
-      if (orig.kind === "response" && orig.status === 401) throw new ReceiptControlError("unauthorized");
+      if (orig.kind === "response" && orig.status === 401)
+        throw new ReceiptControlError("unauthorized");
       const currencyId = orig.kind === "response" ? accountCurrencyId(orig.body) : null;
       if (!currencyId) return null;
       const out = await n3Receipts.getAccountById(actor.n3Token, accountId);
-      if (out.kind === "response" && out.status === 401) throw new ReceiptControlError("unauthorized");
+      if (out.kind === "response" && out.status === 401)
+        throw new ReceiptControlError("unauthorized");
       const acc = parseDepositAccount(out, accountId, currencyId);
       if (!acc) return null;
       return settings?.paymentAccountAliases?.[acc.id.toLowerCase()] || `${acc.code} — ${acc.name}`;

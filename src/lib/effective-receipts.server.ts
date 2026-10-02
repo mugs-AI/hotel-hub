@@ -81,7 +81,12 @@ export async function loadReceiptOverlay(
 }
 
 export async function withEffectiveReceipts<
-  T extends { id: string; amount: number | string; n3ReceiptId: string | null; n3DocCode: string | null },
+  T extends {
+    id: string;
+    amount: number | string;
+    n3ReceiptId: string | null;
+    n3DocCode: string | null;
+  },
 >(tenantId: string, rows: readonly T[], reader?: Reader) {
   const overlay = await loadReceiptOverlay(
     tenantId,

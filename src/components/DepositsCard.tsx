@@ -381,28 +381,49 @@ export function DepositsCard({
                     (r) => r.depositId === d.id && ACTIVE_RECEIPT_CONTROL_STATES.includes(r.state),
                   );
                   if (d.effectiveState === "voided")
-                    return <span className="text-xs font-semibold" style={{ color: ERR }}>Voided in N3 — not counted</span>;
+                    return (
+                      <span className="text-xs font-semibold" style={{ color: ERR }}>
+                        Voided in N3 — not counted
+                      </span>
+                    );
                   if (open)
-                    return <span className="text-xs font-medium" style={{ color: GOLD }}>Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}</span>;
-                  if (!canRequestReceiptChange || d.status !== "posted" || receiptRequests.isError) return null;
+                    return (
+                      <span className="text-xs font-medium" style={{ color: GOLD }}>
+                        Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}
+                      </span>
+                    );
+                  if (!canRequestReceiptChange || d.status !== "posted" || receiptRequests.isError)
+                    return null;
                   return (
                     <>
-                      <button type="button" className="text-xs font-medium underline" style={{ color: NAVY }}
-                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "correction" })}>
+                      <button
+                        type="button"
+                        className="text-xs font-medium underline"
+                        style={{ color: NAVY }}
+                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "correction" })}
+                      >
                         Request correction
                       </button>
-                      <button type="button" className="text-xs font-medium underline" style={{ color: ERR }}
-                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "void" })}>
+                      <button
+                        type="button"
+                        className="text-xs font-medium underline"
+                        style={{ color: ERR }}
+                        onClick={() => setReceiptDialog({ depositId: d.id, kind: "void" })}
+                      >
                         Request void
                       </button>
                     </>
                   );
                 })()}
                 {d.effectiveState === "needs_review" ? (
-                  <span className="text-xs font-semibold" style={{ color: GOLD }}>Needs review</span>
+                  <span className="text-xs font-semibold" style={{ color: GOLD }}>
+                    Needs review
+                  </span>
                 ) : null}
                 {d.originalAmount != null && d.effectiveState === "active" ? (
-                  <span className="text-xs text-muted-foreground">Corrected from {d.originalAmount.toFixed(2)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Corrected from {d.originalAmount.toFixed(2)}
+                  </span>
                 ) : null}
                 {d.status !== "posted" ? (
                   <span

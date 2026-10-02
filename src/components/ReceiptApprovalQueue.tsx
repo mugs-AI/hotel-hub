@@ -33,9 +33,12 @@ export function ReceiptRequestCard({
     <li className="rounded-md border border-slate-200 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">
-          {r.bookingReference} · {r.original.docCode} · {r.proposal.kind === "void" ? "Void" : "Correction"}
+          {r.bookingReference} · {r.original.docCode} ·{" "}
+          {r.proposal.kind === "void" ? "Void" : "Correction"}
         </span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{RECEIPT_CONTROL_STATE_LABEL[r.state]}</span>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">
+          {RECEIPT_CONTROL_STATE_LABEL[r.state]}
+        </span>
       </div>
       <p className="mt-1">Reason: {r.reason}</p>
       <p className="text-muted-foreground">
@@ -51,11 +54,19 @@ export function ReceiptRequestCard({
       {open ? (
         <table className="mt-2 w-full">
           <thead>
-            <tr className="text-left text-muted-foreground"><th>Field</th><th>Original</th><th>Requested</th></tr>
+            <tr className="text-left text-muted-foreground">
+              <th>Field</th>
+              <th>Original</th>
+              <th>Requested</th>
+            </tr>
           </thead>
           <tbody>
             {r.comparison.fields.map((f) => (
-              <tr key={f.label}><td>{f.label}</td><td>{f.original || "—"}</td><td>{f.requested || "—"}</td></tr>
+              <tr key={f.label}>
+                <td>{f.label}</td>
+                <td>{f.original || "—"}</td>
+                <td>{f.requested || "—"}</td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -65,17 +76,32 @@ export function ReceiptRequestCard({
           {open ? "Hide" : "Review"}
         </button>
         {r.canApprove ? (
-          <button type="button" disabled={busy} className="rounded bg-teal-700 px-2 py-1 text-white" onClick={() => onDecide?.("approve")}>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded bg-teal-700 px-2 py-1 text-white"
+            onClick={() => onDecide?.("approve")}
+          >
             Approve
           </button>
         ) : null}
         {r.canReject ? (
-          <button type="button" disabled={busy} className="rounded border border-red-300 px-2 py-1 text-red-700" onClick={() => onDecide?.("reject")}>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border border-red-300 px-2 py-1 text-red-700"
+            onClick={() => onDecide?.("reject")}
+          >
             Reject
           </button>
         ) : null}
         {r.canVerify ? (
-          <button type="button" disabled={busy} className="rounded border px-2 py-1" onClick={() => onVerify?.()}>
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border px-2 py-1"
+            onClick={() => onVerify?.()}
+          >
             Verify in N3
           </button>
         ) : null}
@@ -99,7 +125,8 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
     qc.invalidateQueries({ queryKey: ["deposits"] });
     qc.invalidateQueries({ queryKey: ["folio"] });
   };
-  const fail = (e: unknown) => setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
+  const fail = (e: unknown) =>
+    setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
   const decide = useMutation({
     mutationFn: (v: { r: ReceiptControlRequestDTO; decision: "approve" | "reject" }) =>
       decideReceiptControl(v.r.id, { decision: v.decision, expectedVersion: v.r.version }),
@@ -122,7 +149,11 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
       {!q.isPending && !code && rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">No receipt requests waiting.</p>
       ) : null}
-      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
       <ul className="mt-3 space-y-2">
         {rows.map((r) => (
           <ReceiptRequestCard

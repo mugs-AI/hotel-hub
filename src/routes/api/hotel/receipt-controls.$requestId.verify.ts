@@ -9,7 +9,8 @@ export const Route = createFileRoute("/api/hotel/receipt-controls/$requestId/ver
       POST: ({ request, params }) =>
         withReceiptActor(request, "hotel:receipt_controls:execute", true, async (actor) => {
           const body = await readJson(request);
-          const { verifyReceiptControlRequest } = await import("@/lib/receipt-controls-execution.server");
+          const { verifyReceiptControlRequest } =
+            await import("@/lib/receipt-controls-execution.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
           const dto = await verifyReceiptControlRequest(
             actor,

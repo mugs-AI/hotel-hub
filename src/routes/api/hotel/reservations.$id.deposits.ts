@@ -100,7 +100,10 @@ export async function handleDepositsList({
   try {
     const { withEffectiveReceipts } = await import("@/lib/effective-receipts.server");
     const rowsList = (
-      await withEffectiveReceipts(ctx.session.tenantId!, await listDeposits(ctx.session.tenantId!, id))
+      await withEffectiveReceipts(
+        ctx.session.tenantId!,
+        await listDeposits(ctx.session.tenantId!, id),
+      )
     ).map((d) => ({ ...d, amount: Number(d.amount) }));
     const settings = await getHotelSettingsReadOnly(ctx.session.tenantId!);
     const { resolveActorLabels } = await import("@/lib/tenant-store.server");

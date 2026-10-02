@@ -1754,7 +1754,12 @@ export function toDepositDTO(
   d: DepositRecord & {
     effectiveState?: "active" | "voided" | "needs_review";
     originalAmount?: number;
-    effectivePaymentLines?: Array<{ accountId: string; code: string; savedName: string; amountCents: number }>;
+    effectivePaymentLines?: Array<{
+      accountId: string;
+      code: string;
+      savedName: string;
+      amountCents: number;
+    }>;
   },
   labels?: ReadonlyMap<string, string>,
   aliases?: Readonly<Record<string, string>>,

@@ -4,13 +4,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { json, readJson, withReceiptActor } from "@/lib/receipt-controls-http.server";
 
-export const Route = createFileRoute("/api/hotel/reservations/$id/deposits/$depositId/receipt-requests")({
+export const Route = createFileRoute(
+  "/api/hotel/reservations/$id/deposits/$depositId/receipt-requests",
+)({
   server: {
     handlers: {
       POST: ({ request, params }) =>
         withReceiptActor(request, "hotel:receipt_controls:request", true, async (actor) => {
           const body = await readJson(request);
-          const { createReceiptControlRequest } = await import("@/lib/receipt-controls-store.server");
+          const { createReceiptControlRequest } =
+            await import("@/lib/receipt-controls-store.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
           const dto = await createReceiptControlRequest(
             actor,

@@ -15,7 +15,11 @@ import {
 const NAVY = "#102A43";
 
 /** Provisional (pre-approval) difference lines shown before submitting. */
-export function provisionalDeltaLines(originalCents: number, requestedCents: number | null, currency: string) {
+export function provisionalDeltaLines(
+  originalCents: number,
+  requestedCents: number | null,
+  currency: string,
+) {
   const delta = requestedCents === null ? -originalCents : requestedCents - originalCents;
   return {
     deposits: `Deposits ${formatReceiptDelta(delta, currency)}`,
@@ -58,12 +62,17 @@ export function ReceiptControlRequestDialog({
   const [error, setError] = useState("");
   const submit = useMutation({
     mutationFn: (proposal: ReceiptControlProposalInput) =>
-      createReceiptControl(reservationId, deposit.id, { clientRequestId, reason: reason.trim(), proposal }),
+      createReceiptControl(reservationId, deposit.id, {
+        clientRequestId,
+        reason: reason.trim(),
+        proposal,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["receipt-controls"] });
       onClose();
     },
-    onError: (e) => setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : "")),
+    onError: (e) =>
+      setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : "")),
   });
   const parsed = kind === "correction" ? parseAmountInput(amount) : null;
   const requestedCents = parsed === null ? null : Math.round(parsed * 100);
@@ -83,46 +92,77 @@ export function ReceiptControlRequestDialog({
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={kind === "void" ? "Request void" : "Request correction"}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={kind === "void" ? "Request void" : "Request correction"}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+    >
       <div className="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-lg">
         <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
-          {kind === "void" ? "Request void" : "Request correction"} — {deposit.n3DocCode ?? "receipt"}
+          {kind === "void" ? "Request void" : "Request correction"} —{" "}
+          {deposit.n3DocCode ?? "receipt"}
         </h2>
         <p className="text-sm text-muted-foreground">
-          The Owner reviews this request. Totals change only after the change is made in N3 and verified.
+          The Owner reviews this request. Totals change only after the change is made in N3 and
+          verified.
         </p>
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-muted-foreground"><th>Field</th><th>Original</th><th>Requested</th></tr>
+            <tr className="text-left text-muted-foreground">
+              <th>Field</th>
+              <th>Original</th>
+              <th>Requested</th>
+            </tr>
           </thead>
           <tbody>
             <tr>
               <td>Amount</td>
               <td>{formatReceiptMoney(originalCents, deposit.currency)}</td>
-              <td>{kind === "void" ? "Void" : requestedCents ? formatReceiptMoney(requestedCents, deposit.currency) : "—"}</td>
+              <td>
+                {kind === "void"
+                  ? "Void"
+                  : requestedCents
+                    ? formatReceiptMoney(requestedCents, deposit.currency)
+                    : "—"}
+              </td>
             </tr>
           </tbody>
         </table>
         {kind === "correction" ? (
           <div className="grid gap-2 text-sm">
-            <label>Amount
-              <input className="mt-1 w-full rounded border px-2 py-1" inputMode="decimal" value={amount}
-                onChange={(e) => setAmount(e.target.value)} />
+            <label>
+              Amount
+              <input
+                className="mt-1 w-full rounded border px-2 py-1"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
             </label>
-            <label>Deposit to
-              <select className="mt-1 w-full rounded border px-2 py-1" value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}>
+            <label>
+              Deposit to
+              <select
+                className="mt-1 w-full rounded border px-2 py-1"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              >
                 <option value="">Choose account…</option>
                 {(accounts.data?.accounts ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>{a.label}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
                 ))}
               </select>
             </label>
             {(["name", "address", "phone", "email"] as const).map((k) => (
-              <label key={k} className="capitalize">{k === "name" ? "Bill-to name" : k}
-                <input className="mt-1 w-full rounded border px-2 py-1" value={contact[k]}
-                  onChange={(e) => setContact({ ...contact, [k]: e.target.value })} />
+              <label key={k} className="capitalize">
+                {k === "name" ? "Bill-to name" : k}
+                <input
+                  className="mt-1 w-full rounded border px-2 py-1"
+                  value={contact[k]}
+                  onChange={(e) => setContact({ ...contact, [k]: e.target.value })}
+                />
               </label>
             ))}
           </div>
@@ -131,15 +171,31 @@ export function ReceiptControlRequestDialog({
           <p>{lines.deposits}</p>
           <p>{lines.balance}</p>
         </div>
-        <label className="block text-sm">Reason (required)
-          <textarea className="mt-1 w-full rounded border px-2 py-1" maxLength={500} value={reason}
-            onChange={(e) => setReason(e.target.value)} />
+        <label className="block text-sm">
+          Reason (required)
+          <textarea
+            className="mt-1 w-full rounded border px-2 py-1"
+            maxLength={500}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
         </label>
-        {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+        {error ? (
+          <p role="alert" className="text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2">
-          <button type="button" className="rounded border px-3 py-1.5 text-sm" onClick={onClose}>Cancel</button>
-          <button type="button" className="rounded px-3 py-1.5 text-sm font-semibold text-white"
-            style={{ backgroundColor: NAVY }} disabled={submit.isPending || !reasonOk} onClick={onSubmit}>
+          <button type="button" className="rounded border px-3 py-1.5 text-sm" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded px-3 py-1.5 text-sm font-semibold text-white"
+            style={{ backgroundColor: NAVY }}
+            disabled={submit.isPending || !reasonOk}
+            onClick={onSubmit}
+          >
             {submit.isPending ? "Sending…" : "Send request"}
           </button>
         </div>
