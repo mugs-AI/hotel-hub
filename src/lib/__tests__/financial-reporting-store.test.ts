@@ -219,6 +219,7 @@ describe("readMonthlyFinancialDashboard", () => {
     expect(r.deposits.status).toBe("needs_review");
     const mismatch = world([d]);
     mismatch.snaps.set(d.id, new ReceiptControlError("n3_evidence_mismatch"));
+    clearFinancialCache();
     const r2 = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(mismatch).deps);
     // No N3 date, so local creation time is never substituted.
     expect(r2.deposits).toMatchObject({ amount: null, status: "unavailable" });
@@ -285,6 +286,7 @@ describe("readMonthlyFinancialDashboard", () => {
     deps.depositPage = async () => {
       throw new Error("down");
     };
+    clearFinancialCache();
     const down = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(down.deposits).toMatchObject({ amount: null, status: "unavailable" });
   });
