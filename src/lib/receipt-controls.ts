@@ -95,6 +95,8 @@ export type ReceiptControlRequestDTO = {
   canApprove: boolean;
   canReject: boolean;
   canVerify: boolean;
+  /** Owner may release an interrupted (stale) verification claim; read-only toward N3. */
+  canRecover: boolean;
   outcomeMessage: string | null;
   alert: { status: "disabled" | "pending" | "sent" | "failed"; lastError: string | null } | null;
 };

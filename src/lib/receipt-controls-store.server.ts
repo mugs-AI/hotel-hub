@@ -118,11 +118,35 @@ export interface ReceiptControlDb {
     actor: string;
     version: VersionPayload | null;
   }): Promise<RequestRow>;
+  /** Claim + complete in one transaction (manual Verify). No partial state survives a crash. */
+  verifyAtomic(a: {
+    tenantId: string;
+    requestId: string;
+    expectedVersion: number;
+    actor: string;
+    toState: "applied" | "needs_review";
+    outcomeCode: string;
+    version: VersionPayload | null;
+  }): Promise<RequestRow>;
+  /** Release a stale in-flight claim (older than staleSeconds); bumps the version. */
+  recover(a: {
+    tenantId: string;
+    requestId: string;
+    expectedVersion: number;
+    actor: string;
+    staleSeconds: number;
+  }): Promise<RequestRow>;
   get(tenantId: string, requestId: string): Promise<RequestRow | null>;
   list(
     tenantId: string,
-    f: { reservationId?: string; requestedBy?: string; states?: ReceiptControlState[] },
-  ): Promise<RequestRow[]>;
+    f: {
+      reservationId?: string;
+      requestedBy?: string;
+      states?: ReceiptControlState[];
+      offset: number;
+      limit: number;
+    },
+  ): Promise<{ rows: RequestRow[]; total: number }>;
   decisions(tenantId: string, requestIds: string[]): Promise<DecisionRow[]>;
   alerts(tenantId: string, requestIds: string[]): Promise<AlertRow[]>;
 }
@@ -262,6 +286,34 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
         }),
       );
     },
+    async verifyAtomic(a) {
+      return one(
+        await (
+          await sb()
+        ).rpc("hotelhub_receipt_control_verify_atomic", {
+          p_tenant_id: a.tenantId,
+          p_request_id: a.requestId,
+          p_expected_version: a.expectedVersion,
+          p_actor: a.actor,
+          p_to_state: a.toState,
+          p_outcome_code: a.outcomeCode,
+          p_version: a.version,
+        }),
+      );
+    },
+    async recover(a) {
+      return one(
+        await (
+          await sb()
+        ).rpc("hotelhub_receipt_control_recover", {
+          p_tenant_id: a.tenantId,
+          p_request_id: a.requestId,
+          p_expected_version: a.expectedVersion,
+          p_actor: a.actor,
+          p_stale_seconds: a.staleSeconds,
+        }),
+      );
+    },
     async get(tenantId, requestId) {
       const res = await (await sb())
         .from("hotel_receipt_control_requests")
@@ -275,14 +327,17 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
     async list(tenantId, f) {
       let q = (await sb())
         .from("hotel_receipt_control_requests")
-        .select(REQ_COLS)
+        .select(REQ_COLS, { count: "exact" })
         .eq("tenant_id", tenantId);
       if (f.reservationId) q = q.eq("reservation_id", f.reservationId);
       if (f.requestedBy) q = q.eq("requested_by_n3_user_key", f.requestedBy);
       if (f.states?.length) q = q.in("state", f.states);
-      const res = await q.order("requested_at", { ascending: false }).limit(200);
+      const res = await q
+        .order("requested_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(f.offset, f.offset + f.limit - 1);
       if (res.error) throw mapDbError(res.error);
-      return (res.data ?? []).map(toRow);
+      return { rows: (res.data ?? []).map(toRow), total: res.count ?? 0 };
     },
     async decisions(tenantId, ids) {
       if (!ids.length) return [];
@@ -516,13 +571,17 @@ export async function readReceiptOriginalForDialog(
 
 export async function listReceiptControlRequests(
   actor: ReceiptControlActor,
-  f: { reservationId?: string; queue?: boolean },
+  f: { reservationId?: string; queue?: boolean; offset?: unknown; limit?: unknown },
   deps: StoreDeps,
-): Promise<ReceiptControlRequestDTO[]> {
+): Promise<ReceiptControlPage> {
   if (!CAN_REQUEST.has(actor.role)) throw new ReceiptControlError("forbidden");
   if (f.reservationId !== undefined && !isUuid(f.reservationId))
     throw new ReceiptControlError("invalid_id");
-  const rows = await deps.db.list(actor.tenantId, {
+  const offset = parsePageInt(f.offset, 0, 0, 1_000_000);
+  const limit = parsePageInt(f.limit, RECEIPT_CONTROL_PAGE_DEFAULT, 1, RECEIPT_CONTROL_PAGE_MAX);
+  const { rows, total } = await deps.db.list(actor.tenantId, {
+    offset,
+    limit,
     reservationId: f.reservationId,
     // Front Desk sees only its own requests; the Owner sees all.
     requestedBy: actor.role === "owner" ? undefined : actor.n3UserKey,
@@ -530,7 +589,26 @@ export async function listReceiptControlRequests(
       ? ["pending", "approved_awaiting_n3", "applying", "failed", "needs_review"]
       : undefined,
   });
-  return toDTOs(actor, rows, deps);
+  const requests = await toDTOs(actor, rows, deps);
+  const next = offset + rows.length;
+  return { requests, total, offset, limit, nextOffset: next < total && rows.length ? next : null };
+}
+
+export const RECEIPT_CONTROL_PAGE_DEFAULT = 50;
+export const RECEIPT_CONTROL_PAGE_MAX = 100;
+export type ReceiptControlPage = {
+  requests: ReceiptControlRequestDTO[];
+  total: number;
+  offset: number;
+  limit: number;
+  /** Null when every matching request has been returned; never a silent cap. */
+  nextOffset: number | null;
+};
+function parsePageInt(v: unknown, dflt: number, min: number, max: number): number {
+  if (v === undefined || v === null || v === "") return dflt;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isInteger(n) || n < min || n > max) throw new ReceiptControlError("invalid_page");
+  return n;
 }
 
 const OUTCOME_MESSAGE: Record<string, string> = {
@@ -545,6 +623,8 @@ const OUTCOME_MESSAGE: Record<string, string> = {
   account_not_allowed: "The requested deposit account is not available. Needs review.",
   n3_result_mismatch: "N3 does not show the approved change. Needs review.",
   n3_evidence_insufficient: "N3 could not prove the change (missing or unknown). Needs review.",
+  verification_interrupted:
+    "A verification was interrupted and released. Verify again to read N3.",
 };
 
 export async function toDTOs(
@@ -593,6 +673,8 @@ export async function toDTOs(
         owner &&
         (r.state === "approved_awaiting_n3" ||
           (r.state === "needs_review" && r.approvedAt !== null)),
+      // Applying only persists when a verification was interrupted (Verify is atomic).
+      canRecover: owner && r.state === "applying" && r.approvedAt !== null,
       outcomeMessage: r.outcomeCode ? (OUTCOME_MESSAGE[r.outcomeCode] ?? null) : null,
       alert: latestAlert
         ? {
