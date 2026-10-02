@@ -393,7 +393,8 @@ export type StoreDeps = {
     eventType:
       | "hotel.receipt_control.requested"
       | "hotel.receipt_control.decided"
-      | "hotel.receipt_control.verified";
+      | "hotel.receipt_control.verified"
+      | "hotel.receipt_control.recovered";
     detail: Record<string, unknown>;
   }): Promise<void>;
 };
@@ -623,8 +624,7 @@ const OUTCOME_MESSAGE: Record<string, string> = {
   account_not_allowed: "The requested deposit account is not available. Needs review.",
   n3_result_mismatch: "N3 does not show the approved change. Needs review.",
   n3_evidence_insufficient: "N3 could not prove the change (missing or unknown). Needs review.",
-  verification_interrupted:
-    "A verification was interrupted and released. Verify again to read N3.",
+  verification_interrupted: "A verification was interrupted and released. Verify again to read N3.",
 };
 
 export async function toDTOs(

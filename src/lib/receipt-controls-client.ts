@@ -155,9 +155,7 @@ export function listReceiptControls(opts: {
   if (opts.queue) q.set("queue", "1");
   if (opts.offset) q.set("offset", String(opts.offset));
   if (opts.limit) q.set("limit", String(opts.limit));
-  return call<ReceiptControlPageDTO>(
-    `/api/hotel/receipt-controls?${q}`,
-  );
+  return call<ReceiptControlPageDTO>(`/api/hotel/receipt-controls?${q}`);
 }
 
 export function createReceiptControl(

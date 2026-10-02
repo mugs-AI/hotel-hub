@@ -190,7 +190,13 @@ function memoryDb() {
       if (clock.now - claimedAt.get(r.id)! < a.staleSeconds * 1000)
         throw new ReceiptControlError("claim_conflict");
       claims.delete(r.id);
-      decisions.push({ requestId: r.id, decision: "recover", actor: a.actor, selfApproved: false, createdAt: "1" });
+      decisions.push({
+        requestId: r.id,
+        decision: "recover",
+        actor: a.actor,
+        selfApproved: false,
+        createdAt: "1",
+      });
       const next = {
         ...r,
         state: r.state === "applying" ? ("approved_awaiting_n3" as const) : r.state,
@@ -983,7 +989,11 @@ describe("interrupted verification recovery (review finding 1)", () => {
     const { d, mem, stuck } = await crashedMidVerify();
     const reads = (d.readEvidence as any).mock.calls.length;
     await expect(
-      recoverReceiptControlRequest(owner, { requestId: stuck.id, expectedVersion: stuck.version }, d),
+      recoverReceiptControlRequest(
+        owner,
+        { requestId: stuck.id, expectedVersion: stuck.version },
+        d,
+      ),
     ).rejects.toMatchObject({ code: "claim_conflict" });
     mem.clock.now += (RECEIPT_VERIFY_STALE_SECONDS + 1) * 1000;
     const rec = await recoverReceiptControlRequest(
@@ -1076,7 +1086,9 @@ describe("interrupted verification recovery (review finding 1)", () => {
     expect(rec).toMatch(/make_interval\(secs => p_stale_seconds\)/);
     expect(rec).toMatch(/SET state = 'released'/);
     expect(rec).toMatch(/version = version \+ 1/);
-    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_recover\([^)]*\) TO service_role/);
+    expect(sql).toMatch(
+      /GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_recover\([^)]*\) TO service_role/,
+    );
   });
 });
 
