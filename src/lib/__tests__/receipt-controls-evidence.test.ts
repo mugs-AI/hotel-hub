@@ -22,6 +22,7 @@ const deposit: ScopedDeposit = {
   n3ReceiptId: RID,
   n3DocCode: "OR-TEST/001",
   n3CustomerId: CUST,
+  n3ReferenceNo: "HH-REF-1",
   currencyCode: "MYR",
   paymentLines: [{ id: ACC, code: "BANK-T", name: "Test Bank", amount: 50 }],
 };
@@ -31,6 +32,7 @@ const receiptBody = (o: Record<string, unknown> = {}) => ({
     id: RID,
     docCode: "OR-TEST/001",
     docType: "AROR",
+    referenceNo: "HH-REF-1",
     docDate: "2026-10-01T00:00:00",
     customerId: CUST,
     customerName: "Test Guest",
@@ -50,12 +52,18 @@ const receiptBody = (o: Record<string, unknown> = {}) => ({
     ...o,
   },
 });
-const journal = (amount = 50) => ({
+const AR = "44444444-4444-4444-8444-444444444444";
+const gl = (accountId: string, debit: number, credit: number, o: Record<string, unknown> = {}) => ({
+  accountId,
+  debit,
+  credit,
+  docCode: "OR-TEST/001",
+  referenceNo: "HH-REF-1",
+  ...o,
+});
+const journal = (amount = 50, rows?: unknown[]) => ({
   code: 0,
-  data: [
-    { accountId: ACC, accountCode: "BANK-T", debit: amount, credit: 0 },
-    { accountCode: "CUST", debit: 0, credit: amount },
-  ],
+  data: rows ?? [gl(ACC, amount, 0), gl(AR, 0, amount)],
 });
 const ok = (body: unknown): N3Outcome => ({ kind: "response", status: 200, body, durationMs: 1 });
 
@@ -223,14 +231,14 @@ describe("verifyReceiptControlResult", () => {
   it("treats missing evidence as insufficient (no 404 void proof)", () => {
     expect(verifyReceiptControlResult(original, { kind: "void" }, null)).toBe("insufficient");
   });
-  it("requires explicit cancellation for a void", () => {
+  it("a cancellation flag alone never verifies a void (journal effect unproven)", () => {
     expect(
       verifyReceiptControlResult(
         original,
         { kind: "void" },
         receiptSnapshot({ documentState: "voided" }),
       ),
-    ).toBe("verified");
+    ).toBe("insufficient");
     expect(
       verifyReceiptControlResult(
         original,
@@ -262,3 +270,82 @@ describe("verifyReceiptControlResult", () => {
     ).toBe("insufficient");
   });
 });
+
+describe("review blockers: exact evidence binding", () => {
+  it("binds the saved HotelHub reference and document code", async () => {
+    for (const o of [{ referenceNo: "OTHER" }, { referenceNo: undefined }, { docCode: "OR-X/9" }]) {
+      const { d } = deps({ detail: ok(receiptBody(o)) });
+      expect(await errCode(readReceiptControlEvidence(actor, "d1", d))).toBe(
+        "n3_evidence_mismatch",
+      );
+    }
+  });
+  it("rejects zero/negative totals, missing date and payment totals that do not add up", async () => {
+    for (const o of [
+      { totalAmount: 0 },
+      { totalAmount: -5 },
+      { docDate: undefined },
+    ]) {
+      const { d } = deps({ detail: ok(receiptBody(o)) });
+      expect(await errCode(readReceiptControlEvidence(actor, "d1", d))).toBe(
+        "n3_evidence_incomplete",
+      );
+    }
+    const split = receiptBody({
+      isMultiPayment: true,
+      multiPayments: [
+        { accountId: ACC, amount: 30 },
+        { accountId: AR, amount: 10 },
+      ],
+    });
+    expect(await errCode(readReceiptControlEvidence(actor, "d1", deps({ detail: ok(split) }).d))).toBe(
+      "n3_evidence_mismatch",
+    );
+  });
+  it("missing refund data is unknown, never silently zero", async () => {
+    const { d } = deps({ detail: ok(receiptBody({ refundAmount: undefined })) });
+    expect((await readReceiptControlEvidence(actor, "d1", d)).matchingState).toBe("unknown");
+  });
+  it("exact journal is required; balanced-but-wrong journals are not evidence", async () => {
+    expect((await readReceiptControlEvidence(actor, "d1", deps().d)).journalExact).toBe(true);
+    const bad: Array<[string, unknown[]]> = [
+      ["debit to another bank", [gl(AR, 50, 0), gl(ACC, 0, 50)]],
+      ["unexplained extra pair", [gl(ACC, 50, 0), gl(AR, 0, 50), gl(AR, 5, 0), gl(ACC, 0, 5)]],
+      ["two credit accounts", [gl(ACC, 50, 0), gl(AR, 0, 30), gl(RID, 0, 20)]],
+      ["wrong document", [gl(ACC, 50, 0, { docCode: "OR-OTHER" }), gl(AR, 0, 50)]],
+      ["missing reference", [gl(ACC, 50, 0, { referenceNo: undefined }), gl(AR, 0, 50)]],
+      ["credit on no account", [gl(ACC, 50, 0), { debit: 0, credit: 50 }]],
+    ];
+    for (const [, rows] of bad) {
+      const snap = await readReceiptControlEvidence(
+        actor,
+        "d1",
+        deps({ gl: ok(journal(50, rows)) }).d,
+      );
+      expect(snap.journalExact).toBe(false);
+    }
+  });
+  it("a correction with an inexact journal cannot verify", () => {
+    const original = receiptSnapshot();
+    const ev = receiptSnapshot({
+      amountCents: 8000,
+      paymentLines: [{ ...original.paymentLines[0]!, amountCents: 8000 }],
+      journalExact: false,
+    });
+    expect(
+      verifyReceiptControlResult(
+        original,
+        { kind: "correction", amountCents: 8000, accountId: ACC, contact: original.contact },
+        ev,
+      ),
+    ).toBe("insufficient");
+  });
+  it("changed document date or reference is a mismatch", () => {
+    const original = receiptSnapshot();
+    for (const o of [{ documentDate: "2026-09-30" }, { reference: "OTHER" }])
+      expect(verifyReceiptControlResult(original, { kind: "void" }, receiptSnapshot(o))).toBe(
+        "mismatch",
+      );
+  });
+});
+
