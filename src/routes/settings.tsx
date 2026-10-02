@@ -128,7 +128,14 @@ function SettingsInner() {
 }
 
 type SettingsTab =
-  "property" | "guests" | "operations" | "charges" | "system" | "users" | "n3" | "sources";
+  | "property"
+  | "guests"
+  | "operations"
+  | "charges"
+  | "system"
+  | "users"
+  | "n3"
+  | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "property", label: "Property" },

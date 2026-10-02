@@ -24,7 +24,8 @@ export type RoomImportSeed = {
 };
 
 export type RoomImportSeedResult =
-  { ok: true; value: RoomImportSeed } | { ok: false; code: string };
+  | { ok: true; value: RoomImportSeed }
+  | { ok: false; code: string };
 
 /**
  * Translate only server-verified N3 Stock Master values into the opening HH

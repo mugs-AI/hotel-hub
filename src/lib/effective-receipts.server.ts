@@ -17,8 +17,13 @@ type Reader = {
   unresolved(tenantId: string, depositIds: string[]): Promise<string[] | null>;
 };
 
-function supabaseReader(): Reader {
+/**
+ * Reader over a caller-supplied client (the same injected store DB in unit
+ * tests); defaults to the server service-role client in production.
+ */
+export function receiptReader(client?: { from: (t: string) => any }): Reader {
   const sb = async () => {
+    if (client) return client;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return supabaseAdmin as unknown as { from: (t: string) => any };
   };
@@ -70,7 +75,7 @@ function supabaseReader(): Reader {
 export async function loadReceiptOverlay(
   tenantId: string,
   depositIds: readonly string[],
-  reader: Reader = supabaseReader(),
+  reader: Reader = receiptReader(),
 ): Promise<Map<string, ReceiptOverlay>> {
   const ids = Array.from(new Set(depositIds));
   if (!ids.length) return new Map();

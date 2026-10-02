@@ -632,7 +632,9 @@ export async function housekeepingCheckInBlocker(
  * three-way outcome below instead.
  */
 export type ReadOutcome<T> =
-  { status: "ok"; value: T } | { status: "missing" } | { status: "error" };
+  | { status: "ok"; value: T }
+  | { status: "missing" }
+  | { status: "error" };
 
 export type HandoffOperationDetail = {
   operationType: string;
