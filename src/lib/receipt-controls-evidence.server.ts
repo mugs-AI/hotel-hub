@@ -138,7 +138,8 @@ function resolveField(
     .map(str)
     .filter((v): v is string => v !== null);
   if (nestedKey)
-    for (const acct of valuesFor(row, ["account"])) {
+    // Same nested account objects as the deposit posting verifier.
+    for (const acct of valuesFor(row, ["account", "accountCodeLookup"])) {
       for (const v of valuesFor(acct, [nestedKey])) {
         const s = str(v);
         if (s !== null) seen.push(s);
