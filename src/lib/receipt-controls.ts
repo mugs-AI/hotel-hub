@@ -166,29 +166,60 @@ export function validateReceiptControlProposal(
     throw new ReceiptControlError("split_correction_unsupported");
   const amountCents = amountToCents(body.amount);
   if (amountCents === null) throw new ReceiptControlError("invalid_amount");
-  const accountId = typeof body.accountId === "string" ? body.accountId.trim() : "";
+  // Omitted account = keep the original receipt's account (never blank).
+  const accountId =
+    body.accountId === undefined
+      ? original.paymentLines[0]!.accountId
+      : typeof body.accountId === "string"
+        ? body.accountId.trim()
+        : "";
   if (!ACCOUNT_RE.test(accountId)) throw new ReceiptControlError("invalid_account");
-  const raw = body.contact;
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
-    throw new ReceiptControlError("invalid_contact");
-  const c = raw as Record<string, unknown>;
-  for (const k of Object.keys(c))
-    if (!["name", "company", "address", "phone", "email"].includes(k))
-      throw new ReceiptControlError("unknown_field");
-  for (const k of Object.keys(c))
-    if (c[k] !== undefined && c[k] !== null && typeof c[k] !== "string")
-      throw new ReceiptControlError("invalid_contact");
+  // Omitted contact = preserve the saved N3 bill-to name and remarks exactly.
+  // Contact is only replaced when the requester explicitly edits it; an
+  // amount-only correction can never silently request erasure.
   let contact: ReceiptContactFields;
-  try {
-    contact = formatReceiptContact(c as Record<string, string>);
-  } catch (e) {
-    if (e instanceof ReceiptContactError) throw new ReceiptControlError(e.code);
-    throw e;
+  const raw = body.contact;
+  if (raw === undefined) {
+    contact = { ...original.contact };
+  } else {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      throw new ReceiptControlError("invalid_contact");
+    const c = raw as Record<string, unknown>;
+    for (const k of Object.keys(c))
+      if (!["name", "company", "address", "phone", "email"].includes(k))
+        throw new ReceiptControlError("unknown_field");
+    for (const k of Object.keys(c))
+      if (c[k] !== undefined && c[k] !== null && typeof c[k] !== "string")
+        throw new ReceiptControlError("invalid_contact");
+    try {
+      contact = formatReceiptContact(c as Record<string, string>);
+    } catch (e) {
+      if (e instanceof ReceiptContactError) throw new ReceiptControlError(e.code);
+      throw e;
+    }
   }
   const proposal: ReceiptControlProposal = { kind: "correction", amountCents, accountId, contact };
   if (compareReceiptControl(original, proposal).fields.length === 0)
     throw new ReceiptControlError("proposal_unchanged");
   return proposal;
+}
+
+/**
+ * Account eligibility policy (approved rule): a correction that changes the
+ * money (amount) or the account must re-verify that the requested account is
+ * currently allowed and enabled — even when it is the SAME account id as the
+ * original. Only a contact-only correction (same amount, same account) may
+ * keep a historical account that has since been disabled/hidden.
+ */
+export function requiresAccountEligibility(
+  original: ReceiptSnapshot,
+  proposal: ReceiptControlProposal,
+): boolean {
+  if (proposal.kind !== "correction") return false;
+  const line = original.paymentLines[0];
+  if (!line) return true;
+  const sameAccount = line.accountId.toLowerCase() === proposal.accountId.toLowerCase();
+  return !sameAccount || proposal.amountCents !== original.amountCents;
 }
 
 const CONTACT_LABELS: Array<[keyof ReceiptContactFields, string]> = [
