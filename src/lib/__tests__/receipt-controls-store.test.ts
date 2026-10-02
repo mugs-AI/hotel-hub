@@ -81,6 +81,8 @@ function memoryDb() {
         requestedAt: new Date().toISOString(),
         decidedBy: null,
         decidedAt: null,
+        approvedBy: null,
+        approvedAt: null,
         outcomeCode: null,
       };
       rows.set(row.id, row);
@@ -115,12 +117,15 @@ function memoryDb() {
         version: r.version + 1,
         outcomeCode: a.outcomeCode,
         decidedBy: a.decision === "hold" ? r.decidedBy : a.actor,
+        approvedBy: a.decision === "approve" ? a.actor : r.approvedBy,
+        approvedAt: a.decision === "approve" ? "now" : r.approvedAt,
       };
       rows.set(r.id, next);
       return next;
     },
     async claim(a) {
       const r = rows.get(a.requestId)!;
+      if (!r.approvedAt) throw new ReceiptControlError("not_approved");
       if (
         r.version !== a.expectedVersion ||
         !["approved_awaiting_n3", "needs_review"].includes(r.state)
@@ -140,7 +145,12 @@ function memoryDb() {
       const r = rows.get(a.requestId)!;
       if (claims.get(r.id) !== a.executionId) throw new ReceiptControlError("claim_not_found");
       claims.delete(r.id);
-      if ((a.toState === "applied") !== (a.version !== null))
+      if (!r.approvedAt || !["applying", "needs_review"].includes(r.state))
+        throw new ReceiptControlError("claim_stale");
+      if (
+        (a.toState === "applied" && !a.version) ||
+        (a.toState !== "applied" && a.version && a.version.state !== "voided")
+      )
         throw new ReceiptControlError("invalid_transition");
       if (a.version) versions.push({ depositId: r.depositId, ...a.version });
       const next = { ...r, state: a.toState, version: r.version + 1, outcomeCode: a.outcomeCode };
@@ -554,7 +564,13 @@ describe("alerts (transport disabled)", () => {
       settle,
     });
     expect(out).toEqual({ claimed: 1, sent: 0, disabled: 1 });
-    expect(settle).toHaveBeenCalledWith("t1", "a1", "disabled", "transport_not_configured");
+    expect(settle).toHaveBeenCalledWith(
+      "t1",
+      "a1",
+      "tok-1",
+      "disabled",
+      "transport_not_configured",
+    );
   });
   it("status copy states nothing was sent", () => {
     expect(receiptAlertLabel({ status: "disabled", lastError: null })).toContain("not sent");
