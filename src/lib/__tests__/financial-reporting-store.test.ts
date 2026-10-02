@@ -11,6 +11,7 @@ import {
 import { financialMonth, validateReceiptReportFilter } from "../financial-reporting";
 import { ReceiptControlError, type ReceiptSnapshot } from "../receipt-controls";
 import type { ReceiptControlActor } from "../receipt-controls-evidence.server";
+import type { N3MonthRow } from "../n3-month-receipts.server";
 
 const T = "tenant-a";
 const owner: ReceiptControlActor = {
@@ -86,6 +87,8 @@ type World = {
   snaps: Map<string, ReceiptSnapshot | ReceiptControlError>;
   failPageAt?: number;
   installed?: boolean;
+  /** Override the N3 month list; default derives from snaps' documentDate. */
+  list?: (range: { startDate: string; endExclusive: string }) => N3MonthRow[];
 };
 
 function makeDeps(world: World) {
@@ -96,6 +99,7 @@ function makeDeps(world: World) {
     maxInFlight: 0,
     inFlight: 0,
     settings: 0,
+    lists: 0 as number | undefined,
   };
   const scope = (t: string) => {
     calls.tenants.add(t);
@@ -142,6 +146,30 @@ function makeDeps(world: World) {
     },
     async revision() {
       return `${world.versions.length}`;
+    },
+    async listMonthReceipts(_a, range, skip, top) {
+      calls.lists = (calls.lists ?? 0) + 1;
+      const rows =
+        world.list?.(range) ??
+        [...(world.deposits.get(T) ?? [])].flatMap((d): N3MonthRow[] => {
+          const s = world.snaps.get(d.id);
+          const date = s && !(s instanceof ReceiptControlError) ? s.documentDate : "2026-10-01";
+          return date >= range.startDate && date < range.endExclusive
+            ? [
+                {
+                  id: d.n3ReceiptId,
+                  docDate: date,
+                  docCode: d.n3DocCode ?? "",
+                  referenceNo: null,
+                  isCancelled: null,
+                  customerCode: null,
+                  currencyCode: null,
+                },
+              ]
+            : [];
+        });
+      rows.sort((a, b) => (a.docDate < b.docDate ? 1 : a.docDate > b.docDate ? -1 : 0));
+      return { count: rows.length, rows: rows.slice(skip, skip + top) };
     },
     async verifyReceipt(_a, id) {
       calls.verify++;
@@ -553,5 +581,259 @@ describe("finance client cache namespace", () => {
       "utf8",
     );
     expect(src).not.toMatch(/tenantKey = "session"/);
+  });
+});
+
+describe("N3 month-date discovery (sales-v1 ARReceipts/List docDate filter)", () => {
+  const sept = (d: FinancialDeposit) => snap(d, { documentDate: "2026-09-15" });
+
+  it(">100 lifetime HotelHub receipts with <100 in the selected month succeeds", async () => {
+    const many = Array.from({ length: 150 }, (_, i) => dep(i + 1));
+    const w = world(many);
+    many.slice(10).forEach((d) => w.snaps.set(d.id, sept(d)));
+    const { deps, calls } = makeDeps(w);
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(r.deposits).toMatchObject({ status: "complete", amount: 500 });
+    expect(calls.verify).toBe(10);
+  });
+
+  it(">100 selected-month candidates is visibly Unavailable with no N3 detail reads", async () => {
+    const many = Array.from({ length: FINANCIAL_LIMITS.verifyCap + 1 }, (_, i) => dep(i + 1));
+    const { deps, calls } = makeDeps(world(many));
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(r.deposits.status).toBe("unavailable");
+    expect(calls.verify).toBe(0);
+  });
+
+  it("a server that ignores the date filter is Unavailable, never a partial total", async () => {
+    const d = dep(1);
+    const w = world([d], {
+      list: () => [
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-02",
+          docCode: "a",
+          referenceNo: null,
+          isCancelled: null,
+          customerCode: null,
+          currencyCode: null,
+        },
+        {
+          id: rid(77),
+          docDate: "2026-09-30",
+          docCode: "b",
+          referenceNo: null,
+          isCancelled: null,
+          customerCode: null,
+          currencyCode: null,
+        },
+      ],
+    });
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits).toMatchObject({ status: "unavailable", amount: null });
+  });
+
+  it("count changing between pages, duplicates, truncation and wrong order fail closed", async () => {
+    const many = Array.from({ length: 150 }, (_, i) => dep(i + 1));
+    const rowsOf = (n: number) =>
+      many.slice(0, n).map((d) => ({
+        id: d.n3ReceiptId.toLowerCase(),
+        docDate: "2026-10-05",
+        docCode: d.n3DocCode!,
+        referenceNo: null,
+        isCancelled: null,
+        customerCode: null,
+        currencyCode: null,
+      }));
+    const cases: FinancialReportingDeps["listMonthReceipts"][] = [
+      async (_a, _r, skip, top) => ({
+        count: skip ? 151 : 150,
+        rows: rowsOf(150).slice(skip, skip + top),
+      }),
+      async (_a, _r, _skip, top) => ({ count: 150, rows: rowsOf(150).slice(0, top) }), // repeats page 1
+      async (_a, _r, skip, top) => ({ count: 150, rows: rowsOf(120).slice(skip, skip + top) }), // truncated
+      async () => ({
+        count: 2,
+        rows: [
+          { ...rowsOf(1)[0]!, docDate: "2026-10-01" },
+          { ...rowsOf(2)[1]!, docDate: "2026-10-09" },
+        ],
+      }),
+    ];
+    for (const list of cases) {
+      clearFinancialCache();
+      const { deps, calls } = makeDeps(world(many));
+      deps.listMonthReceipts = list;
+      const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+      expect(r.deposits.status).toBe("unavailable");
+      expect(calls.verify).toBe(0);
+    }
+  });
+
+  it("a list failure is Unavailable; an expired session is unauthorized, not zero", async () => {
+    const { MonthListError } = await import("../n3-month-receipts.server");
+    const { deps } = makeDeps(world([dep(1)]));
+    deps.listMonthReceipts = async () => {
+      throw new MonthListError("n3_month_list_unavailable");
+    };
+    expect((await readMonthlyFinancialDashboard(owner, "2026-10", deps)).deposits.status).toBe(
+      "unavailable",
+    );
+    clearFinancialCache();
+    deps.listMonthReceipts = async () => {
+      throw new MonthListError("unauthorized");
+    };
+    await expect(readMonthlyFinancialDashboard(owner, "2026-10", deps)).rejects.toThrow();
+  });
+
+  it("an old-created receipt N3-dated in the month is counted via the list", async () => {
+    const d = dep(1, { createdAt: "2026-01-03T00:00:00Z" });
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(world([d])).deps);
+    expect(r.deposits).toMatchObject({ status: "complete", amount: 50 });
+  });
+
+  it("non-HotelHub N3 receipts sharing the customer/bank/reference prefix are never counted", async () => {
+    const d = dep(1);
+    const w = world([d], {
+      list: () => [
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: false,
+          customerCode: "WALKIN",
+          currencyCode: "MYR",
+        },
+        {
+          id: rid(500),
+          docDate: "2026-10-02",
+          docCode: "OR2",
+          referenceNo: "HH-500",
+          isCancelled: false,
+          customerCode: "WALKIN",
+          currencyCode: "MYR",
+        },
+      ],
+    });
+    const { deps, calls } = makeDeps(w);
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    expect(r.deposits).toMatchObject({ status: "complete", amount: 50 });
+    expect(calls.verify).toBe(1);
+  });
+
+  it("list cancellation flag never confirms a void: an external cancel is Needs review", async () => {
+    const d = dep(1);
+    const w = world([d], {
+      list: () => [
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: true,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
+      ],
+    });
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits.status).toBe("needs_review");
+    expect(r.voids.amount ?? 0).toBe(0);
+  });
+
+  it("a list row whose reference contradicts the saved receipt is Needs review", async () => {
+    const d = dep(1);
+    const w = world([d], {
+      list: () => [
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "OTHER",
+          isCancelled: false,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
+      ],
+    });
+    const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
+    expect(r.deposits.status).toBe("needs_review");
+  });
+
+  it("end-exclusive leap-month boundary: 29 Feb counts, 1 Mar is excluded", async () => {
+    const a = dep(1);
+    const b = dep(2);
+    const w = world([a, b]);
+    w.snaps.set(a.id, snap(a, { documentDate: "2028-02-29" }));
+    w.snaps.set(b.id, snap(b, { documentDate: "2028-03-01" }));
+    const seen: Array<{ startDate: string; endExclusive: string }> = [];
+    const { deps } = makeDeps(w);
+    const base = deps.listMonthReceipts;
+    deps.listMonthReceipts = (ac, range, s, t, sig) => (
+      seen.push(range),
+      base(ac, range, s, t, sig)
+    );
+    const r = await readMonthlyFinancialDashboard(owner, "2028-02", deps);
+    expect(seen[0]).toEqual({ startDate: "2028-02-01", endExclusive: "2028-03-01" });
+    expect(r.deposits).toMatchObject({ status: "complete", amount: 50 });
+  });
+});
+
+describe("ARReceipts/List month query and strict page parsing", () => {
+  it("builds a validated, encoded, stably ordered docDate query", async () => {
+    const { docDateListPath } = await import("../n3-receipts.server");
+    const p = docDateListPath({
+      startDate: "2028-02-01",
+      endExclusive: "2028-03-01",
+      skip: 100,
+      top: 100,
+    });
+    expect(decodeURIComponent(p)).toBe(
+      "/api/ARReceipts/List?$filter=docDate ge 2028-02-01 and docDate lt 2028-03-01&$orderby=docDate desc,docCode desc&$skip=100&$top=100",
+    );
+    for (const bad of [
+      { startDate: "2028-02-01' or 1 eq 1", endExclusive: "2028-03-01", skip: 0, top: 100 },
+      { startDate: "2028-03-01", endExclusive: "2028-02-01", skip: 0, top: 100 },
+      { startDate: "2028-02-01", endExclusive: "2028-03-01", skip: 0, top: 101 },
+      { startDate: "2028-02-01", endExclusive: "2028-03-01", skip: 7, top: 100 },
+    ])
+      expect(() => docDateListPath(bad)).toThrow();
+  });
+
+  it("accepts only the official '0000' envelope with data.value + data.count", async () => {
+    const { parseMonthPage } = await import("../n3-month-receipts.server");
+    const row = {
+      id: rid(1),
+      docDate: "2026-10-03T00:00:00",
+      docCode: "OR1",
+      referenceNo: "HH-1",
+      isCancelled: false,
+      customerCode: "C",
+      currencyCode: "MYR",
+      netTotalAmount: 50,
+      accountCode: "310",
+    };
+    const ok = (body: unknown) => ({ kind: "response" as const, status: 200, durationMs: 1, body });
+    const page = parseMonthPage(
+      ok({ code: "0000", success: true, data: { value: [row], count: 1 } }),
+    );
+    expect(page).toMatchObject({
+      count: 1,
+      rows: [{ docDate: "2026-10-03", referenceNo: "HH-1" }],
+    });
+    for (const body of [
+      { code: "0", data: { value: [row], count: 1 } },
+      { code: "0000", Code: "E001", data: { value: [row], count: 1 } },
+      { code: "0000", data: { value: [row] } },
+      { code: "0000", data: { value: [row], count: "1" } },
+      { code: "0000", data: { value: [row], Value: [], count: 1 } },
+      { code: "0000", data: { value: [{ ...row, docDate: "2026-02-30" }], count: 1 } },
+      { code: "0000", data: { value: [{ ...row, id: "1" }], count: 1 } },
+    ])
+      expect(() => parseMonthPage(ok(body))).toThrow();
+    expect(() =>
+      parseMonthPage({ kind: "response", status: 401, durationMs: 1, body: {} }),
+    ).toThrow("unauthorized");
   });
 });

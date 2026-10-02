@@ -34,6 +34,20 @@ function data(rowsCount = 3, failing = false): { deps: FinancialReportingDeps; r
       if (failing) throw new Error("down");
       return after ? [] : deposits;
     },
+    listMonthReceipts: async () => {
+      const rows = deposits.map((d) => ({
+        id: d.n3ReceiptId,
+        docDate: `2026-10-0${(Number(d.id.slice(1)) % 9) + 1}`,
+        docCode: d.n3DocCode,
+        referenceNo: null,
+        isCancelled: null,
+        customerCode: null,
+        currencyCode: null,
+      }));
+      rows.sort((a, b) => (a.docDate < b.docDate ? 1 : a.docDate > b.docDate ? -1 : 0));
+      if (failing) throw new Error("down");
+      return { count: rows.length, rows };
+    },
     versions: async () => [],
     unresolved: async () => [],
     requests: async () => [],
