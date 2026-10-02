@@ -61,6 +61,7 @@ export function receiptReportCsv(rows: readonly ReceiptReportRow[]): string {
         csvText(r.approverLabel),
         csvText(r.reason),
         csvText(r.confirmedVoidAt),
+        csvText(r.n3DocumentDate),
       ].join(","),
     );
   return lines.join("\r\n") + "\r\n";

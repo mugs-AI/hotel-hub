@@ -868,7 +868,7 @@ describe("review e220930: void-event month and single deadline", () => {
     );
     expect(report.items).toHaveLength(1);
     expect(report.items[0]).toMatchObject({ amount: 80 });
-    expect(JSON.stringify(report.items[0])).toContain("2026-09-10");
+    expect(report.items[0]).toMatchObject({ documentDate: "2026-10-05", n3DocumentDate: "2026-09-10" });
   });
 
   it("void verified late on 31 Oct UTC counts in November property-local month", async () => {
