@@ -896,29 +896,47 @@ export type Database = {
       }
       hotel_receipt_alert_outbox: {
         Row: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
           created_at: string
           event: string
           id: string
+          last_error_code: string | null
+          next_attempt_at: string
           request_id: string
           request_version: number
+          sent_at: string | null
           status: string
           tenant_id: string
         }
         Insert: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           event: string
           id?: string
+          last_error_code?: string | null
+          next_attempt_at?: string
           request_id: string
           request_version: number
+          sent_at?: string | null
           status?: string
           tenant_id: string
         }
         Update: {
+          attempts?: number
+          claim_token?: string | null
+          claimed_at?: string | null
           created_at?: string
           event?: string
           id?: string
+          last_error_code?: string | null
+          next_attempt_at?: string
           request_id?: string
           request_version?: number
+          sent_at?: string | null
           status?: string
           tenant_id?: string
         }
@@ -2381,6 +2399,40 @@ export type Database = {
           out_cutoff: string
           out_deleted: number
         }[]
+      }
+      hotelhub_receipt_alert_claim: {
+        Args: { p_limit: number; p_tenant_id: string }
+        Returns: {
+          attempts: number
+          claim_token: string | null
+          claimed_at: string | null
+          created_at: string
+          event: string
+          id: string
+          last_error_code: string | null
+          next_attempt_at: string
+          request_id: string
+          request_version: number
+          sent_at: string | null
+          status: string
+          tenant_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "hotel_receipt_alert_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      hotelhub_receipt_alert_settle: {
+        Args: {
+          p_alert_id: string
+          p_claim_token: string
+          p_error_code: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       hotelhub_receipt_control_claim: {
         Args: {
