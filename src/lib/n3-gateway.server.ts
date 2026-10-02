@@ -490,11 +490,7 @@ export async function getN3StockDetailById(
 // through Owner-authorized fixed endpoints.
 
 export type N3GlobalError =
-  | "unauthorized"
-  | "forbidden"
-  | "unavailable"
-  | "incomplete"
-  | "limit_reached";
+  "unauthorized" | "forbidden" | "unavailable" | "incomplete" | "limit_reached";
 export class N3ListError extends Error {
   constructor(public code: N3GlobalError) {
     super(code);

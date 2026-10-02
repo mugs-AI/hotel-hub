@@ -42,11 +42,7 @@ export type FolioLineType =
 export type FolioLineStatus = "draft" | "committed" | "reversed";
 
 export type GuestTaxClass =
-  | "malaysian_citizen"
-  | "malaysian_pr"
-  | "foreign_tourist"
-  | "other_exemption"
-  | "unknown";
+  "malaysian_citizen" | "malaysian_pr" | "foreign_tourist" | "other_exemption" | "unknown";
 
 export const GUEST_TAX_CLASSES: readonly GuestTaxClass[] = [
   "malaysian_citizen",

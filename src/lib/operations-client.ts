@@ -3,11 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type OperationType =
-  | "early_check_in"
-  | "late_checkout"
-  | "room_change"
-  | "stay_extension"
-  | "rate_change";
+  "early_check_in" | "late_checkout" | "room_change" | "stay_extension" | "rate_change";
 
 export type OperationState = "pending" | "approved" | "rejected" | "applied" | "cancelled";
 

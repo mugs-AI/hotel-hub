@@ -38,10 +38,7 @@ export type TaxMapping = {
 };
 
 export type TaxableClass =
-  | "accommodation"
-  | "food_and_beverage"
-  | "parking"
-  | "other_taxable_service";
+  "accommodation" | "food_and_beverage" | "parking" | "other_taxable_service";
 
 export type FinancialSettings = {
   tenantId: string;
