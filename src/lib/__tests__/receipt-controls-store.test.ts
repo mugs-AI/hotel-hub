@@ -16,6 +16,8 @@ import {
 } from "../receipt-controls-store.server";
 import {
   executeReceiptControlRequest,
+  recoverReceiptControlRequest,
+  RECEIPT_VERIFY_STALE_SECONDS,
   verifyReceiptControlRequest,
 } from "../receipt-controls-execution.server";
 import { loadReceiptOverlay } from "../effective-receipts.server";
@@ -38,6 +40,7 @@ import {
 import { requiresAccountEligibility, validateReceiptControlProposal } from "../receipt-controls";
 import {
   invalidateReceiptEffects,
+  listAllReceiptControls,
   purgeForeignReceiptCache,
   receiptIdentityKey,
   RECEIPT_EFFECT_QUERY_PREFIXES,
@@ -947,3 +950,211 @@ describe("frozen42f review fixes", () => {
     expect(mapDbError({ message: "claim_conflict" }).code).toBe("claim_conflict");
   });
 });
+
+describe("interrupted verification recovery (review finding 1)", () => {
+  async function crashedMidVerify() {
+    const ctx = await approved(() => receiptSnapshot({ amountCents: 8000 } as any));
+    // Simulate the legacy split path / a crashed worker: claim succeeded,
+    // process died before complete. Request is Applying with a claim held.
+    const exec = await ctx.mem.db.claim({
+      tenantId: "t1",
+      requestId: ctx.req.id,
+      expectedVersion: ctx.req.version,
+      step: "verify",
+      actor: "owner-1",
+    });
+    expect(exec).toBeTruthy();
+    const stuck = ctx.mem.rows.get(ctx.req.id)!;
+    expect(stuck.state).toBe("applying");
+    return { ...ctx, exec: exec!, stuck };
+  }
+
+  it("stuck Applying shows only Recover (no Verify/Reject) to the Owner", async () => {
+    const { d, stuck } = await crashedMidVerify();
+    const [dto] = await toDTOsFor(stuck, d);
+    expect(dto!.canVerify).toBe(false);
+    expect(dto!.canReject).toBe(false);
+    expect(dto!.canRecover).toBe(true);
+    const [fdView] = await toDTOsFor(stuck, d, fd);
+    expect(fdView!.canRecover).toBe(false);
+  });
+
+  it("recovery is refused while the claim is fresh, then releases a stale claim without any N3 call", async () => {
+    const { d, mem, stuck } = await crashedMidVerify();
+    const reads = (d.readEvidence as any).mock.calls.length;
+    await expect(
+      recoverReceiptControlRequest(owner, { requestId: stuck.id, expectedVersion: stuck.version }, d),
+    ).rejects.toMatchObject({ code: "claim_conflict" });
+    mem.clock.now += (RECEIPT_VERIFY_STALE_SECONDS + 1) * 1000;
+    const rec = await recoverReceiptControlRequest(
+      owner,
+      { requestId: stuck.id, expectedVersion: stuck.version },
+      d,
+    );
+    expect(rec.state).toBe("approved_awaiting_n3");
+    expect(rec.version).toBe(stuck.version + 1);
+    expect(rec.canVerify).toBe(true);
+    expect((d.readEvidence as any).mock.calls.length).toBe(reads); // no N3 read or write
+    expect(mem.versions).toHaveLength(0); // totals unchanged by recovery
+    await expect(
+      recoverReceiptControlRequest(owner, { requestId: stuck.id, expectedVersion: stuck.version }, fd as any),
+    ).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("old worker can never complete the reclaimed claim; Owner then verifies to a proven result", async () => {
+    const { d, mem, stuck, exec } = await crashedMidVerify();
+    mem.clock.now += (RECEIPT_VERIFY_STALE_SECONDS + 1) * 1000;
+    const rec = await recoverReceiptControlRequest(
+      owner,
+      { requestId: stuck.id, expectedVersion: stuck.version },
+      d,
+    );
+    await expect(
+      mem.db.complete({
+        tenantId: "t1",
+        requestId: stuck.id,
+        executionId: exec,
+        toState: "applied",
+        outcomeCode: "verified",
+        actor: "owner-1",
+        version: { state: "active" } as any,
+      }),
+    ).rejects.toMatchObject({ code: "claim_not_found" });
+    expect(mem.versions).toHaveLength(0);
+    const out = await verifyReceiptControlRequest(
+      owner,
+      { requestId: rec.id, expectedVersion: rec.version },
+      d,
+    );
+    expect(["applied", "needs_review"]).toContain(out.state);
+    expect(mem.claims.size).toBe(0);
+  });
+
+  it("completion RPC failure in atomic Verify leaves nothing claimed (state unchanged)", async () => {
+    const { d, mem, req } = await approved(() => receiptSnapshot());
+    const orig = mem.db.complete;
+    // Atomic SQL rolls back claim and complete together; mirror that here.
+    d.db = {
+      ...mem.db,
+      async verifyAtomic() {
+        throw new ReceiptControlError("receipt_control_store_failed");
+      },
+    };
+    await expect(
+      verifyReceiptControlRequest(owner, { requestId: req.id, expectedVersion: req.version }, d),
+    ).rejects.toMatchObject({ code: "receipt_control_store_failed" });
+    expect(mem.rows.get(req.id)!.state).toBe("approved_awaiting_n3");
+    expect(mem.claims.size).toBe(0);
+    void orig;
+  });
+
+  it("rejected (terminal) stays terminal: recovery refused", async () => {
+    const { d } = deps();
+    const req = await createReceiptControlRequest(fd, correction(), d);
+    const rej = await decideReceiptControlRequest(
+      owner,
+      { requestId: req.id, expectedVersion: 1, decision: "reject" },
+      d,
+    );
+    await expect(
+      recoverReceiptControlRequest(owner, { requestId: rej.id, expectedVersion: rej.version }, d),
+    ).rejects.toMatchObject({ code: "invalid_transition" });
+    expect((await d.db.get("t1", rej.id))!.state).toBe("rejected");
+  });
+
+  it("staged SQL: Verify is one transaction and recovery is fenced, stale-only and non-terminal", () => {
+    const sql = readFileSync(
+      "db/migrations-pending/20261002110000_hh_receipt_controls.sql",
+      "utf8",
+    );
+    const atomic = sql.slice(sql.indexOf("FUNCTION public.hotelhub_receipt_control_verify_atomic"));
+    expect(atomic).toMatch(/hotelhub_receipt_control_claim\(/);
+    expect(atomic).toMatch(/hotelhub_receipt_control_complete\(/);
+    const rec = sql.slice(sql.indexOf("FUNCTION public.hotelhub_receipt_control_recover"));
+    expect(rec).toMatch(/FOR UPDATE/);
+    expect(rec).toMatch(/state NOT IN \('applying','needs_review'\)/);
+    expect(rec).toMatch(/make_interval\(secs => p_stale_seconds\)/);
+    expect(rec).toMatch(/SET state = 'released'/);
+    expect(rec).toMatch(/version = version \+ 1/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_control_recover\([^)]*\) TO service_role/);
+  });
+});
+
+describe("server paging (review finding 2)", () => {
+  async function many(n: number) {
+    const ctx = deps();
+    for (let i = 0; i < n; i++) {
+      await ctx.mem.db.create({
+        tenantId: "t1",
+        reservationId: RES,
+        depositId: `dep-${i}`,
+        clientRequestId: `key-${i}`,
+        fingerprint: `fp-${i}`,
+        kind: "correction",
+        reason: "r",
+        original: receiptSnapshot() as any,
+        proposal: correction().proposal as any,
+        comparison: { depositDeltaCents: 0, balanceDeltaCents: 0, fields: [] } as any,
+        actor: "fd-1",
+      } as any);
+    }
+    return ctx;
+  }
+  it("more than 200 open requests: every one is reachable through pages with an exact total", async () => {
+    const { d } = await many(237);
+    const seen = new Set<string>();
+    let offset: number | null = 0;
+    let pages = 0;
+    while (offset !== null) {
+      const p = await listReceiptControlRequests(owner, { queue: true, offset, limit: 100 }, d);
+      expect(p.total).toBe(237);
+      p.requests.forEach((r) => seen.add(r.id));
+      offset = p.nextOffset;
+      pages++;
+    }
+    expect(seen.size).toBe(237);
+    expect(pages).toBe(3);
+  });
+  it("defaults to 50 per page and rejects out-of-bound page sizes", async () => {
+    const { d } = await many(60);
+    const p = await listReceiptControlRequests(owner, { queue: true }, d);
+    expect(p.requests).toHaveLength(50);
+    expect(p.nextOffset).toBe(50);
+    await expect(
+      listReceiptControlRequests(owner, { queue: true, limit: 101 }, d),
+    ).rejects.toMatchObject({ code: "invalid_page" });
+    await expect(
+      listReceiptControlRequests(owner, { queue: true, offset: -1 }, d),
+    ).rejects.toMatchObject({ code: "invalid_page" });
+  });
+  it("client reservation reader walks every page and fails closed past its budget", async () => {
+    const pages = [
+      { requests: [{ id: "a" }], total: 2, offset: 0, limit: 100, nextOffset: 1 },
+      { requests: [{ id: "b" }], total: 2, offset: 1, limit: 100, nextOffset: null },
+    ] as any[];
+    let i = 0;
+    const all = await listAllReceiptControls({ reservationId: RES }, async () => ({
+      ...pages[i++],
+      transport: { configured: false },
+    }));
+    expect(all.requests.map((r) => r.id)).toEqual(["a", "b"]);
+    await expect(
+      listAllReceiptControls(
+        { reservationId: RES },
+        async () => ({ ...pages[0], transport: { configured: false } }),
+        3,
+      ),
+    ).rejects.toMatchObject({ code: "receipt_control_list_incomplete" });
+  });
+  it("supabase list uses range + exact count + stable order (no silent limit)", () => {
+    const src = readFileSync("src/lib/receipt-controls-store.server.ts", "utf8");
+    expect(src).not.toMatch(/\.limit\(200\)/);
+    expect(src).toMatch(/count: "exact"/);
+    expect(src).toMatch(/\.range\(f\.offset, f\.offset \+ f\.limit - 1\)/);
+  });
+});
+
+async function toDTOsFor(row: RequestRow, d: StoreDeps, who: any = owner) {
+  const { toDTOs } = await import("../receipt-controls-store.server");
+  return toDTOs(who, [row], d);
+}
