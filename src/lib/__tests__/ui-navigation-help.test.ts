@@ -64,7 +64,14 @@ async function shell(path = "/") {
     history: createMemoryHistory({ initialEntries: [path] }),
   });
   await router.load();
-  return renderToStaticMarkup(createElement(RouterProvider, { router }));
+  // AppShell runs the central receipt-cache guard, so it needs the app's QueryClient.
+  return renderToStaticMarkup(
+    createElement(
+      QueryClientProvider,
+      { client: new QueryClient() },
+      createElement(RouterProvider, { router }),
+    ),
+  );
 }
 
 function panel(component: typeof N3IntegrationPanel | typeof PropertyPanel) {
