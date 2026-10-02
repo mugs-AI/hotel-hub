@@ -323,23 +323,23 @@ export function DepositsCard({
         </p>
       ) : null}
 
+      {receiptDialog
+        ? (() => {
+            const dep = deposits.find((x) => x.id === receiptDialog.depositId);
+            return dep ? (
+              <ReceiptControlRequestDialog
+                reservationId={reservationId}
+                deposit={dep}
+                kind={receiptDialog.kind}
+                onClose={() => setReceiptDialog(null)}
+              />
+            ) : null;
+          })()
+        : null}
       {q.isPending ? (
         <p className="mt-3 text-sm text-muted-foreground">Loading deposits…</p>
       ) : deposits.length === 0 ? null : (
         <ul className="mt-3 space-y-2">
-          {receiptDialog
-            ? (() => {
-                const dep = deposits.find((x) => x.id === receiptDialog.depositId);
-                return dep ? (
-                  <ReceiptControlRequestDialog
-                    reservationId={reservationId}
-                    deposit={dep}
-                    kind={receiptDialog.kind}
-                    onClose={() => setReceiptDialog(null)}
-                  />
-                ) : null;
-              })()
-            : null}
           {deposits.map((d) => (
             <li
               key={d.id}
