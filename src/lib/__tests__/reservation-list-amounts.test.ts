@@ -1,5 +1,4 @@
-import { describe, expect, it } from "vitest";
-import { vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 // The list read model must use only the injected DB; the live client is banned.
 vi.mock("@/integrations/supabase/client.server", () => {
   throw new Error("unit test must not use the live database");
