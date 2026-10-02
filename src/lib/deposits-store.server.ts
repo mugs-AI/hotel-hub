@@ -184,7 +184,7 @@ function positiveInt(v: unknown): number | null {
   return n !== null && Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
-function valuesFor(obj: unknown, keys: string[]): unknown[] {
+export function valuesFor(obj: unknown, keys: string[]): unknown[] {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return [];
   const names = keys.map((key) => key.toLowerCase());
   return Object.entries(obj)
@@ -192,7 +192,11 @@ function valuesFor(obj: unknown, keys: string[]): unknown[] {
     .map(([, value]) => value);
 }
 
-function fieldsAgree(obj: unknown, keys: string[], check: (value: unknown) => boolean): boolean {
+export function fieldsAgree(
+  obj: unknown,
+  keys: string[],
+  check: (value: unknown) => boolean,
+): boolean {
   return valuesFor(obj, keys).every(check);
 }
 
@@ -209,7 +213,7 @@ function unwrapReceiptDefaults(body: unknown): any {
 }
 
 /** N3 OpenAPI JSON responses carry a business code even when HTTP is 200. */
-function successfulEnvelope(body: unknown): boolean {
+export function successfulEnvelope(body: unknown): boolean {
   return (
     valuesFor(body, ["code"]).length > 0 &&
     fieldsAgree(body, ["code"], (value) => value === "0000") &&

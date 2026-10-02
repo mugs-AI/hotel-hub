@@ -25,7 +25,7 @@ export async function loadDeposit(
   const res = await (await admin())
     .from("hotel_reservation_deposits")
     .select(
-      "id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, n3_reference_no, currency_code, payment_lines",
+      "id, reservation_id, status, n3_receipt_id, n3_doc_code, n3_customer_id, n3_customer_code, n3_reference_no, currency_code, payment_lines",
     )
     .eq("tenant_id", tenantId)
     .eq("id", depositId)
@@ -40,6 +40,7 @@ export async function loadDeposit(
     n3ReceiptId: r.n3_receipt_id ?? null,
     n3DocCode: r.n3_doc_code ?? null,
     n3CustomerId: r.n3_customer_id ?? null,
+    n3CustomerCode: r.n3_customer_code ?? null,
     n3ReferenceNo: r.n3_reference_no,
     currencyCode: r.currency_code,
     paymentLines: Array.isArray(r.payment_lines) ? r.payment_lines : [],
