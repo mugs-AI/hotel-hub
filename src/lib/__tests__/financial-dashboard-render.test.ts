@@ -116,6 +116,7 @@ describe("ReceiptReportTable", () => {
     approverLabel: "Owner Lim",
     reason: "Wrong amount",
     confirmedVoidAt: "2026-10-05T01:00:00Z",
+    n3DocumentDate: "2026-09-10",
   };
   it("voided tab shows pre-void amount, audit fields, replacement link and N3 print", () => {
     const data: ReceiptReportDTO = {
