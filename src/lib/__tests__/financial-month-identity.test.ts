@@ -25,7 +25,9 @@ describe("resolveFinancialMonth (mounted-session sequences)", () => {
     expect(resolveFinancialMonth(A, { identity: A, month: "2026-09" }, "2026-11")).toBe("2026-09");
   });
   it("fails closed without identity or fresh metadata", () => {
-    expect(resolveFinancialMonth(null, { identity: A, month: "2026-09" }, "2026-10")).toBeUndefined();
+    expect(
+      resolveFinancialMonth(null, { identity: A, month: "2026-09" }, "2026-10"),
+    ).toBeUndefined();
     expect(resolveFinancialMonth(A, null, undefined)).toBeUndefined();
     expect(resolveFinancialMonth(A, null, "garbage")).toBeUndefined();
   });
@@ -57,7 +59,9 @@ describe("GET /api/hotel/financial-period", () => {
   it("Owner-only, rejects params, unauthenticated 401", async () => {
     const ok = async () => ({ timezone: "UTC", currency: "MYR" });
     expect((await handleFinancialRequest(req(), "period", deps(ok, "manager"))).status).toBe(403);
-    expect((await handleFinancialRequest(req("?month=2026-01"), "period", deps(ok))).status).toBe(400);
+    expect((await handleFinancialRequest(req("?month=2026-01"), "period", deps(ok))).status).toBe(
+      400,
+    );
     const r = await handleFinancialRequest(req(), "period", {
       actor: async () => ({ ok: false as const, reason: "unauthenticated" as const }),
       data: () => ({}) as never,
