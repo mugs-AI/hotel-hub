@@ -698,6 +698,19 @@ async function sourcesFor(
   return { ...p, sources };
 }
 
+/**
+ * Lean current-period metadata for the month selector: settings only (one
+ * bounded read), no N3 or receipt lookups. Fails closed on timeout.
+ */
+export async function readCurrentFinancialPeriod(
+  actor: ReceiptControlActor,
+  deps: FinancialReportingDeps,
+): Promise<{ month: string }> {
+  const p = await periodFor(actor, undefined, deps);
+  if (p.timedOut) throw new FinancialReportError("period_unavailable");
+  return { month: p.period.month };
+}
+
 export async function readMonthlyFinancialDashboard(
   actor: ReceiptControlActor,
   month: string | undefined,

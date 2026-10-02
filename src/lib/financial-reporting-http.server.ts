@@ -4,6 +4,7 @@ import { FinancialReportError, validateReceiptReportFilter } from "./financial-r
 import type { FinancialReportingDeps } from "./financial-reporting-store.server";
 import {
   defaultFinancialReportingDeps,
+  readCurrentFinancialPeriod,
   readMonthlyFinancialDashboard,
   readReceiptReportSnapshot,
 } from "./financial-reporting-store.server";
@@ -33,7 +34,7 @@ const BAD_INPUT = new Set([
   "invalid_date_range",
 ]);
 
-export type FinancialEndpoint = "dashboard" | "report" | "export";
+export type FinancialEndpoint = "dashboard" | "period" | "report" | "export";
 
 export async function handleFinancialRequest(
   request: Request,
@@ -48,6 +49,10 @@ export async function handleFinancialRequest(
   if (a.actor.role !== "owner") return json({ error: "forbidden" }, 403);
   const params = new URL(request.url).searchParams;
   try {
+    if (endpoint === "period") {
+      for (const _k of params.keys()) return json({ error: "unknown_filter" }, 400);
+      return json(await readCurrentFinancialPeriod(a.actor, deps.data()));
+    }
     if (endpoint === "dashboard") {
       for (const k of params.keys())
         if (k !== "month") return json({ error: "unknown_filter" }, 400);
