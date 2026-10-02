@@ -25,3 +25,12 @@ Status: implemented, NOT published. No migration applied; no N3 write; no alert 
 - No signed-in Owner end-to-end check; no true multi-session SQL concurrency.
 - Receipt-controls tables are not applied, so in production the deposits figure currently uses original receipts (reason `receipt_controls_not_installed`) and every original needs a live N3 GET.
 - Protected files: automatic regeneration (three auth files, types.ts, package/bun.lock) reappeared during this batch and was restored to a68664f.
+
+## Frozen42f receipt UI/server review fixes (2026-10-02)
+- Correction dialog loads the saved receipt (GET-only N3 readback) and keeps the saved bill-to contact by default. Contact is sent only in explicit "Change bill-to contact" mode and only when changed; the server treats an omitted contact/account as "preserve original". Original/Requested rows shown to requester ("Unchanged" when kept).
+- Account policy (`requiresAccountEligibility`): a contact-only correction (same amount, same account) may keep a disabled historical account; any amount or account change re-verifies the account is allowed and enabled, even the same id. Enforced at create and at verify.
+- Owner queue: Approve appears only after Review is opened and "I reviewed…" is ticked. Cache keyed by tenant:user:role; receipt-control snapshots for any other identity purged on auth switch.
+- Verify/decide success invalidates receipt-controls, deposits, folio, reservations (list/detail), departures, checkout-preview and financial-reporting.
+- Staged SQL `hotelhub_receipt_control_decide`: any in-flight claim raises `claim_conflict` before any update, so a claimed prior-approved Needs review cannot be rejected / terminate / free the active index; completion stays fenced to claim version and applying/needs_review.
+- Evidence: Vitest 116 files passed/2 skipped, 1,797 passed/15 skipped (final run, includes race test; receipt store file 40/40). tsgo 0 errors; ESLint 0 errors; diff --check clean. Browser (sample data via intercepted requests, not real): Approve hidden before Review (0), hidden after Review before tick (0), visible after tick (1).
+- Not run: staged SQL against a real Postgres (no throwaway DB available this turn — SQL fence checked by source assertion + in-memory double only); signed-in real-data flow; multi-session concurrency.

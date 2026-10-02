@@ -239,6 +239,16 @@ BEGIN
     WHERE id = p_request_id AND tenant_id = p_tenant_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'request_not_found'; END IF;
   IF v.version <> p_expected_version THEN RAISE EXCEPTION 'version_conflict'; END IF;
+  -- A verification claim in flight (e.g. on a previously approved Needs review
+  -- request, whose state stays needs_review while claimed) fences ALL decisions:
+  -- reject cannot reach a terminal state and free the active index while the
+  -- claimed worker may still complete. Completion is additionally fenced to the
+  -- claim's version and to applying/needs_review, so it can never resurrect a
+  -- terminal request.
+  IF EXISTS (SELECT 1 FROM public.hotel_receipt_control_executions
+             WHERE request_id = v.id AND tenant_id = p_tenant_id AND state = 'claimed') THEN
+    RAISE EXCEPTION 'claim_conflict';
+  END IF;
   v_from := v.state;
   IF NOT (
     (p_decision = 'approve' AND v_from = 'pending' AND p_to_state = 'approved_awaiting_n3') OR

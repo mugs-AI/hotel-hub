@@ -8,6 +8,7 @@ import type { HotelRole } from "./rbac";
 import {
   assertReceiptControllable,
   compareReceiptControl,
+  requiresAccountEligibility,
   MANUAL_APPROVAL_MESSAGE,
   ReceiptControlError,
   validateReason,
@@ -137,6 +138,7 @@ const DB_CODES = new Set([
   "receipt_control_immutable",
   "not_approved",
   "claim_stale",
+  "claim_conflict",
   "invalid_reason",
   "automation_unavailable",
 ]);
@@ -376,13 +378,11 @@ export async function createReceiptControlRequest(
   assertReceiptControllable(original);
   const proposal = validateReceiptControlProposal(input.proposal, original);
   const comparison = compareReceiptControl(original, proposal);
-  if (proposal.kind === "correction") {
+  if (proposal.kind === "correction" && requiresAccountEligibility(original, proposal)) {
     const line = original.paymentLines[0]!;
-    if (line.accountId.toLowerCase() !== proposal.accountId.toLowerCase()) {
-      const label = await deps.resolveAccount(actor, proposal.accountId, line.accountId);
-      if (!label) throw new ReceiptControlError("account_not_allowed");
-      for (const f of comparison.fields) if (f.label === "Deposit to") f.requested = label;
-    }
+    const label = await deps.resolveAccount(actor, proposal.accountId, line.accountId);
+    if (!label) throw new ReceiptControlError("account_not_allowed");
+    for (const f of comparison.fields) if (f.label === "Deposit to") f.requested = label;
   }
   const row = await deps.db.create({
     tenantId: actor.tenantId,
@@ -483,16 +483,35 @@ async function approvalHoldReason(
   const walkIn = await deps.walkInCustomerId(actor.tenantId);
   if (!walkIn || walkIn.toLowerCase() !== row.original.customerId.toLowerCase())
     return "walk_in_mapping_changed";
-  if (row.proposal.kind === "correction") {
+  if (
+    row.proposal.kind === "correction" &&
+    requiresAccountEligibility(row.original, row.proposal)
+  ) {
     const line = row.original.paymentLines[0];
-    if (
-      line &&
-      line.accountId.toLowerCase() !== row.proposal.accountId.toLowerCase() &&
-      !(await deps.resolveAccount(actor, row.proposal.accountId, line.accountId))
-    )
+    if (!line || !(await deps.resolveAccount(actor, row.proposal.accountId, line.accountId)))
       return "account_not_allowed";
   }
   return null;
+}
+
+/** Safe original projection for the request dialog (contact/account/amount). */
+export async function readReceiptOriginalForDialog(
+  actor: ReceiptControlActor,
+  input: { reservationId: unknown; depositId: unknown },
+  deps: Pick<StoreDeps, "readEvidence">,
+) {
+  if (!CAN_REQUEST.has(actor.role)) throw new ReceiptControlError("forbidden");
+  if (!isUuid(input.reservationId) || !isUuid(input.depositId))
+    throw new ReceiptControlError("invalid_id");
+  const o = await deps.readEvidence(actor, input.depositId);
+  const line = o.paymentLines.length === 1 ? o.paymentLines[0]! : null;
+  return {
+    amountCents: o.amountCents,
+    currency: o.currency,
+    accountId: line?.accountId ?? null,
+    accountLabel: line ? line.savedName || line.code : null,
+    contact: { ...o.contact },
+  };
 }
 
 export async function listReceiptControlRequests(

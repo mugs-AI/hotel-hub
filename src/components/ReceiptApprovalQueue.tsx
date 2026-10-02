@@ -1,6 +1,7 @@
 // Owner Dashboard queue: Review / Approve / Reject / Verify receipt requests.
 // Approval never changes totals; the manual N3 change plus Verify does.
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSessionMe } from "@/lib/session-client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   formatReceiptDelta,
@@ -12,7 +13,10 @@ import {
   listReceiptControls,
   ReceiptControlClientError,
   receiptControlMessage,
+  invalidateReceiptEffects,
+  purgeForeignReceiptCache,
   receiptControlsKey,
+  receiptIdentityKey,
   verifyReceiptControl,
 } from "@/lib/receipt-controls-client";
 import { ReceiptAlertStatus } from "@/components/ReceiptAlertStatus";
@@ -29,6 +33,8 @@ export function ReceiptRequestCard({
   onVerify?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Plan: the Owner must open Review and acknowledge the comparison before Approve.
+  const [ack, setAck] = useState(false);
   return (
     <li className="rounded-md border border-slate-200 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -71,11 +77,17 @@ export function ReceiptRequestCard({
           </tbody>
         </table>
       ) : null}
+      {open && r.canApprove ? (
+        <label className="mt-2 flex items-center gap-2">
+          <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />I
+          reviewed the original and requested values
+        </label>
+      ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
         <button type="button" className="rounded border px-2 py-1" onClick={() => setOpen(!open)}>
           {open ? "Hide" : "Review"}
         </button>
-        {r.canApprove ? (
+        {r.canApprove && open && ack ? (
           <button
             type="button"
             disabled={busy}
@@ -113,18 +125,21 @@ export function ReceiptRequestCard({
 export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   const qc = useQueryClient();
   const [error, setError] = useState("");
+  const me = useSessionMe();
+  const identity = receiptIdentityKey(me.data);
+  // Auth switch: drop every receipt snapshot cached for another tenant/user/role.
+  useEffect(() => {
+    purgeForeignReceiptCache(qc, identity);
+  }, [qc, identity]);
   const q = useQuery({
-    queryKey: receiptControlsKey("session", "queue"),
+    queryKey: receiptControlsKey(identity ?? "none", "queue"),
     queryFn: () => listReceiptControls({ queue: true }),
-    enabled,
+    enabled: enabled && identity !== null,
     retry: false,
   });
   const done = () => {
     setError("");
-    qc.invalidateQueries({ queryKey: ["receipt-controls"] });
-    qc.invalidateQueries({ queryKey: ["deposits"] });
-    qc.invalidateQueries({ queryKey: ["folio"] });
-    qc.invalidateQueries({ queryKey: ["financial-reporting"] });
+    invalidateReceiptEffects(qc);
   };
   const fail = (e: unknown) =>
     setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
