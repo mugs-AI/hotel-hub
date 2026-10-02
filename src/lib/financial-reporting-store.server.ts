@@ -20,12 +20,19 @@ import {
 } from "./financial-reporting";
 import { ReceiptControlError, type ReceiptSnapshot } from "./receipt-controls";
 import type { ReceiptControlActor } from "./receipt-controls-evidence.server";
+import {
+  discoverMonthReceipts,
+  MonthListError,
+  type N3MonthPage,
+  type N3MonthRow,
+} from "./n3-month-receipts.server";
 
 export const FINANCIAL_LIMITS = {
   localPageSize: 500,
   localCap: 100_000,
   idChunk: 200,
   verifyConcurrency: 3,
+  /** Per selected-month candidate set (not hotel lifetime). */
   verifyCap: 100,
   /** One shared deadline for every DB and N3 call of a monthly read. */
   totalBudgetMs: 40_000,
@@ -75,6 +82,17 @@ export type FinancialReportingDeps = {
     depositId: string,
     signal?: AbortSignal,
   ): Promise<ReceiptSnapshot>;
+  /**
+   * GET-only documented ARReceipts/List page for [startDate, endExclusive)
+   * ordered docDate desc,docCode desc. Throws MonthListError on failure.
+   */
+  listMonthReceipts(
+    actor: ReceiptControlActor,
+    range: { startDate: string; endExclusive: string },
+    skip: number,
+    top: number,
+    signal?: AbortSignal,
+  ): Promise<N3MonthPage>;
   /** Optional verified adapters; absent means Unavailable, never zero. */
   sales?: (
     actor: ReceiptControlActor,
@@ -252,10 +270,6 @@ export async function readReceiptEvents(
       if (page.length < FINANCIAL_LIMITS.localPageSize) break;
       after = page[page.length - 1]!.id;
     }
-    // Without an authoritative N3 document-date index every receipt must be
-    // re-read; over the cap the source is Unavailable, never partial.
-    if (all.length > FINANCIAL_LIMITS.verifyCap) throw new SourceIncomplete("verification_cap");
-    const ids = all.map((d) => d.id);
     const versionsRaw = await chunked(ids, FINANCIAL_LIMITS.idChunk, (c) =>
       deadline.run(() => deps.versions(tenantId, c)),
     );
@@ -274,9 +288,36 @@ export async function readReceiptEvents(
     }
     for (const l of byDeposit.values()) l.sort((a, b) => a.versionNo - b.versionNo);
 
-    // 2. Live GET for EVERY receipt, including corrected/voided ones: stored
+    // 2. Documented N3 month discovery (docDate ge start, lt endExclusive).
+    //    Only narrows the candidate set; HotelHub ownership is the exact saved
+    //    receipt id, never a shared customer/bank/prefix.
+    const range = { startDate: period.startDate, endExclusive: period.endExclusive };
+    const listed = await discoverMonthReceipts(range, (skip, top) =>
+      deadline.run(() =>
+        deps.listMonthReceipts(actor, range, skip, top, deadline.controller.signal),
+      ),
+    );
+    const inMonth = (date: string | null | undefined) =>
+      !!date && date.slice(0, 10) >= range.startDate && date.slice(0, 10) < range.endExclusive;
+    const candidates = all.filter((d) => {
+      if (listed.has(d.n3ReceiptId.toLowerCase())) return true;
+      // Effective current / replacement receipts listed in the month, and
+      // stored version or void events dated in the month.
+      return (byDeposit.get(d.id) ?? []).some(
+        (v) => listed.has(v.receiptId.toLowerCase()) || inMonth(v.documentDate),
+      );
+    });
+    if (candidates.length > FINANCIAL_LIMITS.verifyCap)
+      throw new SourceIncomplete("verification_cap");
+
+    // 3. Live GET for EVERY candidate, including corrected/voided ones: stored
     //    versions are never trusted forever.
-    const snaps = await verifyBounded(actor, ids, deps, deadline);
+    const snaps = await verifyBounded(
+      actor,
+      candidates.map((d) => d.id),
+      deps,
+      deadline,
+    );
 
     // 4. Audit labels.
     const requestIds = [...new Set(versions.map((v) => v.requestId))];
@@ -298,7 +339,16 @@ export async function readReceiptEvents(
 
     const rows: HotelFinancialEvent[] = [];
     let anyUnavailable = false;
-    for (const d of all) {
+    for (const d of candidates) {
+      const listRow: N3MonthRow | undefined = listed.get(d.n3ReceiptId.toLowerCase());
+      // The list is discovery only: a cancelled flag never confirms a void,
+      // and a list row contradicting the saved receipt is held Needs review.
+      const listDrift =
+        !!listRow &&
+        ((listRow.referenceNo !== null &&
+          listRow.referenceNo.toUpperCase() !== d.n3ReferenceNo.toUpperCase()) ||
+          (listRow.currencyCode !== null &&
+            listRow.currencyCode.toUpperCase() !== d.currency.toUpperCase()));
       const o = overlay.get(d.id) ?? {
         confirmed: { state: "original" as const },
         needsReview: false,
@@ -380,7 +430,11 @@ export async function readReceiptEvents(
           kind: "deposit",
           state: "voided",
           receiptStatus:
-            o.needsReview || live instanceof ReceiptControlError || live.documentState !== "voided"
+            o.needsReview ||
+            listDrift ||
+            listRow?.isCancelled === false ||
+            live instanceof ReceiptControlError ||
+            live.documentState !== "voided"
               ? "needs_review"
               : "voided",
           replacementOf: null,
@@ -416,7 +470,7 @@ export async function readReceiptEvents(
           amountCents: c.amountCents,
           kind: "deposit",
           state: "active",
-          receiptStatus: o.needsReview || !liveOk ? "needs_review" : "corrected",
+          receiptStatus: o.needsReview || !liveOk || listDrift ? "needs_review" : "corrected",
           savedPaymentName:
             c.paymentLines.map((l) => l.savedName).join(" + ") || base.savedPaymentName,
           paymentAccountId: c.paymentLines[0]?.accountId ?? base.paymentAccountId,
@@ -486,7 +540,10 @@ export async function readReceiptEvents(
           amountCents: d.amountCents,
           kind: "deposit",
           state: "active",
-          receiptStatus: exact && !o.needsReview ? "active" : "needs_review",
+          receiptStatus:
+            exact && !o.needsReview && !listDrift && listRow?.isCancelled !== true
+              ? "active"
+              : "needs_review",
           replacementOf: null,
           replacementReceiptId: null,
           confirmedVoidAt: null,
@@ -504,6 +561,10 @@ export async function readReceiptEvents(
     };
   } catch (err) {
     if (err instanceof SourceIncomplete) return unavailable(err.reason);
+    if (err instanceof MonthListError) {
+      if (err.reason === "unauthorized") throw new ReceiptControlError("unauthorized");
+      return unavailable(err.reason);
+    }
     if (err instanceof ReceiptControlError && err.code === "unauthorized") throw err;
     if (err instanceof FinancialReportError) throw err;
     console.error("[financial-reporting] source failed", (err as Error).message?.slice(0, 200));
@@ -853,6 +914,15 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         );
       }
       return parts.join("|");
+    },
+    async listMonthReceipts(actor, range, skip, top, signal) {
+      if (signal?.aborted) throw new MonthListError("n3_month_list_unavailable");
+      const { n3Receipts } = await import("./n3-receipts.server");
+      const { parseMonthPage } = await import("./n3-month-receipts.server");
+      if (!n3Receipts.listByDocDate) throw new MonthListError("n3_month_list_unavailable");
+      return parseMonthPage(
+        await n3Receipts.listByDocDate(actor.n3Token, { ...range, skip, top }),
+      );
     },
     async verifyReceipt(actor, depositId, signal) {
       if (signal?.aborted) throw new ReceiptControlError("n3_evidence_unavailable");

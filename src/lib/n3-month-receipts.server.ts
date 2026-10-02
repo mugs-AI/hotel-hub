@@ -122,7 +122,8 @@ export async function discoverMonthReceipts(
       if (r.docDate < range.startDate || r.docDate >= range.endExclusive)
         throw new MonthListError("n3_filter_ignored");
       if (out.has(r.id)) throw new MonthListError("n3_month_list_inconsistent");
-      if (prev && (r.docDate > prev.docDate || (r.docDate === prev.docDate && r.docCode > prev.docCode)))
+      // docDate desc is required; docCode tiebreak collation is N3's, not enforced here.
+      if (prev && r.docDate > prev.docDate)
         throw new MonthListError("n3_month_list_inconsistent");
       prev = r;
       out.set(r.id, r);
