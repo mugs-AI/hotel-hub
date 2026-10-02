@@ -9,7 +9,11 @@ import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
 import { ReceiptControlRequestDialog } from "@/components/ReceiptControlRequestDialog";
 import { useQuery } from "@tanstack/react-query";
-import { listAllReceiptControls, receiptControlsKey } from "@/lib/receipt-controls-client";
+import {
+  listAllReceiptControls,
+  receiptControlsKey,
+  useReceiptIdentity,
+} from "@/lib/receipt-controls-client";
 import { ACTIVE_RECEIPT_CONTROL_STATES, RECEIPT_CONTROL_STATE_LABEL } from "@/lib/receipt-controls";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
 import {
@@ -119,14 +123,24 @@ export function DepositsCard({
   canRequestReceiptChange?: boolean;
   eligible: boolean;
 }) {
-  const [receiptDialog, setReceiptDialog] = useState<{
+  const identity = useReceiptIdentity();
+  const [rawReceiptDialog, setReceiptDialog] = useState<{
     depositId: string;
     kind: "correction" | "void";
+    identity?: string | null;
   } | null>(null);
+  // A dialog opened under another account/role is never shown (auth switch).
+  const receiptDialog =
+    rawReceiptDialog && identity !== null && rawReceiptDialog.identity === identity
+      ? rawReceiptDialog
+      : null;
+  useEffect(() => {
+    setReceiptDialog(null);
+  }, [identity]);
   const receiptRequests = useQuery({
-    queryKey: receiptControlsKey("session", `reservation:${reservationId}`),
+    queryKey: receiptControlsKey(identity ?? "none", `reservation:${reservationId}`),
     queryFn: () => listAllReceiptControls({ reservationId }),
-    enabled: canView && canRequestReceiptChange,
+    enabled: canView && !!canRequestReceiptChange && identity !== null,
     retry: false,
   });
   const q = useReservationDeposits(reservationId, canView);
@@ -328,6 +342,7 @@ export function DepositsCard({
             const dep = deposits.find((x) => x.id === receiptDialog.depositId);
             return dep ? (
               <ReceiptControlRequestDialog
+                key={identity ?? "none"}
                 reservationId={reservationId}
                 deposit={dep}
                 kind={receiptDialog.kind}

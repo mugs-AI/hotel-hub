@@ -1,5 +1,8 @@
 // Browser-safe client for receipt-control endpoints (same-origin only).
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ReceiptControlRequestDTO } from "./receipt-controls";
+import { useSessionMe } from "./session-client";
 
 export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   journal_unproven:
