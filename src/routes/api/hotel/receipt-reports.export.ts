@@ -1,7 +1,7 @@
 // GET /api/hotel/receipt-reports/export — Owner-only, server tenant scope, no-store.
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/api/hotel/receipt-reports.export")({
+export const Route = createFileRoute("/api/hotel/receipt-reports/export")({
   server: {
     handlers: {
       GET: async ({ request }) => {
