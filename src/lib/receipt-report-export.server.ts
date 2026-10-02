@@ -37,6 +37,7 @@ export const RECEIPT_REPORT_COLUMNS = [
   "Approved by",
   "Reason",
   "Void confirmed at",
+  "N3 document date",
 ] as const;
 
 export function receiptReportCsv(rows: readonly ReceiptReportRow[]): string {
