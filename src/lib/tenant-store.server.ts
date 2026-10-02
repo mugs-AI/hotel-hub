@@ -12,7 +12,8 @@ export type TenantRecord = {
 };
 
 export type RoleLookup =
-  { status: "assigned"; role: HotelRole; isActive: boolean } | { status: "role_unassigned" };
+  | { status: "assigned"; role: HotelRole; isActive: boolean }
+  | { status: "role_unassigned" };
 
 /** Display-only name, read through for staff whose session predates an Owner sync. */
 export async function readTenantCompanyName(
