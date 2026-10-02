@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- standalone SQL check script */
 /**
  * Real-SQL check for the staged receipt-controls migrations, run against an
  * in-process Postgres (PGlite) — never against the connected database.
