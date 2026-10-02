@@ -41,7 +41,9 @@ export function summarizePostedDeposits(
     count: posted.length,
     hasUnconfirmed: rows.some(
       (row) =>
-        row.status === "unknown" || row.status === "submitting" || row.effectiveState === "needs_review",
+        row.status === "unknown" ||
+        row.status === "submitting" ||
+        row.effectiveState === "needs_review",
     ),
   };
 }
@@ -59,13 +61,11 @@ export function recordedDepositStatement(
   return {
     ...summary,
     netFigure: centsToAmount(grandCents - depositCents),
-    items: rows
-      .filter(counts)
-      .map((row) => ({
-        n3DocCode: row.n3DocCode,
-        createdAt: row.createdAt,
-        amount: row.amount,
-        currency,
-      })),
+    items: rows.filter(counts).map((row) => ({
+      n3DocCode: row.n3DocCode,
+      createdAt: row.createdAt,
+      amount: row.amount,
+      currency,
+    })),
   };
 }

@@ -93,7 +93,10 @@ describe("applyEffectiveReceipts + shared totals", () => {
     expect(s.items.map((i) => i.n3DocCode)).toEqual(["OR-2"]);
   });
   it("Needs review keeps the amount but flags the summary as unconfirmed", () => {
-    const rows = applyEffectiveReceipts([dep("d1", 50)], computeReceiptOverlay([], new Set(["d1"])));
+    const rows = applyEffectiveReceipts(
+      [dep("d1", 50)],
+      computeReceiptOverlay([], new Set(["d1"])),
+    );
     const s = summarizePostedDeposits(rows, "MYR");
     expect(s.total).toBe(50);
     expect(s.hasUnconfirmed).toBe(true);

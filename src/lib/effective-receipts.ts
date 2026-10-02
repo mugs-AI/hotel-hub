@@ -32,7 +32,12 @@ export type ReceiptOverlay =
       replacementOf: string | null;
     }
   | { state: "voided"; verifiedAt: string }
-  | { state: "needs_review"; amountCents: number | null; receiptId: string | null; docCode: string | null };
+  | {
+      state: "needs_review";
+      amountCents: number | null;
+      receiptId: string | null;
+      docCode: string | null;
+    };
 
 export type EffectiveState = "active" | "voided" | "needs_review";
 
@@ -60,7 +65,10 @@ export function computeReceiptOverlay(
     if (!latestOwn) continue; // replacement without confirmed void evidence never counts
     if (latestOwn.state === "voided") {
       const replacement = list
-        .filter((r) => r.replacementOf !== null && r.state === "active" && r.versionNo > latestOwn.versionNo)
+        .filter(
+          (r) =>
+            r.replacementOf !== null && r.state === "active" && r.versionNo > latestOwn.versionNo,
+        )
         .pop();
       out.set(
         depositId,
