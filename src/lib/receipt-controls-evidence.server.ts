@@ -1,5 +1,6 @@
 // Server-only, read-only N3 receipt evidence for receipt controls.
 // Uses only GET receipt detail and GET GL posting. Never writes to N3.
+import { fieldsAgree, successfulEnvelope, valuesFor } from "./deposits-store.server";
 import { createHash } from "node:crypto";
 import type { N3Outcome, N3ReceiptsClient } from "./n3-receipts.server";
 import type { HotelRole } from "./rbac";
@@ -23,6 +24,8 @@ export type ScopedDeposit = {
   n3ReceiptId: string | null;
   n3DocCode: string | null;
   n3CustomerId: string | null;
+  /** Immutable customer code saved at posting; binds the AR credit line. */
+  n3CustomerCode?: string | null;
   /** Immutable HotelHub reference saved at creation; bound on every read. */
   n3ReferenceNo: string;
   currencyCode: string;
@@ -72,18 +75,33 @@ function cents(v: unknown): number | null {
   return Number.isSafeInteger(c) && Math.abs(c - n * 100) < 1e-6 ? c : null;
 }
 
-function unwrap(body: unknown): unknown {
-  if (!body || typeof body !== "object") return null;
-  const code = pick(body, "code");
-  if (code !== undefined && code !== 0 && code !== "0" && code !== 200) return null;
-  if (pick(body, "success") === false) return null;
-  let data = "data" in (body as object) ? pick(body, "data") : body;
+/**
+ * Strict N3 envelope, shared with the deposit adapter: business code must be
+ * the official "0000" (every case variant agreeing), any success flag must be
+ * true, and data / Value wrappers in any casing must not conflict.
+ */
+export function unwrap(body: unknown): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  if (!successfulEnvelope(body)) return null;
+  const one = (o: unknown, k: string): { ok: boolean; v: unknown } => {
+    const vs = valuesFor(o, [k]);
+    if (vs.some((v) => JSON.stringify(v) !== JSON.stringify(vs[0]))) return { ok: false, v: null };
+    return { ok: true, v: vs.length ? vs[0] : o };
+  };
+  const d = one(body, "data");
+  if (!d.ok) return null;
+  let data = d.v;
   if (typeof data === "string") {
     try {
       data = JSON.parse(data);
     } catch {
       return null;
     }
+  }
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const v = one(data, "value");
+    if (!v.ok) return null;
+    data = v.v;
   }
   return data;
 }
@@ -98,6 +116,8 @@ type Journal = {
   /** Exact per-account debit / credit cents; null when any row is unreadable. */
   debits: Map<string, number> | null;
   credits: Map<string, number> | null;
+  /** Account code per credited account id (for AR/customer binding). */
+  creditCodes: Map<string, string>;
   /** Every row carries the document code and HotelHub reference it posts. */
   docRefs: Array<{ docCode: string | null; reference: string | null }>;
 };
@@ -105,12 +125,19 @@ type Journal = {
 function readJournal(o: N3Outcome): Journal {
   if (o.kind !== "response" || o.status < 200 || o.status >= 300) failOutcome(o);
   const data = unwrap(o.body);
-  const rows = Array.isArray(data) ? data : (pick(data, "details") ?? pick(data, "lines"));
+  let rows: unknown = Array.isArray(data) ? data : null;
+  if (!rows && data && typeof data === "object") {
+    const forms = valuesFor(data, ["details", "lines", "value"]).filter(Array.isArray);
+    // Conflicting journal forms are ambiguous: fail closed.
+    if (forms.length && forms.every((f) => JSON.stringify(f) === JSON.stringify(forms[0])))
+      rows = forms[0];
+  }
   if (!Array.isArray(rows) || rows.length === 0)
-    return { digest: "unreadable", debits: null, credits: null, docRefs: [] };
+    return { digest: "unreadable", debits: null, credits: null, creditCodes: new Map(), docRefs: [] };
   let bad = false;
   const debits = new Map<string, number>();
   const credits = new Map<string, number>();
+  const creditCodes = new Map<string, string>();
   const docRefs: Journal["docRefs"] = [];
   const norm: string[] = [];
   for (const row of rows) {
@@ -120,7 +147,12 @@ function readJournal(o: N3Outcome): Journal {
     const code = str(pick(row, "accountCode") ?? pick(row, "glAccountCode")) ?? "";
     if (!id || d === null || c === null || d < 0 || c < 0 || d > 0 === c > 0) bad = true;
     if ((d ?? 0) > 0) debits.set(id, (debits.get(id) ?? 0) + (d ?? 0));
-    if ((c ?? 0) > 0) credits.set(id, (credits.get(id) ?? 0) + (c ?? 0));
+    if ((c ?? 0) > 0) {
+      credits.set(id, (credits.get(id) ?? 0) + (c ?? 0));
+      const prev = creditCodes.get(id);
+      if (!code || (prev !== undefined && prev !== code)) bad = true;
+      creditCodes.set(id, code);
+    }
     docRefs.push({
       docCode: str(pick(row, "docCode") ?? pick(row, "docNo")),
       reference: str(pick(row, "referenceNo") ?? pick(row, "reference")),
@@ -132,6 +164,7 @@ function readJournal(o: N3Outcome): Journal {
     digest: norm.join(";"),
     debits: bad ? null : debits,
     credits: bad ? null : credits,
+    creditCodes,
     docRefs,
   };
 }
@@ -144,7 +177,7 @@ function readJournal(o: N3Outcome): Journal {
  */
 export function journalMatchesReceipt(
   j: Journal,
-  receipt: { amountCents: number; docCode: string; reference: string },
+  receipt: { amountCents: number; docCode: string; reference: string; customerCode: string | null },
   paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
 ): boolean {
   if (!j.debits || !j.credits) return false;
@@ -158,6 +191,9 @@ export function journalMatchesReceipt(
   if (j.credits.size !== 1) return false;
   const [creditAccount, creditCents] = [...j.credits][0]!;
   if (expected.has(creditAccount) || creditCents !== receipt.amountCents) return false;
+  // The one credit must post to THIS deposit's saved customer (AR) code.
+  if (!receipt.customerCode || j.creditCodes.get(creditAccount) !== receipt.customerCode)
+    return false;
   return j.docRefs.every((r) => r.docCode === receipt.docCode && r.reference === receipt.reference);
 }
 
@@ -293,7 +329,12 @@ export async function readReceiptControlEvidence(
     contact,
     journalExact: journalMatchesReceipt(
       journal,
-      { amountCents, docCode, reference: dep.n3ReferenceNo },
+      {
+        amountCents,
+        docCode,
+        reference: dep.n3ReferenceNo,
+        customerCode: dep.n3CustomerCode ?? null,
+      },
       paymentLines,
     ),
     // A journal that is not the exact receipt posting is not evidence.

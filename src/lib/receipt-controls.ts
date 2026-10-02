@@ -149,6 +149,8 @@ const ACCOUNT_RE = /^[0-9a-fA-F-]{16,64}$/;
 export function assertReceiptControllable(original: ReceiptSnapshot) {
   if (original.documentState !== "active" || original.matchingState !== "unmatched")
     throw new ReceiptControlError("receipt_restricted");
+  // Active + unmatched is not enough: the GL must be proven to be exactly this receipt.
+  if (original.journalExact !== true) throw new ReceiptControlError("journal_unproven");
 }
 
 export function validateReceiptControlProposal(
