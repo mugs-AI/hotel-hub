@@ -1,6 +1,6 @@
 // Owner-only monthly financial section. Its month selector affects only these
 // cards and their reports — never the operational cards above.
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
@@ -9,6 +9,8 @@ import type { FinancialMetric } from "@/lib/financial-reporting";
 import {
   FinancialClientError,
   financialMessage,
+  useCurrentFinancialPeriod,
+  useFinancialIdentity,
   useMonthlyFinancialDashboard,
 } from "@/lib/financial-reporting-client";
 import {
@@ -76,19 +78,19 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FinanceCard label="Sales" metric={q.data?.sales} loading={q.isPending} />
+        <FinanceCard label="Sales" metric={q.data?.sales} loading={loading} />
         <FinanceCard
           label="Deposits"
           metric={q.data?.deposits}
-          loading={q.isPending}
+          loading={loading}
           month={shown}
           tab="receipts"
         />
-        <FinanceCard label="Collections" metric={q.data?.collections} loading={q.isPending} />
+        <FinanceCard label="Collections" metric={q.data?.collections} loading={loading} />
         <FinanceCard
           label="Voided receipts"
           metric={q.data?.voids}
-          loading={q.isPending}
+          loading={loading}
           month={shown}
           tab="voided"
         />
