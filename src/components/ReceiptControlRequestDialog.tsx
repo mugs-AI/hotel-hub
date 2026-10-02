@@ -223,6 +223,15 @@ export function ReceiptControlRequestDialog({
                 onChange={(e) => setAccountId(e.target.value)}
               >
                 <option value="">Choose account…</option>
+                {original.data?.original.accountId &&
+                !(accounts.data?.accounts ?? []).some(
+                  (a) => a.id.toLowerCase() === original.data.original.accountId!.toLowerCase(),
+                ) ? (
+                  <option value={original.data.original.accountId}>
+                    {original.data.original.accountLabel ?? "Current account"} (current — contact-only
+                    changes)
+                  </option>
+                ) : null}
                 {(accounts.data?.accounts ?? []).map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.label}
