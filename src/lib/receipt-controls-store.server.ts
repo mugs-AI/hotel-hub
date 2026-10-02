@@ -137,6 +137,7 @@ const DB_CODES = new Set([
   "receipt_control_immutable",
   "not_approved",
   "claim_stale",
+  "claim_conflict",
   "invalid_reason",
   "automation_unavailable",
 ]);
