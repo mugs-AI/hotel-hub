@@ -11,6 +11,7 @@ import {
   type ReceiptOriginalDTO,
   ReceiptControlClientError,
   receiptControlMessage,
+  journalReasonLabel,
   type ReceiptControlProposalInput,
   useReceiptIdentity,
 } from "@/lib/receipt-controls-client";
@@ -106,7 +107,7 @@ export function ReceiptControlRequestDialog({
   const original = useQuery({
     queryKey: ["receipt-controls", identity ?? "none", "original", reservationId, deposit.id],
     queryFn: () => getReceiptOriginal(reservationId, deposit.id),
-    enabled: kind === "correction" && identity !== null,
+    enabled: identity !== null,
     retry: false,
     staleTime: 0,
   });
@@ -141,6 +142,8 @@ export function ReceiptControlRequestDialog({
     kind === "void" ? null : (requestedCents ?? originalCents),
     deposit.currency,
   );
+  const journalBlocked = original.data?.original.journal?.exact === false;
+  const journalReasons = original.data?.original.journal?.reasons ?? [];
   const reasonOk = reason.trim().length > 0 && reason.trim().length <= 500;
   const onSubmit = () => {
     setError("");
@@ -159,18 +162,21 @@ export function ReceiptControlRequestDialog({
       role="dialog"
       aria-modal="true"
       aria-label={kind === "void" ? "Request void" : "Request correction"}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 sm:items-center"
     >
-      <div className="w-full max-w-lg space-y-3 rounded-xl bg-white p-5 shadow-lg">
-        <h2 className="text-lg font-semibold" style={{ color: NAVY }}>
+      <div
+        data-testid="receipt-request-panel"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl space-y-3 overflow-y-auto rounded-xl bg-white p-5 text-base shadow-lg"
+      >
+        <h2 className="text-xl font-semibold" style={{ color: NAVY }}>
           {kind === "void" ? "Request void" : "Request correction"} —{" "}
           {deposit.n3DocCode ?? "receipt"}
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           The Owner reviews this request. Totals change only after the change is made in N3 and
           verified.
         </p>
-        <table className="w-full text-sm">
+        <table className="w-full text-base">
           <thead>
             <tr className="text-left text-muted-foreground">
               <th>Field</th>
@@ -213,7 +219,7 @@ export function ReceiptControlRequestDialog({
           </tbody>
         </table>
         {kind === "correction" ? (
-          <div className="grid gap-2 text-sm">
+          <div className="grid gap-2 text-base">
             <label>
               Amount
               <input
@@ -280,11 +286,11 @@ export function ReceiptControlRequestDialog({
               ))}
           </div>
         ) : null}
-        <div className="rounded-md bg-amber-50 p-2 text-sm">
+        <div className="rounded-md bg-amber-50 p-2 text-base">
           <p>{lines.deposits}</p>
           <p>{lines.balance}</p>
         </div>
-        <label className="block text-sm">
+        <label className="block text-base">
           Reason (required)
           <textarea
             className="mt-1 w-full rounded border px-2 py-1"
@@ -293,20 +299,36 @@ export function ReceiptControlRequestDialog({
             onChange={(e) => setReason(e.target.value)}
           />
         </label>
+        {journalBlocked ? (
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-2 text-base text-red-800">
+            <p>{receiptControlMessage("journal_unproven")}</p>
+            {journalReasons.length ? (
+              <ul className="mt-1 list-disc pl-5" aria-label="Journal checks that failed">
+                {journalReasons.map((r) => (
+                  <li key={r}>
+                    {journalReasonLabel(r)} <code className="text-sm">({r})</code>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1">Ask the Owner to open this dialog to see which check failed.</p>
+            )}
+          </div>
+        ) : null}
         {error ? (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="text-base text-red-700">
             {error}
           </p>
         ) : null}
         <div className="flex justify-end gap-2">
-          <button type="button" className="rounded border px-3 py-1.5 text-sm" onClick={onClose}>
+          <button type="button" className="rounded border px-3 py-1.5 text-base" onClick={onClose}>
             Cancel
           </button>
           <button
             type="button"
-            className="rounded px-3 py-1.5 text-sm font-semibold text-white"
+            className="rounded px-3 py-1.5 text-base font-semibold text-white"
             style={{ backgroundColor: NAVY }}
-            disabled={submit.isPending || !reasonOk || (kind === "correction" && !saved)}
+            disabled={submit.isPending || !reasonOk || (kind === "correction" && !saved) || journalBlocked}
             onClick={onSubmit}
           >
             {submit.isPending ? "Sending…" : "Send request"}

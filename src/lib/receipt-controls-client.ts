@@ -183,6 +183,8 @@ export function purgeForeignReceiptCache(
 }
 
 export type ReceiptOriginalDTO = {
+  /** Journal proof gate; reasons are safe codes, Owner-only (empty otherwise). */
+  journal?: { exact: boolean; reasons: string[] };
   amountCents: number;
   currency: string;
   accountId: string | null;
@@ -195,6 +197,41 @@ export type ReceiptOriginalDTO = {
     remark4: string;
   };
 };
+
+/** Plain-language explanation for one safe journal reason code. */
+export function journalReasonLabel(code: string): string {
+  const m: Record<string, string> = {
+    journal_envelope_unreadable: "N3 journal reply was not a readable success reply",
+    journal_rows_missing: "N3 journal reply had no journal lines list",
+    journal_rows_empty: "N3 journal reply had no lines",
+    journal_forms_conflict: "N3 journal reply had two conflicting line lists",
+    journal_row_not_object: "a journal line was not readable",
+    journal_account_id_conflict: "a journal line named two different accounts",
+    journal_account_code_conflict: "a journal line had two different account codes",
+    journal_amount_conflict: "a journal line had two different amounts",
+    journal_amount_unreadable: "a journal amount was not readable",
+    journal_amount_negative: "a journal amount was negative",
+    journal_row_both_sides: "a journal line had both debit and credit",
+    journal_row_zero: "a journal line had no amount",
+    journal_debit_account_id_missing: "the bank/cash line had no account",
+    journal_credit_account_code_missing: "the customer line had no account code",
+    journal_credit_code_conflict: "the customer lines had different codes",
+    journal_debit_count_mismatch: "bank/cash lines differ from the receipt",
+    journal_debit_account_mismatch: "bank/cash account differs from the receipt",
+    journal_debit_amount_mismatch: "bank/cash amount differs from the receipt",
+    journal_credit_count_mismatch: "expected exactly one customer line",
+    journal_credit_is_payment_account: "the credit posts to a payment account",
+    journal_credit_amount_mismatch: "customer amount differs from the receipt",
+    journal_customer_code_not_saved: "HotelHub has no saved customer code for this deposit",
+    journal_credit_customer_mismatch: "customer line posts to a different customer",
+    journal_row_doc_code_missing: "journal lines do not show the receipt number",
+    journal_row_doc_code_mismatch: "journal lines show a different receipt number",
+    journal_row_reference_missing: "journal lines do not show the HotelHub reference",
+    journal_row_reference_mismatch: "journal lines show a different reference",
+    journal_unreadable: "the journal could not be read",
+  };
+  return m[code] ?? "unrecognised check";
+}
 
 export function getReceiptOriginal(reservationId: string, depositId: string) {
   return call<{ original: ReceiptOriginalDTO }>(
