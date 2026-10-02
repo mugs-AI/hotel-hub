@@ -542,7 +542,9 @@ export async function toDTOs(
       selfApproved: decisions.some((d) => d.requestId === r.id && d.decision === "approve" && d.selfApproved),
       canApprove: owner && r.state === "pending",
       canReject: owner && (r.state === "pending" || r.state === "needs_review"),
-      canVerify: owner && (r.state === "approved_awaiting_n3" || r.state === "needs_review"),
+      canVerify:
+        owner &&
+        (r.state === "approved_awaiting_n3" || (r.state === "needs_review" && r.decidedBy !== null)),
       outcomeMessage: r.outcomeCode ? (OUTCOME_MESSAGE[r.outcomeCode] ?? null) : null,
       alert: latestAlert
         ? {

@@ -298,10 +298,15 @@ describe("execute + verify (manual mode)", () => {
     await expect(verifyReceiptControlRequest(owner, { requestId: req.id, expectedVersion: req.version }, d)).rejects.toMatchObject({ code: "unauthorized" });
     expect((await mem.db.get("t1", req.id))!.state).toBe("approved_awaiting_n3");
   });
-  it("duplicate verify claim is refused", async () => {
-    const { d, req, mem } = await approved(() => receiptSnapshot());
-    await mem.db.claim({ tenantId: "t1", requestId: req.id, expectedVersion: req.version, step: "verify", actor: "owner-1" });
-    await expect(verifyReceiptControlRequest(owner, { requestId: req.id, expectedVersion: req.version }, d)).rejects.toMatchObject({ code: "claim_conflict" });
+  it("two simultaneous verifies: exactly one wins the claim (in-memory interleave)", async () => {
+    const { d, req } = await approved(() => receiptSnapshot());
+    const results = await Promise.allSettled([
+      verifyReceiptControlRequest(owner, { requestId: req.id, expectedVersion: req.version }, d),
+      verifyReceiptControlRequest(owner, { requestId: req.id, expectedVersion: req.version }, d),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toMatchObject({ code: "claim_conflict" });
   });
   it("Front Desk cannot verify", async () => {
     const { d, req } = await approved(() => receiptSnapshot());
