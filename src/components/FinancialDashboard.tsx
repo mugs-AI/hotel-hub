@@ -158,7 +158,11 @@ export function MonthPicker({
   const btn =
     "inline-flex h-9 items-center gap-1 rounded-md border border-input bg-white px-2 text-sm hover:bg-slate-50 disabled:opacity-40";
   return (
-    <div role="group" aria-label="Financial month" className="flex flex-wrap items-center gap-2 text-sm">
+    <div
+      role="group"
+      aria-label="Financial month"
+      className="flex flex-wrap items-center gap-2 text-sm"
+    >
       <button
         type="button"
         className={btn}
