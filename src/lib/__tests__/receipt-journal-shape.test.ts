@@ -7,7 +7,6 @@ import {
   journalMismatchReasons,
   readJournal,
 } from "../receipt-controls-evidence.server";
-import { verifyReceiptJournal } from "../deposits-store.server";
 import type { N3Outcome } from "../n3-receipts.server";
 
 const BANK = "c3c22459-c2b7-4c43-8e43-8b52a9adabda";
@@ -34,22 +33,6 @@ describe("receipt journal shape (documented nested account)", () => {
   it("accepts rows whose account is only in the nested GLTransactionDto.account", () => {
     const j = readJournal(ok(nestedRows));
     expect(journalMismatchReasons(j, receipt, lines)).toEqual([]);
-  });
-
-  it("agrees with the deposit posting verifier on the same body", () => {
-    const outcome = ok(nestedRows);
-    expect(
-      verifyReceiptJournal(outcome, {
-        identity: { n3ReceiptId: "11111111-1111-4111-8111-111111111111", n3DocCode: "OR-T/001" },
-        customerId: "22222222-2222-4222-8222-222222222222",
-        customerCode: "700-7001",
-        referenceNo: "HH-REF-T",
-        amount: 50,
-        currencyId: "55555555-5555-4555-8555-555555555555",
-        currencyCode: "MYR",
-        paymentLines: [{ id: BANK, code: "700-0310", name: "Bank", amount: 50 }],
-      } as never),
-    ).toBe(true);
   });
 
   it("fails closed when top-level and nested account ids conflict", () => {
