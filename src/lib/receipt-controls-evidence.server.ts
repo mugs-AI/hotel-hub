@@ -133,7 +133,13 @@ function readJournal(o: N3Outcome): Journal {
       rows = forms[0];
   }
   if (!Array.isArray(rows) || rows.length === 0)
-    return { digest: "unreadable", debits: null, credits: null, creditCodes: new Map(), docRefs: [] };
+    return {
+      digest: "unreadable",
+      debits: null,
+      credits: null,
+      creditCodes: new Map(),
+      docRefs: [],
+    };
   let bad = false;
   const debits = new Map<string, number>();
   const credits = new Map<string, number>();

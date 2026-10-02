@@ -192,7 +192,11 @@ export function valuesFor(obj: unknown, keys: string[]): unknown[] {
     .map(([, value]) => value);
 }
 
-export function fieldsAgree(obj: unknown, keys: string[], check: (value: unknown) => boolean): boolean {
+export function fieldsAgree(
+  obj: unknown,
+  keys: string[],
+  check: (value: unknown) => boolean,
+): boolean {
   return valuesFor(obj, keys).every(check);
 }
 

@@ -1170,3 +1170,37 @@ async function toDTOsFor(row: RequestRow, d: StoreDeps, who: any = owner) {
   const { toDTOs } = await import("../receipt-controls-store.server");
   return toDTOs(who, [row], d);
 }
+
+describe("request requires proven exact journal (review 2e755)", () => {
+  it("active + unmatched but journal unproven: request refused, nothing stored", async () => {
+    const { d, mem } = deps({ evidence: () => receiptSnapshot({ journalExact: false } as any) });
+    await expect(createReceiptControlRequest(fd, correction(), d)).rejects.toMatchObject({
+      code: "journal_unproven",
+    });
+    expect(mem.rows.size).toBe(0);
+    expect(statusForReceiptControlError("journal_unproven")).toBe(409);
+  });
+  it("unavailable N3 evidence is an explicit refusal at request time", async () => {
+    const { d, mem } = deps({
+      evidence: () => {
+        throw new ReceiptControlError("n3_evidence_unavailable");
+      },
+    });
+    await expect(createReceiptControlRequest(fd, correction(), d)).rejects.toMatchObject({
+      code: "n3_evidence_unavailable",
+    });
+    expect(mem.rows.size).toBe(0);
+  });
+  it("approval holds when the journal is no longer exactly proven", async () => {
+    let exact = true;
+    const { d } = deps({ evidence: () => receiptSnapshot({ journalExact: exact } as any) });
+    const req = await createReceiptControlRequest(fd, correction(), d);
+    exact = false;
+    const out = await decideReceiptControlRequest(
+      owner,
+      { requestId: req.id, expectedVersion: 1, decision: "approve" },
+      d,
+    );
+    expect(out.state).not.toBe("approved_awaiting_n3");
+  });
+});

@@ -349,3 +349,57 @@ describe("review blockers: exact evidence binding", () => {
       );
   });
 });
+
+describe("official N3 envelope + AR binding (review 2e755)", () => {
+  const exact = (snap: { journalExact?: boolean }) => snap.journalExact;
+  it("accepts the official sales-v1 success envelope code '0000' and Data/Value wrappers in any casing", async () => {
+    const inner = receiptBody().data;
+    for (const body of [
+      { code: "0000", success: true, data: inner },
+      { Code: "0000", Success: true, Data: { Value: inner } },
+      { code: "0000", data: { value: inner } },
+      { code: "0000", success: true, data: JSON.stringify(inner) },
+    ]) {
+      const { d } = deps({ detail: ok(body) });
+      expect((await readReceiptControlEvidence(actor, "d1", d)).amountCents).toBe(5000);
+    }
+  });
+  it.each([
+    [{ code: 0, success: true, data: receiptBody().data }],
+    [{ code: "0001", success: true, data: receiptBody().data }],
+    [{ success: true, data: receiptBody().data }],
+    [{ code: "0000", success: false, data: receiptBody().data }],
+    [{ code: "0000", Code: "9999", data: receiptBody().data }],
+    [{ code: "0000", data: receiptBody().data, Data: { ...receiptBody().data, totalAmount: 80 } }],
+    [{ code: "0000", data: { value: receiptBody().data, Value: { id: "x" } } }],
+  ])("error codes / missing code / conflicting envelopes fail closed: %o", async (body) => {
+    const { d } = deps({ detail: ok(body) });
+    expect(await errCode(readReceiptControlEvidence(actor, "d1", d))).toBe(
+      "n3_evidence_unavailable",
+    );
+  });
+  it("accepts details / lines / value journal forms; conflicting forms are not exact", async () => {
+    const rows = [gl(ACC, 50, 0), gl(AR, 0, 50, { accountCode: "300-W001" })];
+    for (const k of ["details", "lines", "value", "Details"]) {
+      const { d } = deps({ gl: ok({ code: "0000", success: true, data: { [k]: rows } }) });
+      expect(exact(await readReceiptControlEvidence(actor, "d1", d))).toBe(true);
+    }
+    const { d } = deps({
+      gl: ok({ code: "0000", data: { details: rows, lines: [gl(ACC, 50, 0)] } }),
+    });
+    expect(exact(await readReceiptControlEvidence(actor, "d1", d))).toBe(false);
+  });
+  it("wrong-customer credit of the correct amount is NOT exact", async () => {
+    const wrong = journal(50, [gl(ACC, 50, 0), gl(AR, 0, 50, { accountCode: "300-OTHER" })]);
+    const { d } = deps({ gl: ok(wrong) });
+    expect(exact(await readReceiptControlEvidence(actor, "d1", d))).toBe(false);
+    const noCode = journal(50, [gl(ACC, 50, 0), gl(AR, 0, 50)]);
+    expect(exact(await readReceiptControlEvidence(actor, "d1", deps({ gl: ok(noCode) }).d))).toBe(
+      false,
+    );
+  });
+  it("a deposit without a saved customer code can never prove the journal", async () => {
+    const { d } = deps({ loadDeposit: vi.fn(async () => ({ ...deposit, n3CustomerCode: null })) });
+    expect(exact(await readReceiptControlEvidence(actor, "d1", d))).toBe(false);
+  });
+});
