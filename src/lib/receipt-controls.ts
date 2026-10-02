@@ -1,7 +1,6 @@
 // Receipt controls — pure, browser-safe contract (DTOs, validation,
 // comparison and state machine). No I/O. Server modules own evidence,
 // persistence and execution.
-import { formatCents } from "./folio-money";
 import {
   formatReceiptContact,
   ReceiptContactError,
@@ -200,7 +199,7 @@ export function compareReceiptControl(
   original: ReceiptSnapshot,
   proposal: ReceiptControlProposal,
 ): ReceiptComparison {
-  const money = (c: number) => formatCents(c, original.currency);
+  const money = (c: number) => formatReceiptMoney(c, original.currency);
   if (proposal.kind === "void") {
     return {
       fields: [{ label: "Receipt", original: original.docCode, requested: "Void" }],
@@ -261,3 +260,15 @@ export const RECEIPT_CONTROL_STATE_LABEL: Record<ReceiptControlState, string> = 
 };
 
 export const MANUAL_APPROVAL_MESSAGE = "Approved. Complete the change in N3, then verify.";
+
+/** "RM50.00" for MYR, otherwise "USD 50.00". Display only. */
+export function formatReceiptMoney(cents: number, currency = "MYR"): string {
+  const sign = cents < 0 ? "-" : "";
+  const abs = (Math.abs(Math.round(cents)) / 100).toFixed(2);
+  return currency.toUpperCase() === "MYR" ? `${sign}RM${abs}` : `${sign}${currency} ${abs}`;
+}
+
+/** "+RM30.00" / "-RM30.00" for signed differences. */
+export function formatReceiptDelta(cents: number, currency = "MYR"): string {
+  return (cents > 0 ? "+" : "") + formatReceiptMoney(cents, currency);
+}
