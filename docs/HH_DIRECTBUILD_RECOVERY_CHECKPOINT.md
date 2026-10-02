@@ -1,7 +1,8 @@
 # HotelHub DirectBuild recovery checkpoint
 
 Version: 1.0. Date: 02/10/2026, Asia/Kuala_Lumpur.
-Status: engineering baseline verified; signed-in receipt diagnostic BLOCKED.
+Status: engineering baseline verified; Owner screenshot identifies failed check;
+signed-in upstream journal shape still NOT VERIFIED.
 Input/main source: `33167f94f8667d1b030b7ab562623723630251e2`.
 Input tree: `2c366e4fe07a8a9e62136fdfdbc0739631c041af`.
 Review branch: `review/hh-receipt-diagnostic-20261002`.
@@ -120,6 +121,50 @@ approve, Verify, edit, void or refund. If reasons indicate a shape omission,
 obtain authorized sanitized field-presence evidence before designing a fix.
 Never invent row doc/reference values or remove the proof gate to allow submission.
 
+### Owner screenshot follow-up — 02/10/2026
+
+The Owner supplied two screenshots after opening Request correction with no
+previous successful request. The popup loads the saved RM50 original, contact
+and current account and displays exactly one safe reason:
+`journal_row_doc_code_missing` — “Journal lines do not show the receipt number”.
+This is a pre-submit evidence check, not a requirement to have an earlier request.
+The screenshots show the Reservation URL and its Deposits card; the Owner called
+the flow Prepare Checkout. No card relocation or duplication is justified by this
+evidence. Larger popup text is visually present; responsive/mobile UAT is not proven.
+
+Fresh connector reads still report GitHub main and Lovable latest SHA as input
+`33167f94f8667d1b030b7ab562623723630251e2`; project/workspace match and project is
+ready/agentFinished. Backend still has posted MYR50.00 with unchanged timestamp,
+and zero requests, decisions, executions and versions. No financial action occurred.
+
+The source resolves case-insensitive row `docCode` / `docNo` aliases. A null
+resolved value on at least one row produces this reason. Absent, null, blank or
+unsupported value/shape can all lead to that outcome; the screenshot cannot
+distinguish them or identify which row. Under the current source predicate,
+this sole reason also indicates that the parsed account/amount and reference
+checks did not report another mismatch. That is a code-based inference, not an
+independently captured upstream payload.
+
+The public sales-v1 document was fetched again. `GLTransactionDto.docCode` is a
+nullable string, but the actual ARReceipts/GLPosting 200 contract refers only to
+`ApiResponseMessage` with varying Data shape. Presence of GLTransactionDto in the
+same document does not prove that this endpoint always returns that DTO or that
+every live row contains docCode. No documented alternate receipt-number field
+was established. See `evidence/HH_RECEIPT_OWNER_DIAGNOSTIC_20261002.md`.
+
+The agent's fresh cloud browser still shows “Sign in from N3”; the Owner's
+desktop signed-in session is not shared with it. Existing HotelHub diagnostics
+return safe reason codes, not raw upstream GLPosting rows. The exact missing
+capability is an authorized signed-in upstream journal read/sanitized capture.
+Lovable SQL access does not provide the server-held N3 session token, and no
+token, cookie or secret was extracted. Do not ask for those values in chat.
+
+Next investigation requires a sanitized GET GLPosting response for this receipt,
+preserving wrappers, field names, null/blank values, row structure and consistently
+redacted document/reference bindings. It must distinguish a missing/empty field
+from an alternate location before a parser fix or contract change can be designed.
+No speculative source change, accounting relaxation or public release was made.
+
 ## Independent engineering checks
 
 Node 24.19.0; Bun 1.4.2 used for frozen dependency installation with scripts
@@ -151,14 +196,15 @@ No speculative receipt fix, duplicate implementation, AI build, database mutatio
 function deploy, N3 financial request/write, external alert, merge or publish occurred.
 The documentation review branch is the durable handover; it is not the synced main.
 
-Recovery result: PARTIAL — verified source/engineering/schema checkpoint, blocked
-signed-in diagnostic. Receipt correction remains an unresolved release-blocking
+Recovery result: PARTIAL — verified source/engineering/schema checkpoint and
+Owner-observed failed journal field; upstream response capture remains blocked.
+Receipt correction remains an unresolved release-blocking
 business workflow issue (P1); no dependent major work or unrelated release begins.
 Old plans/specs/checkpoint headers describing migrations as unapplied or finance
 as unbuilt are historical. This dated record supplies current verified state and
 does not rewrite their historical evidence.
 
 Resume from this branch on any device, refresh remote main/Lovable sync, preserve
-the notes, obtain the Owner-only diagnostic and implement only an evidence-supported
+the notes, obtain sanitized upstream journal evidence and implement only an evidence-supported
 fix with a failing reproduction test. Request new approval only for a separate
 lane or genuinely new scope, not the already-authorized bounded correction.
