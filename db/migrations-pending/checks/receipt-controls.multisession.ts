@@ -47,7 +47,7 @@ const decide = (c: any, id: string, ver: number, dec: string, to: string, actor 
 const ev = (fp: string) => JSON.stringify({ state: "voided", receiptId: "r" + fp, docCode: "OR", documentDate: "2026-10-02",
   currency: "MYR", amountCents: 0, paymentLines: [], replacementOf: null, fingerprint: fp.padEnd(64, "0") });
 const atomic = (c: any, id: string, ver: number, fp: string) =>
-  c.unsafe(`SELECT * FROM public.hotelhub_receipt_control_verify_atomic($1,$2,$3,'owner-1','applied','verified',$4)`, [T, id, ver, ev(fp)]);
+  c.unsafe(`SELECT * FROM public.hotelhub_receipt_control_verify_atomic($1,$2,$3,'owner-1','applied','verified',$4::text::jsonb)`, [T, id, ver, ev(fp)]);
 
 // 1. 20 parallel sessions race verify_atomic on one approved request.
 {
