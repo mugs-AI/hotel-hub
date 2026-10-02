@@ -34,3 +34,10 @@ Status: implemented, NOT published. No migration applied; no N3 write; no alert 
 - Staged SQL `hotelhub_receipt_control_decide`: any in-flight claim raises `claim_conflict` before any update, so a claimed prior-approved Needs review cannot be rejected / terminate / free the active index; completion stays fenced to claim version and applying/needs_review.
 - Evidence: Vitest 116 files passed/2 skipped, 1,797 passed/15 skipped (final run, includes race test; receipt store file 40/40). tsgo 0 errors; ESLint 0 errors; diff --check clean. Browser (sample data via intercepted requests, not real): Approve hidden before Review (0), hidden after Review before tick (0), visible after tick (1).
 - Not run: staged SQL against a real Postgres (no throwaway DB available this turn — SQL fence checked by source assertion + in-memory double only); signed-in real-data flow; multi-session concurrency.
+
+## Final review findings (interrupted verify + queue paging) — 2026-10-02
+
+1. Manual Verify now calls `hotelhub_receipt_control_verify_atomic` (claim + complete + version in one transaction) after the read-only N3 GET. Owner-only `POST /api/hotel/receipt-controls/:id/recover` calls `hotelhub_receipt_control_recover`: releases only a claim older than 300 s, bumps the version (old worker's complete fails `claim_not_found`), Applying → approved_awaiting_n3, terminal states refused. No N3 call, write or retry. UI: "Recover interrupted verification".
+2. `db.list` uses `.range()` + exact count + stable order (requested_at, id); API returns total/nextOffset (default 50, max 100, invalid → 400). Owner queue has "Load more" and "Showing X of Y"; reservation deposits card reads every page, failing closed past 20 pages.
+
+Evidence: Vitest 1,807 passed / 15 skipped (116 files); tsgo 0 errors; ESLint 0 errors on changed files. Real-DB SQL execution, signed-in E2E and multi-session timing NOT run. Protected files re-restored to a68664f after generated drift.

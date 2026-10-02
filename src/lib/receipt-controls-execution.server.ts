@@ -61,15 +61,6 @@ export async function verifyReceiptControlRequest(
     if (e instanceof ReceiptControlError && e.code === "unauthorized") throw e;
     evidenceCode = "n3_evidence_insufficient";
   }
-  const executionId = await deps.db.claim({
-    tenantId: actor.tenantId,
-    requestId: row.id,
-    expectedVersion: input.expectedVersion as number,
-    step: "verify",
-    actor: actor.n3UserKey,
-  });
-  if (!executionId) throw new ReceiptControlError("claim_conflict");
-
   const result = evidence
     ? verifyReceiptControlResult(row.original, row.proposal, evidence)
     : "insufficient";
@@ -93,10 +84,11 @@ export async function verifyReceiptControlRequest(
       : result === "mismatch"
         ? "n3_result_mismatch"
         : (evidenceCode ?? "n3_evidence_insufficient");
-  const done = await deps.db.complete({
+  // One transaction: claim + complete + version. A crash here leaves nothing claimed.
+  const done = await deps.db.verifyAtomic({
     tenantId: actor.tenantId,
     requestId: row.id,
-    executionId,
+    expectedVersion: input.expectedVersion as number,
     toState: result === "verified" ? "applied" : "needs_review",
     outcomeCode,
     actor: actor.n3UserKey,
@@ -107,6 +99,41 @@ export async function verifyReceiptControlRequest(
     n3UserKey: actor.n3UserKey,
     eventType: "hotel.receipt_control.verified",
     detail: { requestId: done.id, outcome: outcomeCode },
+  });
+  return (await toDTOs(actor, [done], deps))[0]!;
+}
+
+/** Stale window before an in-flight verification may be recovered. */
+export const RECEIPT_VERIFY_STALE_SECONDS = 300;
+
+/**
+ * Owner recovery of an interrupted verification. Read-only toward N3: no
+ * GET, no write, no retry. Releases only a stale claim and bumps the version so
+ * the old worker can never complete it; the Owner then runs Verify again.
+ */
+export async function recoverReceiptControlRequest(
+  actor: ReceiptControlActor,
+  input: { requestId: string; expectedVersion: unknown },
+  deps: StoreDeps,
+): Promise<ReceiptControlRequestDTO> {
+  if (actor.role !== "owner") throw new ReceiptControlError("forbidden");
+  if (!Number.isInteger(input.expectedVersion)) throw new ReceiptControlError("version_conflict");
+  const row = await deps.db.get(actor.tenantId, input.requestId);
+  if (!row) throw new ReceiptControlError("request_not_found");
+  if ((row.state !== "applying" && row.state !== "needs_review") || !row.approvedAt)
+    throw new ReceiptControlError("invalid_transition");
+  const done = await deps.db.recover({
+    tenantId: actor.tenantId,
+    requestId: row.id,
+    expectedVersion: input.expectedVersion as number,
+    actor: actor.n3UserKey,
+    staleSeconds: RECEIPT_VERIFY_STALE_SECONDS,
+  });
+  await deps.audit({
+    tenantId: actor.tenantId,
+    n3UserKey: actor.n3UserKey,
+    eventType: "hotel.receipt_control.recovered",
+    detail: { requestId: done.id, outcome: "verification_interrupted" },
   });
   return (await toDTOs(actor, [done], deps))[0]!;
 }

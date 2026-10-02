@@ -135,13 +135,27 @@ export function getReceiptOriginal(reservationId: string, depositId: string) {
   );
 }
 
-export function listReceiptControls(opts: { reservationId?: string; queue?: boolean }) {
+export type ReceiptControlPageDTO = {
+  requests: ReceiptControlRequestDTO[];
+  total: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  transport: { configured: boolean };
+};
+
+export function listReceiptControls(opts: {
+  reservationId?: string;
+  queue?: boolean;
+  offset?: number;
+  limit?: number;
+}) {
   const q = new URLSearchParams();
   if (opts.reservationId) q.set("reservationId", opts.reservationId);
   if (opts.queue) q.set("queue", "1");
-  return call<{ requests: ReceiptControlRequestDTO[]; transport: { configured: boolean } }>(
-    `/api/hotel/receipt-controls?${q}`,
-  );
+  if (opts.offset) q.set("offset", String(opts.offset));
+  if (opts.limit) q.set("limit", String(opts.limit));
+  return call<ReceiptControlPageDTO>(`/api/hotel/receipt-controls?${q}`);
 }
 
 export function createReceiptControl(
@@ -170,4 +184,32 @@ export function verifyReceiptControl(requestId: string, expectedVersion: number)
     `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/verify`,
     { method: "POST", body: JSON.stringify({ expectedVersion }) },
   );
+}
+
+export function recoverReceiptControl(requestId: string, expectedVersion: number) {
+  return call<{ request: ReceiptControlRequestDTO }>(
+    `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/recover`,
+    { method: "POST", body: JSON.stringify({ expectedVersion }) },
+  );
+}
+
+/**
+ * Reads every page for a narrow scope (one reservation). Bounded: stops with an
+ * error instead of returning a partial list when the page budget is exhausted.
+ */
+export async function listAllReceiptControls(
+  opts: { reservationId: string },
+  fetchPage: typeof listReceiptControls = listReceiptControls,
+  maxPages = 20,
+): Promise<ReceiptControlPageDTO> {
+  let offset = 0;
+  const requests: ReceiptControlRequestDTO[] = [];
+  let last: ReceiptControlPageDTO | null = null;
+  for (let i = 0; i < maxPages; i++) {
+    last = await fetchPage({ ...opts, offset, limit: 100 });
+    requests.push(...last.requests);
+    if (last.nextOffset === null) return { ...last, requests, offset: 0, nextOffset: null };
+    offset = last.nextOffset;
+  }
+  throw new ReceiptControlClientError("receipt_control_list_incomplete");
 }

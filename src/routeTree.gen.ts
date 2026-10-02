@@ -69,6 +69,7 @@ import { Route as ApiHotelReservationsIdDepositsRouteImport } from './routes/api
 import { Route as ApiHotelReservationsIdCheckoutPreviewRouteImport } from './routes/api/hotel/reservations.$id.checkout-preview'
 import { Route as ApiHotelReservationsIdCheckInRouteImport } from './routes/api/hotel/reservations.$id.check-in'
 import { Route as ApiHotelReceiptControlsRequestIdVerifyRouteImport } from './routes/api/hotel/receipt-controls.$requestId.verify'
+import { Route as ApiHotelReceiptControlsRequestIdRecoverRouteImport } from './routes/api/hotel/receipt-controls.$requestId.recover'
 import { Route as ApiHotelReceiptControlsRequestIdExecuteRouteImport } from './routes/api/hotel/receipt-controls.$requestId.execute'
 import { Route as ApiHotelReceiptControlsRequestIdDecisionRouteImport } from './routes/api/hotel/receipt-controls.$requestId.decision'
 import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
@@ -403,6 +404,12 @@ const ApiHotelReceiptControlsRequestIdVerifyRoute =
     path: '/$requestId/verify',
     getParentRoute: () => ApiHotelReceiptControlsRoute,
   } as any)
+const ApiHotelReceiptControlsRequestIdRecoverRoute =
+  ApiHotelReceiptControlsRequestIdRecoverRouteImport.update({
+    id: '/$requestId/recover',
+    path: '/$requestId/recover',
+    getParentRoute: () => ApiHotelReceiptControlsRoute,
+  } as any)
 const ApiHotelReceiptControlsRequestIdExecuteRoute =
   ApiHotelReceiptControlsRequestIdExecuteRouteImport.update({
     id: '/$requestId/execute',
@@ -544,6 +551,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
+  '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
   '/api/hotel/receipt-controls/$requestId/verify': typeof ApiHotelReceiptControlsRequestIdVerifyRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
@@ -620,6 +628,7 @@ export interface FileRoutesByTo {
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
+  '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
   '/api/hotel/receipt-controls/$requestId/verify': typeof ApiHotelReceiptControlsRequestIdVerifyRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
@@ -697,6 +706,7 @@ export interface FileRoutesById {
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
+  '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
   '/api/hotel/receipt-controls/$requestId/verify': typeof ApiHotelReceiptControlsRequestIdVerifyRoute
   '/api/hotel/reservations/$id/check-in': typeof ApiHotelReservationsIdCheckInRoute
   '/api/hotel/reservations/$id/checkout-preview': typeof ApiHotelReservationsIdCheckoutPreviewRoute
@@ -775,6 +785,7 @@ export interface FileRouteTypes {
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
+    | '/api/hotel/receipt-controls/$requestId/recover'
     | '/api/hotel/receipt-controls/$requestId/verify'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
@@ -851,6 +862,7 @@ export interface FileRouteTypes {
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
+    | '/api/hotel/receipt-controls/$requestId/recover'
     | '/api/hotel/receipt-controls/$requestId/verify'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
@@ -927,6 +939,7 @@ export interface FileRouteTypes {
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
+    | '/api/hotel/receipt-controls/$requestId/recover'
     | '/api/hotel/receipt-controls/$requestId/verify'
     | '/api/hotel/reservations/$id/check-in'
     | '/api/hotel/reservations/$id/checkout-preview'
@@ -1417,6 +1430,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReceiptControlsRequestIdVerifyRouteImport
       parentRoute: typeof ApiHotelReceiptControlsRoute
     }
+    '/api/hotel/receipt-controls/$requestId/recover': {
+      id: '/api/hotel/receipt-controls/$requestId/recover'
+      path: '/$requestId/recover'
+      fullPath: '/api/hotel/receipt-controls/$requestId/recover'
+      preLoaderRoute: typeof ApiHotelReceiptControlsRequestIdRecoverRouteImport
+      parentRoute: typeof ApiHotelReceiptControlsRoute
+    }
     '/api/hotel/receipt-controls/$requestId/execute': {
       id: '/api/hotel/receipt-controls/$requestId/execute'
       path: '/$requestId/execute'
@@ -1548,6 +1568,7 @@ const ApiHotelHousekeepingRouteWithChildren =
 interface ApiHotelReceiptControlsRouteChildren {
   ApiHotelReceiptControlsRequestIdDecisionRoute: typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   ApiHotelReceiptControlsRequestIdExecuteRoute: typeof ApiHotelReceiptControlsRequestIdExecuteRoute
+  ApiHotelReceiptControlsRequestIdRecoverRoute: typeof ApiHotelReceiptControlsRequestIdRecoverRoute
   ApiHotelReceiptControlsRequestIdVerifyRoute: typeof ApiHotelReceiptControlsRequestIdVerifyRoute
 }
 
@@ -1557,6 +1578,8 @@ const ApiHotelReceiptControlsRouteChildren: ApiHotelReceiptControlsRouteChildren
       ApiHotelReceiptControlsRequestIdDecisionRoute,
     ApiHotelReceiptControlsRequestIdExecuteRoute:
       ApiHotelReceiptControlsRequestIdExecuteRoute,
+    ApiHotelReceiptControlsRequestIdRecoverRoute:
+      ApiHotelReceiptControlsRequestIdRecoverRoute,
     ApiHotelReceiptControlsRequestIdVerifyRoute:
       ApiHotelReceiptControlsRequestIdVerifyRoute,
   }
