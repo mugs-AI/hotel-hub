@@ -483,13 +483,12 @@ async function approvalHoldReason(
   const walkIn = await deps.walkInCustomerId(actor.tenantId);
   if (!walkIn || walkIn.toLowerCase() !== row.original.customerId.toLowerCase())
     return "walk_in_mapping_changed";
-  if (row.proposal.kind === "correction") {
+  if (
+    row.proposal.kind === "correction" &&
+    requiresAccountEligibility(row.original, row.proposal)
+  ) {
     const line = row.original.paymentLines[0];
-    if (
-      line &&
-      line.accountId.toLowerCase() !== row.proposal.accountId.toLowerCase() &&
-      !(await deps.resolveAccount(actor, row.proposal.accountId, line.accountId))
-    )
+    if (!line || !(await deps.resolveAccount(actor, row.proposal.accountId, line.accountId)))
       return "account_not_allowed";
   }
   return null;
