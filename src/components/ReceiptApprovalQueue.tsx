@@ -39,7 +39,7 @@ export function ReceiptRequestCard({
   // Plan: the Owner must open Review and acknowledge the comparison before Approve.
   const [ack, setAck] = useState(false);
   return (
-    <li className="rounded-md border border-slate-200 p-3 text-sm">
+    <li className="rounded-md border border-amber-200 bg-white p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium">
           {r.bookingReference} · {r.original.docCode} ·{" "}
@@ -185,15 +185,18 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   const rows = q.data?.pages.flatMap((p) => p.requests) ?? [];
   const total = q.data?.pages.at(-1)?.total ?? 0;
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section
+      aria-label="Receipt requests"
+      className="rounded-xl border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-5 shadow-sm"
+    >
       <h2 className="text-lg font-semibold text-[#102A43]">Receipt requests</h2>
-      {q.isPending ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
-      {code ? <p className="text-sm text-muted-foreground">{receiptControlMessage(code)}</p> : null}
+      {q.isPending ? <p className="text-sm text-amber-900">Loading…</p> : null}
+      {code ? <p className="text-sm text-amber-900">{receiptControlMessage(code)}</p> : null}
       {!q.isPending && !code && rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No receipt requests waiting.</p>
+        <p className="text-sm text-amber-900">No receipt requests waiting.</p>
       ) : null}
       {error ? (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm font-medium text-red-800">
           {error}
         </p>
       ) : null}
@@ -210,14 +213,14 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
         ))}
       </ul>
       {rows.length > 0 ? (
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 text-xs text-amber-900">
           Showing {rows.length} of {total} open requests
         </p>
       ) : null}
       {q.hasNextPage ? (
         <button
           type="button"
-          className="mt-2 rounded border px-2 py-1 text-sm"
+          className="mt-2 rounded border border-amber-300 bg-white px-2 py-1 text-sm"
           disabled={q.isFetchingNextPage}
           onClick={() => void q.fetchNextPage()}
         >

@@ -116,62 +116,124 @@ type Journal = {
   /** Exact per-account debit / credit cents; null when any row is unreadable. */
   debits: Map<string, number> | null;
   credits: Map<string, number> | null;
-  /** Account code per credited account id (for AR/customer binding). */
+  /** Account code per credited account key (for AR/customer binding). */
   creditCodes: Map<string, string>;
   /** Every row carries the document code and HotelHub reference it posts. */
   docRefs: Array<{ docCode: string | null; reference: string | null }>;
+  /** Safe reason codes only (no values) explaining why rows were unreadable. */
+  reasons: string[];
 };
 
-function readJournal(o: N3Outcome): Journal {
+/**
+ * One field resolved from every casing alias plus the documented nested
+ * GLTransactionDto `account` object. Present-but-conflicting copies fail
+ * closed (`conflict`), exactly like the deposit posting verifier.
+ */
+function resolveField(
+  row: unknown,
+  topKeys: string[],
+  nestedKey: string | null,
+): { value: string | null; conflict: boolean } {
+  const seen = valuesFor(row, topKeys)
+    .map(str)
+    .filter((v): v is string => v !== null);
+  if (nestedKey)
+    for (const acct of valuesFor(row, ["account"])) {
+      for (const v of valuesFor(acct, [nestedKey])) {
+        const s = str(v);
+        if (s !== null) seen.push(s);
+      }
+    }
+  const norm = (s: string) => (nestedKey === "id" ? s.toLowerCase() : s);
+  const conflict = seen.some((s) => norm(s) !== norm(seen[0]!));
+  return { value: conflict || !seen.length ? null : norm(seen[0]!), conflict };
+}
+
+function resolveMoney(row: unknown, keys: string[]): number | null | "conflict" {
+  const vs = valuesFor(row, keys).filter((v) => v !== null);
+  if (!vs.length) return 0;
+  const cs = vs.map(cents);
+  if (cs.some((c) => c === null)) return null;
+  return cs.every((c) => c === cs[0]) ? cs[0]! : "conflict";
+}
+
+export function readJournal(o: N3Outcome): Journal {
   if (o.kind !== "response" || o.status < 200 || o.status >= 300) failOutcome(o);
   const data = unwrap(o.body);
   let rows: unknown = Array.isArray(data) ? data : null;
-  if (!rows && data && typeof data === "object") {
+  const empty = (reason: string): Journal => ({
+    digest: "unreadable",
+    debits: null,
+    credits: null,
+    creditCodes: new Map(),
+    docRefs: [],
+    reasons: [reason],
+  });
+  if (data === null || data === undefined) return empty("journal_envelope_unreadable");
+  if (!rows && typeof data === "object") {
     const forms = valuesFor(data, ["details", "lines", "value"]).filter(Array.isArray);
     // Conflicting journal forms are ambiguous: fail closed.
     if (forms.length && forms.every((f) => JSON.stringify(f) === JSON.stringify(forms[0])))
       rows = forms[0];
+    else if (forms.length) return empty("journal_forms_conflict");
   }
-  if (!Array.isArray(rows) || rows.length === 0)
-    return {
-      digest: "unreadable",
-      debits: null,
-      credits: null,
-      creditCodes: new Map(),
-      docRefs: [],
-    };
-  let bad = false;
+  if (!Array.isArray(rows)) return empty("journal_rows_missing");
+  if (rows.length === 0) return empty("journal_rows_empty");
+  const reasons = new Set<string>();
   const debits = new Map<string, number>();
   const credits = new Map<string, number>();
   const creditCodes = new Map<string, string>();
   const docRefs: Journal["docRefs"] = [];
   const norm: string[] = [];
   for (const row of rows) {
-    const d = cents(pick(row, "debit") ?? pick(row, "debitAmount") ?? 0);
-    const c = cents(pick(row, "credit") ?? pick(row, "creditAmount") ?? 0);
-    const id = str(pick(row, "accountId") ?? pick(row, "glAccountId"))?.toLowerCase() ?? "";
-    const code = str(pick(row, "accountCode") ?? pick(row, "glAccountCode")) ?? "";
-    if (!id || d === null || c === null || d < 0 || c < 0 || d > 0 === c > 0) bad = true;
-    if ((d ?? 0) > 0) debits.set(id, (debits.get(id) ?? 0) + (d ?? 0));
-    if ((c ?? 0) > 0) {
-      credits.set(id, (credits.get(id) ?? 0) + (c ?? 0));
-      const prev = creditCodes.get(id);
-      if (!code || (prev !== undefined && prev !== code)) bad = true;
-      creditCodes.set(id, code);
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      reasons.add("journal_row_not_object");
+      continue;
     }
-    docRefs.push({
-      docCode: str(pick(row, "docCode") ?? pick(row, "docNo")),
-      reference: str(pick(row, "referenceNo") ?? pick(row, "reference")),
-    });
-    norm.push(`${id}|${code}|${d}|${c}`);
+    const d = resolveMoney(row, ["debit", "debitAmount"]);
+    const c = resolveMoney(row, ["credit", "creditAmount"]);
+    const idF = resolveField(row, ["accountId", "glAccountId"], "id");
+    const codeF = resolveField(row, ["accountCode", "glAccountCode"], "code");
+    if (idF.conflict) reasons.add("journal_account_id_conflict");
+    if (codeF.conflict) reasons.add("journal_account_code_conflict");
+    if (d === "conflict" || c === "conflict") reasons.add("journal_amount_conflict");
+    if (d === null || c === null) reasons.add("journal_amount_unreadable");
+    const dn = typeof d === "number" ? d : 0;
+    const cn = typeof c === "number" ? c : 0;
+    if (dn < 0 || cn < 0) reasons.add("journal_amount_negative");
+    else if (dn > 0 === cn > 0) reasons.add(dn > 0 ? "journal_row_both_sides" : "journal_row_zero");
+    const id = idF.value ?? "";
+    const code = codeF.value ?? "";
+    if (dn > 0) {
+      // Debits must carry the exact bank/cash account id.
+      if (!id) reasons.add("journal_debit_account_id_missing");
+      debits.set(id, (debits.get(id) ?? 0) + dn);
+    }
+    if (cn > 0) {
+      // The customer credit is bound by account code (as at posting); keyed by
+      // id when present, otherwise by code — never guessed.
+      if (!code) reasons.add("journal_credit_account_code_missing");
+      const key = id || `code:${code}`;
+      const prev = creditCodes.get(key);
+      if (prev !== undefined && prev !== code) reasons.add("journal_credit_code_conflict");
+      credits.set(key, (credits.get(key) ?? 0) + cn);
+      creditCodes.set(key, code);
+    }
+    const dc = resolveField(row, ["docCode", "docNo"], null);
+    const rf = resolveField(row, ["referenceNo", "reference"], null);
+    if (dc.conflict || rf.conflict) reasons.add("journal_doc_ref_conflict");
+    docRefs.push({ docCode: dc.value, reference: rf.value });
+    norm.push(`${id}|${code}|${dn}|${cn}`);
   }
   norm.sort();
+  const bad = reasons.size > 0;
   return {
     digest: norm.join(";"),
     debits: bad ? null : debits,
     credits: bad ? null : credits,
     creditCodes,
     docRefs,
+    reasons: [...reasons].sort(),
   };
 }
 
@@ -179,28 +241,51 @@ function readJournal(o: N3Outcome): Journal {
  * Exact receipt journal: payment-account debits equal the saved payment lines
  * account-for-account, one customer (AR) credit equals the receipt total, and
  * every row names this document and HotelHub reference. Balanced alone is NOT
- * enough; any unexplained line fails.
+ * enough; any unexplained line fails. Returns safe reason codes (empty = exact).
  */
-export function journalMatchesReceipt(
+export function journalMismatchReasons(
   j: Journal,
   receipt: { amountCents: number; docCode: string; reference: string; customerCode: string | null },
   paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
-): boolean {
-  if (!j.debits || !j.credits) return false;
+): string[] {
+  if (!j.debits || !j.credits) return j.reasons.length ? j.reasons : ["journal_unreadable"];
+  const out: string[] = [];
   const expected = new Map<string, number>();
   for (const l of paymentLines) {
     const k = l.accountId.toLowerCase();
     expected.set(k, (expected.get(k) ?? 0) + l.amountCents);
   }
-  if (expected.size !== j.debits.size) return false;
-  for (const [k, v] of expected) if (j.debits.get(k) !== v) return false;
-  if (j.credits.size !== 1) return false;
-  const [creditAccount, creditCents] = [...j.credits][0]!;
-  if (expected.has(creditAccount) || creditCents !== receipt.amountCents) return false;
-  // The one credit must post to THIS deposit's saved customer (AR) code.
-  if (!receipt.customerCode || j.creditCodes.get(creditAccount) !== receipt.customerCode)
-    return false;
-  return j.docRefs.every((r) => r.docCode === receipt.docCode && r.reference === receipt.reference);
+  if (expected.size !== j.debits.size) out.push("journal_debit_count_mismatch");
+  else
+    for (const [k, v] of expected) {
+      if (!j.debits.has(k)) out.push("journal_debit_account_mismatch");
+      else if (j.debits.get(k) !== v) out.push("journal_debit_amount_mismatch");
+    }
+  if (j.credits.size !== 1) out.push("journal_credit_count_mismatch");
+  else {
+    const [creditAccount, creditCents] = [...j.credits][0]!;
+    if (expected.has(creditAccount)) out.push("journal_credit_is_payment_account");
+    if (creditCents !== receipt.amountCents) out.push("journal_credit_amount_mismatch");
+    // The one credit must post to THIS deposit's saved customer (AR) code.
+    if (!receipt.customerCode) out.push("journal_customer_code_not_saved");
+    else if (j.creditCodes.get(creditAccount) !== receipt.customerCode)
+      out.push("journal_credit_customer_mismatch");
+  }
+  if (j.docRefs.some((r) => r.docCode === null)) out.push("journal_row_doc_code_missing");
+  else if (j.docRefs.some((r) => r.docCode !== receipt.docCode))
+    out.push("journal_row_doc_code_mismatch");
+  if (j.docRefs.some((r) => r.reference === null)) out.push("journal_row_reference_missing");
+  else if (j.docRefs.some((r) => r.reference !== receipt.reference))
+    out.push("journal_row_reference_mismatch");
+  return [...new Set(out)];
+}
+
+export function journalMatchesReceipt(
+  j: Journal,
+  receipt: { amountCents: number; docCode: string; reference: string; customerCode: string | null },
+  paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
+): boolean {
+  return journalMismatchReasons(j, receipt, paymentLines).length === 0;
 }
 
 export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string): string {
@@ -316,6 +401,16 @@ export async function readReceiptControlEvidence(
     };
   });
   const journal = readJournal(await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId));
+  const journalReasons = journalMismatchReasons(
+    journal,
+    {
+      amountCents,
+      docCode,
+      reference: dep.n3ReferenceNo,
+      customerCode: dep.n3CustomerCode ?? null,
+    },
+    paymentLines,
+  );
   const contact = {
     customerName,
     remark1: str(pick(r, "remark1")) ?? "",
@@ -333,16 +428,7 @@ export async function readReceiptControlEvidence(
     amountCents,
     paymentLines,
     contact,
-    journalExact: journalMatchesReceipt(
-      journal,
-      {
-        amountCents,
-        docCode,
-        reference: dep.n3ReferenceNo,
-        customerCode: dep.n3CustomerCode ?? null,
-      },
-      paymentLines,
-    ),
+    journalExact: journalReasons.length === 0,
     // A journal that is not the exact receipt posting is not evidence.
     documentState,
     matchingState,
@@ -350,6 +436,8 @@ export async function readReceiptControlEvidence(
     verifiedAt: (deps.now ?? (() => new Date().toISOString()))(),
   };
   snap.sourceFingerprint = receiptFingerprint(snap, journal.digest);
+  // Safe reason codes only; never persisted (request creation refuses first).
+  if (journalReasons.length) snap.journalDiagnostics = journalReasons;
   return snap;
 }
 

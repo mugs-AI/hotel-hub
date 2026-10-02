@@ -233,7 +233,7 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
           p_fingerprint: a.fingerprint,
           p_kind: a.kind,
           p_reason: a.reason,
-          p_original: a.original,
+          p_original: { ...a.original, journalDiagnostics: undefined },
           p_proposal: a.proposal,
           p_comparison: a.comparison,
           p_original_cents: a.originalCents,
@@ -567,6 +567,12 @@ export async function readReceiptOriginalForDialog(
     accountId: line?.accountId ?? null,
     accountLabel: line ? line.savedName || line.code : null,
     contact: { ...o.contact },
+    // Journal proof gate shown before Send. Reason codes are Owner-only.
+    journal: {
+      exact: o.journalExact === true,
+      reasons:
+        o.journalExact === true || actor.role !== "owner" ? [] : (o.journalDiagnostics ?? []),
+    },
   };
 }
 

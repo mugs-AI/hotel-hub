@@ -63,7 +63,12 @@ describe("FinancialDashboard", () => {
     expect(html).toContain("Unavailable — final billing source not connected.");
     expect(html).toContain("Deposits are included in Collections.");
     expect(html).toContain('href="/receipt-reports?month=2026-10&amp;tab=voided"');
-    expect(html).toContain('value="2026-10"');
+    // Portable selector: explicit buttons + month/year dropdowns, no native type=month.
+    expect(html).not.toContain('type="month"');
+    expect(html).toContain('aria-label="Previous month"');
+    expect(html).toContain('aria-label="Next month"');
+    expect(html).toMatch(/<option value="10" selected="">October<\/option>/);
+    expect(html).toMatch(/<option value="2026" selected="">2026<\/option>/);
     // Server default month: the browser never picks it.
     expect(state.calls.at(-1)).toEqual({ month: undefined, enabled: true });
   });
