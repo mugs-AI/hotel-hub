@@ -82,3 +82,12 @@ Evidence: Vitest 1,831 passed / 15 skipped (116 files); tsgo 0; ESLint 0; vite p
 - Audit/user-label lookups limited to selected candidates' versions.
 - Source contract updated (creation-date window and 20 s cutoff removed).
 - Evidence: full Vitest 117 files passed / 2 skipped, 1,853 tests passed / 15 skipped; tsgo 0 errors; ESLint 0 errors on changed files; vite production build OK. Protected files restored to a68664f.
+
+## Production migration apply — 2026-10-02 05:32–05:33 UTC
+Source HEAD before apply: 1b08534d201b12a7416a20b28b1c65a93969e507. Applied through the Lovable tracked migration tool (one transaction per script, stop on error).
+- Pre-check: no hotel_receipt_* tables, no hotelhub_receipt_*/utf16 functions; last history 20260930135429 hh_payment_account_visibility; deposit OR2610/001 = 50 MYR posted, updated 2026-10-01 13:29:10.589519+00.
+- Applied 20261002053219 (= staged 20261002110000_hh_receipt_controls.sql) sha256 087280536a717ee471e2e96e3f5a9492bf0c7dfe367c8e233cb3cc7fc9f30a89 — diff vs staged: IDENTICAL.
+- Applied 20261002053302 (= staged 20261002110100_hh_receipt_alert_outbox.sql) sha256 3bd6ae65ccd7933a32f088ca950150d224bff2da7f2dab34b3ad187ba8d8422f — diff vs staged: IDENTICAL.
+- Post-check: 5 tables RLS on, 0 policies, anon/authenticated no table access, service_role full. 7 RPCs (create, decide, claim, complete, verify_atomic, recover, alert_claim, alert_settle = 8 incl. alert pair) SECURITY DEFINER, EXECUTE service_role only; guard + utf16 helper service_role only. 7 compound FKs; 2 deposit unique keys; 17 indexes; 3 guard triggers. 0 rows in new tables. Deposit OR2610/001 unchanged (50 MYR, posted, same updated_at).
+- Linter: 5 new "RLS enabled, no policy" INFO — intended (service-role only, same pattern as all existing hotel tables).
+- No fixture writes, N3 writes, alert delivery or publication. Pending: signed-in preview check, live N3 date filter, publication.
