@@ -393,7 +393,9 @@ describe("monthly review 5a26829 fixes", () => {
       d.id,
       snap(d, {
         amountCents: 8000,
-        paymentLines: [{ accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 8000 }],
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 8000 },
+        ],
       }),
     );
     const { deps, calls } = makeDeps(w);
@@ -418,14 +420,18 @@ describe("monthly review 5a26829 fixes", () => {
         versionNo: 2,
         amountCents: 9000,
         requestId: "req-2",
-        paymentLines: [{ accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 }],
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 },
+        ],
       }),
     ];
     w.snaps.set(
       d.id,
       snap(d, {
         amountCents: 9000,
-        paymentLines: [{ accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 }],
+        paymentLines: [
+          { accountId: "acc-1", code: "310-000", savedName: "Maybank", amountCents: 9000 },
+        ],
       }),
     );
     const { deps } = makeDeps(w);
@@ -438,7 +444,10 @@ describe("monthly review 5a26829 fixes", () => {
       }));
     const report = await readReceiptReport(
       owner,
-      validateReceiptReportFilter(new URLSearchParams(""), financialMonth("2026-10", "Asia/Kuala_Lumpur")),
+      validateReceiptReportFilter(
+        new URLSearchParams(""),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
       deps,
     );
     expect(report.items[0]).toMatchObject({ amount: 90, reason: "Second fix" });
@@ -449,7 +458,9 @@ describe("monthly review 5a26829 fixes", () => {
     w.snaps.set(
       d.id,
       snap(d, {
-        paymentLines: [{ accountId: "acc-OTHER", code: "320-000", savedName: "CIMB", amountCents: 5000 }],
+        paymentLines: [
+          { accountId: "acc-OTHER", code: "320-000", savedName: "CIMB", amountCents: 5000 },
+        ],
       }),
     );
     const r = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
@@ -522,9 +533,8 @@ describe("pagedAll (PostgREST 1000-row ceiling)", () => {
 
 describe("finance client cache namespace", () => {
   it("purges finance snapshots cached for any other tenant/user/role", async () => {
-    const { purgeForeignFinancialCache, financialKeys } = await import(
-      "../financial-reporting-client"
-    );
+    const { purgeForeignFinancialCache, financialKeys } =
+      await import("../financial-reporting-client");
     const keys = [
       financialKeys.dashboard("t1|u1|owner", "2026-10"),
       financialKeys.dashboard("t2|u9|owner", "2026-10"),

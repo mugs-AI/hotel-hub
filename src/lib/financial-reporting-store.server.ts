@@ -357,7 +357,10 @@ export async function readReceiptEvents(
       const latest = list[list.length - 1];
       const c = o.confirmed;
       const live = snaps.get(d.id);
-      if (!live || (live instanceof ReceiptControlError && live.code === "n3_evidence_unavailable")) {
+      if (
+        !live ||
+        (live instanceof ReceiptControlError && live.code === "n3_evidence_unavailable")
+      ) {
         anyUnavailable = true;
         continue;
       }
@@ -408,8 +411,7 @@ export async function readReceiptEvents(
           transactionId: c.receiptId,
           documentId: c.receiptId,
           documentCode: c.docCode,
-          documentDate:
-            live instanceof ReceiptControlError ? "" : live.documentDate,
+          documentDate: live instanceof ReceiptControlError ? "" : live.documentDate,
           currency: v?.currency ?? d.currency,
           amountCents: c.amountCents,
           kind: "deposit",
@@ -696,7 +698,10 @@ function versionRow(r: any): ReceiptVersionRow {
  * not installed; throws SourceIncomplete if pages and count disagree.
  */
 export async function pagedAll(
-  page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: any; count: number | null }>,
+  page: (
+    from: number,
+    to: number,
+  ) => PromiseLike<{ data: any[] | null; error: any; count: number | null }>,
   size: number = FINANCIAL_LIMITS.dbPageSize,
   cap: number = FINANCIAL_LIMITS.localCap,
 ): Promise<any[] | null> {
