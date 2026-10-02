@@ -93,6 +93,35 @@ describe("FinancialDashboard identity / property month", () => {
     expect(state.calls.at(-1)).toEqual({ month: undefined, enabled: false });
     state.period = { isError: false, data: { month: "2026-10" } };
   });
+  it("period refetch error with cached month + cached metrics → no picker, no figures; success restores", () => {
+    state.dto = {
+      period,
+      sales: m(null, "unavailable", "Unavailable — final billing source not connected."),
+      deposits: m(50, "complete"),
+      collections: m(null, "unavailable", "Unavailable — final billing source not connected."),
+      voids: m(80, "complete"),
+      currentVerifiedState: true,
+    } satisfies MonthlyFinancialDTO;
+    state.period = {
+      isError: true,
+      error: Object.assign(new Error("forbidden"), { code: "forbidden" }),
+      data: { month: "2026-10" },
+    };
+    state.calls.length = 0;
+    const html = render();
+    expect(html).toContain('role="alert"');
+    expect(html).not.toContain('aria-label="Next month"');
+    expect(html).not.toContain("MYR 50.00");
+    expect(html).not.toContain("MYR 80.00");
+    expect(html).not.toContain("final billing source");
+    expect(html).not.toContain("/receipt-reports?");
+    expect(html).not.toMatch(/2026-10-02|10:00|11:00|Checked/);
+    expect(state.calls.at(-1)).toEqual({ month: undefined, enabled: false });
+    state.period = { isError: false, data: { month: "2026-10" } };
+    const ok = render();
+    expect(ok).toContain('aria-label="Next month"');
+    expect(ok).toContain("MYR 50.00");
+  });
   it("property month advancing Oct→Nov offers November on the mounted page", () => {
     state.period = { isError: false, data: { month: "2026-11" } };
     const html = render();

@@ -32,7 +32,9 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
   const period = useCurrentFinancialPeriod(enabled);
   // Latest month offered = this identity's server-derived property month,
   // refreshed independently of the selection (never the browser clock).
-  const max = identity !== null ? period.data?.month : undefined;
+  // A failed (re)fetch invalidates the maximum even if React Query still holds
+  // older data, so controls, figures and links are hidden until it succeeds.
+  const max = identity !== null && !period.isError ? period.data?.month : undefined;
   const shown = resolveFinancialMonth(identity, selection, max);
   const q = useMonthlyFinancialDashboard(shown, enabled && shown !== undefined);
   if (!enabled || identity === null) return null;
@@ -46,6 +48,8 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
         : ""
       : null;
   const loading = !shown || q.isPending;
+  // Never render cached figures (amount/count/explanation/verifiedAt) beside an error.
+  const data = shown && !q.isError ? q.data : undefined;
   return (
     <section
       aria-label="Monthly finance"
@@ -73,18 +77,18 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FinanceCard label="Sales" metric={q.data?.sales} loading={loading} />
+        <FinanceCard label="Sales" metric={data?.sales} loading={loading} />
         <FinanceCard
           label="Deposits"
-          metric={q.data?.deposits}
+          metric={data?.deposits}
           loading={loading}
           month={shown}
           tab="receipts"
         />
-        <FinanceCard label="Collections" metric={q.data?.collections} loading={loading} />
+        <FinanceCard label="Collections" metric={data?.collections} loading={loading} />
         <FinanceCard
           label="Voided receipts"
-          metric={q.data?.voids}
+          metric={data?.voids}
           loading={loading}
           month={shown}
           tab="voided"
