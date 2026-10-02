@@ -467,6 +467,8 @@ async function approvalHoldReason(
   }
   if (current.documentState !== "active" || current.matchingState !== "unmatched")
     return "receipt_restricted";
+  // Balanced GL is not enough: the posting must exactly equal this receipt.
+  if (current.journalExact !== true) return "journal_unproven";
   if (current.sourceFingerprint !== row.original.sourceFingerprint)
     return "n3_changed_since_request";
   const walkIn = await deps.walkInCustomerId(actor.tenantId);
