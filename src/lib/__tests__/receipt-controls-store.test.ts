@@ -812,7 +812,7 @@ describe("frozen42f review fixes", () => {
       d,
     ).catch((e) => e);
     expect(out?.state).toBe("needs_review");
-    console.log("OUT", JSON.stringify(out).slice(0,900));
+    expect((d.resolveAccount as any).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 
   it("cache identity is tenant+user+role; foreign snapshots are purged; effects cover every consumer", () => {
