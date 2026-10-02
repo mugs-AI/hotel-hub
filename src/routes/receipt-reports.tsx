@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { ReceiptReports } from "@/components/ReceiptReports";
@@ -26,7 +27,6 @@ export const Route = createFileRoute("/receipt-reports")({
   component: ReceiptReportsPage,
 });
 
-import { useState } from "react";
 
 function ReceiptReportsPage() {
   const search = Route.useSearch();

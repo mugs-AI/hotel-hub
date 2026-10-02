@@ -3,6 +3,7 @@ import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
 import { ReceiptApprovalQueue } from "@/components/ReceiptApprovalQueue";
+import { FinancialDashboard } from "@/components/FinancialDashboard";
 import { hasPermission } from "@/lib/rbac";
 import { housekeepingAuthority } from "@/lib/housekeeping";
 import { useDepartures, checkoutErrorMessage } from "@/lib/checkout-client";

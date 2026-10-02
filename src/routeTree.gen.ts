@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerificationRouteImport } from './routes/verification'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomsRatesRouteImport } from './routes/rooms-rates'
+import { Route as ReceiptReportsRouteImport } from './routes/receipt-reports'
 import { Route as LaunchErrorRouteImport } from './routes/launch-error'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
 import { Route as DeparturesRouteImport } from './routes/departures'
@@ -96,6 +97,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const RoomsRatesRoute = RoomsRatesRouteImport.update({
   id: '/rooms-rates',
   path: '/rooms-rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReceiptReportsRoute = ReceiptReportsRouteImport.update({
+  id: '/receipt-reports',
+  path: '/receipt-reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LaunchErrorRoute = LaunchErrorRouteImport.update({
@@ -487,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -562,6 +569,7 @@ export interface FileRoutesByTo {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -638,6 +646,7 @@ export interface FileRoutesById {
   '/departures': typeof DeparturesRoute
   '/housekeeping': typeof HousekeepingRoute
   '/launch-error': typeof LaunchErrorRoute
+  '/receipt-reports': typeof ReceiptReportsRoute
   '/rooms-rates': typeof RoomsRatesRoute
   '/settings': typeof SettingsRoute
   '/verification': typeof VerificationRoute
@@ -715,6 +724,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -790,6 +800,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -865,6 +876,7 @@ export interface FileRouteTypes {
     | '/departures'
     | '/housekeeping'
     | '/launch-error'
+    | '/receipt-reports'
     | '/rooms-rates'
     | '/settings'
     | '/verification'
@@ -941,6 +953,7 @@ export interface RootRouteChildren {
   DeparturesRoute: typeof DeparturesRoute
   HousekeepingRoute: typeof HousekeepingRoute
   LaunchErrorRoute: typeof LaunchErrorRoute
+  ReceiptReportsRoute: typeof ReceiptReportsRoute
   RoomsRatesRoute: typeof RoomsRatesRoute
   SettingsRoute: typeof SettingsRoute
   VerificationRoute: typeof VerificationRoute
@@ -1003,6 +1016,13 @@ declare module '@tanstack/react-router' {
       path: '/rooms-rates'
       fullPath: '/rooms-rates'
       preLoaderRoute: typeof RoomsRatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/receipt-reports': {
+      id: '/receipt-reports'
+      path: '/receipt-reports'
+      fullPath: '/receipt-reports'
+      preLoaderRoute: typeof ReceiptReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/launch-error': {
@@ -1750,6 +1770,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeparturesRoute: DeparturesRoute,
   HousekeepingRoute: HousekeepingRoute,
   LaunchErrorRoute: LaunchErrorRoute,
+  ReceiptReportsRoute: ReceiptReportsRoute,
   RoomsRatesRoute: RoomsRatesRoute,
   SettingsRoute: SettingsRoute,
   VerificationRoute: VerificationRoute,

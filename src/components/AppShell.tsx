@@ -29,7 +29,8 @@ type NavItem = {
     | "/reservations"
     | "/settings"
     | "/departures"
-    | "/housekeeping";
+    | "/housekeeping"
+    | "/receipt-reports";
   label: string;
   permission?: Permission;
   disabled?: boolean;
@@ -53,6 +54,11 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/rooms-rates", label: "Rooms & Rates", permission: "hotel:rooms:view" },
 
   { to: "/settings", label: "Settings", permission: "hotel:setup", matchPrefix: "/settings" },
+  {
+    to: "/receipt-reports",
+    label: "Receipt reports",
+    permission: "hotel:financial_reports:view",
+  },
   // Deferred MAF milestones — placeholders only.
   { to: "/", label: "Guests", disabled: true },
   { to: "/", label: "Folios & AR", disabled: true },
@@ -180,7 +186,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </Link>
     );
   };
-  const isTool = (item: NavItem) => item.to === "/rooms-rates" || item.to === "/settings";
+  const isTool = (item: NavItem) => item.to === "/rooms-rates" || item.to === "/settings" || item.to === "/receipt-reports";
   const navigationLinks = NAV_ITEMS.filter((item) => !item.disabled && !isTool(item)).map(
     renderLink,
   );
