@@ -17,6 +17,7 @@ Status: implemented, NOT published. No migration applied; no N3 write; no alert 
 - ESLint on all changed files: 0 errors, 1 pre-existing warning (AppShell fast-refresh).
 - `git diff --check`: clean.
 - Production build (`vite build`, copy in /tmp): exit 0.
+- Browser check (Playwright, live preview, sample Owner session and sample figures supplied by intercepting the app's data requests — not real data): Dashboard shows the four finance cards (Sales/Collections "Unavailable — final billing source not connected.", Deposits MYR 50.00, Voided MYR 80.00); /receipt-reports?tab=voided shows the row with amount before void MYR 80.00, original MYR 50.00, requester/approver/reason, Print in N3 and Export CSV. This check caught a real crash (missing date-picker import on the report page), now fixed; tests, types and build were re-run afterwards with the same green results.
 - Live preview signed out: the three finance endpoints return 401; `/receipt-reports` and `/` return 200.
 
 ## Not verified (honest gaps)
