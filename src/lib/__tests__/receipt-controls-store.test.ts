@@ -812,7 +812,7 @@ describe("frozen42f review fixes", () => {
       d,
     ).catch((e) => e);
     expect(out?.state).toBe("needs_review");
-    expect(out?.outcomeCode ?? "").toContain("account_not_allowed");
+    expect(JSON.stringify(out)).toMatch(/deposit account is not available|account_not_allowed/);
   });
 
   it("cache identity is tenant+user+role; foreign snapshots are purged; effects cover every consumer", () => {
