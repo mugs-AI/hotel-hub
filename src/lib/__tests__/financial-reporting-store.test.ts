@@ -868,7 +868,10 @@ describe("review e220930: void-event month and single deadline", () => {
     );
     expect(report.items).toHaveLength(1);
     expect(report.items[0]).toMatchObject({ amount: 80 });
-    expect(report.items[0]).toMatchObject({ documentDate: "2026-10-05", n3DocumentDate: "2026-09-10" });
+    expect(report.items[0]).toMatchObject({
+      documentDate: "2026-10-05",
+      n3DocumentDate: "2026-09-10",
+    });
   });
 
   it("void verified late on 31 Oct UTC counts in November property-local month", async () => {
@@ -876,7 +879,13 @@ describe("review e220930: void-event month and single deadline", () => {
     const w = world([d], { list: () => [] });
     w.snaps.set(d.id, snap(d, { documentState: "voided", documentDate: "2026-09-10" }));
     w.versions = [
-      version(d, { versionNo: 1, state: "voided", amountCents: 0, documentDate: "2026-09-10", verifiedAt: "2026-10-31T17:00:00Z" }),
+      version(d, {
+        versionNo: 1,
+        state: "voided",
+        amountCents: 0,
+        documentDate: "2026-09-10",
+        verifiedAt: "2026-10-31T17:00:00Z",
+      }),
     ];
     const oct = await readMonthlyFinancialDashboard(owner, "2026-10", makeDeps(w).deps);
     expect(oct.voids.count ?? 0).toBe(0);
@@ -889,7 +898,15 @@ describe("review e220930: void-event month and single deadline", () => {
     const d = dep(1);
     const w = world([d], {
       list: () => [
-        { id: d.n3ReceiptId, docDate: "2026-10-03", docCode: "OR1", referenceNo: "HH-1", isCancelled: true, customerCode: null, currencyCode: "MYR" },
+        {
+          id: d.n3ReceiptId,
+          docDate: "2026-10-03",
+          docCode: "OR1",
+          referenceNo: "HH-1",
+          isCancelled: true,
+          customerCode: null,
+          currencyCode: "MYR",
+        },
       ],
     });
     w.snaps.set(d.id, snap(d, { documentState: "voided", documentDate: "2026-10-03" }));
