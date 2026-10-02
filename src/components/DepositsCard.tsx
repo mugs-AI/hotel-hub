@@ -9,7 +9,7 @@ import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
 import { ReceiptControlRequestDialog } from "@/components/ReceiptControlRequestDialog";
 import { useQuery } from "@tanstack/react-query";
-import { listReceiptControls, receiptControlsKey } from "@/lib/receipt-controls-client";
+import { listAllReceiptControls, receiptControlsKey } from "@/lib/receipt-controls-client";
 import { ACTIVE_RECEIPT_CONTROL_STATES, RECEIPT_CONTROL_STATE_LABEL } from "@/lib/receipt-controls";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
 import {
@@ -125,7 +125,7 @@ export function DepositsCard({
   } | null>(null);
   const receiptRequests = useQuery({
     queryKey: receiptControlsKey("session", `reservation:${reservationId}`),
-    queryFn: () => listReceiptControls({ reservationId }),
+    queryFn: () => listAllReceiptControls({ reservationId }),
     enabled: canView && canRequestReceiptChange,
     retry: false,
   });

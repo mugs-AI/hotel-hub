@@ -2,7 +2,7 @@
 // Approval never changes totals; the manual N3 change plus Verify does.
 import { useEffect, useState } from "react";
 import { useSessionMe } from "@/lib/session-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   formatReceiptDelta,
   RECEIPT_CONTROL_STATE_LABEL,
@@ -18,6 +18,7 @@ import {
   receiptControlsKey,
   receiptIdentityKey,
   verifyReceiptControl,
+  recoverReceiptControl,
 } from "@/lib/receipt-controls-client";
 import { ReceiptAlertStatus } from "@/components/ReceiptAlertStatus";
 
@@ -26,11 +27,13 @@ export function ReceiptRequestCard({
   busy,
   onDecide,
   onVerify,
+  onRecover,
 }: {
   r: ReceiptControlRequestDTO;
   busy?: boolean;
   onDecide?: (decision: "approve" | "reject") => void;
   onVerify?: () => void;
+  onRecover?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   // Plan: the Owner must open Review and acknowledge the comparison before Approve.
@@ -117,6 +120,17 @@ export function ReceiptRequestCard({
             Verify in N3
           </button>
         ) : null}
+        {r.canRecover ? (
+          <button
+            type="button"
+            disabled={busy}
+            className="rounded border border-amber-400 px-2 py-1 text-amber-800"
+            title="Releases a verification that stopped part-way. Nothing is sent to N3."
+            onClick={() => onRecover?.()}
+          >
+            Recover interrupted verification
+          </button>
+        ) : null}
       </div>
     </li>
   );
@@ -131,9 +145,11 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   useEffect(() => {
     purgeForeignReceiptCache(qc, identity);
   }, [qc, identity]);
-  const q = useQuery({
+  const q = useInfiniteQuery({
     queryKey: receiptControlsKey(identity ?? "none", "queue"),
-    queryFn: () => listReceiptControls({ queue: true }),
+    queryFn: ({ pageParam }) => listReceiptControls({ queue: true, offset: pageParam, limit: 50 }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
     enabled: enabled && identity !== null,
     retry: false,
   });
@@ -154,9 +170,15 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
     onSuccess: done,
     onError: fail,
   });
+  const recover = useMutation({
+    mutationFn: (r: ReceiptControlRequestDTO) => recoverReceiptControl(r.id, r.version),
+    onSuccess: done,
+    onError: fail,
+  });
   if (!enabled) return null;
   const code = q.error instanceof ReceiptControlClientError ? q.error.code : null;
-  const rows = q.data?.requests ?? [];
+  const rows = q.data?.pages.flatMap((p) => p.requests) ?? [];
+  const total = q.data?.pages.at(-1)?.total ?? 0;
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-semibold text-[#102A43]">Receipt requests</h2>
@@ -175,12 +197,28 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
           <ReceiptRequestCard
             key={r.id}
             r={r}
-            busy={decide.isPending || verify.isPending}
+            busy={decide.isPending || verify.isPending || recover.isPending}
             onDecide={(decision) => decide.mutate({ r, decision })}
             onVerify={() => verify.mutate(r)}
+            onRecover={() => recover.mutate(r)}
           />
         ))}
       </ul>
+      {rows.length > 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Showing {rows.length} of {total} open requests
+        </p>
+      ) : null}
+      {q.hasNextPage ? (
+        <button
+          type="button"
+          className="mt-2 rounded border px-2 py-1 text-sm"
+          disabled={q.isFetchingNextPage}
+          onClick={() => void q.fetchNextPage()}
+        >
+          {q.isFetchingNextPage ? "Loading…" : "Load more"}
+        </button>
+      ) : null}
     </section>
   );
 }

@@ -194,3 +194,24 @@ export function recoverReceiptControl(requestId: string, expectedVersion: number
     { method: "POST", body: JSON.stringify({ expectedVersion }) },
   );
 }
+
+/**
+ * Reads every page for a narrow scope (one reservation). Bounded: stops with an
+ * error instead of returning a partial list when the page budget is exhausted.
+ */
+export async function listAllReceiptControls(
+  opts: { reservationId: string },
+  fetchPage: typeof listReceiptControls = listReceiptControls,
+  maxPages = 20,
+): Promise<ReceiptControlPageDTO> {
+  let offset = 0;
+  const requests: ReceiptControlRequestDTO[] = [];
+  let last: ReceiptControlPageDTO | null = null;
+  for (let i = 0; i < maxPages; i++) {
+    last = await fetchPage({ ...opts, offset, limit: 100 });
+    requests.push(...last.requests);
+    if (last.nextOffset === null) return { ...last, requests, offset: 0, nextOffset: null };
+    offset = last.nextOffset;
+  }
+  throw new ReceiptControlClientError("receipt_control_list_incomplete", 0);
+}
