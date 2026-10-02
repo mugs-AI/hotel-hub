@@ -165,6 +165,14 @@ redacted document/reference bindings. It must distinguish a missing/empty field
 from an alternate location before a parser fix or contract change can be designed.
 No speculative source change, accounting relaxation or public release was made.
 
+The subsequent Owner N3 detail/print screenshots confirm that OR2610/001 exists
+at MYR50.00. Fresh SELECT comparisons prove their UUID, document number and
+HotelHub reference match the saved scoped deposit, with zero requests. They do
+not show the journal rows or API payload. The attached financial source assigns
+N3 login/operations to the Owner. Next supporting evidence is the existing
+receipt's Account Journal screenshot; raw upstream shape still requires separate
+sanitized capture before an evidence-based parser fix. See the evidence follow-up.
+
 ## Independent engineering checks
 
 Node 24.19.0; Bun 1.4.2 used for frozen dependency installation with scripts

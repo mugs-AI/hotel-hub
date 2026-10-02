@@ -69,3 +69,44 @@ Missing capability: signed-in upstream GET journal capture for the affected
 receipt. Preserve envelope/row keys and null/blank fields; redact secrets and
 contact information. Preserve bindings with consistent placeholders if needed.
 Until then: failed field identified, root cause unconfirmed, correction remains P1.
+
+## Owner N3 detail and print follow-up — 23:17 MYT
+
+Two additional screenshots show the saved Receive Payment and Official Receipt
+print for OR2610/001 in the Owner-designated MUGS AI LAB TEST company. Both show
+MYR50.00, date 01/10/2026, customer 700-7001 and the HotelHub booking description.
+The detail shows MAYBANK and the HotelHub reference; the print and detail URL
+carry the same immutable receipt UUID. These are Owner-supplied N3 UI evidence,
+not an agent API read. They show no correction, approval, void or refund.
+
+A fresh project-scoped SELECT compared the screenshot UUID, receipt number and
+reference with the scoped saved deposit: all three comparisons returned true.
+The deposit remains posted MYR50.00; request count remains zero. Fresh GitHub
+main and Lovable latest SHA remain `33167f94f8667d1b030b7ab562623723630251e2`,
+and Lovable project/workspace still match the locked target.
+
+Screenshot SHA-256 hashes:
+
+- N3 detail: `456f2aaf089a93967d8e31624d1225be7e90b1374471f9a4ef1ee28ca2127e53`.
+- N3 print: `00fcec1508bd069005c8ee0bcbe1eb7f7058bc087654c4a0494b9e2ee2f96534`.
+
+The screenshots establish the receipt header/print identity. They do not show
+Account Journal rows or the GLPosting API JSON. A header receipt number is not
+proof that each API journal row supplies that number. The failing predicate
+and root-cause uncertainty therefore remain unchanged; do not weaken the check.
+
+The newly attached Project Sources retain historical September source pointers.
+Their financial master explicitly assigns N3 login/operations to the Owner and
+distinguishes Cloud UI proof from API proof. The attached MDB protocol/adoption
+bytes match the originals already in this branch. The latest explicit DirectBuild
+decision continues to control delivery, while all financial/release gates stay.
+No old next-action instruction authorizes another receipt Create or replay of
+completed matching/refund tests. Uploaded sources were read, not rewritten.
+
+Next supporting evidence: Owner opens Account Journal for this existing receipt
+and captures all debit/credit rows. Expected entries are Dr actual Maybank
+700-0310 MYR50.00 / Cr customer 700-7001 MYR50.00. This read-only screenshot can
+confirm displayed accounting and row document/reference evidence; it will not
+alone prove the upstream JSON shape. Ask for a menu screenshot if the journal
+action cannot be found, rather than asking the Owner for credentials or raw tokens.
+No application source, database, N3, merge, deployment or publication change occurred.
