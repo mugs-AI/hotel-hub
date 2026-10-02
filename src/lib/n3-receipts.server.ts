@@ -92,12 +92,41 @@ export type N3ReceiptsClient = {
   listPaymentAccounts(token: string, skip: number): Promise<N3Outcome>;
   getAccountById(token: string, id: string): Promise<N3Outcome>;
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
+  /** GET-only month discovery (sales-v1 ARReceipts/List docDate filter). */
+  listByDocDate?(token: string, q: DocDateListQuery): Promise<N3Outcome>;
   getById(token: string, id: string): Promise<N3Outcome>;
   getGLPosting(token: string, id: string): Promise<N3Outcome>;
   create(token: string, payload: unknown): Promise<N3Outcome>;
 };
 
+export type DocDateListQuery = {
+  startDate: string;
+  endExclusive: string;
+  skip: number;
+  top: number;
+};
+
+const ISO_DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/** Server-owned, validated, encoded month query. Never browser input. */
+export function docDateListPath(q: DocDateListQuery): string {
+  if (!ISO_DAY.test(q.startDate) || !ISO_DAY.test(q.endExclusive) || q.startDate >= q.endExclusive)
+    throw new Error("listByDocDate: unsafe range");
+  if (!Number.isSafeInteger(q.top) || q.top < 1 || q.top > 100)
+    throw new Error("listByDocDate: unsafe top");
+  if (!Number.isSafeInteger(q.skip) || q.skip < 0 || q.skip > 100_000 || q.skip % q.top !== 0)
+    throw new Error("listByDocDate: unsafe skip");
+  const filter = encodeURIComponent(
+    `docDate ge ${q.startDate} and docDate lt ${q.endExclusive}`,
+  );
+  const orderby = encodeURIComponent("docDate desc,docCode desc");
+  return `/api/ARReceipts/List?$filter=${filter}&$orderby=${orderby}&$skip=${q.skip}&$top=${q.top}`;
+}
+
 export const n3Receipts: N3ReceiptsClient = {
+  listByDocDate(token, q) {
+    return n3Request(token, "GET", docDateListPath(q));
+  },
   getNew(token) {
     return n3Request(token, "GET", "/api/ARReceipts/New");
   },
