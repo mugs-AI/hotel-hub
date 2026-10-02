@@ -552,10 +552,15 @@ for (const t of tables) {
 check("all 5 receipt tables: RLS on, zero policies, browser roles no privileges, service_role access", tOk);
 
 // F. compound tenant FKs.
-check("FK: create for another tenant's reservation/deposit refused",
-  await throws(db, createAt, [T2, R, D, "1".repeat(64), "Cross tenant"], "foreign key"));
-check("FK: create with deposit of a different reservation refused",
-  await throws(db, createAt, [T, R, D2, "2".repeat(64), "Cross reservation"], "foreign key"));
+check("RPC: create for another tenant's reservation/deposit refused (deposit_not_found)",
+  await throws(db, createAt, [T2, R, D, "1".repeat(64), "Cross tenant"], "deposit_not_found"));
+const rawReq = `INSERT INTO public.hotel_receipt_control_requests (tenant_id, reservation_id, deposit_id, client_request_id,
+  request_fingerprint, kind, reason, original, proposal, comparison, original_amount_cents, requested_by_n3_user_key)
+  VALUES ($1,$2,$3,gen_random_uuid(),$4,'void','Raw insert','{}','{}','[]',5000,'fd-1')`;
+check("FK (bypassing RPC): request with other tenant's reservation+deposit refused",
+  await throws(db, rawReq, [T2, R, D, "1".repeat(64)], "foreign key"));
+check("FK (bypassing RPC): request with deposit of a different tenant/reservation refused",
+  await throws(db, rawReq, [T, R, D2, "2".repeat(64)], "foreign key"));
 check("FK: decision for request under wrong tenant refused",
   await throws(db, `INSERT INTO public.hotel_receipt_control_decisions (tenant_id, request_id, decision, from_state, to_state, actor_n3_user_key, requester_n3_user_key, self_approved)
     VALUES ($1,$2,'approve','pending','approved_awaiting_n3','x','y',false)`, [T2, ra.id], "foreign key"));
