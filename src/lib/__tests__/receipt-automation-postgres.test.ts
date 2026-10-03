@@ -435,113 +435,176 @@ describe.skipIf(!wasmModule && !nativeUrl)(
         ),
       ).rejects.toThrow("receipt_control_immutable");
     });
-  },
-);
-it.skipIf(!nativeUrl)(
-  "two native connections grant exactly one dispatch under a real row-lock barrier",
-  async () => {
-    const mod = await import(/* @vite-ignore */ nativeModule!);
-    const Client = mod.Client ?? mod.default.Client;
-    const left = new Client({ connectionString: nativeUrl });
-    const right = new Client({ connectionString: nativeUrl });
-    await left.connect();
-    await right.connect();
-    try {
-      const tenant = crypto.randomUUID(),
-        reservation = crypto.randomUUID(),
-        deposit = crypto.randomUUID();
-      await db.query("insert into hotel_tenants(id) values($1)", [tenant]);
-      await db.query(
-        "insert into hotel_reservations(tenant_id,id,status) values($1,$2,'checked_in')",
-        [tenant, reservation],
-      );
-      await db.query("insert into hotel_reservation_deposits values($1,$2,$3,'posted')", [
-        tenant,
-        deposit,
-        reservation,
-      ]);
-      const original = receiptSnapshot();
-      const row = await call(
-        "hotelhub_receipt_control_v2_create",
+
+    it("proven no-write rejection can be closed, but its dispatch cannot be reused", async () => {
+      const tenant = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+      const q = (
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_control_requests where tenant_id=$1",
+          [tenant],
+        )
+      ).rows[0]!;
+      const a = (
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_edit_attempts where tenant_id=$1",
+          [tenant],
+        )
+      ).rows[0]!;
+      const rejected = await call(
+        "hotelhub_receipt_control_v2_settle",
         {
-          reservationId: reservation,
-          depositId: deposit,
-          clientRequestId: crypto.randomUUID(),
-          fingerprint: "race-proposal-fingerprint",
-          reason: "race test",
-          original,
-          proposal: {
-            kind: "correction",
-            amountCents: 6500,
-            accountId: original.paymentLines[0]!.accountId,
-            contact: original.contact,
+          requestId: q.id,
+          attemptId: a.id,
+          claimedVersion: a.claimed_version,
+          expectedVersion: q.version,
+          result: { kind: "rejected_no_write", code: "proven_stale_rejection" },
+        },
+        "owner",
+        tenant,
+      );
+      await expect(
+        call(
+          "hotelhub_receipt_control_v2_authorize",
+          {
+            requestId: q.id,
+            expectedVersion: rejected.version,
+            kind: "manual_approval",
+            policyRevision: "2",
           },
-          comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
-          policyRevision: "0",
-        },
-        "owner",
-        tenant,
-      );
-      const authorized = await call(
-        "hotelhub_receipt_control_v2_authorize",
-        {
-          requestId: row.id,
-          expectedVersion: row.version,
-          kind: "manual_approval",
-          policyRevision: "0",
-        },
-        "owner",
-        tenant,
-      );
-      const query =
-        "select public.hotelhub_receipt_control_v2_reserve($1::uuid,$2::text,$3::text,$4::jsonb) as result";
-      const values = [
-        tenant,
-        "owner-1",
-        "owner",
-        JSON.stringify({
-          requestId: row.id,
-          expectedVersion: authorized.version,
-          payloadHash: "race-payload-fingerprint",
-          policyRevision: "0",
-        }),
-      ];
-      await left.query("BEGIN");
-      const granted = await left.query(query, values);
-      const pid = (await right.query("select pg_backend_pid() as pid")).rows[0].pid;
-      const waiting = right.query(query, values);
-      const deadline = Date.now() + 5000;
-      let locked = false;
-      while (Date.now() < deadline) {
-        const activity = await db.query<{ wait_event_type: string }>(
-          "select wait_event_type from pg_stat_activity where pid=$1",
-          [pid],
-        );
-        if (activity.rows[0]?.wait_event_type === "Lock") {
-          locked = true;
-          break;
-        }
-        await new Promise<void>((resolve) => setImmediate(resolve));
-      }
-      // Release even if barrier observation failed, so no hanging connection.
-      await left.query("COMMIT");
-      const denied = await waiting;
-      expect(locked).toBe(true);
-      expect(granted.rows[0].result.dispatchGranted).toBe(true);
-      expect(denied.rows[0].result.dispatchGranted).toBe(false);
+          "owner",
+          tenant,
+        ),
+      ).rejects.toThrow("claim_conflict");
       expect(
         (
-          await db.query<{ count: number }>(
-            "select count(*)::integer as count from hotel_receipt_edit_attempts where tenant_id=$1",
-            [tenant],
+          await call(
+            "hotelhub_receipt_control_v2_authorize",
+            {
+              requestId: q.id,
+              expectedVersion: rejected.version,
+              kind: "reject",
+              policyRevision: "2",
+            },
+            "owner",
+            tenant,
           )
-        ).rows[0]!.count,
-      ).toBe(1);
-    } finally {
-      await left.query("ROLLBACK");
-      await left.end();
-      await right.end();
-    }
+        ).state,
+      ).toBe("rejected");
+      const decision = (
+        await db.query<{ from_state: string }>(
+          "select from_state from hotel_receipt_control_decisions where tenant_id=$1 and decision='reject'",
+          [tenant],
+        )
+      ).rows[0]!;
+      expect(decision.from_state).toBe("needs_review");
+    });
+    it.skipIf(!nativeUrl)(
+      "two native connections grant exactly one dispatch under a real row-lock barrier",
+      async () => {
+        const mod = await import(/* @vite-ignore */ nativeModule!);
+        const Client = mod.Client ?? mod.default.Client;
+        const left = new Client({ connectionString: nativeUrl });
+        const right = new Client({ connectionString: nativeUrl });
+        await left.connect();
+        await right.connect();
+        try {
+          const tenant = crypto.randomUUID(),
+            reservation = crypto.randomUUID(),
+            deposit = crypto.randomUUID();
+          await db.query("insert into hotel_tenants(id) values($1)", [tenant]);
+          await db.query(
+            "insert into hotel_reservations(tenant_id,id,status) values($1,$2,'checked_in')",
+            [tenant, reservation],
+          );
+          await db.query("insert into hotel_reservation_deposits values($1,$2,$3,'posted')", [
+            tenant,
+            deposit,
+            reservation,
+          ]);
+          const original = receiptSnapshot();
+          const row = await call(
+            "hotelhub_receipt_control_v2_create",
+            {
+              reservationId: reservation,
+              depositId: deposit,
+              clientRequestId: crypto.randomUUID(),
+              fingerprint: "race-proposal-fingerprint",
+              reason: "race test",
+              original,
+              proposal: {
+                kind: "correction",
+                amountCents: 6500,
+                accountId: original.paymentLines[0]!.accountId,
+                contact: original.contact,
+              },
+              comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
+              policyRevision: "0",
+            },
+            "owner",
+            tenant,
+          );
+          const authorized = await call(
+            "hotelhub_receipt_control_v2_authorize",
+            {
+              requestId: row.id,
+              expectedVersion: row.version,
+              kind: "manual_approval",
+              policyRevision: "0",
+            },
+            "owner",
+            tenant,
+          );
+          const query =
+            "select public.hotelhub_receipt_control_v2_reserve($1::uuid,$2::text,$3::text,$4::jsonb) as result";
+          const values = [
+            tenant,
+            "owner-1",
+            "owner",
+            JSON.stringify({
+              requestId: row.id,
+              expectedVersion: authorized.version,
+              payloadHash: "race-payload-fingerprint",
+              policyRevision: "0",
+            }),
+          ];
+          await left.query("BEGIN");
+          const granted = await left.query(query, values);
+          const pid = (await right.query("select pg_backend_pid() as pid")).rows[0].pid;
+          const waiting = right.query(query, values);
+          const deadline = Date.now() + 5000;
+          let locked = false;
+          while (Date.now() < deadline) {
+            const activity = await db.query<{ wait_event_type: string }>(
+              "select wait_event_type from pg_stat_activity where pid=$1",
+              [pid],
+            );
+            if (activity.rows[0]?.wait_event_type === "Lock") {
+              locked = true;
+              break;
+            }
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+          // Release even if barrier observation failed, so no hanging connection.
+          await left.query("COMMIT");
+          const denied = await waiting;
+          expect(locked).toBe(true);
+          expect(granted.rows[0].result.dispatchGranted).toBe(true);
+          expect(denied.rows[0].result.dispatchGranted).toBe(false);
+          expect(
+            (
+              await db.query<{ count: number }>(
+                "select count(*)::integer as count from hotel_receipt_edit_attempts where tenant_id=$1",
+                [tenant],
+              )
+            ).rows[0]!.count,
+          ).toBe(1);
+        } finally {
+          await left.query("ROLLBACK");
+          await left.end();
+          await right.end();
+        }
+      },
+      15000,
+    );
   },
-  15000,
 );

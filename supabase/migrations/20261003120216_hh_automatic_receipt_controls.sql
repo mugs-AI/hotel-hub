@@ -122,7 +122,7 @@ BEGIN
  SELECT * INTO v FROM public.hotel_receipt_control_requests WHERE tenant_id=p_tenant_id AND id=(p_data->>'requestId')::uuid FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'request_not_found'; END IF;
  IF v.generation<>2 THEN RAISE EXCEPTION 'automation_unavailable'; END IF;
- IF EXISTS(SELECT 1 FROM public.hotel_receipt_edit_attempts WHERE tenant_id=p_tenant_id AND request_id=v.id) THEN RAISE EXCEPTION 'claim_conflict'; END IF;
+ IF EXISTS(SELECT 1 FROM public.hotel_receipt_edit_attempts WHERE tenant_id=p_tenant_id AND request_id=v.id AND (phase<>'rejected' OR coalesce(v_kind,'')<>'reject')) THEN RAISE EXCEPTION 'claim_conflict'; END IF;
  IF v.version IS DISTINCT FROM (p_data->>'expectedVersion')::integer THEN RAISE EXCEPTION 'version_conflict'; END IF;
  SELECT * INTO p FROM public.hotel_change_control_policies WHERE tenant_id=p_tenant_id FOR UPDATE;
  IF NOT FOUND OR p.revision::text IS DISTINCT FROM p_data->>'policyRevision' THEN RAISE EXCEPTION 'version_conflict'; END IF;

@@ -23,6 +23,7 @@ import {
 import type { ReceiptControlActor } from "./receipt-controls-evidence.server";
 
 export type RequestRow = {
+  generation?: 1 | 2;
   id: string;
   tenantId: string;
   reservationId: string;
@@ -176,8 +177,9 @@ export function mapDbError(err: { code?: string; message?: string } | null): Rec
   return new ReceiptControlError("receipt_control_store_failed");
 }
 
-function toRow(r: any): RequestRow {
+export function mapReceiptRequestRow(r: any): RequestRow {
   return {
+    generation: r.generation ?? 1,
     id: r.id,
     tenantId: r.tenant_id,
     reservationId: r.reservation_id,
@@ -202,8 +204,7 @@ function toRow(r: any): RequestRow {
   };
 }
 
-const REQ_COLS =
-  "id, tenant_id, reservation_id, deposit_id, client_request_id, request_fingerprint, kind, reason, original, proposal, comparison, execution_mode, state, version, requested_by_n3_user_key, requested_at, decided_by_n3_user_key, decided_at, approved_by_n3_user_key, approved_at, outcome_code";
+const REQ_COLS = "*";
 
 /** Production implementation: service-role client, loaded lazily inside calls. */
 export function supabaseReceiptControlDb(): ReceiptControlDb {
@@ -218,7 +219,7 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
     if (res.error) throw mapDbError(res.error);
     const row = Array.isArray(res.data) ? res.data[0] : res.data;
     if (!row) throw new ReceiptControlError("receipt_control_store_failed");
-    return toRow(row);
+    return mapReceiptRequestRow(row);
   };
   return {
     async create(a) {
@@ -322,7 +323,7 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
         .eq("id", requestId)
         .maybeSingle();
       if (res.error) throw mapDbError(res.error);
-      return res.data ? toRow(res.data) : null;
+      return res.data ? mapReceiptRequestRow(res.data) : null;
     },
     async list(tenantId, f) {
       let q = (await sb())
@@ -337,7 +338,7 @@ export function supabaseReceiptControlDb(): ReceiptControlDb {
         .order("id", { ascending: false })
         .range(f.offset, f.offset + f.limit - 1);
       if (res.error) throw mapDbError(res.error);
-      return { rows: (res.data ?? []).map(toRow), total: res.count ?? 0 };
+      return { rows: (res.data ?? []).map(mapReceiptRequestRow), total: res.count ?? 0 };
     },
     async decisions(tenantId, ids) {
       if (!ids.length) return [];
@@ -479,6 +480,7 @@ export async function decideReceiptControlRequest(
     typeof input.note === "string" && input.note.trim() ? validateReason(input.note) : null;
   const row = await deps.db.get(actor.tenantId, input.requestId);
   if (!row) throw new ReceiptControlError("request_not_found");
+  if (row.generation === 2) throw new ReceiptControlError("automation_unavailable");
   const expectedVersion = input.expectedVersion as number;
   let decided: RequestRow;
   if (input.decision === "reject") {

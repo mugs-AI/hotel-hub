@@ -23,7 +23,20 @@ export const Route = createFileRoute("/api/hotel/receipt-controls")({
             },
             defaultReceiptControlDeps(),
           );
-          return json({ ...page, transport: { configured: false } });
+          const { supabaseReceiptAutomationDb } =
+            await import("@/lib/receipt-automation-store.server");
+          const { toAutomationDTO } = await import("@/lib/receipt-automation-deps.server");
+          const requests = await Promise.all(
+            page.requests.map(async (dto) => {
+              if (dto.executionMode !== "direct")
+                return { ...dto, automation: null, canApply: false, canCheckResult: false };
+              const row = await supabaseReceiptAutomationDb().get(actor.tenantId, dto.id);
+              return row
+                ? toAutomationDTO(actor, row)
+                : { ...dto, automation: null, canApply: false, canCheckResult: false };
+            }),
+          );
+          return json({ ...page, requests, transport: { configured: false } });
         }),
     },
   },
