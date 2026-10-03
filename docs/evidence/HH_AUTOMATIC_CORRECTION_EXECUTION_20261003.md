@@ -1,9 +1,3 @@
-# Automatic correction execution ledger
-
-Date: 03/10/2026 Malaysia. Upload to Project Sources: No.
-Owner approved plan and native execution. Review input 9d0669e86ad62081a0b6874e2e56fdfa67b548fc; main/Lovable 734ac405c82e653a7098ce0ef22d51586382bd9d, ready/agentFinished. Shared existing Cloud backend unchanged.
-No DB apply, N3 operation, main merge, activation or publish authorized/performed.
-
 # SDD ledger — plan: docs/superpowers/plans/2026-10-03-automatic-receipt-correction.md
 Owner approved plan and native execution, 03/10/2026 Malaysia. Input 9d0669e86ad62081a0b6874e2e56fdfa67b548fc. No DB/N3/merge/publish permission.
 Pre-flight Tasks 1→2→3: policy revision strings, default ON/OFF and actor matrix align.
@@ -14,3 +8,9 @@ Pre-flight Tasks 5→6→7: verified projection only and cross-session revision 
 Ruling: Use existing Node executable and installed Vitest for tests until Bun is recovered — preserves protected lockfile/dependencies — cost if wrong: rerun the same suite under Bun before candidate delivery.
 Ruling: Durable execution ledger will be copied into repository evidence at each checkpoint — Owner explicitly needs cross-device recovery — cost if wrong: documentation only, no product behavior.
 Task 1: RED observed 30 assertion failures with placeholder exports; GREEN 30/30. Full suite 1,967 passed / 20 skipped, zero failures, under Node and recovered Bun 1.4.2. Protected dependencies unchanged. Supabase CLI 2.119.0 recovered via external npm cache; generated migration 20261003120216_hh_automatic_receipt_controls.sql is EMPTY and unapplied.
+Task 1: complete (commits 9d0669e..9074ac1, tests: node node_modules/vitest/vitest.mjs run src/lib/__tests__/hotel-change-controls.test.ts →    Duration  231ms (transform 72ms, setup 0ms, import 90ms, tests 7ms, environment 0ms))
+Task 2: blocked native PostgreSQL setup: binary recovered outside product dependencies; initdb refuses root and process.setuid(1000) fails EINVAL. No remote test substitute.
+Ruling: Run PostgreSQL WASM (PGlite 0.5.8 / PG18.3) functional migration/state/permission tests as additional isolated evidence, while native PG17-compatible two-connection races remain BLOCKED — validates SQL independently without touching Cloud — cost if wrong: engine/version/concurrency differences require real PostgreSQL proof before apply.
+Ruling: Settlement requires both immutable dispatch claimedVersion and expected current request version — unknown status increments request version, so otherwise either reconciliation is blocked or late workers are unfenced — cost if wrong: extra CAS conflict/re-read, never another financial POST.
+Task 2: partial candidate, NOT complete. Additive migration and isolated fixtures implement policy/metadata/dispatch/local contact fences. Fresh PG18.3 WASM run: 11 passed / 1 skipped; skipped case is native two-connection row-lock race, not a PASS. Native harness added, bash syntax passes, ordinary production DB name refused (exit 1). Native grants/race proof remains required before Cloud apply. Continue independent Task 3 per plan.
+Ruling: Real approval after policy tightening records approved_at while retaining immutable original direct authorization metadata — explicit human approval can satisfy newly tightened control without rewriting prior authorization history — cost if wrong: hold and review, never bypass financial proof.
