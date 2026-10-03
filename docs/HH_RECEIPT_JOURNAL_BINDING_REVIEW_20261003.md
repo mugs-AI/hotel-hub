@@ -1,6 +1,8 @@
 # Receipt journal binding investigation and bounded design — 03/10/2026
 
-Status: DESIGN FOR OWNER REVIEW. No acceptance change implemented.
+Status: OWNER APPROVED implementation and testing on 03/10/2026. The design
+below records the pre-implementation decision. The resulting tested candidate
+and remaining release gates are in `HH_RECEIPT_JOURNAL_BINDING_CANDIDATE.md`.
 Main and Lovable remain 7449e9cdf4e3afa750396af7e808f0c0e11f4e0d.
 Review parent d422a78a3a02e54e73e13b5950cd41ca49a31169; working tree clean.
 Target remains HH1.0 HotelHub / mugs-AI/hotel-hub / main / locked Lovable project.
@@ -73,6 +75,10 @@ execution. Void proof remains false. Approval alone cannot alter totals.
 - Signed-in live acceptance must be verified; fixture success is not live proof.
 
 ## Decision needed
+Resolved for implementation/testing by the Owner's explicit APPROVE. This is
+approval of the bounded application evidence rule, not a vendor guarantee or
+permission for code merge, publication, database changes or financial writes.
+
 Owner review must decide whether this correlated GET evidence is accepted as
 the receipt-to-journal binding for explicit-null document-number rows, or whether
 vendor confirmation/sanitized response proof is required first. Do not label the

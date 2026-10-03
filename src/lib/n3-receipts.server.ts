@@ -18,6 +18,18 @@ export type N3Outcome =
   /** Timeout / connection loss / oversized or unparsable transport failure. */
   | { kind: "transport_error"; reason: "timeout" | "network" | "too_large"; durationMs: number };
 
+// Transport provenance stays in server memory, outside the upstream body/DTO.
+// Only this fixed GET operation can register a response; JSON cannot forge it.
+const receiptJournalReads = new WeakMap<object, { receiptId: string; token: string }>();
+export function receiptJournalBoundTo(
+  outcome: N3Outcome,
+  receiptId: string,
+  token: string,
+): boolean {
+  const read = receiptJournalReads.get(outcome);
+  return read?.receiptId === receiptId.toLowerCase() && read.token === token;
+}
+
 async function n3Request(
   token: string,
   method: "GET" | "POST",
@@ -149,9 +161,15 @@ export const n3Receipts: N3ReceiptsClient = {
     if (!isRealN3Id(id)) throw new Error("getById: unsafe id");
     return n3Request(token, "GET", `/api/ARReceipts/${encodeURIComponent(id)}`);
   },
-  getGLPosting(token, id) {
+  async getGLPosting(token, id) {
     if (!isRealN3Id(id)) throw new Error("getGLPosting: unsafe id");
-    return n3Request(token, "GET", `/api/ARReceipts/GLPosting?key=${encodeURIComponent(id)}`);
+    const outcome = await n3Request(
+      token,
+      "GET",
+      `/api/ARReceipts/GLPosting?key=${encodeURIComponent(id)}`,
+    );
+    receiptJournalReads.set(outcome, { receiptId: id.toLowerCase(), token });
+    return outcome;
   },
   create(token, payload) {
     return n3Request(token, "POST", "/api/ARReceipts/Create", payload);

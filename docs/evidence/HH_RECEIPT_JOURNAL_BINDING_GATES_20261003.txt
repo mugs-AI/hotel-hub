@@ -1,0 +1,75 @@
+HH1.0 DirectBuild bounded receipt-journal candidate gates
+Checkpoint: 2026-10-03 UTC
+Parent: 37f5d00f26c99eb3e6f484e278766dfdf8863391
+Main/Lovable: 7449e9cdf4e3afa750396af7e808f0c0e11f4e0d
+Candidate: Git commit containing this record
+Node: v24.19.0; installed lockfile dependencies unchanged
+All five final commands independently returned exit 0.
+
+Full tests
+Command: env -u PGHOST -u PGUSER -u PGPASSWORD -u HOTELHUB_LIVE_WRITE -u HOTELHUB_N3_DEPOSIT_WRITES_ENABLED -u HOTELHUB_N3_DEPOSIT_SPLIT_WRITES_ENABLED -u SUPABASE_URL -u SUPABASE_SERVICE_ROLE_KEY -u OPEN_API_BASE_URL node node_modules/vitest/vitest.mjs run
+Exit: 0
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/87b64e9e3850/hh-review
+
+
+ Test Files  120 passed | 3 skipped (123)
+      Tests  1921 passed | 20 skipped (1941)
+   Start at  23:12:50
+   Duration  16.47s (transform 11.65s, setup 0ms, import 52.99s, tests 11.56s, environment 44ms)
+
+
+Types
+Command: node node_modules/typescript/bin/tsc --noEmit
+Exit: 0
+(No output)
+
+Lint
+Command: node node_modules/eslint/bin/eslint.js src
+Exit: 0
+/workspace/scratch/87b64e9e3850/hh-review/src/routes/settings.tsx
+  152:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 37 problems (0 errors, 37 warnings)
+
+
+Style
+Command: node node_modules/prettier/bin/prettier.cjs --check src
+Exit: 0
+Checking formatting...
+All matched files use Prettier code style!
+
+Production build
+Command: env -u SUPABASE_SERVICE_ROLE_KEY -u SESSION_SECRET -u OPEN_API_BASE_URL node node_modules/vite/bin/vite.js build
+Exit: 0
+.output/server/_ssr/settings-BwTQ0TJg.mjs                                    140.21 kB │ gzip:  26.65 kB
+.output/server/_libs/supabase__auth-js.mjs                                   302.12 kB │ gzip:  60.25 kB
+.output/server/_ssr/router-LRilqQlu.mjs                                      451.71 kB │ gzip:  99.66 kB
+.output/server/_libs/@tanstack/react-router+[...].mjs                        655.14 kB │ gzip: 137.73 kB
+
+✓ built in 709ms
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt
+
+Protected foundation command (exit 0):
+git diff --exit-code a68664f56e38bfb74e32972c14becdc6e6938449 -- AGENTS.md package.json bun.lock src/start.ts src/integrations src/lib/hotel-store.server.ts
+
+TDD: initial fixture reproduction reported 15 expected failures / 16 passes.
+Additional invalid-alias reproduction: 3 failures / 35 passes, actual exit 1.
+Final binding test file: 42 cases. Real transport with mocked fetch, no live N3.
+
+Independent review: current final diff, 95 focused tests passed; no Critical or
+Important findings. All four requested second-detail failure cases included.
+Separate inherited P2: receipt date accepts ISO shape without calendar validity.
+
+No implementation code changed after the full gates. Only repository handover
+and evidence documents were added/amended. Candidate-parent diff whitespace is
+checked before persistence. No merge, deploy, database operation, public publish,
+financial request/approval/edit/void/refund or external alert was executed.

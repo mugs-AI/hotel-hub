@@ -3,6 +3,7 @@
 import { successfulEnvelope, valuesFor } from "./deposits-store.server";
 import { createHash } from "node:crypto";
 import type { N3Outcome, N3ReceiptsClient } from "./n3-receipts.server";
+import { isSafeReferenceNo, receiptJournalBoundTo } from "./n3-receipts.server";
 import type { HotelRole } from "./rbac";
 import {
   ReceiptControlError,
@@ -118,16 +119,22 @@ type Journal = {
   credits: Map<string, number> | null;
   /** Account code per credited account key (for AR/customer binding). */
   creditCodes: Map<string, string>;
-  /** Every row carries the document code and HotelHub reference it posts. */
+  /** Actual row identity; explicit null is never filled from the header. */
   docRefs: Array<{
     docCode: string | null;
     reference: string | null;
     /** Field-presence classification only; never an upstream field value. */
     missingDocCodeReason: string | null;
+    explicitNullDocCode: boolean;
+    documentAliasesReadable: boolean;
   }>;
   /** Safe reason codes only (no values) explaining why rows were unreadable. */
   reasons: string[];
 };
+
+// Registered only by the orchestrated server read after transport correlation.
+// Pure/unbound parsing remains strict, including callers supplying JSON flags.
+const correlatedJournals = new WeakSet<Journal>();
 
 /**
  * One field resolved from every casing alias plus the documented nested
@@ -236,12 +243,15 @@ export function readJournal(o: N3Outcome): Journal {
       creditCodes.set(key, code);
     }
     const dc = resolveField(row, ["docCode", "docNo"], null);
+    const documentAliases = valuesFor(row, ["docCode", "docNo"]);
     const rf = resolveField(row, ["referenceNo", "reference"], null);
     if (dc.conflict || rf.conflict) reasons.add("journal_doc_ref_conflict");
     docRefs.push({
       docCode: dc.value,
       reference: rf.value,
       missingDocCodeReason: dc.value === null ? missingDocCodeReason(row) : null,
+      explicitNullDocCode: documentAliases.length > 0 && documentAliases.every((v) => v === null),
+      documentAliasesReadable: documentAliases.every((v) => v === null || str(v) !== null),
     });
     norm.push(`${id}|${code}|${dn}|${cn}`);
   }
@@ -260,7 +270,8 @@ export function readJournal(o: N3Outcome): Journal {
 /**
  * Exact receipt journal: payment-account debits equal the saved payment lines
  * account-for-account, one customer (AR) credit equals the receipt total, and
- * every row names this document and HotelHub reference. Balanced alone is NOT
+ * every row names this document and HotelHub reference, except explicit-null
+ * document codes under the approved correlated GET/detail proof. Balanced alone is NOT
  * enough; any unexplained line fails. Returns safe reason codes (empty = exact).
  */
 export function journalMismatchReasons(
@@ -291,12 +302,17 @@ export function journalMismatchReasons(
     else if (j.creditCodes.get(creditAccount) !== receipt.customerCode)
       out.push("journal_credit_customer_mismatch");
   }
-  if (j.docRefs.some((r) => r.docCode === null)) {
+  const missing = j.docRefs.filter(
+    (r) => r.docCode === null && !(r.explicitNullDocCode && correlatedJournals.has(j)),
+  );
+  if (missing.length) {
     out.push("journal_row_doc_code_missing");
-    for (const row of j.docRefs)
-      if (row.docCode === null && row.missingDocCodeReason) out.push(row.missingDocCodeReason);
-  } else if (j.docRefs.some((r) => r.docCode !== receipt.docCode))
+    for (const row of missing) if (row.missingDocCodeReason) out.push(row.missingDocCodeReason);
+  }
+  if (j.docRefs.some((r) => r.docCode !== null && r.docCode !== receipt.docCode))
     out.push("journal_row_doc_code_mismatch");
+  if (correlatedJournals.has(j) && j.docRefs.some((r) => !r.documentAliasesReadable))
+    out.push("journal_row_doc_code_invalid");
   if (j.docRefs.some((r) => r.reference === null)) out.push("journal_row_reference_missing");
   else if (j.docRefs.some((r) => r.reference !== receipt.reference))
     out.push("journal_row_reference_mismatch");
@@ -330,17 +346,32 @@ export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string)
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
 }
 
-/** Read and normalize one deposit's current N3 receipt. GET-only. */
-export async function readReceiptControlEvidence(
-  actor: ReceiptControlActor,
-  depositId: string,
-  deps: EvidenceDeps,
-): Promise<ReceiptSnapshot> {
-  const dep = await deps.loadDeposit(actor.tenantId, depositId);
-  if (!dep) throw new ReceiptControlError("deposit_not_found");
+/** Stable receipt payload comparison, including allocations and raw unknown states. */
+function canonicalReceipt(value: unknown): string {
+  const sort = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(sort);
+    if (v && typeof v === "object")
+      return Object.fromEntries(
+        Object.entries(v)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, x]) => [k, sort(x)]),
+      );
+    return v;
+  };
+  return createHash("sha256")
+    .update(JSON.stringify(sort(value)))
+    .digest("hex");
+}
+
+function normalizeReceiptDetail(
+  dep: ScopedDeposit,
+  detail: N3Outcome,
+): {
+  snap: ReceiptSnapshot;
+  detailDigest: string;
+} {
   if (dep.status !== "posted" || !dep.n3ReceiptId || !dep.n3CustomerId)
     throw new ReceiptControlError("deposit_not_controllable");
-  const detail = await deps.n3.getById(actor.n3Token, dep.n3ReceiptId);
   if (detail.kind !== "response" || detail.status < 200 || detail.status >= 300)
     failOutcome(detail);
   const r = unwrap(detail.body);
@@ -423,17 +454,6 @@ export async function readReceiptControlEvidence(
       amountCents: l.amountCents as number,
     };
   });
-  const journal = readJournal(await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId));
-  const journalReasons = journalMismatchReasons(
-    journal,
-    {
-      amountCents,
-      docCode,
-      reference: dep.n3ReferenceNo,
-      customerCode: dep.n3CustomerCode ?? null,
-    },
-    paymentLines,
-  );
   const contact = {
     customerName,
     remark1: str(pick(r, "remark1")) ?? "",
@@ -451,15 +471,71 @@ export async function readReceiptControlEvidence(
     amountCents,
     paymentLines,
     contact,
-    journalExact: journalReasons.length === 0,
+    journalExact: false,
     // A journal that is not the exact receipt posting is not evidence.
     documentState,
     matchingState,
     sourceFingerprint: "",
-    verifiedAt: (deps.now ?? (() => new Date().toISOString()))(),
+    verifiedAt: "",
   };
-  snap.sourceFingerprint = receiptFingerprint(snap, journal.digest);
-  // Safe reason codes only; never persisted (request creation refuses first).
+  return { snap, detailDigest: canonicalReceipt(r) };
+}
+
+/** Read and normalize one deposit's current N3 receipt. GET-only. */
+export async function readReceiptControlEvidence(
+  actor: ReceiptControlActor,
+  depositId: string,
+  deps: EvidenceDeps,
+): Promise<ReceiptSnapshot> {
+  const dep = await deps.loadDeposit(actor.tenantId, depositId);
+  if (!dep) throw new ReceiptControlError("deposit_not_found");
+  if (dep.status !== "posted" || !dep.n3ReceiptId || !dep.n3CustomerId)
+    throw new ReceiptControlError("deposit_not_controllable");
+  const { snap, detailDigest } = normalizeReceiptDetail(
+    dep,
+    await deps.n3.getById(actor.n3Token, dep.n3ReceiptId),
+  );
+  const outcome = await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId);
+  const journal = readJournal(outcome);
+  const strictUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const correlated =
+    journal.docRefs.some((row) => row.docCode === null && row.explicitNullDocCode) &&
+    strictUuid.test(dep.n3ReceiptId) &&
+    dep.n3ReceiptId !== "00000000-0000-0000-0000-000000000000" &&
+    dep.n3DocCode !== null &&
+    isSafeReferenceNo(dep.n3ReferenceNo) &&
+    receiptJournalBoundTo(outcome, dep.n3ReceiptId, actor.n3Token);
+  if (correlated) correlatedJournals.add(journal);
+  const journalReasons = journalMismatchReasons(
+    journal,
+    {
+      amountCents: snap.amountCents,
+      docCode: snap.docCode,
+      reference: dep.n3ReferenceNo,
+      customerCode: dep.n3CustomerCode ?? null,
+    },
+    snap.paymentLines,
+  );
+  let digest = journal.digest;
+  if (correlated && journalReasons.length === 0) {
+    // Detail -> fixed journal GET -> detail. Never return accepted evidence if
+    // identity, allocations, contact or any receipt payload changed in between.
+    const confirmed = normalizeReceiptDetail(
+      dep,
+      await deps.n3.getById(actor.n3Token, dep.n3ReceiptId),
+    );
+    if (confirmed.detailDigest !== detailDigest)
+      throw new ReceiptControlError("n3_evidence_mismatch");
+    digest = canonicalReceipt({
+      method: "ARReceipts.GLPosting.GET.correlated-v1",
+      receiptId: dep.n3ReceiptId.toLowerCase(),
+      journal: journal.digest,
+      rows: journal.docRefs,
+    });
+  }
+  snap.journalExact = journalReasons.length === 0;
+  snap.verifiedAt = (deps.now ?? (() => new Date().toISOString()))();
+  snap.sourceFingerprint = receiptFingerprint(snap, digest);
   if (journalReasons.length) snap.journalDiagnostics = journalReasons;
   return snap;
 }

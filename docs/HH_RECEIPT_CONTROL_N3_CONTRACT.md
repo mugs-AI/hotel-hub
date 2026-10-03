@@ -56,7 +56,7 @@ journal, or an ambiguous response leave the request in Needs review.
 
 - **Confirmed contribution is kept separate from the Needs review flag.** An unresolved request only adds a warning. It never brings back a receipt whose void was confirmed. Only the latest replacement row counts, and it counts once. A later voided replacement is never revived.
 - **Evidence binding.** Every read checks the saved immutable receipt id, document code, HotelHub reference, customer, currency and document date. The total must be positive, in safe cents, and equal to the sum of the payment lines.
-- **Exact journal.** A balanced posting is not enough. Every payment-account debit must equal its saved line, account for account. There must be exactly one customer (AR) credit equal to the total. Every line must name this document and reference, and there must be no unexplained lines. Otherwise `journalExact = false`. That holds approval and makes a verify insufficient.
+- **Exact journal.** A balanced posting is not enough. Every payment-account debit must equal the verified receipt payment line, account for account. There must be exactly one customer (AR) credit equal to the total. Every line must carry the exact HotelHub reference, with no unexplained lines. Document codes must match, except explicit-null row codes under the Owner-approved correlated-read contract below. Otherwise `journalExact = false`. That holds approval and makes a verify insufficient. Original deposit creation lines stay immutable; current receipt lines may reflect a separately approved manual correction, which must still match its proposal on Verify.
 - **Void.** `VOID_JOURNAL_CONTRACT_PROVEN = false`. A cancellation flag alone never verifies a void, so it always lands in Needs review for manual accounting confirmation. Missing cancellation, matching or refund data is treated as unknown, never false.
 - **Database.** All foreign keys are compound and tenant-scoped. Two additive unique keys are added to deposits: (tenant_id, id) and (tenant_id, reservation_id, id). The reason must be 1–500 UTF-16 units, enforced at the RPC and by a CHECK. Execution mode and approval are immutable.
   - Claim requires `approved_at`, so Hold never sets it.
@@ -64,3 +64,36 @@ journal, or an ambiguous response leave the request in Needs review.
   - A failed outcome may record only confirmed void evidence.
 - **Alerts.** Claim issues a fresh `claim_token`, and settle must present it. Transport stays disabled.
 - **Official public sales-v1 OpenAPI.** It is reachable, and GET includes the current knockoff. The mutation paths listed in it do not establish concurrency, idempotency or void journal semantics. Automation stays off.
+
+## Explicit-null document codes — approved design, 03/10/2026
+
+Owner approved implementation/testing of `HH_RECEIPT_JOURNAL_BINDING_REVIEW_20261003.md`.
+This is an amended application evidence rule, not a new vendor guarantee. The
+generic GLPosting response contract does not explicitly promise row identity.
+Owner's live diagnostic established a null supported row code; full raw live
+response was not captured. A candidate is not live until separately merged/published.
+
+Only explicit JSON null in all present supported aliases can use alternate binding:
+the tenant-scoped saved receipt must have a nonzero UUID and saved document code;
+receipt detail must independently match saved identity/reference/customer/currency;
+the real fixed GET transport must privately bind the exact response object to
+the same receipt key and N3 session token. No body flag can assert this provenance.
+Every journal reference must be the exact server-generated HH reference, all
+debits and the single customer credit must match verified receipt amounts/accounts,
+and every present non-null document alias must be readable, agreeing and correct.
+Absent, blank, malformed, mismatched and conflicting evidence remains blocked.
+Header identity is never inserted into a journal line.
+
+A second receipt detail GET must match the first normalized payload exactly
+(object key order ignored). Business errors, authentication failure, timeout,
+network/malformed data or any content change refuse acceptance. The fingerprint
+includes the correlation method, immutable key and actual normalized journal
+identity evidence. Unbound pure parser calls keep the original strict rule.
+
+The same evidence reader serves request/preflight/Verify/monthly receipts.
+Existing proposal, stale-fingerprint, role/tenant, matching/refund and cancellation
+guards remain. Automatic financial writes and void-journal proof remain disabled.
+Extra cost: one detail GET per otherwise valid correlated null-code receipt;
+no new month-discovery read or candidate-limit change. Signed-in live acceptance
+is still pending. Existing date validation checks ISO shape rather than full
+calendar validity; reviewer noted this inherited limitation for separate follow-up.
