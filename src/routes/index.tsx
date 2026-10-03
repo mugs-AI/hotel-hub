@@ -1,3 +1,4 @@
+import { BillToApprovalQueue } from "@/components/BillToApprovalQueue";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
@@ -71,6 +72,7 @@ function Dashboard() {
         </div>
 
         <ReceiptApprovalQueue enabled={hasPermission(role, "hotel:receipt_controls:approve")} />
+        <BillToApprovalQueue enabled={hasPermission(role, "hotel:receipt_controls:approve")} />
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {canReservations ? (

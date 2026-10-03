@@ -1,6 +1,7 @@
 // Browser-safe client for receipt-control endpoints (same-origin only).
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ReceiptAutomationDTO, ReceiptApplyResult } from "./receipt-automation";
 import type { ReceiptControlRequestDTO } from "./receipt-controls";
 import { useSessionMe } from "./session-client";
 
@@ -27,6 +28,11 @@ export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   n3_evidence_unavailable: "N3 could not be reached. Try again.",
   forbidden: "You do not have permission for this.",
   unauthorized: "Your N3 session expired. Relaunch HotelHub from N3.",
+  automation_unavailable: "Automatic N3 correction is awaiting verified activation.",
+  n3_update_unknown: "N3 result is not confirmed. Use Check N3 result; do not resend the change.",
+  existing_attempt_check_result: "This change was already dispatched. Use Check N3 result.",
+  n3_result_unproven:
+    "The receipt and journal do not yet prove the approved change. Original totals remain effective.",
 };
 
 export const receiptControlMessage = (code: string) =>
@@ -321,4 +327,27 @@ export async function listAllReceiptControls(
     offset = last.nextOffset;
   }
   throw new ReceiptControlClientError("receipt_control_list_incomplete");
+}
+
+export function normalizeReceiptControl(
+  r: ReceiptControlRequestDTO & Partial<ReceiptAutomationDTO>,
+): ReceiptAutomationDTO {
+  return {
+    ...r,
+    automation: r.automation ?? null,
+    canApply: r.canApply ?? false,
+    canCheckResult: r.canCheckResult ?? false,
+  };
+}
+export function applyReceiptControl(requestId: string, expectedVersion: number) {
+  return call<ReceiptApplyResult>(
+    `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/execute`,
+    { method: "POST", body: JSON.stringify({ expectedVersion }) },
+  );
+}
+export function checkReceiptControlResult(requestId: string) {
+  return call<ReceiptApplyResult>(
+    `/api/hotel/receipt-controls/${encodeURIComponent(requestId)}/check-result`,
+    { method: "POST", body: "{}" },
+  );
 }

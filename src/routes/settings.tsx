@@ -1,3 +1,4 @@
+import { ChangeControlSettings } from "@/components/ChangeControlSettings";
 // Owner-only Settings page. Booking Sources management with a polished,
 // commercial-looking UI: summary cards, a table with status pills and
 // usage counts, add/edit dialogs, and a deactivation confirmation.
@@ -329,6 +330,7 @@ function OperationsScreen({
           How front-desk exceptions are authorised for your property.
         </CardHeading>
       </header>
+      <ChangeControlSettings />
       <section aria-label="Reservation exception approvals">
         <ExceptionApprovalPanel settings={settings} onChange={onChange} />
       </section>

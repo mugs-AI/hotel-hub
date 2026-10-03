@@ -752,10 +752,10 @@ describe("UI rendering", () => {
     const html = renderToStaticMarkup(
       createElement(ReceiptRequestCard, { r: { ...dto!, selfApproved: true } }),
     );
-    // Approve is hidden until Review is opened AND the comparison acknowledged.
-    expect(html).not.toMatch(/>Approve</);
+    // Approved compact layout makes the comparison visible before one-click Approve.
+    expect(html).toMatch(/>Approve</);
     expect(html).toContain("Reject");
-    expect(html).toContain("Review");
+    expect(html).not.toMatch(/>Review</);
     expect(html).toContain("audited");
     expect(html).toContain("Notification:");
   });

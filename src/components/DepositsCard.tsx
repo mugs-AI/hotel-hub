@@ -342,7 +342,7 @@ export function DepositsCard({
             const dep = deposits.find((x) => x.id === receiptDialog.depositId);
             return dep ? (
               <ReceiptControlRequestDialog
-                key={identity ?? "none"}
+                key={`${identity ?? "none"}:${reservationId}:${dep.id}:${receiptDialog.kind}`}
                 reservationId={reservationId}
                 deposit={dep}
                 kind={receiptDialog.kind}
