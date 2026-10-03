@@ -20,7 +20,12 @@ allow/block Settings decision. Its proposed compact Dashboard change is not buil
 The [new automatic-correction intent](docs/evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md)
 supersedes that allow/block interpretation: the Owner requires approval-triggered
 N3 updates and optional direct application, with separate deposit/contact policies.
-Automatic execution is not implemented or activated; design and API proof remain pending.
+The [written automatic-correction design](docs/superpowers/specs/2026-10-03-automatic-receipt-correction-design.md)
+and [Owner-run proof checklist](docs/evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md)
+now specify independent approval switches, one-click execution, direct Owner saves,
+local versus N3 billing targets, durable uncertain outcomes and cross-session refresh.
+Conceptual design is approved; written-spec review and implementation planning are next.
+Automatic execution is not implemented or activated; API/concurrency proof remains pending.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.

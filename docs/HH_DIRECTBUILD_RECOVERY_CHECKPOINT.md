@@ -1,5 +1,16 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Latest design handover: Owner approved the conceptual automatic-correction design.
+`superpowers/specs/2026-10-03-automatic-receipt-correction-design.md` is now written
+for review, with `evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md` and
+`evidence/HH_AUTOMATIC_CORRECTION_DESIGN_HANDOVER_20261003.md`. Defaults are deposit
+approval ON and contact approval OFF; OFF means authorized direct application,
+not an editing prohibition. Direct N3 execution remains Owner-only. Local bill-to
+and N3 receipt contact are distinct targets governed by the same contact policy.
+No implementation, DB/N3 write, feature activation, merge or public release in
+this design turn. Next permitted stage is Owner review of the written spec; after
+approval, write the implementation plan. Old manual requests must not auto-run.
+
 Newest requirement: `evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md` supersedes
 the previous allow/block option design. Owner wants one-click approval with automatic
 N3 Update/readback, or authorized direct application without approval, and independent
