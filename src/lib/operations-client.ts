@@ -1,6 +1,13 @@
 // Browser-side reservation-operation queries/mutations. Same-origin,
 // cookie-authenticated, no direct Supabase or N3 access.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isValidIsoDate } from "./malaysia-date";
+
+/** Build a property-local wall clock from the booking date, never browser today. */
+export function lateCheckoutLocal(departureDate: string, time: string): string | null {
+  if (!isValidIsoDate(departureDate) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
+  return `${departureDate}T${time}`;
+}
 
 export type OperationType =
   | "early_check_in"
@@ -121,6 +128,10 @@ export function operationStateLabel(s: string): string {
 
 export function operationErrorMessage(code: string, operationType?: string): string {
   switch (code) {
+    case "late_checkout_out_of_range":
+      return "Late Checkout must be on the booking's departure day. Use Extend Stay for another day.";
+    case "late_checkout_not_later":
+      return "Choose a time later than the property's standard checkout time.";
     case "operation_stale":
       return "This request is out of date and was not applied. Reload and try again.";
     case "operation_pending":
@@ -226,6 +237,11 @@ function useInvalidateReservation(reservationId: string) {
     void qc.invalidateQueries({ queryKey: ["reservation-timeline", reservationId] });
     void qc.invalidateQueries({ queryKey: ["reservations"] });
     void qc.invalidateQueries({ queryKey: ["reservation-calendar"] });
+    // An operation can change checkout timing, room handoff or folio readiness.
+    // Refresh mounted readers as well as the reservation page itself.
+    for (const prefix of ["departures", "checkout-preview", "folio", "housekeeping"]) {
+      void qc.invalidateQueries({ queryKey: [prefix] });
+    }
   };
 }
 

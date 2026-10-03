@@ -1,5 +1,11 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Current review candidate: `HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md` records the
+Owner-approved Late Checkout/receipt guidance build, dependent refreshes,
+1937 passing tests and independent review. Not merged or published. The receipt
+still awaits manual N3 completion and verification; the latest read-only SQL is
+recorded in that candidate. `HH_CHANGE_IMPACT_MAP.md` is the stable source companion.
+
 Latest continuation: `evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md`
 records Owner-observed request creation and approval, confirmed by scoped SQL.
 The request is approved_awaiting_n3; manual correction and Verify remain pending.

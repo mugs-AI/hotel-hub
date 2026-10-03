@@ -11,6 +11,7 @@ import {
   operationErrorMessage,
   operationStateLabel,
   operationTypeLabel,
+  lateCheckoutLocal,
   timelineEventLabel,
   useCheckIn,
   useDecideOperation,
@@ -20,7 +21,11 @@ import {
   type OperationRequestDTO,
   type OperationType,
 } from "@/lib/operations-client";
-import { formatCreatedAt, roomLabel as formatRoomLabel } from "@/lib/reservations-ui";
+import {
+  formatCreatedAt,
+  formatIsoDate,
+  roomLabel as formatRoomLabel,
+} from "@/lib/reservations-ui";
 import { useQuery } from "@tanstack/react-query";
 import { hotelJson } from "@/lib/hotel-settings-client";
 import { useHousekeepingBoard } from "@/lib/housekeeping-client";
@@ -206,11 +211,55 @@ function housekeepingBadgeTone(label: string): string {
   }
 }
 
+export function LateCheckoutFields({
+  departureDate,
+  time,
+  reason,
+  onTimeChange,
+  onReasonChange,
+}: {
+  departureDate: string;
+  time: string;
+  reason: string;
+  onTimeChange: (value: string) => void;
+  onReasonChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Departure: {formatIsoDate(departureDate)} · Property local time. Use Extend Stay for another
+        day.
+      </p>
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <label className="min-w-0 text-xs">
+          <span className="text-muted-foreground">Requested checkout time</span>
+          <input
+            type="time"
+            value={time}
+            onChange={(e) => onTimeChange(e.target.value)}
+            className="mt-1 w-full min-w-0 rounded-md border border-input px-2 py-1"
+          />
+        </label>
+        <label className="min-w-0 text-xs">
+          <span className="text-muted-foreground">Reason (optional)</span>
+          <input
+            value={reason}
+            maxLength={300}
+            onChange={(e) => onReasonChange(e.target.value)}
+            className="mt-1 w-full rounded-md border border-input px-2 py-1"
+          />
+        </label>
+      </div>
+    </>
+  );
+}
+
 export function ReservationActionsCard({
   reservationId,
   updatedAt,
   status,
   checkedInAt,
+  departureDate,
   checkInAction,
   canCheckIn,
   canRequest,
@@ -220,6 +269,7 @@ export function ReservationActionsCard({
   updatedAt: string;
   status: string;
   checkedInAt: string | null;
+  departureDate: string;
   checkInAction: "early_check_in" | "check_in" | null;
   canCheckIn: boolean;
   canRequest: boolean;
@@ -278,9 +328,12 @@ export function ReservationActionsCard({
 
   const submitRequest = (type: OperationType) => {
     if (!flow) return;
+    const checkoutLocal =
+      type === "late_checkout" ? lateCheckoutLocal(departureDate, detail) : null;
+    if (type === "late_checkout" && !checkoutLocal) return;
     const payload: Record<string, unknown> =
       type === "late_checkout"
-        ? { expectedCheckOutLocal: detail, reason: reason || undefined }
+        ? { expectedCheckOutLocal: checkoutLocal, reason: reason || undefined }
         : type === "stay_extension"
           ? { newDepartureDate: detail, reason: reason || undefined }
           : type === "room_change"
@@ -420,15 +473,13 @@ export function ReservationActionsCard({
                     {operationTypeLabel(flow.kind)}
                   </p>
                   {flow.kind === "late_checkout" ? (
-                    <label className="mt-2 block text-xs">
-                      <span className="text-muted-foreground">Requested checkout time</span>
-                      <input
-                        type="datetime-local"
-                        value={detail}
-                        onChange={(e) => setDetail(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
-                      />
-                    </label>
+                    <LateCheckoutFields
+                      departureDate={departureDate}
+                      time={detail}
+                      reason={reason}
+                      onTimeChange={setDetail}
+                      onReasonChange={setReason}
+                    />
                   ) : null}
                   {flow.kind === "room_change" || flow.kind === "rate_change" ? (
                     <label className="mt-2 block text-xs">
@@ -562,17 +613,19 @@ export function ReservationActionsCard({
                       />
                     </label>
                   ) : null}
-                  <label className="mt-2 block text-xs">
-                    <span className="text-muted-foreground">
-                      {flow.kind === "rate_change" ? "Reason (required)" : "Reason (optional)"}
-                    </span>
-                    <input
-                      value={reason}
-                      maxLength={300}
-                      onChange={(e) => setReason(e.target.value)}
-                      className="mt-1 w-full rounded-md border border-input px-2 py-1"
-                    />
-                  </label>
+                  {flow.kind !== "late_checkout" ? (
+                    <label className="mt-2 block text-xs">
+                      <span className="text-muted-foreground">
+                        {flow.kind === "rate_change" ? "Reason (required)" : "Reason (optional)"}
+                      </span>
+                      <input
+                        value={reason}
+                        maxLength={300}
+                        onChange={(e) => setReason(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input px-2 py-1"
+                      />
+                    </label>
+                  ) : null}
                   {request.error ? (
                     <p className="mt-1 text-xs" style={{ color: ERR }}>
                       {errText(request.error, flow.kind)}
@@ -581,7 +634,10 @@ export function ReservationActionsCard({
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
-                      disabled={request.isPending}
+                      disabled={
+                        request.isPending ||
+                        (flow.kind === "late_checkout" && !lateCheckoutLocal(departureDate, detail))
+                      }
                       onClick={() => submitRequest(flow.kind as OperationType)}
                       className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
                       style={{ backgroundColor: REQUEST_COLOR[flow.kind as OperationType] }}

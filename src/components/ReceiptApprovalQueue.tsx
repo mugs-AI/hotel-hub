@@ -55,10 +55,18 @@ export function ReceiptRequestCard({
         {r.selfApproved ? " · Owner approved own request (audited)" : ""}
       </p>
       <p>
-        Deposits {formatReceiptDelta(r.comparison.depositDeltaCents, r.original.currency)} · Balance{" "}
+        {r.state === "applied" ? "Verified change:" : "Requested change:"} Deposits{" "}
+        {formatReceiptDelta(r.comparison.depositDeltaCents, r.original.currency)} · Balance{" "}
         {formatReceiptDelta(r.comparison.balanceDeltaCents, r.original.currency)}
       </p>
-      {r.outcomeMessage ? <p className="font-medium">{r.outcomeMessage}</p> : null}
+      {r.state === "approved_awaiting_n3" ? (
+        <p className="mt-1 font-medium text-amber-900">
+          Approval recorded. Complete this change in N3, then verify here. Totals update only after
+          verification.
+        </p>
+      ) : r.outcomeMessage ? (
+        <p className="font-medium">{r.outcomeMessage}</p>
+      ) : null}
       <ReceiptAlertStatus alert={r.alert} />
       {open ? (
         <table className="mt-2 w-full">
@@ -115,9 +123,10 @@ export function ReceiptRequestCard({
             type="button"
             disabled={busy}
             className="rounded border px-2 py-1"
+            title="Reads the N3 receipt and journal. Does not edit N3."
             onClick={() => onVerify?.()}
           >
-            Verify in N3
+            Verify N3 change
           </button>
         ) : null}
         {r.canRecover ? (

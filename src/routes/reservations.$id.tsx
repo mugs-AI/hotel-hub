@@ -444,6 +444,7 @@ function Detail({
         updatedAt={data.updatedAt}
         status={data.status}
         checkedInAt={data.checkedInAt ?? null}
+        departureDate={data.departureDate}
         checkInAction={checkInAction}
         canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
         canRequest={hasPermission(role, "hotel:operations:request")}

@@ -1,0 +1,113 @@
+HotelHub approved checkout followthrough gates — 03/10/2026
+Synthetic tests only; no live write opt-in.
+
+Clean baseline: exit 0
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/87b64e9e3850/hh-review
+
+
+ Test Files  120 passed | 3 skipped (123)
+      Tests  1921 passed | 20 skipped (1941)
+   Start at  13:07:41
+   Duration  8.91s (transform 5.93s, setup 0ms, import 24.89s, tests 6.11s, environment 11ms)
+
+
+Initial RED: expected exit 1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 1 passed (15)
+   Start at  13:11:48
+   Duration  2.61s (transform 243ms, setup 0ms, import 2.42s, tests 41ms, environment 0ms)
+
+
+Focused GREEN: exit 0
+ RUN  v4.1.10 /workspace/scratch/87b64e9e3850/hh-review
+
+
+ Test Files  4 passed (4)
+      Tests  88 passed (88)
+   Start at  13:13:18
+   Duration  2.39s (transform 776ms, setup 0ms, import 3.17s, tests 113ms, environment 0ms)
+
+
+Mounted checkout without refresh: expected exit 1
+AssertionError: expected { amount: 50, …(1) } to deeply equal { amount: 50, …(1) }
+
+- Expected
++ Received
+
+  {
+    "amount": 50,
+-   "expectedCheckOutAt": "2026-09-25T05:28:00.000Z",
++   "expectedCheckOutAt": "2026-09-25T04:00:00.000Z",
+  }
+
+ ❯ src/lib/__tests__/late-checkout-followthrough.test.ts:134:38
+    132|       await operationHarness(qc, "request")();
+    133|       await vi.waitFor(() => {
+    134|         expect(qc.getQueryData(key)).toEqual({
+       |                                      ^
+    135|           amount: 50, expectedCheckOutAt: "2026-09-25T05:28:00.000Z",
+    136|         });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 15 skipped (16)
+   Start at  13:17:57
+   Duration  3.31s (transform 246ms, setup 0ms, import 2.16s, tests 1.02s, environment 0ms)
+
+
+Final full suite: exit 0
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/87b64e9e3850/hh-review
+
+
+ Test Files  121 passed | 3 skipped (124)
+      Tests  1937 passed | 20 skipped (1957)
+   Start at  13:18:17
+   Duration  10.53s (transform 7.57s, setup 0ms, import 30.43s, tests 7.61s, environment 12ms)
+
+
+TypeScript: exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+ESLint + Prettier: exit 0; 37 existing warnings
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+Checking formatting...
+All matched files use Prettier code style!
+
+Production build: exit 0
+.output/server/_libs/date-fns.mjs                                            104.02 kB │ gzip:  18.42 kB
+.output/server/_libs/supabase__postgrest-js.mjs                              105.41 kB │ gzip:  21.66 kB
+.output/server/_libs/@supabase/storage-js+[...].mjs                          118.94 kB │ gzip:  22.11 kB
+.output/server/_ssr/reservations._id-D2qttyMu.mjs                            125.65 kB │ gzip:  26.38 kB
+.output/server/_libs/react-day-picker.mjs                                    135.25 kB │ gzip:  26.49 kB
+.output/server/_ssr/settings-BwTQ0TJg.mjs                                    140.21 kB │ gzip:  26.65 kB
+.output/server/_libs/supabase__auth-js.mjs                                   302.12 kB │ gzip:  60.25 kB
+.output/server/_ssr/router-DWVDhD1F.mjs                                      451.71 kB │ gzip:  99.67 kB
+.output/server/_libs/@tanstack/react-router+[...].mjs                        655.14 kB │ gzip: 137.73 kB
+
+✓ built in 688ms
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+[nitro] ℹ Adding Nitro fallback to _headers to handle all unmatched routes.
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt
+
+New regression test rechecked: tsc --noEmit, ESLint and Prettier exit 0.
+Protected paths equal baseline a68664f; git diff --check exit 0; SQL/auth/N3 server files unchanged.
+Independent review: no blocking issues; 34 focused tests passed, then 1 mounted-reader test passed.
