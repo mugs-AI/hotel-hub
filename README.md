@@ -17,6 +17,10 @@ confirms deployment identity and signed-out live smoke; signed-in acceptance rem
 The [latest Verify/edit-options diagnosis](docs/evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md)
 records five live RM65 mismatch results, the missing manual N3 step and the Owner's
 allow/block Settings decision. Its proposed compact Dashboard change is not built.
+The [new automatic-correction intent](docs/evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md)
+supersedes that allow/block interpretation: the Owner requires approval-triggered
+N3 updates and optional direct application, with separate deposit/contact policies.
+Automatic execution is not implemented or activated; design and API proof remain pending.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.

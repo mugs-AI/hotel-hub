@@ -1,5 +1,12 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Newest requirement: `evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md` supersedes
+the previous allow/block option design. Owner wants one-click approval with automatic
+N3 Update/readback, or authorized direct application without approval, and independent
+deposit/contact controls. This is not yet implemented or activated; architectural
+design and Owner-run sandbox API proof precede activation. Existing RM65 remains
+an unresolved manual request and must not be automatically replayed.
+
 Latest continuation: `evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md`
 records Owner rejection of RM60, new RM65 request and five recorded N3 mismatch
 results. Owner confirmed no manual N3 change before Verify. New request is Needs
