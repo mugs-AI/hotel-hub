@@ -1,5 +1,15 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Latest planning handover: Owner approved the written automatic-correction spec
+at review commit `c41808f093331089d46477677ba7e4bcf7d1faf3`.
+`superpowers/plans/2026-10-03-automatic-receipt-correction.md` now defines nine
+implementation/validation tasks. `evidence/HH_AUTOMATIC_CORRECTION_PLAN_HANDOVER_20261003.md`
+records fresh Git/Lovable/Cloud schema reads, plan self-review and next gate.
+No product code, database/N3 write, merge or public release in this planning turn.
+Next: Owner reviews the plan and selects native or subagent-driven execution.
+Recommended native method preserves coupled interfaces, with independent whole-
+branch review after implementation. Automatic Update remains disabled until proven.
+
 Latest design handover: Owner approved the conceptual automatic-correction design.
 `superpowers/specs/2026-10-03-automatic-receipt-correction-design.md` is now written
 for review, with `evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md` and

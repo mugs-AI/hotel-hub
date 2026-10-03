@@ -24,7 +24,10 @@ The [written automatic-correction design](docs/superpowers/specs/2026-10-03-auto
 and [Owner-run proof checklist](docs/evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md)
 now specify independent approval switches, one-click execution, direct Owner saves,
 local versus N3 billing targets, durable uncertain outcomes and cross-session refresh.
-Conceptual design is approved; written-spec review and implementation planning are next.
+Owner approved the written spec. The [implementation plan](docs/superpowers/plans/2026-10-03-automatic-receipt-correction.md)
+now defines task interfaces, meaningful tests, dormant automation, Owner proof tooling
+and separate database/merge/activation/publish gates. Plan review and execution-method
+selection are next; no product implementation has started for this feature.
 Automatic execution is not implemented or activated; API/concurrency proof remains pending.
 Older status sections below are historical and do not establish current release state.
 
