@@ -1,5 +1,12 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Latest continuation: `evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md`
+records Owner rejection of RM60, new RM65 request and five recorded N3 mismatch
+results. Owner confirmed no manual N3 change before Verify. New request is Needs
+review, with no effective corrected version. Compact approval, visible feedback
+and allow/block editing switches are proposed, not built. Billing defaults OFF,
+existing deposit corrections ON; DB/apply/release gates remain separate.
+
 Latest release: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md` records
 Owner-approved publication of exact source `734ac405c82e653a7098ce0ef22d51586382bd9d`,
 deployment `3480110d-0dd7-4ad1-8ad7-b3843ab39be5`, matched by live HTTP and signed-out

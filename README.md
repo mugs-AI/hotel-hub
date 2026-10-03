@@ -14,6 +14,9 @@ records the approved correction and tests. The [current merge evidence](docs/evi
 records exact source `734ac40` merged to main and synced to Lovable. The
 [publication evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md)
 confirms deployment identity and signed-out live smoke; signed-in acceptance remains pending.
+The [latest Verify/edit-options diagnosis](docs/evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md)
+records five live RM65 mismatch results, the missing manual N3 step and the Owner's
+allow/block Settings decision. Its proposed compact Dashboard change is not built.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
