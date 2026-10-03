@@ -1,6 +1,6 @@
 # HotelHub change impact map
 
-Version: 1.0. Date: 03/10/2026 (Malaysia).
+Version: 1.1. Date: 03/10/2026 (Malaysia).
 Upload to Project Sources: Yes — this stable engineering companion only.
 Authority: engineering checklist under the existing financial master, product
 decisions, DirectBuild governance and Owner instructions. It grants no new feature,
@@ -26,11 +26,27 @@ concurrency, tests, untested live steps, exact candidate and separate release la
 An agent's memory is not a substitute for source inspection or these records.
 Update this map when dependencies change; save task evidence under docs/evidence.
 
+## Current automatic-correction review source
+
+The approved nine-task design separates deposit approval (default ON) from contact
+approval (default OFF). OFF means authorized direct application; it grants no new
+role. Direct N3 execution stays Owner-only. Compact cards, local contact controls
+and dormant one-dispatch execution are review-branch source, not a released feature.
+Production Update remains OFF/null contract; existing real manual requests must
+not auto-run. Read the [incomplete recovery candidate](HH_AUTOMATIC_CORRECTION_CANDIDATE.md).
+
+| Change target | Effective source and affected views | Controls and unsettled result |
+| --- | --- | --- |
+| N3 receipt amount/contact | Exact final receipt/journal plus one confirmed receipt version; deposits, folio/print/balance/excess, reservations, departures, checkout, Dashboard/monthly/reports/export | Any affected ON category requires approval. Unknown holds original effective money; no repeat POST. Same-account amount/contact adapter only until account-code mapping is proven. |
+| Local folio bill-to | Saved local contact or current primary-guest fallback; local card, folio preparation/print | Contact ON creates immutable pending proposal; OFF permits existing authorized local editing. Approval rechecks fallback and stay stage. No customer-master/other-receipt sync. |
+| Policy change | Property-only revision and independent switches; Settings and new request routing | Tightening is checked again at dispatch. Relaxation never starts an old pending/manual request automatically. Installed-policy read error denies saving. |
+| Cross-session change | Monotonic local decimal revision; seven existing financial-effect prefixes plus policy/bill-to/proposal caches | Task 7 is uncommitted recovery work. Visible-page observation must be read-only, role-filtered, lossless and auth-fail-closed; no N3 mutation on mount, timer or retry. |
+
 ## Cross-workflow dependencies
 
 | Change                        | Authoritative data and affected readers                                                                                                                                                              | Checks before acceptance                                                                                                                                                                                                                                                 |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Receipt correction/void       | N3 receipt and exact scoped journal; approved request; confirmed receipt versions; Reservation deposits, Owner queue, folio, reservation summaries, Departures, Prepare Checkout and Monthly Finance | Approval alone never changes money. Keep original posted intent immutable. Verify proposal/account/customer/currency/date/reference/journal before publishing an effective version. Refresh every dependent cache; test pending, mismatch, expiry and verified outcomes. |
+| Receipt correction/void       | N3 receipt and exact scoped journal; approved request; confirmed receipt versions; Reservation deposits, Owner queue, folio, reservation summaries, Departures, Prepare Checkout and Monthly Finance | Approval authorizes execution; only a proven effective version changes money. Keep original posted intent immutable. Verify proposal/account/customer/currency/date/reference/journal before publishing an effective version. Refresh every dependent cache; test pending, mismatch, expiry and verified outcomes. |
 | Late Checkout                 | Departure-day property-local time converted server-side to expected_check_out_at; Actions, approval ledger, timeline, reservation detail, Departures and Prepare Checkout                            | Later than standard checkout, same departure date, accepted reservation stage, actor/tenant permissions, idempotency/concurrent decision. Preserve room nights and rates. This time change is distinct from a paid late-checkout add-on charge.                          |
 | Extend Stay                   | Departure date, room allocations/availability and stay length; reservation detail/list, calendar, folio/readiness, Departures and Prepare Checkout                                                   | Room conflicts and concurrent updates; server calculation and folio preparation; property dates; no silent balance collection or N3 receipt change. Check late-checkout timestamp compatibility after departure changes.                                                 |
 | Room change / check-in        | Status, room allocation, guest assignment and audited housekeeping handoff; reservation views, calendar/availability, housekeeping, folio/readiness and checkout                                     | Ready/no DND and occupancy are separate gates. Current agreed rate preservation, guest capacity, idempotency and handoff proof. Never treat a Ready room as automatically saleable.                                                                                      |

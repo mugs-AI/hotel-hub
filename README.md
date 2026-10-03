@@ -2,6 +2,15 @@
 
 ## Current delivery and recovery record
 
+Current implementation is **incomplete, not release-ready**. Owner approved native
+DirectBuild execution; do not ask for that approval again. Read the
+[automatic-correction recovery candidate](docs/HH_AUTOMATIC_CORRECTION_CANDIDATE.md)
+and [durable execution evidence](docs/evidence/HH_AUTOMATIC_CORRECTION_EXECUTION_20261003.md)
+first. Source through compact UI is on the review branch; the execution environment
+disconnected during uncommitted revision work. Finish that work, Owner proof tool,
+full checks and independent review before any separate release lane.
+
+
 Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE.md),
 [MUGS DirectBuild Protocol](docs/00-MUGS_DIRECTBUILD_PROTOCOL.md),
 [HotelHub adoption](docs/MDB-01_HOTELHUB_ADOPTION.md), and the
@@ -16,7 +25,7 @@ records exact source `734ac40` merged to main and synced to Lovable. The
 confirms deployment identity and signed-out live smoke; signed-in acceptance remains pending.
 The [latest Verify/edit-options diagnosis](docs/evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md)
 records five live RM65 mismatch results, the missing manual N3 step and the Owner's
-allow/block Settings decision. Its proposed compact Dashboard change is not built.
+allow/block Settings decision. Its compact Dashboard change is now implemented on the review branch; it has not been released.
 The [new automatic-correction intent](docs/evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md)
 supersedes that allow/block interpretation: the Owner requires approval-triggered
 N3 updates and optional direct application, with separate deposit/contact policies.
