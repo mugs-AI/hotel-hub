@@ -1,10 +1,13 @@
 # HotelHub DirectBuild recovery checkpoint
 
-Current review candidate: `HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md` records the
-Owner-approved Late Checkout/receipt guidance build, dependent refreshes,
-1937 passing tests and independent review. Not merged or published. The receipt
-still awaits manual N3 completion and verification; the latest read-only SQL is
-recorded in that candidate. `HH_CHANGE_IMPACT_MAP.md` is the stable source companion.
+Latest code merge: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md` records
+Owner-approved exact source `734ac405c82e653a7098ce0ef22d51586382bd9d` merged to
+main and synced to Lovable, with a fresh 1937 passing tests / 20 skipped. Public
+publishing is pending a separate approval. The frozen build/review evidence is
+`HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md`. The receipt still awaits manual N3
+completion and verification; the latest read-only SQL is recorded in that
+candidate. The Owner-uploaded `HH_CHANGE_IMPACT_MAP.md` was compared byte-for-byte
+with the repository and matches. Merge evidence is not a Project Source upload.
 
 Latest continuation: `evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md`
 records Owner-observed request creation and approval, confirmed by scoped SQL.

@@ -9,8 +9,9 @@ Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE
 The checkpoint separates current source, database, release and acceptance evidence.
 Read the [change impact map](docs/HH_CHANGE_IMPACT_MAP.md) before changing an
 existing workflow, and the [latest Owner acceptance and Late Checkout diagnosis](docs/evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md).
-The [current checkout followthrough candidate](docs/HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md)
-records the approved correction, tests and pending merge/publication gates.
+The [checkout followthrough candidate](docs/HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md)
+records the approved correction and tests. The [current merge evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md)
+records exact source `734ac40` merged to main and synced to Lovable; public publishing remains pending.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
