@@ -7,6 +7,8 @@ Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE
 [HotelHub adoption](docs/MDB-01_HOTELHUB_ADOPTION.md), and the
 [current recovery checkpoint](docs/HH_DIRECTBUILD_RECOVERY_CHECKPOINT.md).
 The checkpoint separates current source, database, release and acceptance evidence.
+Read the [change impact map](docs/HH_CHANGE_IMPACT_MAP.md) before changing an
+existing workflow, and the [latest Owner acceptance and Late Checkout diagnosis](docs/evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md).
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.

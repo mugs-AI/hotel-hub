@@ -24,6 +24,11 @@ backend state, acceptance evidence and the latest Owner instruction before work.
 The attached protocol/adoption copies in this directory are preserved originals;
 their older preparation-status language is superseded by this actual adoption.
 
+Before each change, use `HH_CHANGE_IMPACT_MAP.md` to identify affected readers,
+caches, dates, rooms, financial projections and permission/stage boundaries.
+Record task-specific evidence in the repository; update the map when dependencies
+change. This checklist grants no new product scope or release-lane authority.
+
 ## Target and independent release lanes
 
 | Field | Target |
