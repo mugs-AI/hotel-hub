@@ -1,9 +1,10 @@
 # HotelHub DirectBuild recovery checkpoint
 
-Latest continuation: `HH_RECEIPT_JOURNAL_BINDING_CANDIDATE.md` records the
-03/10/2026 Owner-approved implementation, full engineering checks and remaining
-merge/publication/live-verification gates. The entries below are historical
-recovery observations; they are not a substitute for that current checkpoint.
+Latest continuation: `evidence/HH_RECEIPT_JOURNAL_BINDING_PUBLICATION_20261003.md`
+records the 03/10/2026 Owner-approved code merge/publication and verified live
+deployment. Signed-in receipt acceptance remains pending. Implementation and
+engineering checks are in `HH_RECEIPT_JOURNAL_BINDING_CANDIDATE.md`. The entries
+below are historical recovery observations, superseded by those current records.
 
 Version: 1.0. Date: 02/10/2026, Asia/Kuala_Lumpur.
 Status: engineering baseline verified; Owner receipt/journal UI evidence captured;
