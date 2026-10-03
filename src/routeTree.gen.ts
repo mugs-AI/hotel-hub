@@ -43,7 +43,9 @@ import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/hou
 import { Route as ApiHotelFinancialPeriodRouteImport } from './routes/api/hotel/financial-period'
 import { Route as ApiHotelFinancialDashboardRouteImport } from './routes/api/hotel/financial-dashboard'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
+import { Route as ApiHotelChangeControlsRouteImport } from './routes/api/hotel/change-controls'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
+import { Route as ApiHotelBillToChangesRouteImport } from './routes/api/hotel/bill-to-changes'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
@@ -75,6 +77,7 @@ import { Route as ApiHotelReceiptControlsRequestIdExecuteRouteImport } from './r
 import { Route as ApiHotelReceiptControlsRequestIdDecisionRouteImport } from './routes/api/hotel/receipt-controls.$requestId.decision'
 import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
 import { Route as ApiHotelChargesCatalogueItemIdRouteImport } from './routes/api/hotel/charges.catalogue.$itemId'
+import { Route as ApiHotelBillToChangesRequestIdDecisionRouteImport } from './routes/api/hotel/bill-to-changes.$requestId.decision'
 import { Route as ApiHotelReservationsIdFolioRefreshRouteImport } from './routes/api/hotel/reservations.$id.folio.refresh'
 import { Route as ApiHotelReservationsIdFolioLinesRouteImport } from './routes/api/hotel/reservations.$id.folio.lines'
 import { Route as ApiHotelReservationsIdFolioBillToRouteImport } from './routes/api/hotel/reservations.$id.folio.bill-to'
@@ -261,9 +264,19 @@ const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   path: '/api/hotel/departures',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotelChangeControlsRoute = ApiHotelChangeControlsRouteImport.update({
+  id: '/api/hotel/change-controls',
+  path: '/api/hotel/change-controls',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHotelBookingSourcesRoute = ApiHotelBookingSourcesRouteImport.update({
   id: '/api/hotel/booking-sources',
   path: '/api/hotel/booking-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelBillToChangesRoute = ApiHotelBillToChangesRouteImport.update({
+  id: '/api/hotel/bill-to-changes',
+  path: '/api/hotel/bill-to-changes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHotelAvailabilityRoute = ApiHotelAvailabilityRouteImport.update({
@@ -440,6 +453,12 @@ const ApiHotelChargesCatalogueItemIdRoute =
     path: '/$itemId',
     getParentRoute: () => ApiHotelChargesCatalogueRoute,
   } as any)
+const ApiHotelBillToChangesRequestIdDecisionRoute =
+  ApiHotelBillToChangesRequestIdDecisionRouteImport.update({
+    id: '/$requestId/decision',
+    path: '/$requestId/decision',
+    getParentRoute: () => ApiHotelBillToChangesRoute,
+  } as any)
 const ApiHotelReservationsIdFolioRefreshRoute =
   ApiHotelReservationsIdFolioRefreshRouteImport.update({
     id: '/refresh',
@@ -519,7 +538,9 @@ export interface FileRoutesByFullPath {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -554,6 +575,7 @@ export interface FileRoutesByFullPath {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
@@ -597,7 +619,9 @@ export interface FileRoutesByTo {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -632,6 +656,7 @@ export interface FileRoutesByTo {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
@@ -676,7 +701,9 @@ export interface FileRoutesById {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -711,6 +738,7 @@ export interface FileRoutesById {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
@@ -756,7 +784,9 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -791,6 +821,7 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
@@ -834,7 +865,9 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -869,6 +902,7 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
@@ -912,7 +946,9 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -947,6 +983,7 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
     | '/api/hotel/receipt-controls/$requestId/decision'
@@ -991,7 +1028,9 @@ export interface RootRouteChildren {
   ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
+  ApiHotelBillToChangesRoute: typeof ApiHotelBillToChangesRouteWithChildren
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
+  ApiHotelChangeControlsRoute: typeof ApiHotelChangeControlsRoute
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
   ApiHotelFinancialDashboardRoute: typeof ApiHotelFinancialDashboardRoute
   ApiHotelFinancialPeriodRoute: typeof ApiHotelFinancialPeriodRoute
@@ -1261,11 +1300,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelDeparturesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel/change-controls': {
+      id: '/api/hotel/change-controls'
+      path: '/api/hotel/change-controls'
+      fullPath: '/api/hotel/change-controls'
+      preLoaderRoute: typeof ApiHotelChangeControlsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/booking-sources': {
       id: '/api/hotel/booking-sources'
       path: '/api/hotel/booking-sources'
       fullPath: '/api/hotel/booking-sources'
       preLoaderRoute: typeof ApiHotelBookingSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/bill-to-changes': {
+      id: '/api/hotel/bill-to-changes'
+      path: '/api/hotel/bill-to-changes'
+      fullPath: '/api/hotel/bill-to-changes'
+      preLoaderRoute: typeof ApiHotelBillToChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/availability': {
@@ -1485,6 +1538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelChargesCatalogueItemIdRouteImport
       parentRoute: typeof ApiHotelChargesCatalogueRoute
     }
+    '/api/hotel/bill-to-changes/$requestId/decision': {
+      id: '/api/hotel/bill-to-changes/$requestId/decision'
+      path: '/$requestId/decision'
+      fullPath: '/api/hotel/bill-to-changes/$requestId/decision'
+      preLoaderRoute: typeof ApiHotelBillToChangesRequestIdDecisionRouteImport
+      parentRoute: typeof ApiHotelBillToChangesRoute
+    }
     '/api/hotel/reservations/$id/folio/refresh': {
       id: '/api/hotel/reservations/$id/folio/refresh'
       path: '/refresh'
@@ -1557,6 +1617,20 @@ declare module '@tanstack/react-router' {
     }
   }
 }
+
+interface ApiHotelBillToChangesRouteChildren {
+  ApiHotelBillToChangesRequestIdDecisionRoute: typeof ApiHotelBillToChangesRequestIdDecisionRoute
+}
+
+const ApiHotelBillToChangesRouteChildren: ApiHotelBillToChangesRouteChildren = {
+  ApiHotelBillToChangesRequestIdDecisionRoute:
+    ApiHotelBillToChangesRequestIdDecisionRoute,
+}
+
+const ApiHotelBillToChangesRouteWithChildren =
+  ApiHotelBillToChangesRoute._addFileChildren(
+    ApiHotelBillToChangesRouteChildren,
+  )
 
 interface ApiHotelBookingSourcesRouteChildren {
   ApiHotelBookingSourcesIdRoute: typeof ApiHotelBookingSourcesIdRoute
@@ -1826,7 +1900,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLaunchRoute: ApiAuthLaunchRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
+  ApiHotelBillToChangesRoute: ApiHotelBillToChangesRouteWithChildren,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
+  ApiHotelChangeControlsRoute: ApiHotelChangeControlsRoute,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
   ApiHotelFinancialDashboardRoute: ApiHotelFinancialDashboardRoute,
   ApiHotelFinancialPeriodRoute: ApiHotelFinancialPeriodRoute,
