@@ -1,9 +1,16 @@
 # HotelHub DirectBuild recovery checkpoint
 
+Latest release: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md` records
+Owner-approved publication of exact source `734ac405c82e653a7098ce0ef22d51586382bd9d`,
+deployment `3480110d-0dd7-4ad1-8ad7-b3843ab39be5`, matched by live HTTP and signed-out
+browser smoke. Signed-in Late Checkout and completed manual N3 correction/Verify
+acceptance remain pending. Read-only SQL confirms posted MYR50, manual request
+approved_awaiting_n3 and zero executions/verified versions. No DB or N3 writes.
+
 Latest code merge: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md` records
 Owner-approved exact source `734ac405c82e653a7098ce0ef22d51586382bd9d` merged to
-main and synced to Lovable, with a fresh 1937 passing tests / 20 skipped. Public
-publishing is pending a separate approval. The frozen build/review evidence is
+main and synced to Lovable, with a fresh 1937 passing tests / 20 skipped. Its
+pending publication state is superseded by the release record above. The frozen build/review evidence is
 `HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md`. The receipt still awaits manual N3
 completion and verification; the latest read-only SQL is recorded in that
 candidate. The Owner-uploaded `HH_CHANGE_IMPACT_MAP.md` was compared byte-for-byte

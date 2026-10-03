@@ -11,7 +11,9 @@ Read the [change impact map](docs/HH_CHANGE_IMPACT_MAP.md) before changing an
 existing workflow, and the [latest Owner acceptance and Late Checkout diagnosis](docs/evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md).
 The [checkout followthrough candidate](docs/HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md)
 records the approved correction and tests. The [current merge evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md)
-records exact source `734ac40` merged to main and synced to Lovable; public publishing remains pending.
+records exact source `734ac40` merged to main and synced to Lovable. The
+[publication evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md)
+confirms deployment identity and signed-out live smoke; signed-in acceptance remains pending.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
