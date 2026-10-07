@@ -1,0 +1,301 @@
+{
+  "schema_version": 1,
+  "date": "08/10/2026",
+  "timezone": "Asia/Kuala_Lumpur",
+  "upload_to_project_sources": false,
+  "stage": "approved specification -> newly written implementation plan pending review",
+  "specification": {
+    "path": "docs/superpowers/specs/2026-10-08-n3-billing-settlement-design.md",
+    "approval_commit": "ca485ad285c4411be5019e3b80aa695334708993",
+    "owner_approval_local_time": "08/10/2026 07:39"
+  },
+  "review_input": "ca485ad285c4411be5019e3b80aa695334708993",
+  "main_product_base": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+  "execution_branch_proposed": "review/hh-n3-billing-20261008",
+  "execution_method": "direct repository coding/testing, inline, executing-plans after written plan review",
+  "lovable": {
+    "id": "d6c78e7b-c2f2-4bee-bf99-c9c47ff29b76",
+    "workspace_id": "JRQygHE7tZl2GgPN8a8N",
+    "latest_commit_sha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "status": "ready",
+    "agentFinished": true,
+    "backend_enabled": true,
+    "stack": "supabase",
+    "configured_backend_reference": "fkakhdzelilnejyehwfk"
+  },
+  "backend_read_only": {
+    "migration_versions": [
+      "20260719153056",
+      "20260720013222",
+      "20260720102055",
+      "20260720135638",
+      "20260720233434",
+      "20260721001110",
+      "20260721001134",
+      "20260721062259",
+      "20260724131751",
+      "20260724161300",
+      "20260731154351",
+      "20260803020026",
+      "20260803020148",
+      "20260805132927",
+      "20260806125127",
+      "20260806125503",
+      "20260807144233",
+      "20260807144327",
+      "20260820093547",
+      "20260821121509",
+      "20260821133017",
+      "20260821133109",
+      "20260824093329",
+      "20260824095539",
+      "20260824101612",
+      "20260824102934",
+      "20260825031037",
+      "20260825032919",
+      "20260825033013",
+      "20260825034507",
+      "20260827162500",
+      "20260916120000",
+      "20260927120000",
+      "20260928235000",
+      "20260929090000",
+      "20260930135429",
+      "20261002053219",
+      "20261002053302"
+    ],
+    "rpc_signatures": [
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_operation text, p_line_type hotel_folio_line_type, p_catalogue_id uuid, p_tax_class hotel_tax_class, p_description text, p_quantity integer, p_unit_price_cents integer, p_subtotal_cents integer, p_tax_cents integer, p_total_cents integer, p_tax_snapshot jsonb, p_reason text, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+        "proname": "hotelhub_add_folio_line",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_allow_early boolean, p_operation_request_id uuid",
+        "proname": "hotelhub_check_in_reservation",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_allow_early boolean, p_operation_request_id uuid, p_client_request_id uuid",
+        "proname": "hotelhub_check_in_reservation",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_operation text, p_reservation_id uuid, p_folio_id uuid, p_target_line_id uuid, p_client_request_id uuid, p_request_fingerprint text, p_actor_n3_user_key text",
+        "proname": "hotelhub_claim_folio_operation",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_created_by_n3_user_key text, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb, p_guests jsonb",
+        "proname": "hotelhub_create_reservation",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_actor_n3_user_key text, p_decision text, p_note text, p_idempotency_key text",
+        "proname": "hotelhub_decide_operation",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_operation_type text, p_payload jsonb, p_idempotency_key text",
+        "proname": "hotelhub_direct_operation_v2",
+        "security_definer": true
+      },
+      {
+        "arguments": "",
+        "proname": "hotelhub_folio_room_night_immutable",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_source text",
+        "proname": "hotelhub_hk_vacate_room",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_source text, p_handoff_id uuid",
+        "proname": "hotelhub_hk_vacate_room_v2",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_booking_reference text, p_guest_name text, p_guest_mobile text, p_status text, p_booking_source text, p_arrival_from date, p_arrival_to date, p_sort_key text, p_sort_dir text, p_limit integer, p_offset integer",
+        "proname": "hotelhub_list_reservations",
+        "security_definer": true
+      },
+      {
+        "arguments": "",
+        "proname": "hotelhub_operation_request_immutable",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_step text, p_actor text",
+        "proname": "hotelhub_receipt_control_claim",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_execution_id uuid, p_to_state text, p_outcome_code text, p_actor text, p_version jsonb",
+        "proname": "hotelhub_receipt_control_complete",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_deposit_id uuid, p_client_request_id uuid, p_fingerprint text, p_kind text, p_reason text, p_original jsonb, p_proposal jsonb, p_comparison jsonb, p_original_cents bigint, p_proposed_cents bigint, p_actor text",
+        "proname": "hotelhub_receipt_control_create",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_decision text, p_to_state text, p_actor text, p_outcome_code text, p_note text",
+        "proname": "hotelhub_receipt_control_decide",
+        "security_definer": true
+      },
+      {
+        "arguments": "",
+        "proname": "hotelhub_receipt_control_guard",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text, p_stale_seconds integer",
+        "proname": "hotelhub_receipt_control_recover",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text, p_to_state text, p_outcome_code text, p_version jsonb",
+        "proname": "hotelhub_receipt_control_verify_atomic",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_operation text, p_client_request_id uuid",
+        "proname": "hotelhub_release_folio_operation",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_operation_type text, p_payload jsonb, p_idempotency_key text",
+        "proname": "hotelhub_request_operation",
+        "security_definer": true
+      },
+      {
+        "arguments": "",
+        "proname": "hotelhub_reservation_events_append_only",
+        "security_definer": false
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_line_id uuid, p_reason text, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+        "proname": "hotelhub_reverse_folio_line",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_line_id uuid, p_expected_version integer, p_quantity integer, p_subtotal_cents integer, p_tax_cents integer, p_total_cents integer, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+        "proname": "hotelhub_update_folio_line_quantity",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb",
+        "proname": "hotelhub_update_reservation",
+        "security_definer": true
+      },
+      {
+        "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_actor_role text, p_client_request_id uuid, p_fingerprint text, p_expected_updated_at timestamp with time zone, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb, p_guests jsonb, p_correction_reason text",
+        "proname": "hotelhub_update_reservation_v2",
+        "security_definer": true
+      }
+    ]
+  },
+  "separation": {
+    "review_ahead_of_main_commits": 18,
+    "parked_non_documentation_files": [
+      "README.md",
+      "scripts/test-hh-change-controls-postgres.sh",
+      "src/components/BillToApprovalQueue.tsx",
+      "src/components/ChangeControlSettings.tsx",
+      "src/components/DepositsCard.tsx",
+      "src/components/FolioBillToCard.tsx",
+      "src/components/ReceiptApprovalQueue.tsx",
+      "src/components/ReceiptControlRequestDialog.tsx",
+      "src/lib/__tests__/change-controls-ui.test.ts",
+      "src/lib/__tests__/fixtures/hh-change-controls-prerequisites.sql",
+      "src/lib/__tests__/fixtures/receipt-automation.ts",
+      "src/lib/__tests__/folio-bill-to-controls.test.ts",
+      "src/lib/__tests__/folio-bill-to-route.test.ts",
+      "src/lib/__tests__/hotel-change-controls-api.test.ts",
+      "src/lib/__tests__/hotel-change-controls.test.ts",
+      "src/lib/__tests__/n3-receipt-update.test.ts",
+      "src/lib/__tests__/receipt-automation-api.test.ts",
+      "src/lib/__tests__/receipt-automation-execution.test.ts",
+      "src/lib/__tests__/receipt-automation-postgres.test.ts",
+      "src/lib/__tests__/receipt-controls-store.test.ts",
+      "src/lib/folio-bill-to-client.ts",
+      "src/lib/folio-bill-to-controls.server.ts",
+      "src/lib/hotel-change-controls-client.ts",
+      "src/lib/hotel-change-controls-store.server.ts",
+      "src/lib/hotel-change-controls.ts",
+      "src/lib/n3-receipt-update.server.ts",
+      "src/lib/n3-receipts.server.ts",
+      "src/lib/receipt-automation-deps.server.ts",
+      "src/lib/receipt-automation-execution.server.ts",
+      "src/lib/receipt-automation-gates.server.ts",
+      "src/lib/receipt-automation-http.server.ts",
+      "src/lib/receipt-automation-store.server.ts",
+      "src/lib/receipt-automation.ts",
+      "src/lib/receipt-controls-client.ts",
+      "src/lib/receipt-controls-execution.server.ts",
+      "src/lib/receipt-controls-http.server.ts",
+      "src/lib/receipt-controls-store.server.ts",
+      "src/routeTree.gen.ts",
+      "src/routes/api/hotel/bill-to-changes.$requestId.decision.ts",
+      "src/routes/api/hotel/bill-to-changes.ts",
+      "src/routes/api/hotel/change-controls.ts",
+      "src/routes/api/hotel/receipt-controls.$requestId.check-result.ts",
+      "src/routes/api/hotel/receipt-controls.$requestId.decision.ts",
+      "src/routes/api/hotel/receipt-controls.$requestId.execute.ts",
+      "src/routes/api/hotel/receipt-controls.ts",
+      "src/routes/api/hotel/reservations.$id.deposits.$depositId.receipt-requests.ts",
+      "src/routes/api/hotel/reservations.$id.folio.bill-to.ts",
+      "src/routes/index.tsx",
+      "src/routes/settings.tsx",
+      "supabase/migrations/20261003120216_hh_automatic_receipt_controls.sql"
+    ],
+    "decision": "Execute from accepted main product tree; carry approved billing docs only. Do not ship parked review automatic-control source/migration."
+  },
+  "validation": {
+    "attachments_unchanged": 18,
+    "plan_sha256": "9d7afe2bcefd5db30877353dca7f209f38dc51c22c2fdc9ceb5c20bf589ff4ef",
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "self_review": {
+      "spec_coverage": true,
+      "interfaces_reviewed": true,
+      "review_focus_cases": 5,
+      "placeholder_scan_clean": true,
+      "main_based_execution": true,
+      "protected_product_files_unchanged": true
+    },
+    "approval_spec_sha256": "3ed751ba9358130203db7c566610d031659debf426e72de95d71c23475650686"
+  },
+  "local_state": {
+    "head": "b4a783f3ba3a90a743905ea65374e36e8f4297a7",
+    "preexisting_changes_preserved": true,
+    "running_local_build_test_process_found": false,
+    "disposable_postgresql_executables_on_path": false
+  },
+  "lanes": {
+    "product_code_edit": false,
+    "new_product_tests_or_builds": false,
+    "database_write": false,
+    "n3_write": false,
+    "lovable_ai_build_message": false,
+    "main_merge": false,
+    "function_deployment": false,
+    "public_publish": false
+  },
+  "tests_note": "Previous 115 tests are prior-turn local checkout baseline, not newly run or whole candidate evidence.",
+  "next_action": "Owner review of complete plan; then executing-plans isolation and Task 1. Side-effect lanes remain independently gated."
+}
