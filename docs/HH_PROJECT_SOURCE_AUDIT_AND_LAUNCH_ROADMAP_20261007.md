@@ -66,7 +66,7 @@ only a dormant review candidate. Both facts must appear explicitly.
 
 | Attached source | Required action and reason | Upload replacement to Project Sources? |
 | --- | --- | --- |
-| 00-MUGS_DIRECTBUILD_PROTOCOL.md | Retain supplied v1.1. Repository copy remains v1.0 and should be aligned through a documentation-only update. Preserve independent lanes and no-credit-consuming fallback | No replacement needed for the already supplied v1.1 |
+| 00-MUGS_DIRECTBUILD_PROTOCOL.md | Retain supplied v 1.1. Repository copy remains v 1.0 and should be aligned through a documentation-only update. Preserve independent lanes and no-credit-consuming fallback | No replacement needed for the already supplied v 1.1 |
 | MDB-01_HOTELHUB_ADOPTION.md | Refresh preparation-only status to actual Owner-authorized adoption; add locked workspace/backend, established runtime and pointers to current evidence; recheck identities before actions | Yes, when refreshed |
 | 01-SOURCE_REFRESH_SUMMARY.md | Replace stale September current pointers with one versioned pack manifest and current audit links; do not treat mapping parity as full launch acceptance | Yes |
 | 02-HOTELHUB_COMPLETION_PLAN.md | Replace obsolete next action with launch priorities/dependencies and dated exit gates; keep approved target finance flow | Yes |
@@ -98,7 +98,7 @@ evidence or bulk remove sources before replacements are ready.
   banner, but lower paragraphs still say plan execution has not begun. Reconcile
   these and the older checkpoint headings using the execution ledger. Avoid replaying
   Tasks 1–6 merely because an earlier spec or plan header says Awaiting approval.
-- docs/00-MUGS_DIRECTBUILD_PROTOCOL.md: align to supplied v1.1 without inventing a
+- docs/00-MUGS_DIRECTBUILD_PROTOCOL.md: align to supplied v 1.1 without inventing a
   new global protocol or changing another product's rules.
 - ChatGPT Project Instructions: use the separate proposed short draft; installation
   into the real settings is pending. Sources and instructions are not global memory.
@@ -128,7 +128,7 @@ small-hotel boss using the Owner identity is supported by the agreed design. The
 client's actual staffing workflow must be established before launch; a new payment
 or checkout role would require its own reviewed server-side permission decision.
 
-Existing manual RM65 request must not be retroactively auto-executed. It is not a
+Existing manual RM 65 request must not be retroactively auto-executed. It is not a
 sandbox proof fixture. Approval alone cannot change receipt, checkout or report totals.
 
 ## External research and blockers
@@ -169,25 +169,41 @@ monthly deposits will always remain available, increase the cap without proof, o
 show partial totals as complete. Pending this separate capacity decision, N3's
 authoritative financial reporting remains distinct from HotelHub estimates.
 
-## Proposed delivery roadmap
+## Roadmap — latest Owner priority, 07/10/2026
 
-| Target dates (Malaysia) | Work package | Exit evidence |
+The Owner now prioritizes N3 billing and correct receipt knock-off, then access
+cards. Recommended dependency order: N3 billing/matching → complete financial
+checkout and room handoff → access-card adapter → BEC commercial enforcement →
+whole-client UAT/cutover. Preserve the automatic-correction candidate; its remaining
+Tasks 7–9 are parked for resumption, not restarted or discarded. Unproven receipt
+Update must not block proving billing against unchanged, verified posted deposits.
+Any correction needed for a selected receipt must itself complete strict proof first.
+
+| Target dates, Malaysia | Work and dependencies | Exit evidence |
 | --- | --- | --- |
-| 08–09/10 | Reconcile source pack/instructions; preserve/recover remaining work; client onboarding inventory; read-only checkout contract review | One active source set; fresh lane ledger; client setup/role/exception gaps listed; no duplicate implementation |
-| 08–12/10 | Finish already-approved automatic-controls Tasks 7–9, native SQL proof and mobile/two-session checks; prepare dormant Owner sandbox tool | Exact complete review SHA/tree, full regression/type/lint/build with skips explained, independent review, separate migration and sandbox packages |
-| 12–13/10 | After relevant lane approval, Owner performs bounded Update proof; measure managed runtime; settle client permissions and report capacity | Proven stale-write rejection and exact after-journal, or explicit unsupported result; no automatic production fallback |
-| 14–21/10 | Next bounded launch finance package: charge, deposit allocation, balance receipt, verified close/room handoff; integrate authoritative report sources; minimum maintenance blocking and operational regressions | End-to-end safe hotel lifecycle with duplicate/timeout/recovery/tenant tests; no guessed final balances; feature freeze by 21/10 |
-| 22–25/10 | Whole-system client UAT and defect closure | Owner/FD/Housekeeper, two devices, mobile/desktop, agreed payment modes, exceptions, room/calendar/folio/report consistency; zero open launch P0/P1 |
-| 26–28/10 | Accepted-client pilot, support rehearsal and release candidate | Repeated complete stays including room reuse; backups/recovery plan and reconciliation; documented latency and known non-blocking limits |
-| 29–31/10 | Separately approved production configuration, data cutover, merge/runtime/publish and smoke/UAT | Correct client tenant; opening bookings/deposits reconciled; exact source/schema/runtime/deployment evidence; client sign-off and support contacts |
-| 01/11 | Client start and staffed support | Daily booking/receipt/N3 reconciliation, incident ownership and no speculative money retries |
+| 07–09/10 | Billing first: recover older checkout candidate/ledger; exact N3 contracts, client tenant/roles/accounts/taxes and operational inventory | Reuse assessment; bounded bill/allocation/recovery design; no guessed clear/reapply API |
+| 08–16/10 | N3 charge Post-to-AR, verified original deposit matching, one balance receipt/match, authoritative outstanding and fenced close | Exact document IDs, allocations and balanced journal; zero outstanding; duplicate/timeout/tenant/concurrent-close recovery; vacated room Dirty |
+| 09–12/10 | Read-only card discovery alongside finance; SDK received, model/driver/licence/kit and protocol discrepancies unresolved | Confirm vendor ABI, buffer length/encoding, room mapping, main/additional card and physical invalidation behavior; no production write |
+| 16–20/10 | After safe stay/checkout events, bounded access-card adapter and physical acceptance | Issue/read-back, additional card, extension/late departure, room change, lost/replacement and checkout behavior; device loss and two-device tests |
+| 20–21/10 | BEC one-package/default 30-room lots after written contract and implementation plan; essential operational defects | Independent BEC/HH identity and lane evidence, 30/31 and 60/61 boundaries, tenant/race/expiry/outage/recovery; ServiceHub unchanged |
+| 22–25/10 | Actual client whole-system UAT and defect closure | Three roles, two devices, mobile, accounting/card/licence/exception matrix; zero launch P0/P1 |
+| 26–28/10 | Controlled pilot, support/recovery rehearsal | Repeated stays/room reuse; backups and isolated restore/N3 reconciliation |
+| 29–31/10 | Separately approved cutover/configuration/release lanes | Correct tenant, reconciled openings, exact code/schema/runtime/deployment and client sign-off |
+| 01/11/2026 | Client start with support | Accepted operational/commercial scope and daily booking/payment reconciliation |
 
-Dependencies control the dates. Sandbox proof may require a separately approved
-schema apply and deployed proof runtime. Checkout work is not covered merely by
-approval of automatic corrections. Prepare its concrete spec/plan before requesting
-its execution authorization; preserve existing authorizations without repeating them.
-Independent read-only contract/onboarding work can proceed while a dependent gate
-is blocked. Finish the current package before an unrelated release.
+Dates are planning targets, not a promise that hardware or BEC fits one day. Essential
+booking/check-in/folio/checkout/Dirty→Ready/room reuse, security and recovery must
+work before BEC release. Do not wait for all optional enhancements to finish before
+BEC. Review forecast on 13/10 and freeze launch scope by 21/10; if card or BEC cannot
+pass, report the gap early and obtain explicit client scope agreement. No assumed
+manual workaround, licence bypass or financial exception is authorized.
+
+Automatic correction stays an agreed design and a separate release package. Its
+upstream stale-write/GL proof remains necessary before activation. Refund, void,
+replacement, unmatch and split receipts retain their independent proof/OFF gates.
+
+Implementation uses concrete bounded designs/plans; this ordering grants no new N3 transaction, schema apply, main merge or public deployment.
+
 Before checkout development, locate and inspect the older recovered checkout work
 referenced at a92d9234f8aceaa34c6e4a34976d8956225f3ef4 and its pending posting-ledger
 migration. Its current availability and acceptance are not established by the old
@@ -226,8 +242,10 @@ and an audited closing/room-release design; it is not a bypass already in this a
 
 ## Deferred after initial launch
 
-Door-card hardware integration, OTA/channel-manager APIs, BEC room-package/trial
-enforcement, promotions, advanced analytics and broad maintenance work orders.
+Door-card hardware integration, OTA/channel-manager APIs, promotions, advanced
+analytics and broad maintenance work orders. Later07/10 Owner direction moves BEC
+one-package/default 30-room lots into commercial readiness research/specification;
+implementation depends on its own reviewed contract/plan and release lanes.
 External alert delivery stays disabled until its provider and recipients are set
 and a separate delivery scope is approved. Financial/security audit is retained;
 the requested operational-history purge is not a launch shortcut.
@@ -251,3 +269,15 @@ This audit changes no product code, database, N3 transaction, secret, Knowledge
 setting, main branch, runtime or website. Only audit/instruction documentation is
 prepared for the review branch. Latest SHAs after its documentation commit must be
 resolved through Git; the reviewed product source remains b4a783f.
+
+
+## Later07/10 source-refresh and BEC decision
+
+Owner approved refreshed sources and requested BEC inspection: one HotelHub
+commercial package/module, default 30 rooms per lot, editable capacity.
+Canonical18-source pack/instructions/roadmap/BEC specification:
+docs/project-sources/2026-10-07. This supersedes the unconditional BEC deferral above.
+Actual BEC main/Lovable ea3e23f, disabled policy/five modules/NULL room limit,
+zeroHotelHub entitlements, no lot fields/bridge, ServiceHub-only createRPC.
+No product/BEC/DB/N3/Knowledge/public change. Original 17 inputs archived verbatim.
+Fresh read-only evidence: docs/evidence/HH_BEC_READONLY_STATE_20261007.json.

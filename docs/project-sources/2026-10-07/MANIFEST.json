@@ -1,0 +1,176 @@
+{
+  "version": "2026-10-07",
+  "timezone": "Asia/Kuala_Lumpur",
+  "client_start_target": "2026-11-01",
+  "upload_project_sources": [
+    {
+      "file": "00-MUGS_DIRECTBUILD_PROTOCOL.md",
+      "sha256": "e7f121dffae989c2b0fe5b3441ae498dee5b28d781da6461574d7c2b80d2fd53",
+      "upload": "Yes"
+    },
+    {
+      "file": "01-SOURCE_REFRESH_SUMMARY.md",
+      "sha256": "fb34023dc80c747d9d5913827c17d9be8425e7adc72e82d1f4539ebd41c1326e",
+      "upload": "Yes"
+    },
+    {
+      "file": "02-HOTELHUB_COMPLETION_PLAN.md",
+      "sha256": "2fa2b9204c0856519b64288ad2cdfa13d4221f88324fb51eb3da251c994ffe94",
+      "upload": "Yes"
+    },
+    {
+      "file": "03-HOTELHUB_N3_FINANCIAL_POSTING_KNOCKOFF_MASTER_RECORD.md",
+      "sha256": "9281211f46dd4aad89769806216cfb2dadc047c926a365af73a5fdb5d8edb5a3",
+      "upload": "Yes"
+    },
+    {
+      "file": "04-HOTELHUB_BASE_INDEX.md",
+      "sha256": "eaece74038b71010920f1618929befeb249bc63cddd981f788307164ca5d01ee",
+      "upload": "Yes"
+    },
+    {
+      "file": "05-VERIFIED_BASELINE_CURRENT.md",
+      "sha256": "1aa3363b059ac9a7572f86a5ded440326a6d563de4f1bdd2642e08748c0b9ace",
+      "upload": "Yes"
+    },
+    {
+      "file": "06-HH1.0_PROJECT_SOURCE_REFRESH_REPORT.md",
+      "sha256": "ce920f3721231cf7818f0e70bf485cc3beed5785df559a2fe9ea223a989428e7",
+      "upload": "Yes"
+    },
+    {
+      "file": "07-HOTELHUB_INTEGRATION_REGISTRY.md",
+      "sha256": "f259f27cf271da1b6a1f85b16cd12c5c5f1fc9faeb2c3136447009079e624fd7",
+      "upload": "Yes"
+    },
+    {
+      "file": "08-HOTELHUB_PRODUCT_DECISIONS.md",
+      "sha256": "83314e2fd1b7b5a0500475867641d8a655a007637b101a1e11bf80a48c1633f1",
+      "upload": "Yes"
+    },
+    {
+      "file": "09-PROJECT_START_HERE.md",
+      "sha256": "2732ff1d156100ffb5e3ee2695ce1aae0391b075867bee2b67b2befb4317c3f4",
+      "upload": "Yes"
+    },
+    {
+      "file": "10-LOVABLE_GOVERNANCE.md",
+      "sha256": "cdeb96975f0aad686f40ded5a61cf52330b619e5e1d178db133b9684bdb907c4",
+      "upload": "Yes"
+    },
+    {
+      "file": "11-CROSS_PROJECT_LESSONS_AND_BUG_PREVENTION.md",
+      "sha256": "25f8c3cd172f6aa5e29b3417a294f3212ac8789d202d1508b8cee62917c14218",
+      "upload": "Yes"
+    },
+    {
+      "file": "HH_BEC_ROOM_LOT_CONTROL.md",
+      "sha256": "eee7e6bf4c149edc2e4f36b53d652cb5fb824d7436deb85edab937a701c6b5a4",
+      "upload": "Yes"
+    },
+    {
+      "file": "HH_CHANGE_IMPACT_MAP.md",
+      "sha256": "92b778754f95347dd6890a9ff71a5faa4a82017e17cdc7cb2ee7a38175d47e48",
+      "upload": "Yes"
+    },
+    {
+      "file": "HH_DEPOSIT_VERIFICATION_CHECKPOINT.md",
+      "sha256": "06a7fc5c4a587e4a01e5023f51852d9da140f9a4cda9204a620dc997c200da44",
+      "upload": "Yes"
+    },
+    {
+      "file": "HH_PAYMENT_METHOD_CONTROLS_CHECKPOINT.md",
+      "sha256": "956dcfbfd49928db0151fe472fad3249d467e0d847d620936f083d4225372db9",
+      "upload": "Yes"
+    },
+    {
+      "file": "HH_UI_NAVIGATION_HELP_CHECKPOINT.md",
+      "sha256": "4a94e8ccb4369ea63f8b3c017f2b0e9743cacc38a57414dafd09198ad7016795",
+      "upload": "Yes"
+    },
+    {
+      "file": "MDB-01_HOTELHUB_ADOPTION.md",
+      "sha256": "183a01c618cf9e783f552aae3aaa6f0a8ebff030f30c922606b506e6817122a8",
+      "upload": "Yes"
+    }
+  ],
+  "instructions": {
+    "file": "PROJECT_INSTRUCTIONS.md",
+    "upload": "No",
+    "action": "Paste text block; actual settings not changed",
+    "text_characters": 7067
+  },
+  "input_archive": [
+    {
+      "file": "00-MUGS_DIRECTBUILD_PROTOCOL.md",
+      "sha256": "e7f121dffae989c2b0fe5b3441ae498dee5b28d781da6461574d7c2b80d2fd53"
+    },
+    {
+      "file": "01-SOURCE_REFRESH_SUMMARY.md",
+      "sha256": "7053ccc782ac490ae191f8082b8aa5a01f336262cbea25fd74a3d48245133497"
+    },
+    {
+      "file": "02-HOTELHUB_COMPLETION_PLAN.md",
+      "sha256": "b748a866426e6fbd317cde7de484a2864f72c21416b4ad6225902cc94d4bdb35"
+    },
+    {
+      "file": "03-HOTELHUB_N3_FINANCIAL_POSTING_KNOCKOFF_MASTER_RECORD.md",
+      "sha256": "7df0cec8d6f1cd5284427720bac76e8f4d02952d102c3631726ac1cad7048170"
+    },
+    {
+      "file": "04-HOTELHUB_BASE_INDEX.md",
+      "sha256": "e61f2b7522dfcef395acf83a7afef03c39125b7b5096927c0a466af41f822731"
+    },
+    {
+      "file": "05-VERIFIED_BASELINE_CURRENT.md",
+      "sha256": "205f3c206dc2212476ad16e9554bb0dc53c3188c7437b9b5a0f78c363c134040"
+    },
+    {
+      "file": "06-HH1.0_PROJECT_SOURCE_REFRESH_REPORT.md",
+      "sha256": "c9475ef05eb320c808016034b4fdaab650e8c188134db8c0bef3c3dbfa73cd8d"
+    },
+    {
+      "file": "07-HOTELHUB_INTEGRATION_REGISTRY.md",
+      "sha256": "074045c6d17143110646506371b3ab2742389ceb95fe15e918f5e2769316d060"
+    },
+    {
+      "file": "08-HOTELHUB_PRODUCT_DECISIONS.md",
+      "sha256": "3fd25524b421dc9c6d4b93dfaee0aba4f928c939b3eaad694ee09510b9cba36e"
+    },
+    {
+      "file": "09-PROJECT_START_HERE.md",
+      "sha256": "496f9fcf021d6d6f0872f372a168431b3d7c6ec02a93f9119fbf64bdad7cbb63"
+    },
+    {
+      "file": "10-LOVABLE_GOVERNANCE.md",
+      "sha256": "b4a18896c3906c4ac95f5a4bc7399ec82c42b852022559595d66904a1431da3f"
+    },
+    {
+      "file": "11-CROSS_PROJECT_LESSONS_AND_BUG_PREVENTION.md",
+      "sha256": "f312e5ecc4a03c94a3b39dd1c210db41ea5c50361a56673aae079c9c810ad4c0"
+    },
+    {
+      "file": "HH_CHANGE_IMPACT_MAP.md",
+      "sha256": "1aa836f7a5f02f8bb4dd37c9f98e412ebbfd0c2f93aace1c51a3d6ec99a9dfbd"
+    },
+    {
+      "file": "HH_DEPOSIT_VERIFICATION_CHECKPOINT.md",
+      "sha256": "d6776bfd38f698541085c2681b2bb8951fbebaec96780cc9ce8e776f59e69edc"
+    },
+    {
+      "file": "HH_PAYMENT_METHOD_CONTROLS_CHECKPOINT.md",
+      "sha256": "5e6da95d34ce6ef33ecf63e53acd46faa5ed80cfe6f10343567d865027b5fc6f"
+    },
+    {
+      "file": "HH_UI_NAVIGATION_HELP_CHECKPOINT.md",
+      "sha256": "f6e20948b758128ecc37f50ee2579a83660b3233f1bd932c4c89d9442a9f8901"
+    },
+    {
+      "file": "MDB-01_HOTELHUB_ADOPTION.md",
+      "sha256": "9e54a7c6c0ad4cb6358d81525b069da35ebbb0ce05b5ee23e8f31287ffc5c6de"
+    }
+  ],
+  "history_access": "Visible conversation, supplied17logicalfiles and selective retrieved summaries; not exhaustive original transcripts",
+  "source_pack_is_not": "product/BEC implementation, database apply, licence activation, main merge, N3 operation, Knowledge installation or public release",
+  "latest_priority": "N3 billing/receipt matching; safe checkout/room handoff; access cards; BEC; client UAT/cutover"
+}

@@ -1,69 +1,75 @@
-# HotelHub source refresh handover
+# HotelHub source refresh and priority handover
 
 Date: 07/10/2026, Asia/Kuala_Lumpur.
 Upload to Project Sources: No — repository handover only.
 
-## Scope and current result
+## Latest direction and scope
 
-The Owner requested a complete Project Sources refresh and BEC inspection.
-A versioned delivery pack has been created: 18 active source documents, 17 original
-input documents retained verbatim, separate pasteable Project Instructions, and a
-private evidence archive. The supplied protocol v1.1 is unchanged.
+Owner APPROVE explicitly follows the previous full documentation/evidence public
+review-branch publication question. This authorizes the prepared source/evidence
+pack here, not vendor SDK disclosure, main merge, database/N3 changes or a release.
+Earlier automatic approval review rejected the full pack for missing public-disclosure
+permission; that missing permission is now supplied. Publication result must be
+checked from the actual branch commit/tree, not assumed from local preparation.
 
-The new commercial direction is one HotelHub package/module, with a default
-30 rooms per licence lot: one lot30, two lots60, three lots90. Provider-editable
-lot size/count, purchased snapshots, actual room counting, downgrade, trial,
-expiry/offline and the server bridge are explicitly marked as proposed or pending.
-Commercial packaging does not change hotel roles or financial verification.
+Owner prioritizes N3 billing and correct receipt matching, then access cards.
+Dependency order: N3 charge/receipt matching → exact settlement and fenced checkout/
+Dirty room handoff → access-card adapter → BEC → full client UAT/cutover.
+Essential hotel/security/recovery functions precede BEC; optional enhancements need
+not all finish first. Preserve automatic correction Tasks 7–9 for resumption; no
+legacy request is automatically executed. BEC remains one package/default 30-room
+lots with reviewed configurable policy; no licence bridge activated.
 
-BEC integration and complete automatic corrections are not claimed as implemented,
-activated or live accepted. No product code, database, N3, secret, main branch,
-runtime, public release or Knowledge setting changed during the refresh.
+## Verified state and next concrete action
 
-## Durable deliverables and integrity
+At this update: remote review parent f7cd1f3f66776d3c8c2e22722b4d35a7085597ab;
+main and Lovable latest 734ac405c82e653a7098ce0ef22d51586382bd9d, ready and
+agentFinished=true. Existing local product changes were preserved and excluded
+from this docs-only payload. Existing backend/hosting retained. No Lovable AI message.
+The previous same-day source/Cloud inspection remains dated evidence; no new
+migration-history query, signed-in N3 diagnostics or live billing proof is claimed.
 
-The complete files are retained as private user deliverables under these names:
+Next: locate/read recovered checkout candidate a92d9234f8aceaa34c6e4a34976d8956225f3ef4
+and its pending ledger before reuse; reconcile current N3 CashSales/Create and
+UpdateCustomerKnockoff detail/GL/allocation/outstanding contracts and client mappings.
+Build a bounded billing design/plan covering partial/multiple/prior allocations,
+remaining collection, duplicate/timeout/concurrent close and GET-only reconciliation.
+Prepare Checkout remains read-only until separate settlement/close gates pass.
+No empty-array clear/reapply assumption and no unapproved financial transaction.
+
+## Source installation and integrity
+
+18 active sources; 17 original inputs retained verbatim; common protocol v1.1 unchanged.
+Canonical docs/project-sources/2026-10-07; original docs/project-sources/archive/2026-10-07-inputs.
+Sources in ZIP sources/ have Upload Yes, replacing the same logical files.
+ZIP/README/MANIFEST/Instructions draft/evidence archive have Upload No.
+Paste Instructions text separately; actual saved settings/Knowledge were not changed.
+Repository commit history is the cross-device authority; don't depend on scratch files.
 
 | Artifact | SHA256 |
 | --- | --- |
-| HH1.0_PROJECT_SOURCES_20261007.zip | 7f2bb0d47d0b65f31af75ab70a6e447dd4736288610552fd0fc6e47facf5191b |
-| HH1.0_PROJECT_INSTRUCTIONS_20261007.md | 3d557b2f8ac042ce16e59eafc36710d686c2d6561c015a802a3caa4aef4381cd |
-| HH_BEC_ROOM_LOT_CONTROL_20261007.md | bb059943c3ef3eb8394c5561c580e4fdcc765dc7963d20594b1b2a47cc7d6d66 |
-| HH1.0_SOURCE_EVIDENCE_ARCHIVE_20261007.zip | 689e6a80b4c55962583a00e54e7fb4915d77f2e68054010420eabab76ba0080f |
+| HH1.0_PROJECT_INSTRUCTIONS_20261007.md | 7b69d2d50cc71eb61c65f67cabc9050b1da71399f2a50939cf7cbee0d8d60c09 |
+| HH_BEC_ROOM_LOT_CONTROL_20261007.md | eee7e6bf4c149edc2e4f36b53d652cb5fb824d7436deb85edab937a701c6b5a4 |
+| HH1.0_SOURCE_EVIDENCE_ARCHIVE_20261007.zip | 5db8953d59875c2d8deee68a27a1b95f36ca342c9ea6a7246e304ce60b5b25ff |
+| HH1.0_PROJECT_SOURCES_20261007.zip | 247e4eb51e02673ee8949496fa65a6c8878ae6147e1d3333da81a6b1fb90a22b |
 
-Do not assume transient local paths survive. On another device retrieve the saved
-named source pack/evidence archive before continuation. Every active source in
-sources/ has UploadYes; ZIP/README/manifest and the Instructions draft have UploadNo.
-Paste the Instructions text separately; actual saved settings were not changed.
+Documentary checks: unique sources/hash/ZIP CRC/byte parity, preserved inputs/decision
+IDs, instructions under8000 characters, latest priority and safety boundaries.
+No product tests/build were rerun; no new source/schema/runtime/main/public release.
+All 47 mutation paths are docs only; compare candidate tree before ref update.
 
-Verification: eighteen unique sources; all original decision IDs preserved;
-seventeen byte-identical inputs and common protocol; instructions below8000
-characters; ZIP CRC and byte parity; financial/tenant/role/report/BEC acceptance
-boundary coverage. No new app test/build or signed-in BEC/N3 acceptance was run.
+## Access-card evidence and launch
 
-## Public-disclosure boundary
+Uploaded PzUsbSdk protocol3.2, Windows x86/.NET4 C# sample read statically.
+No DLL/EXE run, driver installed or card written. SDK files/passwords not published.
+See docs/evidence/HH_ACCESS_CARD_SDK_DISCOVERY_20261007.md for ABI discrepancies,
+main/additional-card overwrite semantics and physical evidence still needed.
+Adapter proposed, not implemented/accepted; no browser/raw sector-write gateway.
 
-Automatic approval review rejected publication of the complete documentation
-payload to this public repository because it contains potentially sensitive
-tenant/backend/deployment/financial evidence. That payload was not committed.
-This handover intentionally publishes only commercial requirements, artifact names,
-integrity hashes and general continuation boundaries; it contains no tenant,
-customer, booking, receipt, backend/project identifier or private inspection rows.
-
-Do not retry publication of the complete pack or archive without explicit
-public-disclosure authorization. Do not treat a feature approval as that permission.
-The private files remain usable for the requested Project Sources installation.
-
-## Next action and launch target
-
-Client start target remains01/11/2026, conditional on accepted complete hotel
-workflow and commercial scope. Read the refreshed completion plan in the saved pack.
-Recover/preserve the existing approved automatic-correction work from actual
-repository state; do not redo completed stages or auto-execute legacy requests.
-Review the new BEC written specification before its implementation plan.
-Inspect independent project/runtime/schema identities before any BEC/HH change.
-Code merge, database apply, runtime deploy, N3 operations, licence activation and
-public publishing remain separate lanes.
-
-Historical conversations were selectively retrieved as summaries alongside supplied
-sources and visible messages; exhaustive original transcript review is not claimed.
+Client target01/11/2026 remains conditional. Reforecast billing/card/BEC by13/10,
+freeze scope by21/10, whole-client UAT22–25/10, pilot/recovery26–28/10,
+separately approved cutover29–31/10. Missing card/BEC capability requires explicit
+client scope agreement, not an assumed workaround. Open launch P0/P1 after25/10
+blocks full launch. Code, DB, runtime, N3, licence activation and publishing lanes separate.
+Visible conversation/selective retrieved summaries do not establish exhaustive review
+of every historical chat or recovery of missing screenshot files.
