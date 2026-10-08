@@ -387,8 +387,8 @@ describe("Run 5D0 — applyFilters (AND logic + diagnostics)", () => {
 // ---- Bundle schema + tests --------------------------------------------
 
 describe("Run 5D0 — bundle schema constant", () => {
-  it("is versioned 5d0.3", () => {
-    expect(FINANCIAL_BUNDLE_SCHEMA_VERSION).toBe("5d0.3");
+  it("versions the journal-capable evidence bundle as 5d0.4", () => {
+    expect(FINANCIAL_BUNDLE_SCHEMA_VERSION).toBe("5d0.4");
   });
 });
 

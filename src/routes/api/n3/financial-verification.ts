@@ -37,6 +37,8 @@ export async function handleFinancialVerification({
   }
   const range = parseDateRange(body.dateFrom, body.dateTo);
   if (!range.ok) return deny(400, range.error);
+  if (body.includeJournals !== undefined && typeof body.includeJournals !== "boolean")
+    return deny(400, "include_journals_invalid");
 
   const filters: NormalizedFilters = {};
   if (typeof body.docNumber === "string" && body.docNumber.trim())
@@ -69,9 +71,13 @@ export async function handleFinancialVerification({
       },
       filters,
       tenantCustomer,
+      includeJournals: body.includeJournals === true,
     });
 
-    if (run.resources.some((r) => r.status === "unauthorized")) {
+    if (
+      run.resources.some((r) => r.status === "unauthorized") ||
+      bundle.journalCapture.status === "unauthorized"
+    ) {
       await destroySession("n3_401");
       await logAudit({
         tenantId: ctx.session.tenantId,
@@ -112,6 +118,13 @@ export async function handleFinancialVerification({
               }
             : null,
         })),
+        journalCapture: {
+          status: bundle.journalCapture.status,
+          requested: bundle.journalCapture.requested,
+          performed: bundle.journalCapture.performed,
+          captured: bundle.journalCapture.captured,
+          truncated: bundle.journalCapture.truncated,
+        },
       },
     });
 

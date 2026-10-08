@@ -12,6 +12,55 @@ import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { useSessionMe } from "@/lib/session-client";
 import { hasPermission } from "@/lib/rbac";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
+import type { JournalCaptureReport } from "@/lib/n3-financial-journals.server";
+
+export function JournalCaptureCard({ capture }: { capture?: JournalCaptureReport }) {
+  if (!capture) return null;
+  const labels = {
+    not_requested: "Not requested",
+    captured: "Responses captured",
+    partial: "Partial capture",
+    unavailable: "Unavailable",
+    unauthorized: "Session expired",
+  };
+  return (
+    <section
+      className="rounded-xl border bg-white p-5 shadow-sm"
+      style={{ borderColor: `${NAVY}1F` }}
+    >
+      <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
+        GL journal capture
+      </h2>
+      <p className="mt-2 text-sm font-medium">{labels[capture.status]}</p>
+      {capture.status !== "not_requested" ? (
+        <>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {capture.captured} of {capture.requested} document responses captured;{" "}
+            {capture.performed} reads performed.
+            {capture.truncated || capture.sourceIncomplete
+              ? " Coverage is incomplete. Narrow the date range or filters and retry."
+              : ""}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Captured responses only; posting correctness is not verified.
+          </p>
+        </>
+      ) : (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Select Include GL journals before running verification to collect journal responses.
+        </p>
+      )}
+      {capture.evidence.length > 0 ? (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer font-medium">Show sanitized journal evidence</summary>
+          <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-50 p-3">
+            {JSON.stringify(capture.evidence, null, 2)}
+          </pre>
+        </details>
+      ) : null}
+    </section>
+  );
+}
 
 const NAVY = "#102A43";
 const TEAL = "#0F9D8A";
@@ -155,6 +204,7 @@ type GlEligibilityRow = {
 };
 type Bundle = {
   schemaVersion: string;
+  journalCapture?: JournalCaptureReport;
   runId: string;
   runAt: string;
   tenant: { code: string | null; name: string | null };
@@ -235,6 +285,7 @@ function Console() {
   const [docNumber, setDocNumber] = useState("");
   const [hotelReference, setHotelReference] = useState("");
   const [customerCode, setCustomerCode] = useState("");
+  const [includeJournals, setIncludeJournals] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -243,6 +294,7 @@ function Console() {
     if (loading) return;
     setLoading(true);
     setError(null);
+    setData(null);
     try {
       const res = await fetch("/api/n3/financial-verification", {
         method: "POST",
@@ -250,6 +302,7 @@ function Console() {
         body: JSON.stringify({
           dateFrom,
           dateTo,
+          includeJournals,
           docNumber: docNumber.trim() || undefined,
           hotelReference: hotelReference.trim() || undefined,
           customerCode: customerCode.trim() || undefined,
@@ -368,6 +421,22 @@ function Console() {
             </Button>
           </div>
         </div>
+        <div className="mt-4">
+          <label className="flex items-center gap-2 text-sm" htmlFor="include-journals">
+            <input
+              id="include-journals"
+              type="checkbox"
+              checked={includeJournals}
+              disabled={loading}
+              onChange={(e) => setIncludeJournals(e.target.checked)}
+            />
+            Include GL journals
+          </label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Optional read-only capture for up to 12 documents. Adds up to 40 seconds. Captured
+            responses require review before posting correctness can be confirmed.
+          </p>
+        </div>
         {rangeInvalid ? (
           <p className="mt-3 text-xs" style={{ color: "#C2413B" }}>
             {rangeInvalid}
@@ -383,6 +452,7 @@ function Console() {
       </section>
 
       {data ? <RunSummary data={data} /> : null}
+      {data ? <JournalCaptureCard capture={data.journalCapture} /> : null}
       {data ? <ResourceSections data={data} /> : null}
     </div>
   );
@@ -714,16 +784,20 @@ function ResourceCard({ report, extra }: { report: ResourceReport; extra?: React
   );
 }
 
-function KnockoffCard({ data }: { data: ApiResponse }) {
+export function KnockoffCard({ data }: { data: Pick<ApiResponse, "comparisons"> }) {
   const rows = data.comparisons.orToCashMemo;
+  const label: MafLabel = rows.some((r) => r.correlation === "mismatch")
+    ? "Mismatch"
+    : rows.length && rows.every((r) => r.correlation === "immutable_id")
+      ? "Live N3 Confirmed"
+      : "Not Available";
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
       style={{ borderColor: `${NAVY}1F` }}
     >
       <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-        OR ↔ Cash Memo Identity Check{" "}
-        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+        OR ↔ Cash Memo Identity Check <MafBadge label={label} />
       </h2>
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
@@ -763,13 +837,7 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
                   </td>
                   <td className="p-2">{k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}</td>
                   <td className="p-2">{k.appliedAmount ?? "—"}</td>
-                  <td className="p-2">
-                    {k.correlation === "immutable_id"
-                      ? "Immutable ID"
-                      : k.correlation === "document_number_only"
-                        ? "Document-number correlation only — not proven"
-                        : "None"}
-                  </td>
+                  <td className="p-2">{k.evidenceLabel}</td>
                 </tr>
               ))}
             </tbody>
