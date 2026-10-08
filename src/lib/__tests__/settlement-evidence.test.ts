@@ -266,6 +266,72 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("exact scoped settlement evidence", () => {
+  function observedTaxBill() {
+    const s = snapshot();
+    s.totalCents = s.lines[0].totalCents = 32403;
+    s.lines[0].unitCents = s.lines[0].subtotalCents = 30003;
+    s.lines[0].taxCents = 2400;
+    Object.assign(s.lines[0].mappingEvidence, {
+      taxAccountId: "99999999-9999-4999-8999-999999999999",
+      taxAccountCode: "SYNTHETIC-TAX",
+    });
+    const d = {
+      ...bill(324.03),
+      subtotalAmount: 300.03,
+      totalAmount: 300.03,
+      totalAmountLocal: 300.03,
+      taxTotalAmount: 24,
+      netTotalAmount: 324.03,
+      netTotalAmountLocal: 324.03,
+    };
+    Object.assign(d.itemDetails[0], {
+      unitPrice: 300.03,
+      amount: 300.03,
+      taxAmount: 24,
+      netAmount: 324.03,
+    });
+    const gl = [
+      journalRow(arId, "SYNTHETIC-AR", 324.03, 0, d.docCode, ref, s.billDate),
+      journalRow(salesId, "SYNTHETIC-SALES", 0, 300.03, d.docCode, ref, s.billDate),
+      journalRow(
+        "99999999-9999-4999-8999-999999999999",
+        "SYNTHETIC-TAX",
+        0,
+        24,
+        d.docCode,
+        ref,
+        s.billDate,
+      ),
+    ];
+    return { s, d, gl };
+  }
+  it("proves N3's distinct pre-tax and net bill totals without conflating them", async () => {
+    const { s, d, gl } = observedTaxBill();
+    const r = await reads(d, gl);
+    expect(proveBill(s, r.detail, r.journal, actor, { intentId, billId })).toMatchObject({
+      kind: "confirmed",
+      value: { totalCents: 32403, outstandingCents: 32403 },
+    });
+  });
+  it.each([
+    { totalAmount: 324.03 },
+    { totalAmountLocal: 324.03 },
+    { netTotalAmount: 300.03 },
+    { netTotalAmountLocal: 300.03 },
+    { taxTotalAmount: 23.99 },
+  ])("rejects a contradictory taxable bill amount %j", async (override) => {
+    const { s, d, gl } = observedTaxBill();
+    const r = await reads({ ...d, ...override }, gl);
+    expect(proveBill(s, r.detail, r.journal, actor, { intentId, billId }).kind).toBe(
+      "contradiction",
+    );
+  });
+  it("requires the payable net bill total even when pre-tax and tax amounts are present", async () => {
+    const { s, d, gl } = observedTaxBill();
+    const { netTotalAmount: _net, ...missingNet } = d;
+    const r = await reads(missingNet, gl);
+    expect(proveBill(s, r.detail, r.journal, actor, { intentId, billId }).kind).toBe("unavailable");
+  });
   it("contradictory local-currency bill totals cannot hide behind matching document totals", async () => {
     const r = await reads({ ...bill(), totalAmountLocal: 499 }, billGL());
     expect(proveBill(snapshot(), r.detail, r.journal, actor, { intentId, billId }).kind).toBe(
@@ -399,6 +465,7 @@ describe("exact scoped settlement evidence", () => {
       taxAccountCode: "SYNTHETIC-TAX",
     });
     const d = bill();
+    d.totalAmount = 450;
     d.subtotalAmount = 450;
     d.taxTotalAmount = 50;
     Object.assign(d.itemDetails[0], { unitPrice: 450, amount: 450, taxAmount: 50 });

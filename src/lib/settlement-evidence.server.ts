@@ -267,7 +267,14 @@ function arMapping(s: SettlementSnapshot): Account {
 function commonHeader(
   d: unknown,
   s: SettlementSnapshot,
-  expected: { id: string; date: string; reference: string; total: number; docType: string },
+  expected: {
+    id: string;
+    date: string;
+    reference: string;
+    total: number;
+    preTaxTotal?: number;
+    docType: string;
+  },
 ) {
   active(d);
   assertEqual(field(d, ["id"], id), expected.id.toLowerCase());
@@ -282,9 +289,19 @@ function commonHeader(
   );
   assertEqual(field(d, ["currencyRate"], number), s.currencyRate);
   if (s.currencyRate !== 1) missing("foreign_currency_settlement_unverified");
-  assertEqual(field(d, ["totalAmount", "netTotalAmount"], cents), expected.total);
-  for (const key of ["totalAmountLocal", "netTotalAmountLocal"])
-    for (const value of aliases(d, [key])) assertEqual(cents(value), expected.total);
+  if (expected.preTaxTotal !== undefined) {
+    // CashSales totalAmount is before tax; netTotalAmount is payable. Neither
+    // can substitute for the other, and both must agree with frozen charges.
+    assertEqual(field(d, ["totalAmount"], cents), expected.preTaxTotal);
+    assertEqual(field(d, ["netTotalAmount"], cents), expected.total);
+  } else {
+    assertEqual(field(d, ["totalAmount", "netTotalAmount"], cents), expected.total);
+  }
+  for (const [key, amount] of [
+    ["totalAmountLocal", expected.preTaxTotal ?? expected.total],
+    ["netTotalAmountLocal", expected.total],
+  ] as const)
+    for (const value of aliases(d, [key])) assertEqual(cents(value), amount);
   return string(field(d, ["docCode", "docNo"], string));
 }
 function journalRows(out: N3Outcome): unknown[] {
@@ -409,6 +426,7 @@ export function proveBill(
       date: s.billDate,
       reference: "HH-B-" + c.intentId.replace(/-/g, "").toLowerCase(),
       total: s.totalCents,
+      preTaxTotal: s.lines.reduce((n, l) => n + l.subtotalCents, 0),
       docType: "CS",
     });
     const expectedContact = buildCashSalePayload(s, { intentId: c.intentId });
