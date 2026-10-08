@@ -133,7 +133,7 @@ function parseIntent(value: unknown, scope: SettlementScope): StoredIntent {
       );
       if ((dispatch.facts as DispatchFacts).snapshotDigest !== value.snapshot.digest)
         fail("settlement_invalid_result");
-      freezeDeep(dispatch.facts);
+      freezeDeep(dispatch);
       persistedDispatches.set(dispatch as StoredDispatch, {
         scope: { ...scope },
         intentId: value.id,

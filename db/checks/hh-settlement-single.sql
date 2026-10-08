@@ -5,7 +5,7 @@ CREATE FUNCTION public.hh_reject(p_sql text,p_code text) RETURNS void LANGUAGE p
 DECLARE msg text; BEGIN BEGIN EXECUTE p_sql; EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS msg=MESSAGE_TEXT; END;
 PERFORM hh_assert(msg=p_code,p_code||': '||coalesce(msg,'write unexpectedly succeeded')); END $$;
 CREATE FUNCTION public.hh_snapshot(p_res uuid DEFAULT 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') RETURNS jsonb LANGUAGE sql AS $$
-SELECT jsonb_build_object('tenantId','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','reservationId',p_res,'folioId',(SELECT id FROM hotel_folios WHERE reservation_id=p_res),'digest',repeat('d',64),'revision','0','currency','MYR','totalCents',50000,'billDate','2026-10-08','sourceVersions',public.hotelhub_settlement_sources('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',p_res),'receipts','[]'::jsonb) $$;
+SELECT jsonb_build_object('tenantId','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','reservationId',p_res,'folioId',(SELECT id FROM hotel_folios WHERE reservation_id=p_res),'digest',repeat('d',64),'revision','0','currency','MYR','currencyId',1,'currencyRate',1,'customerId',7,'propertyTimezone','Asia/Kuala_Lumpur','totalCents',50000,'billDate','2026-10-08','sourceVersions',public.hotelhub_settlement_sources('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',p_res),'receipts','[]'::jsonb) $$;
 CREATE FUNCTION public.hh_sign_proof(p jsonb) RETURNS jsonb LANGUAGE sql AS $$ SELECT (p-'digest')||jsonb_build_object('digest',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(p-'digest'),'UTF8')),'hex')) $$;
 DO $$ BEGIN
  PERFORM hh_reject($q$ SELECT hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',hh_snapshot()-'totalCents',gen_random_uuid()) $q$,'settlement_snapshot_changed');
@@ -90,4 +90,79 @@ DO $$ DECLARE i jsonb; c jsonb; p jsonb; result jsonb; res uuid:='10101010-1010-
  PERFORM hh_assert(result->>'state'='bill_verified','only accounting proof resolves unknown bill');
  PERFORM hh_assert((SELECT count(*) FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid)=1,'progress evidence is append-only');
  PERFORM hh_assert(hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p)=result,'same progress digest replays without extra event');
+END $$;
+DO $$ DECLARE i jsonb; c jsonb; p jsonb; wire jsonb; facts jsonb; r jsonb; res uuid:='10101010-1010-4010-8010-101010101010'; receipt uuid:='14141414-1414-4414-8414-141414141414'; BEGIN
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res);
+ wire:=jsonb_build_object('docType','AROR','docDate','2026-10-09','customerId',7,'currencyId',1,'currencyRate',1,'accountId','11111111-1111-4111-8111-111111111111','totalAmount',500,'referenceNo','HH-B-'||replace(i->>'id','-',''),'description','Synthetic settlement balance');
+ facts:=jsonb_build_object('kind','balance_receipt','snapshotDigest',repeat('d',64),'payload',wire,'input',jsonb_build_object('customerId',7,'currencyId',1,'currencyRate',1,'amountCents',50000,'accountId','11111111-1111-4111-8111-111111111111','docDate','2026-10-09','contact','{}'::jsonb),'account',jsonb_build_object('id','11111111-1111-4111-8111-111111111111','code','SYNTHETIC-BANK','name','Synthetic bank'));
+ c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','balance_receipt',NULL,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),facts);
+ i:=hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,c->>'expectedRevision',(c->>'attemptId')::uuid,c->>'payloadDigest',jsonb_build_object('kind','unknown','code','timeout'));
+ r:=jsonb_build_object('receiptId',receipt,'code','OR-SYNTHETIC-BALANCE','reference',wire->>'referenceNo','documentDate','2026-10-09','purpose','settlement','customerId',7,'currency','MYR','amountCents',50000,'refundCents',0,'remainderCents',50000,'payments',jsonb_build_array(jsonb_build_object('accountId','11111111-1111-4111-8111-111111111111','accountCode','SYNTHETIC-BANK','accountName','Synthetic bank','amountCents',50000)),'allocations','[]'::jsonb,'fingerprints',jsonb_build_array(repeat('a',64),repeat('b',64)));
+ p:=(SELECT proof FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid ORDER BY created_at DESC,id DESC LIMIT 1);
+ p:=hh_sign_proof(p||jsonb_build_object('kind','balance_receipt','receipt',r,'checkedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ PERFORM hh_assert(i->>'state'='balance_dispatched','proven balance receipt recovers unknown create without repost');
+ PERFORM hh_assert(NOT EXISTS(SELECT 1 FROM hotel_reservation_deposits WHERE reservation_id=res),'settlement balance is never inserted as a deposit');
+END $$;
+-- Task7 recovery: persisted allocation facts, not an acknowledgement, authorize progress.
+DO $$ DECLARE i jsonb; c jsonb; p jsonb; r jsonb; wire jsonb; facts jsonb; before_state jsonb; expected_state jsonb; bill uuid:='12121212-1212-4212-8212-121212121212'; res uuid:='10101010-1010-4010-8010-101010101010'; receipt uuid:='14141414-1414-4414-8414-141414141414'; BEGIN
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res);
+ p:=(SELECT proof FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid AND proof->>'kind'='balance_receipt' LIMIT 1);
+ r:=p->'receipt';
+ before_state:=jsonb_build_object('receipt',jsonb_build_object('receiptId',receipt,'reservationId',res),'code',r->>'code','amountCents',50000,'refundCents',0,'remainderCents',50000,'allocations','[]'::jsonb,'fingerprints',r->'fingerprints','immutableHeaderFingerprint',repeat('c',64));
+ wire:=jsonb_build_array(jsonb_build_object('customerId',7,'receiptDocType','OR','receiptDocId',receipt,'docType','INV','docId',bill,'paymentAmount',500));
+ expected_state:=jsonb_build_object('receiptId',receipt,'amountCents',50000,'refundCents',0,'remainderCents',0,'allocations',jsonb_build_array(jsonb_build_object('docType','INV','docId',bill,'amountCents',50000)));
+ facts:=jsonb_build_object('kind','balance_allocation','snapshotDigest',repeat('d',64),'payload',wire,'billId',bill,'receipt',jsonb_build_object('receiptId',receipt,'reservationId',res),'before',before_state,'expectedTotalToBillCents',50000,'expectedAfterFingerprint',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(expected_state),'UTF8')),'hex'));
+ c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','balance_allocation',receipt,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),facts);
+ i:=hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,c->>'expectedRevision',(c->>'attemptId')::uuid,c->>'payloadDigest',jsonb_build_object('kind','unknown','code','timeout'));
+ r:=r||jsonb_build_object('remainderCents',0,'allocations',expected_state->'allocations','allocatedToBillCents',50000,'beforeFingerprints',before_state->'fingerprints','immutableHeaderFingerprint',repeat('c',64));
+ p:=hh_sign_proof(p||jsonb_build_object('kind','allocation','receipt',r,'bill',p->'bill'||'{"outstandingCents":0}'::jsonb,'checkedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ PERFORM hh_assert(i->>'state'='allocating','allocation proof resolves unknown without a second POST');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::uuid,%L,%L::jsonb) $q$,res,i->>'id',i->>'revision',hh_sign_proof(jsonb_set(p,'{receipt,refundCents}','1'))),'settlement_untrusted_proof');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::uuid,%L,%L::jsonb) $q$,res,i->>'id',i->>'revision',hh_sign_proof(jsonb_set(p,'{receipt,immutableHeaderFingerprint}',to_jsonb(repeat('e',64))))),'settlement_untrusted_proof');
+ p:=hh_sign_proof(p||jsonb_build_object('kind','settlement','receipts',jsonb_build_array(r),'receipt',NULL));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ PERFORM hh_assert(i->>'state'='settled','full conservation proof settles without a financial retry');
+ PERFORM hh_assert((SELECT count(*) FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid)=3,'bill balance and allocation each retain exactly one attempt');
+END $$;
+DO $$ DECLARE i jsonb; p jsonb; BEGIN
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010');
+ p:=(SELECT proof FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid AND proof->>'kind'='settlement' LIMIT 1);
+ p:=hh_sign_proof(p||jsonb_build_object('checkedAt',to_char((clock_timestamp()+interval '1 second') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ PERFORM hh_assert(i->>'state'='settled','GET-only proof refresh supports an expired local close retry');
+END $$;
+-- A proof of an older allocation cannot clear a later unresolved attempt.
+DO $$ DECLARE i jsonb; c jsonb; p jsonb; r jsonb; snap jsonb; wire jsonb; facts jsonb; before_state jsonb; expected_state jsonb; res uuid:=gen_random_uuid(); folio uuid:=gen_random_uuid(); bill uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); BEGIN
+ INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','SYNTHETIC-FENCE-'||res,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
+ INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES(folio,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
+ INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',folio,'add_on','Synthetic proof fence',50000,50000,50000,'synthetic-owner');
+ snap:=hh_snapshot(res)||jsonb_build_object('receipts',jsonb_build_array(jsonb_build_object('receiptId',a,'reservationId',res,'reference','SYNTHETIC-A','receiptDate','2026-10-08','payments','[]'::jsonb),jsonb_build_object('receiptId',b,'reservationId',res,'reference','SYNTHETIC-B','receiptDate','2026-10-08','payments','[]'::jsonb)));
+ i:=hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',snap,gen_random_uuid());
+ wire:='{"synthetic":true}';
+ c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload',wire));
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res);
+ p:=hh_sign_proof(jsonb_build_object('kind','bill','tenantId','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','reservationId',res,'intentId',i->>'id','snapshotDigest',repeat('d',64),'checkedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'receipt',NULL,'bill',jsonb_build_object('id',bill,'intentId',i->>'id','targetId',bill,'targetType','INV','totalCents',50000,'outstandingCents',50000,'documentDate','2026-10-08','code','CS-SYNTHETIC-FENCE','fingerprints',jsonb_build_array(repeat('a',64),repeat('b',64)))));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ FOR n IN 1..2 LOOP
+  r:=snap->'receipts'->(n-1);
+  before_state:=jsonb_build_object('receipt',r,'code','OR-SYNTHETIC-FENCE','amountCents',5000,'refundCents',0,'remainderCents',5000,'allocations','[]'::jsonb,'fingerprints',jsonb_build_array(repeat('a',64),repeat('b',64)),'immutableHeaderFingerprint',repeat('c',64));
+  wire:=jsonb_build_array(jsonb_build_object('customerId',7,'receiptDocType','OR','receiptDocId',r->>'receiptId','docType','INV','docId',bill,'paymentAmount',50));
+  expected_state:=jsonb_build_object('receiptId',r->>'receiptId','amountCents',5000,'refundCents',0,'remainderCents',0,'allocations',jsonb_build_array(jsonb_build_object('docType','INV','docId',bill,'amountCents',5000)));
+  facts:=jsonb_build_object('kind','deposit_allocation','snapshotDigest',repeat('d',64),'payload',wire,'billId',bill,'receipt',r,'before',before_state,'expectedTotalToBillCents',5000,'expectedAfterFingerprint',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(expected_state),'UTF8')),'hex'));
+  c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','deposit_allocation',(r->>'receiptId')::uuid,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),facts);
+  i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res);
+  IF n=1 THEN
+   r:=r||jsonb_build_object('code','OR-SYNTHETIC-FENCE','documentDate','2026-10-08','purpose','deposit','customerId',7,'currency','MYR','amountCents',5000,'refundCents',0,'remainderCents',0,'allocations',expected_state->'allocations','fingerprints',before_state->'fingerprints','allocatedToBillCents',5000,'beforeFingerprints',before_state->'fingerprints','immutableHeaderFingerprint',repeat('c',64));
+   p:=hh_sign_proof(p||jsonb_build_object('kind','allocation','receipt',r,'bill',p->'bill'||'{"outstandingCents":45000}'::jsonb));
+   i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+  END IF;
+ END LOOP;
+ p:=hh_sign_proof(p||jsonb_build_object('checkedAt',to_char((clock_timestamp()+interval '1 second') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
+ wire:='{"synthetic":true}';
+ facts:=jsonb_build_object('kind','balance_receipt','snapshotDigest',repeat('d',64),'payload',wire);
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::uuid,%L,'balance_receipt',NULL,%L,%L::jsonb) $q$,res,i->>'id',i->>'revision',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),facts),'settlement_invalid_state');
+ PERFORM hh_assert((SELECT count(*) FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid)=3,'unresolved later allocation fences every subsequent write');
 END $$;

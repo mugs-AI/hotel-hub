@@ -63,6 +63,8 @@ describe("service-only settlement store", () => {
       ),
     ).toBe(false);
     expect(Object.isFrozen(got.dispatches[0].facts)).toBe(true);
+    expect(Object.isFrozen(got.dispatches[0].claim)).toBe(true);
+    expect(Object.isFrozen(got.dispatches[0])).toBe(true);
   });
   it("a saved attempt with missing recovery facts is never treated as recoverable", async () => {
     const dispatch = {
@@ -199,6 +201,7 @@ describe("service-only settlement store", () => {
       before: {
         receipt,
         code: "SYNTHETIC-OR",
+        immutableHeaderFingerprint: "e".repeat(64),
         amountCents: 5000,
         refundCents: 0,
         remainderCents: 5000,

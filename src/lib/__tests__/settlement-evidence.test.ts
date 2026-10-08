@@ -10,6 +10,7 @@ import {
   proveReceiptAllocation,
   proveSettlement,
   settlementProofBoundTo,
+  settlementFinalEvidenceForStore,
   type SettlementReceipt,
   type VerifiedBill,
   type VerifiedReceiptBefore,
@@ -57,6 +58,11 @@ function bill(outstanding = 500) {
     currencyCode: "MYR",
     currencyRate: 1,
     isPostToAR: true,
+    customerName: "Synthetic guest",
+    customerPhone: "",
+    email: "",
+    address1: "",
+    address2: "",
     totalAmount: 500,
     netTotalAmount: 500,
     subtotalAmount: 500,
@@ -260,6 +266,75 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe("exact scoped settlement evidence", () => {
+  it("contradictory local-currency bill totals cannot hide behind matching document totals", async () => {
+    const r = await reads({ ...bill(), totalAmountLocal: 499 }, billGL());
+    expect(proveBill(snapshot(), r.detail, r.journal, actor, { intentId, billId }).kind).toBe(
+      "contradiction",
+    );
+  });
+  it("contradictory local receipt remainder cannot prove conservation", async () => {
+    const r = await reads(
+      { ...receiptDetail(), outstandingAmountLocal: 49 },
+      receiptGL(),
+      receipt.receiptId,
+      true,
+    );
+    expect(proveReceiptBefore(snapshot(), receipt, r.detail, r.journal, actor).kind).toBe(
+      "contradiction",
+    );
+  });
+  it("matching cannot silently change the receipt contact or other immutable header facts", async () => {
+    const b = await verifiedBill(450),
+      p = await before();
+    const r = await reads(
+      { ...receiptDetail(receipt, [row(receipt, 50)], 0), customerName: "OTHER" },
+      receiptGL(),
+      receipt.receiptId,
+      true,
+    );
+    expect(
+      proveReceiptAllocation({
+        snapshot: snapshot(),
+        bill: b,
+        receipt,
+        before: p,
+        ...r,
+        actor,
+        expectedTotalToBillCents: 5000,
+      }).kind,
+    ).toBe("contradiction");
+  });
+  it("bill-to contact cannot silently differ from the immutable intended bill", async () => {
+    const r = await reads(
+      { ...bill(), customerName: "OTHER", customerPhone: "wrong-phone" },
+      billGL(),
+    );
+    expect(proveBill(snapshot(), r.detail, r.journal, actor, { intentId, billId }).kind).toBe(
+      "contradiction",
+    );
+  });
+  it("balance creation progress requires the exact remaining bill balance", async () => {
+    const r: SettlementReceipt = {
+      ...receipt,
+      receiptId: "77777777-7777-4777-8777-777777777777",
+      reference: ref,
+      amountCents: 45000,
+      receiptDate: "2026-10-09",
+      payments: [{ ...receipt.payments[0], amountCents: 45000 }],
+      purpose: "settlement",
+      intentId,
+    };
+    delete (r as Partial<typeof receipt>).depositId;
+    const beforePayment = await verifiedBill(450),
+      created = await before(r);
+    const p = confirmed(makeReceiptProgressEvidence(snapshot(), beforePayment, created, actor));
+    expect(p.kind).toBe("balance_receipt");
+    expect(p.receipt?.documentDate).toBe("2026-10-09");
+    const changedBill = await verifiedBill(500);
+    expect(makeReceiptProgressEvidence(snapshot(), changedBill, created, actor).kind).toBe(
+      "contradiction",
+    );
+  });
   it("late parsing cannot reset the original authenticated read freshness window", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-08T00:00:00Z"));
@@ -422,6 +497,12 @@ describe("exact scoped settlement evidence", () => {
     const a2 = await allocated(balance, 45000, b);
     const proof = confirmed(proveSettlement(snapshot(), b, [a, a2], new Date().toISOString()));
     expect(proof.billOutstandingCents).toBe(0);
+    const stored = settlementFinalEvidenceForStore(proof, actor, intentId)!;
+    expect(stored.bill).toEqual(b);
+    expect(stored.receipts).toHaveLength(2);
+    const { billingPayloadDigest } = await import("../n3-billing.server");
+    const { digest, ...signed } = stored;
+    expect(digest).toBe(billingPayloadDigest(signed));
     expect(settlementProofBoundTo(proof, actor, intentId)).toBe(true);
     expect(settlementProofBoundTo(structuredClone(proof), actor, intentId)).toBe(false);
     expect(settlementProofBoundTo(proof, { ...actor, n3Token: "other" }, intentId)).toBe(false);
@@ -550,6 +631,82 @@ describe("exact scoped settlement evidence", () => {
         expectedTotalToBillCents: 4000,
       }).kind,
     ).toBe("contradiction");
+  });
+  it("cross-device allocation recovery trusts only service-read immutable dispatch facts", async () => {
+    const { createSettlementStore } = await import("../settlement-store.server");
+    const { recoverAllocationEvidence } = await import("../settlement-recovery.server");
+    const b = await verifiedBill(450),
+      prior = await before();
+    const payload = [
+      {
+        customerId: 7,
+        receiptDocType: "OR",
+        receiptDocId: receipt.receiptId,
+        docType: "INV",
+        docId: billId,
+        paymentAmount: 50,
+      },
+    ];
+    const { billingPayloadDigest } = await import("../n3-billing.server");
+    const d = {
+      claim: {
+        attemptId: "99999999-9999-4999-8999-999999999999",
+        intentId,
+        kind: "deposit_allocation",
+        receiptId: receipt.receiptId,
+        expectedRevision: "1",
+        payloadDigest: billingPayloadDigest(payload),
+      },
+      outcome: { kind: "unknown", code: "timeout" },
+      facts: {
+        kind: "deposit_allocation",
+        snapshotDigest: snapshot().digest,
+        payload,
+        billId,
+        receipt,
+        before: structuredClone(prior),
+        expectedTotalToBillCents: 5000,
+        expectedAfterFingerprint: billingPayloadDigest({
+          receiptId: receipt.receiptId,
+          amountCents: 5000,
+          refundCents: 0,
+          remainderCents: 0,
+          allocations: [{ docType: "INV", docId: billId, amountCents: 5000 }],
+        }),
+      },
+    };
+    const store = createSettlementStore(async () => ({
+      data: {
+        id: intentId,
+        ...actor,
+        snapshot: snapshot(),
+        revision: "2",
+        state: "needs_review",
+        dispatches: [d],
+      },
+      error: null,
+    }));
+    const saved = (await store.read(actor))!;
+    const r = await reads(
+      receiptDetail(receipt, [row(receipt, 50)], 0),
+      receiptGL(),
+      receipt.receiptId,
+      true,
+    );
+    expect(
+      recoverAllocationEvidence(snapshot(), b, saved.dispatches[0], r.detail, r.journal, actor)
+        .kind,
+    ).toBe("confirmed");
+    expect(
+      recoverAllocationEvidence(
+        snapshot(),
+        b,
+        structuredClone(saved.dispatches[0]),
+        r.detail,
+        r.journal,
+        actor,
+      ).kind,
+    ).not.toBe("confirmed");
   });
   it("unexpected amount, forged prior state and empty match never prove allocation", async () => {
     const b = await verifiedBill(450),

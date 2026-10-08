@@ -11,6 +11,7 @@ import {
   billingReceiptBoundTo,
   billingReceiptJournalBoundTo,
   billingPayloadDigest,
+  buildCashSalePayload,
   billingAuthenticatedReadAt,
 } from "./n3-billing.server";
 import { billingContractGate } from "./settlement-contracts.server";
@@ -18,6 +19,8 @@ import { verifyReceiptDetail, verifyReceiptJournal } from "./deposits-store.serv
 import { formatReceiptContact } from "./receipt-contact";
 import { MAX_MONEY_CENTS } from "./checkout-money";
 import { receiptRemainder } from "./settlement-money";
+import { persistedDispatchBoundTo } from "./settlement-store.server";
+import type { StoredDispatch } from "./settlement-dispatch.server";
 
 export type SettlementReceipt =
   | LinkedReceipt
@@ -42,6 +45,7 @@ export type VerifiedReceiptBefore = {
   remainderCents: number;
   allocations: AllocationEvidence[];
   fingerprints: string[];
+  immutableHeaderFingerprint: string;
 };
 export type AllocationEvidence = {
   docType: "INV" | "DN";
@@ -279,6 +283,8 @@ function commonHeader(
   assertEqual(field(d, ["currencyRate"], number), s.currencyRate);
   if (s.currencyRate !== 1) missing("foreign_currency_settlement_unverified");
   assertEqual(field(d, ["totalAmount", "netTotalAmount"], cents), expected.total);
+  for (const key of ["totalAmountLocal", "netTotalAmountLocal"])
+    for (const value of aliases(d, [key])) assertEqual(cents(value), expected.total);
   return string(field(d, ["docCode", "docNo"], string));
 }
 function journalRows(out: N3Outcome): unknown[] {
@@ -387,6 +393,21 @@ export function proveBill(
       total: s.totalCents,
       docType: "CS",
     });
+    const expectedContact = buildCashSalePayload(s, { intentId: c.intentId });
+    for (const key of ["customerName", "customerPhone", "email", "address1", "address2"]) {
+      const expected = expectedContact[key] as string;
+      const observed = field(
+        detail,
+        [key],
+        (v) => {
+          if (v === null && expected === "") return "";
+          if (typeof v !== "string") mismatch("n3_bill_contact_mismatch");
+          return v;
+        },
+        expected !== "",
+      );
+      if (observed !== undefined) assertEqual(observed, expected, "n3_bill_contact_mismatch");
+    }
     assertEqual(field(detail, ["isPostToAR"]), true);
     for (const key of ["roundingAdjustment", "bankChargesAmount"])
       for (const v of aliases(detail, [key])) assertEqual(cents(v), 0);
@@ -521,6 +542,8 @@ export function proveReceiptBefore(
       if (!Array.isArray(v) || v.length) mismatch("receipt_payment_mismatch");
     const refund = field(detail, ["refundAmount"], cents) as number,
       remainder = field(detail, ["outstandingAmount"], cents) as number;
+    for (const v of aliases(detail, ["outstandingAmountLocal"])) assertEqual(cents(v), remainder);
+    for (const v of aliases(detail, ["refundAmountLocal"])) assertEqual(cents(v), refund);
     const raw = field(detail, ["knockoff"]);
     if (!Array.isArray(raw) || raw.length > 1000) missing("receipt_allocations_unavailable");
     const rows: AllocationEvidence[] = [],
@@ -578,6 +601,20 @@ export function proveReceiptBefore(
       for (const [k, v] of Object.entries(contact)) assertEqual(field(detail, [k]), v);
     }
     const value = freeze({
+      immutableHeaderFingerprint: billingPayloadDigest(
+        Object.fromEntries(
+          Object.entries(detail).filter(
+            ([k]) =>
+              ![
+                "knockoff",
+                "outstandingamount",
+                "outstandingamountlocal",
+                "updatedat",
+                "version",
+              ].includes(k.toLowerCase()),
+          ),
+        ),
+      ),
       receipt: copy(r),
       code,
       amountCents: r.amountCents,
@@ -601,7 +638,7 @@ export function proveReceiptBefore(
     return value;
   });
 }
-export function proveReceiptAllocation(i: {
+type AllocationProofInput = {
   snapshot: SettlementSnapshot;
   bill: VerifiedBill;
   receipt: SettlementReceipt;
@@ -610,12 +647,21 @@ export function proveReceiptAllocation(i: {
   journal: N3Outcome;
   actor: SettlementActor;
   expectedTotalToBillCents: number;
-}): EvidenceResult<VerifiedAllocation> {
+};
+export function proveReceiptAllocation(
+  i: AllocationProofInput,
+): EvidenceResult<VerifiedAllocation> {
+  return allocationProof(i, false);
+}
+function allocationProof(
+  i: AllocationProofInput,
+  persistedHistory: boolean,
+): EvidenceResult<VerifiedAllocation> {
   return attempt(() => {
     const { snapshot: s, bill: b, receipt: r, before, actor: a } = i;
     if (
       !bound(bills.get(b), s, a) ||
-      !bound(receipts.get(before), s, a) ||
+      (!persistedHistory && !bound(receipts.get(before), s, a)) ||
       billingPayloadDigest(before.receipt) !== billingPayloadDigest(r)
     )
       missing("n3_evidence_untrusted");
@@ -630,6 +676,11 @@ export function proveReceiptAllocation(i: {
     if (result.kind !== "confirmed") throw new EvidenceError(result.kind, result.code);
     const after = result.value;
     assertEqual(after.refundCents, before.refundCents, "receipt_unrelated_state_changed");
+    assertEqual(
+      after.immutableHeaderFingerprint,
+      before.immutableHeaderFingerprint,
+      "receipt_immutable_header_changed",
+    );
     assertEqual(after.fingerprints[1], before.fingerprints[1], "receipt_journal_changed");
     const prior = before.allocations.filter(
         (x) => x.docId !== b.targetId || x.docType !== b.targetType,
@@ -658,6 +709,59 @@ export function proveReceiptAllocation(i: {
     meta.verifiedAt = Math.min(bills.get(b)!.verifiedAt, receipts.get(after)!.verifiedAt);
     allocations.set(value, meta);
     return value;
+  });
+}
+// Saved pre-dispatch facts are historical comparisons, never fresh read authority.
+// Only the exact service-read dispatch object can supply them for GET-only recovery.
+export function provePersistedReceiptAllocation(
+  snapshot: SettlementSnapshot,
+  bill: VerifiedBill,
+  dispatch: StoredDispatch,
+  detail: N3Outcome,
+  journal: N3Outcome,
+  actor: SettlementActor,
+): EvidenceResult<VerifiedAllocation> {
+  return attempt(() => {
+    const f = dispatch.facts;
+    if (
+      !persistedDispatchBoundTo(dispatch, actor, bill.intentId, snapshot.digest) ||
+      !f ||
+      (f.kind !== "deposit_allocation" && f.kind !== "balance_allocation") ||
+      f.billId !== bill.id ||
+      f.receipt.receiptId !== dispatch.claim.receiptId
+    )
+      missing("n3_evidence_untrusted");
+    const result = allocationProof(
+      {
+        snapshot,
+        bill,
+        receipt: f.receipt,
+        before: f.before,
+        detail,
+        journal,
+        actor,
+        expectedTotalToBillCents: f.expectedTotalToBillCents,
+      },
+      true,
+    );
+    if (result.kind !== "confirmed") throw new EvidenceError(result.kind, result.code);
+    const r = result.value;
+    assertEqual(
+      billingPayloadDigest({
+        receiptId: r.receipt.receiptId,
+        amountCents: r.amountCents,
+        refundCents: r.refundCents,
+        remainderCents: r.remainderCents,
+        allocations: r.allocations.map(({ docType, docId, amountCents }) => ({
+          docType,
+          docId,
+          amountCents,
+        })),
+      }),
+      f.expectedAfterFingerprint,
+      "receipt_allocation_mismatch",
+    );
+    return r;
   });
 }
 export function verifiedBillBoundTo(p: VerifiedBill, s: SettlementSnapshot): boolean {
@@ -739,6 +843,7 @@ export function proveSettlement(
       digest: billingPayloadDigest({ intentId: b.intentId, snapshotDigest: s.digest, ...facts }),
     }) as SettlementProof;
     proofs.set(proof, { ...meta!, verifiedAt, intentId: b.intentId });
+    finalComponents.set(proof, { bill: b, rows });
     return proof;
   });
 }
@@ -777,6 +882,10 @@ export function verifiedEvidencePair(
   return bound(bm, s) && bound(rm, s) && bm!.user === rm!.user && bm!.token === rm!.token;
 }
 
+const finalComponents = new WeakMap<
+  SettlementProof,
+  { bill: VerifiedBill; rows: VerifiedAllocation[] }
+>();
 const progressProofs = new WeakMap<SettlementProgressProof, Meta>();
 function progress(
   s: SettlementSnapshot,
@@ -813,6 +922,36 @@ export function makeBillProgressEvidence(
     return progress(s, b, a, "bill", null);
   });
 }
+function receiptProgressFacts(
+  r: VerifiedReceiptBefore | VerifiedAllocation,
+): Record<string, unknown> {
+  return {
+    receiptId: r.receipt.receiptId,
+    code: r.code,
+    reference: r.receipt.reference,
+    documentDate: r.receipt.receiptDate,
+    purpose: "purpose" in r.receipt ? "settlement" : "deposit",
+    customerId: r.receipt.customerId,
+    currency: r.receipt.currency,
+    amountCents: r.amountCents,
+    refundCents: r.refundCents,
+    remainderCents: r.remainderCents,
+    payments: copy(r.receipt.payments),
+    allocations: r.allocations.map((x) => ({
+      docId: x.docId,
+      docType: x.docType,
+      amountCents: x.amountCents,
+    })),
+    fingerprints: [...r.fingerprints],
+    immutableHeaderFingerprint: r.immutableHeaderFingerprint,
+    ...("allocatedToBillCents" in r
+      ? {
+          allocatedToBillCents: (r as VerifiedAllocation).allocatedToBillCents,
+          beforeFingerprints: [...(r as VerifiedAllocation).beforeFingerprints],
+        }
+      : {}),
+  };
+}
 export function makeReceiptProgressEvidence(
   s: SettlementSnapshot,
   b: VerifiedBill,
@@ -836,36 +975,13 @@ export function makeReceiptProgressEvidence(
         r.receipt.intentId !== b.intentId ||
         r.allocations.length ||
         r.refundCents !== 0 ||
-        r.remainderCents !== r.amountCents
+        r.remainderCents !== r.amountCents ||
+        r.amountCents !== b.outstandingCents
       )
         mismatch("balance_creation_proof_mismatch");
       kind = "balance_receipt";
     }
-    const receipt = {
-      receiptId: r.receipt.receiptId,
-      code: r.code,
-      reference: r.receipt.reference,
-      documentDate: r.receipt.receiptDate,
-      purpose: "purpose" in r.receipt ? "settlement" : "deposit",
-      customerId: r.receipt.customerId,
-      currency: r.receipt.currency,
-      amountCents: r.amountCents,
-      refundCents: r.refundCents,
-      remainderCents: r.remainderCents,
-      payments: copy(r.receipt.payments),
-      allocations: r.allocations.map((x) => ({
-        docId: x.docId,
-        docType: x.docType,
-        amountCents: x.amountCents,
-      })),
-      fingerprints: [...r.fingerprints],
-      ...(allocation
-        ? {
-            allocatedToBillCents: (r as VerifiedAllocation).allocatedToBillCents,
-            beforeFingerprints: [...(r as VerifiedAllocation).beforeFingerprints],
-          }
-        : {}),
-    };
+    const receipt = receiptProgressFacts(r);
     return progress(
       s,
       b,
@@ -899,5 +1015,18 @@ export function settlementFinalEvidenceForStore(
   intentId: string,
 ): Record<string, unknown> | null {
   if (!settlementProofBoundTo(p, a, intentId)) return null;
-  return { ...p, kind: "settlement", intentId, snapshotDigest: proofs.get(p)!.snapshotDigest };
+  const components = finalComponents.get(p);
+  if (!components) return null;
+  const facts = {
+    kind: "settlement",
+    tenantId: p.tenantId,
+    reservationId: p.reservationId,
+    intentId,
+    snapshotDigest: proofs.get(p)!.snapshotDigest,
+    checkedAt: p.checkedAt,
+    bill: copy(components.bill),
+    receipt: null,
+    receipts: components.rows.map(receiptProgressFacts),
+  };
+  return { ...facts, digest: billingPayloadDigest(facts) };
 }
