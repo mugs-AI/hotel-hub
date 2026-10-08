@@ -30,3 +30,9 @@ Task 1: complete (commits 734ac40..6b68de6, tests: npm test -- src/lib/__tests__
 Task2: started, BASE6b68de6aa4d58f20cc9f77e36e3fed1ed58c244a.
 Task2: Ruling: server read/master/receipt ports are implemented and tested first; production adapter mounts with Task9 after store/contract guards exist — no unproven live reader fallback — until then this task is an internal foundation, not an end-to-end ready flow.
 Ruling: Native Git fetch works but push lacks an authenticated username; persist code on the authorized isolated GitHub branch using the GitHub GitData connector. Local and remote commit SHAs may differ; exact tree parity is the release evidence.
+
+Task2 RED:14 assertion failures against stub;2 further price/contact failures reproduced, then fixed. GREEN:16 snapshot tests; full suite1977 passed/20 skipped/0 failures. Typecheck and affected ESLint exit0. Production adapter remains the explicit Task9 mount obligation.
+Task1 remote checkpoint:2d1cd80456178dd42756dd52c2b554e335d362d3; tree b3098a31af55705b76ee277355f20eea10783c63 exactly matches local b7605e9 tree.
+Task 2: complete (commits b7605e9..911b061, tests: npm test -- src/lib/__tests__/settlement-snapshot.test.ts src/lib/__tests__/hh-golive-01a-folio-foundation.test.ts src/lib/__tests__/hh-golive-01a-authoritative-checkout.test.ts →    Duration  338ms (transform 296ms, setup 0ms, import 397ms, tests 66ms, environment 0ms))
+
+Task3: Ruling: same-version native PG17.6 binary is available, but container root cannot switch users (runuser cannot set groups, chown invalid); do not bypass PostgreSQL root protections. Use test-only PGlite for single-session SQL correctness; real concurrent PostgreSQL remains NOT VERIFIED and an activation blocker. Test tools stay in ignored scratch, no application dependency/lock change.
