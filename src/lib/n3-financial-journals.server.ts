@@ -216,7 +216,9 @@ export async function captureFinancialJournals(
             method: "GET",
             headers: { authorization: "Bearer " + input.token, accept: "application/json" },
             signal: controller.signal,
-            redirect: "error",
+            // workerd rejects "error" before dispatch. Manual still prevents
+            // forwarding Authorization; every 3xx is rejected below.
+            redirect: "manual",
           },
         );
         evidence.httpStatus = response.status;
