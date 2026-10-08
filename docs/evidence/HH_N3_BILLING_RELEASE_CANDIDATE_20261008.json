@@ -1,0 +1,263 @@
+{
+  "date": "2026-10-08",
+  "propertyTimezone": "Asia/Kuala_Lumpur",
+  "status": "default_off_review_checkpoint_not_release_ready",
+  "inputSha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+  "validatedCodeSha": "12ec831c070d65969087cd5e743fdffbb967de9a",
+  "validatedTree": "69e3d980c7bf854be14307176bbc3b21b97a3ece",
+  "laterEvidenceCommit": "resolve branch HEAD; this evidence describes the identified code tree plus explicitly recorded later fixes",
+  "protectedParity": [
+    {
+      "path": "AGENTS.md",
+      "baseBlob": "f59511a66eb985d4a2fe4095d2723a65ac52689c",
+      "candidateBlob": "f59511a66eb985d4a2fe4095d2723a65ac52689c"
+    },
+    {
+      "path": "package.json",
+      "baseBlob": "00537971b90853844bb39af46955fb7e2b5794d8",
+      "candidateBlob": "00537971b90853844bb39af46955fb7e2b5794d8"
+    },
+    {
+      "path": "bun.lock",
+      "baseBlob": "32cbfef271fa9b458e6ec152f32422573820a67b",
+      "candidateBlob": "32cbfef271fa9b458e6ec152f32422573820a67b"
+    },
+    {
+      "path": "src/start.ts",
+      "baseBlob": "f609adfdbd93d7be15e4ec64c57e617133cfa9ca",
+      "candidateBlob": "f609adfdbd93d7be15e4ec64c57e617133cfa9ca"
+    },
+    {
+      "path": "src/lib/hotel-store.server.ts",
+      "baseBlob": "e777ac828a61dc2c0de1be8b7427165589a8898b",
+      "candidateBlob": "e777ac828a61dc2c0de1be8b7427165589a8898b"
+    },
+    {
+      "path": "src/integrations/supabase/client.server.ts",
+      "baseBlob": "f63eeb841c3a7954fc501f2c9f225429dd35cf2d",
+      "candidateBlob": "f63eeb841c3a7954fc501f2c9f225429dd35cf2d"
+    },
+    {
+      "path": "src/integrations/supabase/types.ts",
+      "baseBlob": "2a32cbaf27f71cac9f9f88a6d81513a423369493",
+      "candidateBlob": "2a32cbaf27f71cac9f9f88a6d81513a423369493"
+    }
+  ],
+  "diff": [
+    "A\t.github/workflows/settlement-review.yml",
+    "A\tdb/checks/HH_SETTLEMENT_SQL_CHECKS.md",
+    "A\tdb/checks/hh-settlement-multisession.mjs",
+    "A\tdb/checks/hh-settlement-pg-client.mjs",
+    "A\tdb/checks/hh-settlement-pglite.mjs",
+    "A\tdb/checks/hh-settlement-postgres-setup.mjs",
+    "A\tdb/checks/hh-settlement-prerequisites.json",
+    "A\tdb/checks/hh-settlement-seed.sql",
+    "A\tdb/checks/hh-settlement-setup.sql",
+    "A\tdb/checks/hh-settlement-single.sql",
+    "A\tdocs/HH_N3_BILLING_EXECUTION_20261008.md",
+    "A\tdocs/HH_N3_BILLING_PLAN_HANDOVER_20261008.md",
+    "A\tdocs/HH_N3_BILLING_RECOVERY_20261008.md",
+    "A\tdocs/HH_SETTLEMENT_NATIVE_SQL_EVIDENCE_20261008.md",
+    "A\tdocs/evidence/HH_N3_BILLING_API_PROOF_JOB_20261008.md",
+    "A\tdocs/superpowers/plans/2026-10-08-n3-billing-settlement.md",
+    "A\tdocs/superpowers/specs/2026-10-08-n3-billing-settlement-design.md",
+    "M\tsrc/components/FinancialDashboard.tsx",
+    "A\tsrc/components/SettlementCard.tsx",
+    "M\tsrc/lib/__tests__/financial-reporting-store.test.ts",
+    "A\tsrc/lib/__tests__/fixtures/settlement-coordinator.ts",
+    "A\tsrc/lib/__tests__/fixtures/settlement-evidence.ts",
+    "A\tsrc/lib/__tests__/fixtures/settlement.ts",
+    "M\tsrc/lib/__tests__/folio-bill-to-route.test.ts",
+    "A\tsrc/lib/__tests__/n3-billing.test.ts",
+    "M\tsrc/lib/__tests__/receipt-controls-store.test.ts",
+    "M\tsrc/lib/__tests__/run-5d1-1-deposits.test.ts",
+    "A\tsrc/lib/__tests__/settlement-allocation.test.ts",
+    "A\tsrc/lib/__tests__/settlement-api.test.ts",
+    "A\tsrc/lib/__tests__/settlement-close.test.ts",
+    "A\tsrc/lib/__tests__/settlement-coordinator.test.ts",
+    "A\tsrc/lib/__tests__/settlement-evidence.test.ts",
+    "A\tsrc/lib/__tests__/settlement-financial-source.test.ts",
+    "A\tsrc/lib/__tests__/settlement-locks.test.ts",
+    "A\tsrc/lib/__tests__/settlement-money.test.ts",
+    "A\tsrc/lib/__tests__/settlement-readers.test.ts",
+    "A\tsrc/lib/__tests__/settlement-snapshot.test.ts",
+    "A\tsrc/lib/__tests__/settlement-store.test.ts",
+    "A\tsrc/lib/__tests__/settlement-view.test.ts",
+    "M\tsrc/lib/deposits-client.ts",
+    "M\tsrc/lib/deposits-store.server.ts",
+    "M\tsrc/lib/financial-reporting-store.server.ts",
+    "M\tsrc/lib/folio-client.ts",
+    "M\tsrc/lib/folio-store.server.ts",
+    "A\tsrc/lib/n3-billing.server.ts",
+    "M\tsrc/lib/operations-api.server.ts",
+    "M\tsrc/lib/operations-client.ts",
+    "M\tsrc/lib/rbac.ts",
+    "M\tsrc/lib/receipt-controls-client.ts",
+    "M\tsrc/lib/receipt-controls-http.server.ts",
+    "M\tsrc/lib/receipt-controls-store.server.ts",
+    "M\tsrc/lib/reservation-operations.server.ts",
+    "M\tsrc/lib/reservations-store.server.ts",
+    "A\tsrc/lib/settlement-adapter.server.ts",
+    "A\tsrc/lib/settlement-allocation.server.ts",
+    "A\tsrc/lib/settlement-client.ts",
+    "A\tsrc/lib/settlement-context.server.ts",
+    "A\tsrc/lib/settlement-contracts.server.ts",
+    "A\tsrc/lib/settlement-coordinator.server.ts",
+    "A\tsrc/lib/settlement-dispatch.server.ts",
+    "A\tsrc/lib/settlement-evidence.server.ts",
+    "A\tsrc/lib/settlement-financial-source.server.ts",
+    "A\tsrc/lib/settlement-http.server.ts",
+    "A\tsrc/lib/settlement-lock.ts",
+    "A\tsrc/lib/settlement-money.ts",
+    "A\tsrc/lib/settlement-recovery.server.ts",
+    "A\tsrc/lib/settlement-snapshot.server.ts",
+    "A\tsrc/lib/settlement-store.server.ts",
+    "A\tsrc/lib/settlement-view.ts",
+    "A\tsrc/lib/settlement.ts",
+    "M\tsrc/routeTree.gen.ts",
+    "M\tsrc/routes/api/hotel/reservations.$id.deposits.ts",
+    "M\tsrc/routes/api/hotel/reservations.$id.folio.bill-to.ts",
+    "A\tsrc/routes/api/hotel/reservations.$id.settlement.reconcile.ts",
+    "A\tsrc/routes/api/hotel/reservations.$id.settlement.step.ts",
+    "A\tsrc/routes/api/hotel/reservations.$id.settlement.ts",
+    "M\tsrc/routes/reservations.$id_.checkout.tsx",
+    "A\tsupabase/migrations/20261008080000_hh_billing_settlement.sql"
+  ],
+  "checks": {
+    "tests": {
+      "exitCode": 0,
+      "passed": 2152,
+      "skipped": 20,
+      "failed": 0,
+      "filesPassed": 134,
+      "filesSkipped": 3,
+      "skips": "Existing optional database integration suites; not counted as settlement PostgreSQL acceptance"
+    },
+    "typecheck": {
+      "command": "npx --no-install tsc --noEmit",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "validatedAfterFinalFix": true
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 1,
+      "errors": 170,
+      "warnings": 38,
+      "baselineErrors": 170,
+      "baselineWarnings": 37,
+      "newErrors": 0,
+      "newWarnings": 1,
+      "unchangedErrorFiles": [
+        "db/migrations-pending/checks/receipt-controls.multisession.ts",
+        "db/migrations-pending/checks/receipt-controls.pglite.ts"
+      ],
+      "workspaceIgnore": ".superpowers excluded from ESLint; test runtimes/fixtures remain preserved"
+    },
+    "nativePostgres": {
+      "version": "17.6",
+      "runId": 37729176142,
+      "jobId": 113154160668,
+      "remoteSha": "042a6a1c1aa33e4f10e8f0ed5b6b3591b14dc93a",
+      "actualPassLogLines": 88,
+      "claimWorkers": 20,
+      "closeWorkers": 20,
+      "result": "passed",
+      "fileSha256": {
+        "supabase/migrations/20261008080000_hh_billing_settlement.sql": "75546a1bbf824c0bde1c79c5db5a5c37d815116049111354c825c2693cca5ba6",
+        "db/checks/hh-settlement-single.sql": "60902e973a5cf50d588f670e6d3232d544d617c52ab8c8a1060c50b21ffecf94",
+        "db/checks/hh-settlement-multisession.mjs": "73826f58c0a61157d00aa94008f4e05da67cddf6f0da8bbe5b95e0037238fa0a",
+        "db/checks/hh-settlement-setup.sql": "6244fb0ef127e031266dd64b226970ed29dd66aac2e444a61cb8a5e8694bcabe",
+        "db/checks/hh-settlement-postgres-setup.mjs": "0f2ae755f7df53821cb60b344a6c37c4abff125248a61753684a1be885f29cee",
+        "db/checks/hh-settlement-seed.sql": "30315cd944bc3e04fdd75c44606a50042285263d514643957a8d65a8493722b6"
+      },
+      "coverage": "Actual logs inspected for the exact remote code/tree above: all named single-session checks and20 independent claim plus20 independent close workers passed. One close event, two applied handoffs, all rooms released/Dirty/DNDoff. No operational database or N3 call.",
+      "status": "completed"
+    },
+    "browser": {
+      "status": "not_verified",
+      "reason": "No Chromium executable; isolated browser download returned empty/truncated archive"
+    },
+    "independentReview": {
+      "status": "six Important findings fixed with RED-to-GREEN tests; full suite2152pass20skip0fail; native SQL88PASS; one minor deferred",
+      "reviewedSha": "9856d1eeb81aef2cbb7bb5875766eb178ac6942a",
+      "fixedSha": "12ec831c070d65969087cd5e743fdffbb967de9a",
+      "author": "fresh gpt-6-astra read-only reviewer",
+      "deferredMinor": "SettlementCard Fast Refresh export warning",
+      "rulingsAndFindings": "docs/HH_N3_BILLING_EXECUTION_20261008.md"
+    }
+  },
+  "remote": {
+    "mainSha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "lovableSha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "lovableAgentFinished": true,
+    "reviewShaAtInspection": "f8ced15d6e4126f8d30d0ca52d6e6dcb8aadc0ed",
+    "reviewCodeSha": "042a6a1c1aa33e4f10e8f0ed5b6b3591b14dc93a",
+    "reviewCodeTree": "69e3d980c7bf854be14307176bbc3b21b97a3ece"
+  },
+  "database": {
+    "reference": "fkakhdzelilnejyehwfk",
+    "serverVersion": "17.6",
+    "latestMigration": "20261002053302",
+    "candidateMigration": "20261008080000_hh_billing_settlement.sql",
+    "candidateApplied": false,
+    "settlementTablesPresent": false,
+    "closeRpcPresent": false,
+    "automaticReceiptTablesPresent": false,
+    "inspection": "read_only"
+  },
+  "n3": {
+    "acceptedOperations": [],
+    "allWriteGatesClosed": true,
+    "proofJobs": "docs/evidence/HH_N3_BILLING_API_PROOF_JOB_20261008.md",
+    "proofJobsExecuted": false,
+    "writesIssued": false
+  },
+  "remaining": [
+    "Current N3 master/currency/GL and CashSale-to-INV contracts plus production snapshot adapter (Tasks2/9)",
+    "Complete monthly discovery and allocation-aware matched-deposit production readers (Task10)",
+    "Faithful frozen/closed folio print projection without live N3 dependency (Task10)",
+    "Actual desktop/mobile visual check (Task9)",
+    "N3 allocation atomic stale/concurrent proof and separately accepted operation hashes (Task11)",
+    "Separate code merge, additive SQL application, runtime activation, publish and signed-in end-to-end acceptance lanes (Task12)",
+    "Repository-wide lint remains red on170 identical baseline errors in parked scripts; billing candidate adds0errors"
+  ],
+  "sideEffects": {
+    "codeMainMerged": false,
+    "productionDatabaseWritten": false,
+    "migrationApplied": false,
+    "deployed": false,
+    "published": false,
+    "n3Write": false,
+    "lovableAiBuildUsed": false,
+    "reviewBranchCheckpointPushes": [
+      "Task7/8 reviewed checkpoints",
+      "042a6a1c1aa33e4f10e8f0ed5b6b3591b14dc93a"
+    ]
+  },
+  "releaseLanes": [
+    {
+      "lane": "code",
+      "status": "not authorized, not merged",
+      "plan": "Review default-off compatible candidate; recheck main/Lovable tree before separately approved merge. Preserve history."
+    },
+    {
+      "lane": "database",
+      "status": "not authorized, not applied",
+      "plan": "Through separately selected Lovable Cloud mechanism, inspect migration version/prerequisites, recovery point, then apply candidate once; verify actual RLS/grants/functions/schema. Never apply automatic receipt SQL."
+    },
+    {
+      "lane": "activation",
+      "status": "blocked",
+      "plan": "Implement/test accepted current adapters; reviewed operation contract hashes only; no env bypass. Requires independent proof/readiness."
+    },
+    {
+      "lane": "publish",
+      "status": "not authorized, not performed",
+      "plan": "Separate approved runtime/publish lane, exact deployment identity and end-to-end Owner/denied-role/cross-device/monthly evidence."
+    }
+  ]
+}
