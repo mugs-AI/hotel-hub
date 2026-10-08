@@ -1,0 +1,77 @@
+import type { FolioViewDTO } from "../../folio-view";
+import { settlementFixture } from "./settlement";
+
+export function preparedSettlementFolio(): FolioViewDTO {
+  const s = settlementFixture();
+  return {
+    reservation: {
+      id: s.reservationId,
+      bookingReference: "HH-SYNTHETIC",
+      arrivalDate: "2026-10-07",
+      departureDate: "2026-10-08",
+      currency: "MYR",
+      primaryGuestName: "Synthetic guest",
+      roomLabels: ["101"],
+    },
+    propertyDate: "2026-10-08",
+    guestTaxClass: "malaysian_citizen",
+    evidenceNote: null,
+    tourismTaxEvidence: [],
+    occupiedRoomNights: 1,
+    lines: [
+      {
+        id: s.lines[0].localLineId,
+        catalogueId: null,
+        lineType: "room_night",
+        status: "draft",
+        taxClass: "accommodation",
+        description: "Room charge",
+        taxRateBp: null,
+        quantity: 1,
+        unitPrice: 500,
+        amount: 500,
+        stayDate: "2026-10-07",
+        roomLabel: "101",
+        reason: null,
+        reversesLineId: null,
+        actorLabel: "Owner",
+        createdAt: "2026-10-07T00:00:00Z",
+        canEditQuantity: true,
+        canReverse: true,
+      },
+    ],
+    derived: [],
+    totals: {
+      charges: 500,
+      serviceCharge: 0,
+      serviceTax: 0,
+      tourismTax: 0,
+      localLevy: 0,
+      rounding: 0,
+      grandTotal: 500,
+    },
+    blockers: [],
+    readiness: {
+      serviceTaxRegistered: false,
+      serviceChargeEnabled: false,
+      tourismTaxEnabled: false,
+      localLevyEnabled: false,
+      localLevyLabel: null,
+      roundingMode: "none",
+      missing: [],
+      configurationComplete: true,
+      calculationComplete: true,
+      roomNightsPrepared: true,
+      projectedRoomNights: 0,
+    },
+    catalogue: [],
+    capability: {
+      canView: true,
+      canAddItem: true,
+      canAdjust: true,
+      canSetTaxClass: true,
+      canManageCharges: true,
+    },
+    preparationOnly: true,
+  };
+}

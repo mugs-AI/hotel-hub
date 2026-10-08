@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { settlementFixture } from "./fixtures/settlement";
+import { preparedSettlementFolio } from "./fixtures/settlement-folio";
 import {
   loadSettlementSnapshot,
   snapshotDigest,
@@ -39,6 +40,32 @@ function deps(f: SnapshotFacts = facts()): SnapshotDeps {
 }
 
 describe("immutable settlement snapshot", () => {
+  it("persists the faithful prepared folio projection inside the frozen digest", async () => {
+    const f = facts();
+    f.folioProjection = { version: 1, folio: preparedSettlementFolio() };
+    const result = await loadSettlementSnapshot(actor, deps(f));
+    expect(result.kind).toBe("confirmed");
+    if (result.kind !== "confirmed") return;
+    expect(result.value.folioProjection?.folio.lines[0]).toMatchObject({
+      amount: 500,
+      canEditQuantity: false,
+      canReverse: false,
+    });
+    const frozenDigest = result.value.digest;
+    f.folioProjection.folio.lines[0].description = "Changed later";
+    expect(result.value.folioProjection?.folio.lines[0].description).toBe("Room charge");
+    const { digest: _digest, ...frozen } = result.value;
+    expect(snapshotDigest({ ...frozen, folioProjection: f.folioProjection })).not.toBe(
+      frozenDigest,
+    );
+  });
+  it("rejects inconsistent prepared print facts before freezing", async () => {
+    const f = facts();
+    const folio = preparedSettlementFolio();
+    folio.totals.grandTotal = 900;
+    f.folioProjection = { version: 1, folio };
+    expect((await loadSettlementSnapshot(actor, deps(f))).kind).toBe("contradiction");
+  });
   it.each([{ currencyId: 0 }, { currencyRate: 0 }])(
     "rejects invalid frozen currency header %j",
     async (override) => {

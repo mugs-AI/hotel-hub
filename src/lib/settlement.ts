@@ -1,4 +1,6 @@
 // Browser-safe settlement facts and DTOs. No transport or credential storage.
+import type { FolioViewDTO } from "./folio-view";
+export type FrozenFolioProjection = { version: 1; folio: Omit<FolioViewDTO, "recordedDeposits"> };
 export type Cents = number;
 export type Revision = string;
 export type SettlementScope = { tenantId: string; reservationId: string };
@@ -60,6 +62,8 @@ export type SettlementSnapshot = SettlementScope & {
   totalCents: Cents;
   receipts: LinkedReceipt[];
   sourceVersions: SourceVersion[];
+  /** Legacy intents may lack this; readers must never reprice them as a fallback. */
+  folioProjection?: FrozenFolioProjection;
 };
 export type SettlementState =
   | "frozen"

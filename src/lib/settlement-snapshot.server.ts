@@ -9,6 +9,7 @@ import type {
 import { createHash } from "node:crypto";
 import { MAX_MONEY_CENTS, sumCents } from "./checkout-money";
 import { propertyTodayIso } from "./checkout-preview";
+import { captureSettlementFolio } from "./settlement-folio.server";
 
 export type SnapshotLine = ChargeLine & { status: string; reversesLineId: string | null };
 export type SnapshotFacts = Omit<SettlementSnapshot, "digest" | "lines"> & {
@@ -243,6 +244,13 @@ export async function loadSettlementSnapshot(
         (a, b) => a.table.localeCompare(b.table) || a.id.localeCompare(b.id),
       ),
     };
+    if (f.folioProjection !== undefined) {
+      if (f.folioProjection.version !== 1)
+        return { kind: "unavailable", code: "settlement_folio_unavailable" };
+      const printed = captureSettlementFolio(snapshot, f.folioProjection.folio);
+      if (printed.kind !== "confirmed") return printed;
+      snapshot.folioProjection = printed.value;
+    }
     // Clone removes reference aliases; recursive freeze protects immutable facts.
     const copy = JSON.parse(canonical(snapshot)) as Omit<SettlementSnapshot, "digest">;
     return { kind: "confirmed", value: freezeDeep({ ...copy, digest: snapshotDigest(copy) }) };

@@ -56,8 +56,14 @@ shapes and the prepared folio as the only charge calculator. Revalidate frozen
 sources and current masters on resume while retaining the frozen bill date.
 Persist the faithful prepared folio print projection with its immutable intent;
 future settings must not reprice a frozen/closed stay. Normal print makes no
-live N3 request. This adapter/print work is still pending, not implemented by
-the current unavailable production adapter.
+live N3 request. The version1 frozen prepared-folio capture/read foundation is
+now implemented in `settlement-folio.server.ts`, and the snapshot builder binds
+a supplied `folioProjection` into the immutable digest. It is not live wiring:
+the current production adapter remains unavailable and must supply accepted
+prepared presentation facts. Mount the read adapter only after schema/adapter
+acceptance; missing packets or RPC/cache errors must never reprice a frozen stay.
+See `HH_N3_FROZEN_FOLIO_CHECKPOINT_20261008.md`. Production adapter/print
+integration and browser acceptance are still pending.
 
 ## Lane B — one CashSale Post-to-AR
 
