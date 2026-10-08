@@ -1,3 +1,4 @@
+import { billingPayloadDigest } from "../n3-billing.server";
 import { describe, expect, it, vi } from "vitest";
 import { createSettlementStore, type SettlementRpc } from "../settlement-store.server";
 import { settlementFixture } from "./fixtures/settlement";
@@ -30,6 +31,92 @@ function setup(
   return { rpc, store: createSettlementStore(rpc) };
 }
 describe("service-only settlement store", () => {
+  it("persisted dispatch authority survives a service read but cannot be copied from JSON", async () => {
+    const { persistedDispatchBoundTo } = await import("../settlement-store.server");
+    const facts = {
+      kind: "bill" as const,
+      snapshotDigest: settlementFixture().digest,
+      payload: { synthetic: true },
+    };
+    const dispatch = {
+      claim: {
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        intentId: intent().id,
+        kind: "bill",
+        expectedRevision: "1",
+        payloadDigest: billingPayloadDigest(facts.payload),
+      },
+      outcome: null,
+      facts,
+    };
+    const { store } = setup({ data: { ...intent(), dispatches: [dispatch] }, error: null });
+    const got = (await store.read(actor))!;
+    expect(
+      persistedDispatchBoundTo(got.dispatches[0], actor, intent().id, settlementFixture().digest),
+    ).toBe(true);
+    expect(
+      persistedDispatchBoundTo(
+        structuredClone(got.dispatches[0]),
+        actor,
+        intent().id,
+        settlementFixture().digest,
+      ),
+    ).toBe(false);
+    expect(Object.isFrozen(got.dispatches[0].facts)).toBe(true);
+  });
+  it("a saved attempt with missing recovery facts is never treated as recoverable", async () => {
+    const dispatch = {
+      claim: {
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        intentId: intent().id,
+        kind: "bill",
+        expectedRevision: "1",
+        payloadDigest: "a".repeat(64),
+      },
+      outcome: null,
+    };
+    const { store } = setup({ data: { ...intent(), dispatches: [dispatch] }, error: null });
+    await expect(store.read(actor)).rejects.toThrow("settlement_invalid_result");
+  });
+  it("claim atomically persists immutable date-bearing recovery facts", async () => {
+    const payload = { synthetic: "persist exact payload" };
+    const { billingPayloadDigest } = await import("../n3-billing.server");
+    const facts = { kind: "bill" as const, snapshotDigest: settlementFixture().digest, payload };
+    const claim = {
+      attemptId: "55555555-5555-4555-8555-555555555555",
+      intentId: intent().id,
+      kind: "bill",
+      expectedRevision: "9007199254740994",
+      payloadDigest: billingPayloadDigest(payload),
+    };
+    const { store, rpc } = setup({ data: claim, error: null });
+    await store.claim(
+      actor,
+      intent().id,
+      intent().revision,
+      { kind: "bill", facts } as Parameters<typeof store.claim>[3],
+      claim.payloadDigest,
+    );
+    expect(rpc.mock.calls[0][1].p_dispatch_facts).toEqual(facts);
+  });
+  it("forged JSON recovery facts or a digest mismatch are rejected before RPC", async () => {
+    const { store, rpc } = setup();
+    const facts = {
+      kind: "bill" as const,
+      snapshotDigest: settlementFixture().digest,
+      payload: { n3Token: actor.n3Token },
+    };
+    await expect(
+      store.claim(
+        actor,
+        intent().id,
+        intent().revision,
+        { kind: "bill", facts } as Parameters<typeof store.claim>[3],
+        "a".repeat(64),
+      ),
+    ).rejects.toThrow("settlement_invalid_dispatch_facts");
+    expect(rpc).not.toHaveBeenCalled();
+  });
   it("schema_absent_disables_new_writer without fallback", async () => {
     const { rpc, store } = setup({
       data: null,
@@ -92,13 +179,42 @@ describe("service-only settlement store", () => {
     expect(await store.read(actor)).toBeNull();
   });
   it("claimed dispatch binds exact scope revision payload and receipt", async () => {
+    const receipt = settlementFixture().receipts[0];
+    const rows = [
+      {
+        customerId: 7,
+        receiptDocType: "OR" as const,
+        receiptDocId: receipt.receiptId,
+        docType: "INV" as const,
+        docId: "33333333-3333-4333-8333-333333333333",
+        paymentAmount: 50,
+      },
+    ];
+    const facts = {
+      kind: "deposit_allocation" as const,
+      snapshotDigest: settlementFixture().digest,
+      payload: rows,
+      billId: rows[0].docId,
+      receipt,
+      before: {
+        receipt,
+        code: "SYNTHETIC-OR",
+        amountCents: 5000,
+        refundCents: 0,
+        remainderCents: 5000,
+        allocations: [],
+        fingerprints: ["a".repeat(64), "b".repeat(64)],
+      },
+      expectedTotalToBillCents: 5000,
+      expectedAfterFingerprint: "c".repeat(64),
+    };
     const claim = {
       attemptId: "55555555-5555-4555-8555-555555555555",
       intentId: intent().id,
       kind: "deposit_allocation",
-      receiptId: settlementFixture().receipts[0].receiptId,
+      receiptId: receipt.receiptId,
       expectedRevision: "9007199254740994",
-      payloadDigest: "a".repeat(64),
+      payloadDigest: billingPayloadDigest(rows),
     };
     const { store, rpc } = setup({ data: claim, error: null });
     expect(
@@ -106,15 +222,31 @@ describe("service-only settlement store", () => {
         actor,
         intent().id,
         "9007199254740993",
-        { kind: "deposit_allocation", receiptId: claim.receiptId },
+        { kind: "deposit_allocation", receiptId: claim.receiptId, facts },
         claim.payloadDigest,
       ),
     ).toEqual(claim);
     expect(rpc.mock.calls[0][1].p_revision).toBe("9007199254740993");
+    expect(rpc.mock.calls[0][1].p_dispatch_facts).toEqual(facts);
   });
   it("expired_lease_never_redispatches when RPC declines claim", async () => {
     const { store, rpc } = setup({ data: null, error: null });
-    expect(await store.claim(actor, intent().id, "1", { kind: "bill" }, "a".repeat(64))).toBeNull();
+    expect(
+      await store.claim(
+        actor,
+        intent().id,
+        "1",
+        {
+          kind: "bill",
+          facts: {
+            kind: "bill",
+            snapshotDigest: settlementFixture().digest,
+            payload: { synthetic: true },
+          },
+        },
+        billingPayloadDigest({ synthetic: true }),
+      ),
+    ).toBeNull();
     expect(rpc).toHaveBeenCalledTimes(1);
   });
   it("stale_worker_cannot_record and receives stable error", async () => {

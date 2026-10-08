@@ -20,17 +20,19 @@ DO $$ DECLARE i jsonb; c jsonb; winners integer:=0; rev text; BEGIN
  PERFORM hh_reject($q$ UPDATE hotel_folio_bill_to SET name='changed' WHERE reservation_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' $q$,'settlement_locked');
  PERFORM hh_reject($q$ UPDATE hotel_reservation_tax_profile SET evidence_note='changed' WHERE reservation_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' $q$,'settlement_locked');
  PERFORM hh_assert((SELECT quantity=1 FROM hotel_folio_lines WHERE id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'),'locked writes roll back');
- FOR n IN 1..20 LOOP c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,repeat('a',64)); IF c IS NOT NULL THEN winners:=winners+1; END IF; END LOOP;
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',%L::uuid,%L,'bill',NULL,repeat('a',64),jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload','{"synthetic":true}'::jsonb)) $q$,i->>'id',i->>'revision'),'settlement_invalid_dispatch_facts');
+ FOR n IN 1..20 LOOP c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,'a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558',jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload','{"synthetic":true}'::jsonb)); IF c IS NOT NULL THEN winners:=winners+1; END IF; END LOOP;
  PERFORM hh_assert(winners=1,'one claim in 20 sequential calls (NOT concurrency proof)');
+ PERFORM hh_assert(hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')->'dispatches'->0->'facts' IS NOT NULL,'dispatch recovery facts survive a new read');
  rev:=(SELECT revision::text FROM hotel_settlement_intents WHERE id=(i->>'id')::uuid);
- PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',%L::uuid,'0',%L::uuid,%L,'{"kind":"unknown","code":"timeout"}') $q$,i->>'id',(SELECT id FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid),repeat('a',64)),'settlement_stale_revision');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',%L::uuid,'0',%L::uuid,%L,'{"kind":"unknown","code":"timeout"}') $q$,i->>'id',(SELECT id FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid),'a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558'),'settlement_stale_revision');
  PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_abandon('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',%L::uuid,%L) $q$,i->>'id',rev),'settlement_dispatched');
  PERFORM hh_assert(NOT has_table_privilege('anon','hotel_settlement_intents','SELECT') AND NOT has_table_privilege('authenticated','hotel_settlement_intents','SELECT'),'browser tables denied');
  PERFORM hh_assert(NOT has_function_privilege('anon','hotelhub_settlement_read(uuid,uuid)','EXECUTE') AND NOT has_function_privilege('authenticated','hotelhub_settlement_read(uuid,uuid)','EXECUTE'),'browser functions denied');
  END $$;
 DO $$ DECLARE msg text; state text; i jsonb; c jsonb; a uuid; BEGIN
  -- Cross-tenant composite FK must reject even privileged direct SQL.
- BEGIN INSERT INTO hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,claimed_revision,payload_digest,actor_n3_user_key) SELECT '99999999-9999-4999-8999-999999999999',reservation_id,id,'balance_receipt',1,repeat('a',64),'synthetic-owner' FROM hotel_settlement_intents; EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS state=RETURNED_SQLSTATE; END;
+ BEGIN INSERT INTO hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,claimed_revision,payload_digest,dispatch_facts,actor_n3_user_key) SELECT '99999999-9999-4999-8999-999999999999',reservation_id,id,'balance_receipt',1,repeat('a',64),'{}'::jsonb,'synthetic-owner' FROM hotel_settlement_intents; EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS state=RETURNED_SQLSTATE; END;
  PERFORM hh_assert(state='23503','cross_tenant_fk_denied');
  PERFORM hh_reject($q$ UPDATE hotel_reservation_deposits SET last_error_code='changed' WHERE id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' $q$,'settlement_locked');
  PERFORM hh_reject($q$ UPDATE hotel_settlement_intents SET snapshot='{}' $q$,'settlement_immutable');
@@ -38,9 +40,9 @@ DO $$ DECLARE msg text; state text; i jsonb; c jsonb; a uuid; BEGIN
  PERFORM hh_reject($q$ DELETE FROM hotel_settlement_events $q$,'settlement_immutable');
  i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
  a:=(SELECT id FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid);
- i:=hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision',a,repeat('a',64),'{"kind":"unknown","code":"timeout"}');
+ i:=hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision',a,'a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558','{"kind":"unknown","code":"timeout"}');
  PERFORM hh_assert(i->>'state'='needs_review','unknown stays frozen');
- c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,repeat('a',64));
+ c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,'a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558',jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload','{"synthetic":true}'::jsonb));
  PERFORM hh_assert(c IS NULL,'expired_lease_never_redispatches (no lease reset exists)');
  PERFORM hh_assert(hotelhub_settlement_read('99999999-9999-4999-8999-999999999999','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') IS NULL,'cross tenant read empty');
 END $$;

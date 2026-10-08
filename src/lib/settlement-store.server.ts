@@ -1,8 +1,9 @@
+import type { DispatchFacts, StoredIntent, StoredDispatch } from "./settlement-dispatch.server";
+import { billingPayloadDigest } from "./n3-billing.server";
 import type { SettlementActor, SettlementProof } from "./settlement-context.server";
 import type {
   DispatchClaim,
   DispatchOutcome,
-  Intent,
   Revision,
   SettlementScope,
   SettlementSnapshot,
@@ -13,37 +14,41 @@ export type SettlementRpc = (
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: null | { code?: string; message?: string } }>;
 export interface SettlementStore {
-  read(scope: SettlementScope): Promise<Intent | null>;
+  read(scope: SettlementScope): Promise<StoredIntent | null>;
   freeze(
     actor: SettlementActor,
     snapshot: SettlementSnapshot,
     clientRequestId: string,
-  ): Promise<Intent>;
+  ): Promise<StoredIntent>;
   claim(
     actor: SettlementActor,
     intentId: string,
     revision: Revision,
-    step: { kind: StepKind; receiptId?: string },
+    step: { kind: StepKind; receiptId?: string; facts: DispatchFacts },
     payloadDigest: string,
   ): Promise<DispatchClaim | null>;
   recordOutcome(
     actor: SettlementActor,
     claim: DispatchClaim,
     outcome: DispatchOutcome,
-  ): Promise<Intent>;
+  ): Promise<StoredIntent>;
   recordProof(
     actor: SettlementActor,
     intentId: string,
     revision: Revision,
     proof: SettlementProof,
-  ): Promise<Intent>;
-  abandonUnused(actor: SettlementActor, intentId: string, revision: Revision): Promise<Intent>;
+  ): Promise<StoredIntent>;
+  abandonUnused(
+    actor: SettlementActor,
+    intentId: string,
+    revision: Revision,
+  ): Promise<StoredIntent>;
   close(
     actor: SettlementActor,
     intentId: string,
     revision: Revision,
     proofDigest: string,
-  ): Promise<Intent>;
+  ): Promise<StoredIntent>;
 }
 const uuid = (v: unknown): v is string =>
   typeof v === "string" &&
@@ -78,7 +83,7 @@ const states = new Set([
   "needs_review",
   "abandoned",
 ]);
-function parseIntent(value: unknown, scope: SettlementScope): Intent {
+function parseIntent(value: unknown, scope: SettlementScope): StoredIntent {
   if (
     !record(value) ||
     !uuid(value.id) ||
@@ -95,7 +100,131 @@ function parseIntent(value: unknown, scope: SettlementScope): Intent {
     value.snapshot.reservationId !== scope.reservationId
   )
     fail("settlement_scope_mismatch");
-  return value as Intent;
+  for (const dispatch of value.dispatches) {
+    if (
+      !record(dispatch) ||
+      !record(dispatch.claim) ||
+      !uuid(dispatch.claim.attemptId) ||
+      dispatch.claim.intentId !== value.id ||
+      !hash(dispatch.claim.payloadDigest)
+    )
+      fail("settlement_invalid_result");
+    if (dispatch.facts === undefined) fail("settlement_invalid_result");
+    if (dispatch.facts !== undefined) {
+      validateDispatchFacts(
+        dispatch.facts,
+        dispatch.claim.kind as StepKind,
+        dispatch.claim.payloadDigest,
+        dispatch.claim.receiptId as string | undefined,
+      );
+      if ((dispatch.facts as DispatchFacts).snapshotDigest !== value.snapshot.digest)
+        fail("settlement_invalid_result");
+      freezeDeep(dispatch.facts);
+      persistedDispatches.set(dispatch as StoredDispatch, {
+        scope: { ...scope },
+        intentId: value.id,
+        snapshotDigest: String(value.snapshot.digest),
+      });
+    }
+  }
+  return value as StoredIntent;
+}
+const persistedDispatches = new WeakMap<
+  StoredDispatch,
+  { scope: SettlementScope; intentId: string; snapshotDigest: string }
+>();
+export function persistedDispatchBoundTo(
+  d: StoredDispatch,
+  scope: SettlementScope,
+  intentId: string,
+  snapshotDigest: string,
+): boolean {
+  const m = persistedDispatches.get(d);
+  return Boolean(
+    m &&
+    m.intentId === intentId &&
+    m.snapshotDigest === snapshotDigest &&
+    m.scope.tenantId === scope.tenantId &&
+    m.scope.reservationId === scope.reservationId,
+  );
+}
+function freezeDeep<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const x of Object.values(value)) freezeDeep(x);
+    Object.freeze(value);
+  }
+  return value;
+}
+function privateField(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  return Object.entries(v).some(
+    ([k, x]) =>
+      /^(n3token|authorization|password|secret|rawjournal|access_token|refresh_token|cookie|session)$/i.test(
+        k,
+      ) || privateField(x),
+  );
+}
+function validateDispatchFacts(
+  v: unknown,
+  kind: StepKind,
+  payloadDigest: string,
+  receiptId?: string,
+): asserts v is DispatchFacts {
+  if (
+    !record(v) ||
+    v.kind !== kind ||
+    !hash(v.snapshotDigest) ||
+    privateField(v) ||
+    !("payload" in v)
+  )
+    fail("settlement_invalid_dispatch_facts");
+  let digest: string;
+  try {
+    digest = billingPayloadDigest(v.payload);
+  } catch {
+    fail("settlement_invalid_dispatch_facts");
+  }
+  if (digest !== payloadDigest) fail("settlement_invalid_dispatch_facts");
+  const allowed =
+    kind === "bill"
+      ? ["kind", "snapshotDigest", "payload"]
+      : kind === "balance_receipt"
+        ? ["kind", "snapshotDigest", "payload", "input", "account"]
+        : [
+            "kind",
+            "snapshotDigest",
+            "payload",
+            "billId",
+            "receipt",
+            "before",
+            "expectedTotalToBillCents",
+            "expectedAfterFingerprint",
+          ];
+  if (Object.keys(v).some((k) => !allowed.includes(k)) || allowed.some((k) => !(k in v)))
+    fail("settlement_invalid_dispatch_facts");
+  if (kind === "bill" && !record(v.payload)) fail("settlement_invalid_dispatch_facts");
+  if (
+    kind === "balance_receipt" &&
+    (!record(v.payload) ||
+      !record(v.input) ||
+      !record(v.account) ||
+      !uuid(v.account.id) ||
+      v.account.id !== v.input.accountId)
+  )
+    fail("settlement_invalid_dispatch_facts");
+  if (
+    kind.includes("allocation") &&
+    (!Array.isArray(v.payload) ||
+      !v.payload.length ||
+      !record(v.receipt) ||
+      v.receipt.receiptId !== receiptId ||
+      !record(v.before) ||
+      !uuid(v.billId) ||
+      !hash(v.expectedAfterFingerprint) ||
+      !Number.isSafeInteger(v.expectedTotalToBillCents) ||
+      Number(v.expectedTotalToBillCents) <= 0)
+  )
+    fail("settlement_invalid_dispatch_facts");
 }
 const safeErrors = new Set([
   "settlement_locked",
@@ -151,6 +280,7 @@ export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
     },
     async claim(actor, id, rev, step, payloadDigest) {
       const args = targeted(actor, id, rev);
+      validateDispatchFacts(step.facts, step.kind, payloadDigest, step.receiptId);
       if (
         !hash(payloadDigest) ||
         !new Set(["bill", "deposit_allocation", "balance_receipt", "balance_allocation"]).has(
@@ -165,6 +295,7 @@ export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
         p_step: step.kind,
         p_receipt_id: step.receiptId || null,
         p_payload_digest: payloadDigest,
+        p_dispatch_facts: step.facts,
       });
       if (v === null) return null;
       if (

@@ -65,8 +65,19 @@ try {
   const results = await Promise.all(
     workers.map((c) =>
       c.query(
-        "SELECT hotelhub_settlement_claim($1,$2,'synthetic-owner',$3,$4,'bill',NULL,$5) AS claim",
-        [tenant, res, i.id, i.revision, "a".repeat(64)],
+        "SELECT hotelhub_settlement_claim($1,$2,'synthetic-owner',$3,$4,'bill',NULL,$5,$6::jsonb) AS claim",
+        [
+          tenant,
+          res,
+          i.id,
+          i.revision,
+          "a8198524f58e72b56283ab71ebddada22840f108b46ef7165bb3fca9919c5558",
+          JSON.stringify({
+            kind: "bill",
+            snapshotDigest: "d".repeat(64),
+            payload: { synthetic: true },
+          }),
+        ],
       ),
     ),
   );

@@ -14,6 +14,7 @@ CREATE TABLE public.hotel_settlement_attempts (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),tenant_id uuid NOT NULL,reservation_id uuid NOT NULL,intent_id uuid NOT NULL,
  kind text NOT NULL CHECK(kind IN ('bill','deposit_allocation','balance_receipt','balance_allocation')),receipt_id uuid,
  claimed_revision bigint NOT NULL,payload_digest text NOT NULL CHECK(payload_digest ~ '^[a-f0-9]{64}$'),
+ dispatch_facts jsonb NOT NULL CHECK(jsonb_typeof(dispatch_facts)='object'),
  actor_n3_user_key text NOT NULL,outcome jsonb,created_at timestamptz NOT NULL DEFAULT now(),
  FOREIGN KEY(tenant_id,reservation_id,intent_id) REFERENCES public.hotel_settlement_intents(tenant_id,reservation_id,id),
  CHECK((kind IN ('bill','balance_receipt') AND receipt_id IS NULL) OR (kind IN ('deposit_allocation','balance_allocation') AND receipt_id IS NOT NULL))
@@ -84,7 +85,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND state<>'abandoned') THEN RAISE EXCEPTION 'settlement_locked'; END IF;
 END $f$;
 CREATE FUNCTION public.hotelhub_settlement_read(p_tenant_id uuid,p_reservation_id uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $f$
-SELECT jsonb_build_object('id',i.id,'tenantId',i.tenant_id,'reservationId',i.reservation_id,'revision',i.revision::text,'state',i.state,'snapshot',i.snapshot,'dispatches',coalesce((SELECT jsonb_agg(jsonb_build_object('claim',jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',a.intent_id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',a.claimed_revision::text,'payloadDigest',a.payload_digest)),'outcome',a.outcome) ORDER BY a.created_at,a.id) FROM public.hotel_settlement_attempts a WHERE a.tenant_id=i.tenant_id AND a.reservation_id=i.reservation_id AND a.intent_id=i.id),'[]'::jsonb)) FROM public.hotel_settlement_intents i WHERE i.tenant_id=p_tenant_id AND i.reservation_id=p_reservation_id AND i.state<>'abandoned'; $f$;
+SELECT jsonb_build_object('id',i.id,'tenantId',i.tenant_id,'reservationId',i.reservation_id,'revision',i.revision::text,'state',i.state,'snapshot',i.snapshot,'dispatches',coalesce((SELECT jsonb_agg(jsonb_build_object('claim',jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',a.intent_id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',a.claimed_revision::text,'payloadDigest',a.payload_digest)),'outcome',a.outcome,'facts',a.dispatch_facts) ORDER BY a.created_at,a.id) FROM public.hotel_settlement_attempts a WHERE a.tenant_id=i.tenant_id AND a.reservation_id=i.reservation_id AND a.intent_id=i.id),'[]'::jsonb)) FROM public.hotel_settlement_intents i WHERE i.tenant_id=p_tenant_id AND i.reservation_id=p_reservation_id AND i.state<>'abandoned'; $f$;
 CREATE FUNCTION public.hotelhub_settlement_freeze(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_snapshot jsonb,p_client_request_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; r public.hotel_reservations; f public.hotel_folios; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
@@ -105,20 +106,33 @@ DECLARE i public.hotel_settlement_intents; r public.hotel_reservations; f public
  INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key) VALUES(p_tenant_id,p_reservation_id,i.id,'frozen',p_actor);
  RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
 END $f$;
-CREATE FUNCTION public.hotelhub_settlement_claim(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_step text,p_receipt_id uuid,p_payload_digest text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
+-- Canonical hash for the fixed typed JSON payloads (bounded money/master numbers).
+CREATE FUNCTION public.hotelhub_settlement_payload_json(v jsonb) RETURNS text LANGUAGE plpgsql IMMUTABLE SET search_path='' AS $f$
+DECLARE result text; BEGIN
+ CASE jsonb_typeof(v)
+ WHEN 'object' THEN SELECT '{'||coalesce(string_agg(to_jsonb(k)::text||':'||public.hotelhub_settlement_payload_json(x),',' ORDER BY k COLLATE "C"),'')||'}' INTO result FROM jsonb_each(v) AS e(k,x);
+ WHEN 'array' THEN SELECT '['||coalesce(string_agg(public.hotelhub_settlement_payload_json(x),',' ORDER BY pos),'')||']' INTO result FROM jsonb_array_elements(v) WITH ORDINALITY AS e(x,pos);
+ WHEN 'number' THEN result:=v::text; IF position('.' IN result)>0 THEN result:=rtrim(rtrim(result,'0'),'.'); END IF;
+ ELSE result:=v::text;
+ END CASE; RETURN result;
+END $f$;
+CREATE FUNCTION public.hotelhub_settlement_claim(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_step text,p_receipt_id uuid,p_payload_digest text,p_dispatch_facts jsonb DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; a public.hotel_settlement_attempts; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
  PERFORM 1 FROM public.hotel_reservations WHERE tenant_id=p_tenant_id AND id=p_reservation_id FOR UPDATE;
  SELECT * INTO i FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND id=p_intent_id FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'settlement_not_found'; END IF;
  IF EXISTS(SELECT 1 FROM public.hotel_settlement_attempts WHERE intent_id=p_intent_id AND kind=p_step AND receipt_id IS NOT DISTINCT FROM p_receipt_id) THEN RETURN NULL; END IF;
+ IF jsonb_typeof(p_dispatch_facts) IS DISTINCT FROM 'object' OR p_dispatch_facts->>'kind' IS DISTINCT FROM p_step OR p_dispatch_facts->>'snapshotDigest' IS DISTINCT FROM i.digest OR octet_length(p_dispatch_facts::text)>2000000 OR p_dispatch_facts::text ~* '"(n3token|authorization|password|secret|rawjournal|access_token|refresh_token|cookie|session)"[[:space:]]*:' THEN RAISE EXCEPTION 'settlement_invalid_dispatch_facts'; END IF;
+ IF encode(sha256(convert_to(public.hotelhub_settlement_payload_json(p_dispatch_facts->'payload'),'UTF8')),'hex') IS DISTINCT FROM p_payload_digest THEN RAISE EXCEPTION 'settlement_invalid_dispatch_facts'; END IF;
+ IF (p_step IN ('bill','balance_receipt') AND jsonb_typeof(p_dispatch_facts->'payload') IS DISTINCT FROM 'object') OR (p_step IN ('deposit_allocation','balance_allocation') AND (jsonb_typeof(p_dispatch_facts->'payload') IS DISTINCT FROM 'array' OR jsonb_array_length(p_dispatch_facts->'payload')=0 OR p_dispatch_facts->'receipt'->>'receiptId' IS DISTINCT FROM p_receipt_id::text OR p_dispatch_facts->'receipt'->>'reservationId' IS DISTINCT FROM p_reservation_id::text OR jsonb_typeof(p_dispatch_facts->'before') IS DISTINCT FROM 'object')) THEN RAISE EXCEPTION 'settlement_invalid_dispatch_facts'; END IF;
  IF i.revision::text<>p_revision THEN RAISE EXCEPTION 'settlement_stale_revision'; END IF;
  IF i.state IN ('needs_review','closed','closing','abandoned') THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
  IF (p_step='bill' AND i.state<>'frozen') OR (p_step IN ('deposit_allocation','balance_receipt') AND i.state NOT IN ('bill_verified','awaiting_payment','allocating')) OR (p_step='balance_allocation' AND i.state<>'balance_dispatched') THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
  IF p_step='deposit_allocation' AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(i.snapshot->'receipts') r WHERE r->>'receiptId'=p_receipt_id::text AND r->>'reservationId'=p_reservation_id::text) THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF (i.snapshot->'sourceVersions') IS DISTINCT FROM public.hotelhub_settlement_sources(p_tenant_id,p_reservation_id) THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
  UPDATE public.hotel_settlement_intents SET revision=revision+1,state=CASE p_step WHEN 'bill' THEN 'bill_dispatched' WHEN 'balance_receipt' THEN 'balance_dispatched' ELSE 'allocating' END WHERE id=i.id RETURNING * INTO i;
- INSERT INTO public.hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,receipt_id,claimed_revision,payload_digest,actor_n3_user_key) VALUES(p_tenant_id,p_reservation_id,i.id,p_step,p_receipt_id,i.revision,p_payload_digest,p_actor) RETURNING * INTO a;
+ INSERT INTO public.hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,receipt_id,claimed_revision,payload_digest,dispatch_facts,actor_n3_user_key) VALUES(p_tenant_id,p_reservation_id,i.id,p_step,p_receipt_id,i.revision,p_payload_digest,p_dispatch_facts,p_actor) RETURNING * INTO a;
  INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key,detail) VALUES(p_tenant_id,p_reservation_id,i.id,'dispatch_claimed',p_actor,jsonb_build_object('attemptId',a.id,'kind',p_step));
  RETURN jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',i.id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',i.revision::text,'payloadDigest',a.payload_digest));
 END $f$;
