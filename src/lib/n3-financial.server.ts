@@ -20,8 +20,13 @@
 //     ID resolves but docNo disagrees → Mismatch.
 
 import { callN3Path } from "./n3-gateway.server";
+import {
+  captureFinancialJournals,
+  type JournalCaptureReport,
+  type JournalDocument,
+} from "./n3-financial-journals.server";
 
-export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.3";
+export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.4";
 
 export type FinResource = "ar_receipts" | "cash_sales" | "customer_refunds" | "gl_accounts";
 
@@ -1671,6 +1676,7 @@ export type FinancialBundle = {
   };
   conclusions: Array<{ resource: FinResource; label: MafLabel; note: string | null }>;
   refundLinkState: RefundLinkState;
+  journalCapture: JournalCaptureReport;
   elapsedMs: number;
 };
 
@@ -1741,6 +1747,7 @@ export async function runFinancialVerification(input: {
   tenant: { id?: string | null; code: string | null; name: string | null };
   filters?: NormalizedFilters;
   tenantCustomer?: { code: string | null } | null;
+  includeJournals?: boolean;
 }): Promise<{
   run: FinancialVerificationRun;
   bundle: FinancialBundle;
@@ -1756,6 +1763,13 @@ export async function runFinancialVerification(input: {
     fetchListResource(input.token, "gl_accounts", input.dateFrom, input.dateTo, filters, tc),
   ]);
   const resources = internals.map(publicResource);
+  // A later page/detail auth failure must not be masked by the first list read.
+  for (const r of resources)
+    if (
+      r.endpointAttempts.some((e) => e.httpStatus === 401) ||
+      r.detailFanOut?.evidence.some((e) => e.httpStatus === 401)
+    )
+      r.status = "unauthorized";
 
   const ar = internals.find((r) => r.resource === "ar_receipts");
   const cs = internals.find((r) => r.resource === "cash_sales");
@@ -1784,6 +1798,34 @@ export async function runFinancialVerification(input: {
     label: r.mafLabel,
     note: r.note ?? null,
   }));
+
+  const transactionResources = internals.filter((r) => r.resource !== "gl_accounts");
+  const journalDocuments: JournalDocument[] = transactionResources.flatMap((r) =>
+    r.status !== "success"
+      ? []
+      : r._normalizedDetails.flatMap((detail) => {
+          if (!isPlainObject(detail) || typeof detail.id !== "string") return [];
+          return [
+            {
+              resource: r.resource as JournalDocument["resource"],
+              id: detail.id,
+              docCode: typeof detail.docCode === "string" ? detail.docCode : null,
+            },
+          ];
+        }),
+  );
+  const journalCapture = await captureFinancialJournals(
+    {
+      token: input.token,
+      enabled:
+        input.includeJournals === true && !resources.some((r) => r.status === "unauthorized"),
+      documents: journalDocuments,
+      sourceIncomplete: transactionResources.some(
+        (r) => r.status !== "success" || r.truncated || r.detailFanOut?.normalized !== r.matched,
+      ),
+    },
+    sanitize,
+  );
 
   const tenantPublic = { code: input.tenant.code, name: input.tenant.name };
 
@@ -1825,6 +1867,7 @@ export async function runFinancialVerification(input: {
       refundDetails: rfDetails,
       comparisonRows: refundToOr.length,
     }),
+    journalCapture,
     elapsedMs: run.elapsedMs,
   };
 
