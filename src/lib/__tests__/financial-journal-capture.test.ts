@@ -63,7 +63,7 @@ describe("Opt-in fixed-path journal capture", () => {
       expect(options).toMatchObject({
         method: "GET",
         headers: { authorization: "Bearer synthetic-session-token" },
-        redirect: "error",
+        redirect: "manual",
       });
     assertNoInternalOrSecretFields(result);
     expect(JSON.stringify(result)).not.toContain("must-not-export");
