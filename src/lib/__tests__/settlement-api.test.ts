@@ -34,6 +34,60 @@ function setup(role: typeof actor.role = "owner") {
 const request = (body: unknown) =>
   new Request("https://synthetic.test", { method: "POST", body: JSON.stringify(body) });
 describe("scoped settlement HTTP", () => {
+  it("accepts a non-RFC N3 account GUID for an authorized balance action", async () => {
+    const f = setup();
+    const input = {
+      action: "receive_balance",
+      intentId,
+      expectedRevision: "2",
+      selectedAccountId: "11111111-1111-6111-f111-111111111111",
+    };
+    const result = await handleSettlementHttp("step", request(input), id, f.deps);
+    expect(result.status).toBe(200);
+    expect(f.services.step).toHaveBeenCalledWith(actor, input);
+  });
+  it.each(["00000000-0000-0000-0000-000000000000", "not-a-guid"])(
+    "rejects invalid N3 selected account %s before service",
+    async (selectedAccountId) => {
+      const f = setup();
+      expect(
+        (
+          await handleSettlementHttp(
+            "step",
+            request({
+              action: "receive_balance",
+              intentId,
+              expectedRevision: "2",
+              selectedAccountId,
+            }),
+            id,
+            f.deps,
+          )
+        ).status,
+      ).toBe(400);
+      expect(f.services.step).not.toHaveBeenCalled();
+    },
+  );
+  it("keeps local intent and reservation IDs restricted to supported UUIDs", async () => {
+    const f = setup();
+    const n3Id = "11111111-1111-6111-f111-111111111111";
+    expect(
+      (
+        await handleSettlementHttp(
+          "step",
+          request({ action: "close", intentId: n3Id, expectedRevision: "2" }),
+          id,
+          f.deps,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await handleSettlementHttp("read", new Request("https://synthetic.test"), n3Id, f.deps))
+        .status,
+    ).toBe(400);
+    expect(f.services.step).not.toHaveBeenCalled();
+    expect(f.services.read).not.toHaveBeenCalled();
+  });
   it("Front Desk GET is read-only/no-store and POST is403", async () => {
     const f = setup("front_desk");
     const r = await handleSettlementHttp("read", new Request("https://synthetic.test"), id, f.deps);

@@ -1,4 +1,5 @@
 import type { SettlementActor, SettlementProof } from "./settlement-context.server";
+import { isN3Guid } from "./n3-guid";
 import type {
   EvidenceResult,
   SettlementSnapshot,
@@ -114,11 +115,11 @@ async function documentId(
   dispatch: StoredDispatch,
 ): Promise<string> {
   const known = dispatch.outcome?.documentId;
-  if (uuid(known)) return known;
+  if (isN3Guid(known)) return known;
   const e = i.evidence?.find((e) =>
     dispatch.claim.kind === "bill"
-      ? object(e.bill) && uuid(e.bill.id)
-      : e.kind === "balance_receipt" && object(e.receipt) && uuid(e.receipt.receiptId),
+      ? object(e.bill) && isN3Guid(e.bill.id)
+      : e.kind === "balance_receipt" && object(e.receipt) && isN3Guid(e.receipt.receiptId),
   );
   const prior =
     dispatch.claim.kind === "bill"
@@ -128,7 +129,7 @@ async function documentId(
       : object(e?.receipt)
         ? e.receipt.receiptId
         : null;
-  if (uuid(prior)) return prior;
+  if (isN3Guid(prior)) return prior;
   if (!d.lookupExactReference) throw new Error("settlement_identity_requires_review");
   const reference =
     dispatch.facts?.payload && !Array.isArray(dispatch.facts.payload)
@@ -138,7 +139,7 @@ async function documentId(
   const ids = value(
     await d.lookupExactReference(a, dispatch.claim.kind as "bill" | "balance_receipt", reference),
   );
-  if (ids.length !== 1 || !uuid(ids[0])) throw new Error("settlement_identity_requires_review");
+  if (ids.length !== 1 || !isN3Guid(ids[0])) throw new Error("settlement_identity_requires_review");
   return ids[0];
 }
 function balanceReceipt(i: StoredIntent, d: StoredDispatch, id: string): SettlementReceipt {
@@ -398,7 +399,8 @@ function acknowledgment(out: N3Outcome, kind: StepKind): DispatchOutcome {
     const ids = Object.entries(data)
       .filter(([k]) => /^(id|key)$/i.test(k))
       .map(([, v]) => v);
-    if (ids.length && ids.every((v) => uuid(v) && v === ids[0])) id = String(ids[0]).toLowerCase();
+    if (ids.length && ids.every((v) => isN3Guid(v) && v === ids[0]))
+      id = String(ids[0]).toLowerCase();
   }
   return {
     kind: "unknown",

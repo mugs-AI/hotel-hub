@@ -4,6 +4,7 @@ import {
 } from "./settlement-evidence.server";
 import type { DispatchFacts, StoredIntent, StoredDispatch } from "./settlement-dispatch.server";
 import { billingPayloadDigest } from "./n3-billing.server";
+import { isN3Guid } from "./n3-guid";
 import type {
   SettlementActor,
   SettlementProof,
@@ -222,7 +223,7 @@ function validateDispatchFacts(
     (!record(v.payload) ||
       !record(v.input) ||
       !record(v.account) ||
-      !uuid(v.account.id) ||
+      !isN3Guid(v.account.id) ||
       v.account.id !== v.input.accountId)
   )
     fail("settlement_invalid_dispatch_facts");
@@ -233,7 +234,7 @@ function validateDispatchFacts(
       !record(v.receipt) ||
       v.receipt.receiptId !== receiptId ||
       !record(v.before) ||
-      !uuid(v.billId) ||
+      !isN3Guid(v.billId) ||
       !hash(v.expectedAfterFingerprint) ||
       !Number.isSafeInteger(v.expectedTotalToBillCents) ||
       Number(v.expectedTotalToBillCents) <= 0)
@@ -311,7 +312,7 @@ export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
           step.kind,
         ) ||
         ((step.kind === "deposit_allocation" || step.kind === "balance_allocation") &&
-          !uuid(step.receiptId))
+          !isN3Guid(step.receiptId))
       )
         fail("settlement_invalid_input");
       const v = await call("hotelhub_settlement_claim", {

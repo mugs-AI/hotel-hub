@@ -10,6 +10,7 @@ import { createHash } from "node:crypto";
 import { MAX_MONEY_CENTS, sumCents } from "./checkout-money";
 import { propertyTodayIso } from "./checkout-preview";
 import { captureSettlementFolio } from "./settlement-folio.server";
+import { isN3Guid } from "./n3-guid";
 
 export type SnapshotLine = ChargeLine & { status: string; reversesLineId: string | null };
 export type SnapshotFacts = Omit<SettlementSnapshot, "digest" | "lines"> & {
@@ -197,9 +198,9 @@ export async function loadSettlementSnapshot(
       if (candidate.reservationId !== actor.reservationId)
         return { kind: "contradiction", code: "receipt_scope_mismatch" };
       if (
-        !uuid(candidate.receiptId) ||
+        !isN3Guid(candidate.receiptId) ||
         !uuid(candidate.depositId) ||
-        seen.has(candidate.receiptId) ||
+        seen.has(candidate.receiptId.toLowerCase()) ||
         !masterId(candidate.customerId) ||
         candidate.customerId !== f.customerId ||
         candidate.currency !== f.currency ||
@@ -210,7 +211,7 @@ export async function loadSettlementSnapshot(
         candidate.reference.length > 50 ||
         candidate.payments.length !== 1 ||
         candidate.payments.some(
-          (p) => !uuid(p.accountId) || !money(p.amountCents) || p.amountCents <= 0,
+          (p) => !isN3Guid(p.accountId) || !money(p.amountCents) || p.amountCents <= 0,
         ) ||
         sumCents(candidate.payments.map((p) => p.amountCents)) !== candidate.amountCents
       )
@@ -219,7 +220,7 @@ export async function loadSettlementSnapshot(
       if (checked.kind !== "confirmed") return checked;
       if (canonical(checked.value) !== canonical(candidate))
         return { kind: "contradiction", code: "receipt_snapshot_mismatch" };
-      seen.add(candidate.receiptId);
+      seen.add(candidate.receiptId.toLowerCase());
       receipts.push(checked.value);
     }
     const snapshot: Omit<SettlementSnapshot, "digest"> = {

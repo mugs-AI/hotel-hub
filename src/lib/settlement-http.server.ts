@@ -1,6 +1,7 @@
 import type { SettlementActor } from "./settlement-context.server";
 import type { SettlementStepInput, SettlementView } from "./settlement";
 import { hasPermission } from "./rbac";
+import { isN3Guid } from "./n3-guid";
 export type SettlementHttpDeps = {
   actor(): Promise<SettlementActor | null>;
   exists(actor: SettlementActor): Promise<boolean>;
@@ -40,7 +41,7 @@ function step(body: unknown): SettlementStepInput | null {
   } else if (
     !["apply_deposits", "receive_balance", "apply_balance", "close"].includes(String(action)) ||
     !uuid(body.intentId) ||
-    (body.selectedAccountId !== undefined && !uuid(body.selectedAccountId))
+    (body.selectedAccountId !== undefined && !isN3Guid(body.selectedAccountId))
   )
     return null;
   return body as SettlementStepInput;

@@ -40,6 +40,49 @@ function deps(f: SnapshotFacts = facts()): SnapshotDeps {
 }
 
 describe("immutable settlement snapshot", () => {
+  it("admits verified non-RFC N3 receipt and payment-account GUIDs", async () => {
+    const f = facts();
+    f.receipts[0].receiptId = "FFFFFFFF-FFFF-4FFF-0FFF-FFFFFFFFFFFF";
+    f.receipts[0].payments[0].accountId = "11111111-1111-6111-f111-111111111111";
+    const result = await loadSettlementSnapshot(actor, deps(f));
+    expect(result.kind).toBe("confirmed");
+    if (result.kind !== "confirmed") return;
+    expect(result.value.receipts[0].receiptId).toBe("FFFFFFFF-FFFF-4FFF-0FFF-FFFFFFFFFFFF");
+    expect(result.value.receipts[0].payments[0].accountId).toBe(
+      "11111111-1111-6111-f111-111111111111",
+    );
+  });
+  it("rejects one N3 receipt represented with two letter cases", async () => {
+    const f = facts();
+    f.receipts.push({ ...f.receipts[0], receiptId: f.receipts[0].receiptId.toUpperCase() });
+    expect((await loadSettlementSnapshot(actor, deps(f))).kind).toBe("contradiction");
+  });
+  it.each(["00000000-0000-0000-0000-000000000000", "not-a-guid"])(
+    "rejects invalid N3 receipt and payment account %s",
+    async (id) => {
+      const f = facts();
+      f.receipts[0].receiptId = id;
+      expect((await loadSettlementSnapshot(actor, deps(f))).kind).toBe("contradiction");
+      const g = facts();
+      g.receipts[0].payments[0].accountId = id;
+      expect((await loadSettlementSnapshot(actor, deps(g))).kind).toBe("contradiction");
+    },
+  );
+  it("retains local deposit UUID validation for otherwise valid N3 GUIDs", async () => {
+    const f = facts();
+    f.receipts[0].depositId = "eeeeeeee-eeee-4eee-0eee-eeeeeeeeeeee";
+    expect((await loadSettlementSnapshot(actor, deps(f))).kind).toBe("contradiction");
+  });
+  it("requires external proof even for valid non-RFC N3 GUIDs", async () => {
+    const f = facts();
+    f.receipts[0].receiptId = "ffffffff-ffff-4fff-0fff-ffffffffffff";
+    const d = deps(f);
+    d.verifyReceipt = async () => ({ kind: "unavailable", code: "receipt_not_verified" });
+    expect(await loadSettlementSnapshot(actor, d)).toEqual({
+      kind: "unavailable",
+      code: "receipt_not_verified",
+    });
+  });
   it("persists the faithful prepared folio projection inside the frozen digest", async () => {
     const f = facts();
     f.folioProjection = { version: 1, folio: preparedSettlementFolio() };

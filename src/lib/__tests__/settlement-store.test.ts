@@ -31,6 +31,59 @@ function setup(
   return { rpc, store: createSettlementStore(rpc) };
 }
 describe("service-only settlement store", () => {
+  it.each([
+    ["11111111-1111-4111-8111-111111111111", true],
+    ["11111111-1111-6111-f111-111111111111", true],
+    ["00000000-0000-0000-0000-000000000000", false],
+    ["not-a-guid", false],
+  ])(
+    "validates the N3 payment account %s before persisting a balance dispatch",
+    async (accountId, accepted) => {
+      const facts = {
+        kind: "balance_receipt" as const,
+        snapshotDigest: settlementFixture().digest,
+        payload: { accountId },
+        input: {
+          customerId: 7,
+          currencyId: 1,
+          currencyRate: 1,
+          amountCents: 45000,
+          accountId: String(accountId),
+          docDate: "2026-10-08",
+          contact: {
+            customerName: "Synthetic guest",
+            remark1: "",
+            remark2: "",
+            remark3: "",
+            remark4: "",
+          },
+        },
+        account: { id: String(accountId), code: "SYNTHETIC-BANK", name: "Synthetic bank" },
+      };
+      const claim = {
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        intentId: intent().id,
+        kind: "balance_receipt" as const,
+        expectedRevision: "9007199254740994",
+        payloadDigest: billingPayloadDigest(facts.payload),
+      };
+      const { store, rpc } = setup({ data: claim, error: null });
+      const result = store.claim(
+        actor,
+        intent().id,
+        intent().revision,
+        { kind: "balance_receipt", facts },
+        claim.payloadDigest,
+      );
+      if (accepted) {
+        expect(await result).toEqual(claim);
+        expect(rpc.mock.calls[0][1].p_dispatch_facts).toEqual(facts);
+      } else {
+        await expect(result).rejects.toThrow("settlement_invalid_dispatch_facts");
+        expect(rpc).not.toHaveBeenCalled();
+      }
+    },
+  );
   it("persisted dispatch authority survives a service read but cannot be copied from JSON", async () => {
     const { persistedDispatchBoundTo } = await import("../settlement-store.server");
     const facts = {
@@ -180,58 +233,66 @@ describe("service-only settlement store", () => {
     const { store } = setup({ data: null, error: null });
     expect(await store.read(actor)).toBeNull();
   });
-  it("claimed dispatch binds exact scope revision payload and receipt", async () => {
-    const receipt = settlementFixture().receipts[0];
-    const rows = [
-      {
-        customerId: 7,
-        receiptDocType: "OR" as const,
-        receiptDocId: receipt.receiptId,
-        docType: "INV" as const,
-        docId: "33333333-3333-4333-8333-333333333333",
-        paymentAmount: 50,
-      },
-    ];
-    const facts = {
-      kind: "deposit_allocation" as const,
-      snapshotDigest: settlementFixture().digest,
-      payload: rows,
-      billId: rows[0].docId,
-      receipt,
-      before: {
+  it.each([
+    ["33333333-3333-4333-8333-333333333333", "ffffffff-ffff-4fff-8fff-ffffffffffff"],
+    ["33333333-3333-6333-0333-333333333333", "ffffffff-ffff-4fff-8fff-ffffffffffff"],
+    ["33333333-3333-4333-8333-333333333333", "ffffffff-ffff-4fff-ffff-ffffffffffff"],
+  ])(
+    "claimed dispatch binds exact scope revision payload and N3 GUIDs %s/%s",
+    async (billId, receiptId) => {
+      const receipt = settlementFixture().receipts[0];
+      receipt.receiptId = receiptId;
+      const rows = [
+        {
+          customerId: 7,
+          receiptDocType: "OR" as const,
+          receiptDocId: receipt.receiptId,
+          docType: "INV" as const,
+          docId: billId,
+          paymentAmount: 50,
+        },
+      ];
+      const facts = {
+        kind: "deposit_allocation" as const,
+        snapshotDigest: settlementFixture().digest,
+        payload: rows,
+        billId: rows[0].docId,
         receipt,
-        code: "SYNTHETIC-OR",
-        immutableHeaderFingerprint: "e".repeat(64),
-        amountCents: 5000,
-        refundCents: 0,
-        remainderCents: 5000,
-        allocations: [],
-        fingerprints: ["a".repeat(64), "b".repeat(64)],
-      },
-      expectedTotalToBillCents: 5000,
-      expectedAfterFingerprint: "c".repeat(64),
-    };
-    const claim = {
-      attemptId: "55555555-5555-4555-8555-555555555555",
-      intentId: intent().id,
-      kind: "deposit_allocation",
-      receiptId: receipt.receiptId,
-      expectedRevision: "9007199254740994",
-      payloadDigest: billingPayloadDigest(rows),
-    };
-    const { store, rpc } = setup({ data: claim, error: null });
-    expect(
-      await store.claim(
-        actor,
-        intent().id,
-        "9007199254740993",
-        { kind: "deposit_allocation", receiptId: claim.receiptId, facts },
-        claim.payloadDigest,
-      ),
-    ).toEqual(claim);
-    expect(rpc.mock.calls[0][1].p_revision).toBe("9007199254740993");
-    expect(rpc.mock.calls[0][1].p_dispatch_facts).toEqual(facts);
-  });
+        before: {
+          receipt,
+          code: "SYNTHETIC-OR",
+          immutableHeaderFingerprint: "e".repeat(64),
+          amountCents: 5000,
+          refundCents: 0,
+          remainderCents: 5000,
+          allocations: [],
+          fingerprints: ["a".repeat(64), "b".repeat(64)],
+        },
+        expectedTotalToBillCents: 5000,
+        expectedAfterFingerprint: "c".repeat(64),
+      };
+      const claim = {
+        attemptId: "55555555-5555-4555-8555-555555555555",
+        intentId: intent().id,
+        kind: "deposit_allocation",
+        receiptId: receipt.receiptId,
+        expectedRevision: "9007199254740994",
+        payloadDigest: billingPayloadDigest(rows),
+      };
+      const { store, rpc } = setup({ data: claim, error: null });
+      expect(
+        await store.claim(
+          actor,
+          intent().id,
+          "9007199254740993",
+          { kind: "deposit_allocation", receiptId: claim.receiptId, facts },
+          claim.payloadDigest,
+        ),
+      ).toEqual(claim);
+      expect(rpc.mock.calls[0][1].p_revision).toBe("9007199254740993");
+      expect(rpc.mock.calls[0][1].p_dispatch_facts).toEqual(facts);
+    },
+  );
   it("expired_lease_never_redispatches when RPC declines claim", async () => {
     const { store, rpc } = setup({ data: null, error: null });
     expect(

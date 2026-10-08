@@ -13,7 +13,9 @@ export { actor, billId, intentId };
 export const balanceId = "33333333-3333-4333-8333-333333333333";
 const ar = "55555555-5555-4555-8555-555555555555",
   sales = "66666666-6666-4666-8666-666666666666";
-export function coordinatorFixture() {
+export function coordinatorFixture(ids: { billId?: string; balanceId?: string } = {}) {
+  const fixtureBillId = ids.billId ?? billId;
+  const fixtureBalanceId = ids.balanceId ?? balanceId;
   const snapshot = evidenceSnapshot();
   let intent: StoredIntent | null = null;
   const writes: string[] = [],
@@ -59,7 +61,7 @@ export function coordinatorFixture() {
   const receipt = (balance: boolean) => {
     const r = snapshot.receipts[0],
       amount = balance ? 450 : 50,
-      id = balance ? balanceId : r.receiptId,
+      id = balance ? fixtureBalanceId : r.receiptId,
       date = balance ? "2026-10-08" : r.receiptDate,
       ref = balance ? reference : r.reference;
     const matched = balance ? balanceMatched : depositMatched,
@@ -96,7 +98,7 @@ export function coordinatorFixture() {
                 receiptDocType: "OR",
                 receiptDocId: id,
                 docType: "INV",
-                docId: billId,
+                docId: fixtureBillId,
                 paymentAmount: amount,
                 currencyCode: "MYR",
                 currencyRate: 1,
@@ -119,7 +121,7 @@ export function coordinatorFixture() {
       else if (path.includes("ARReceipts/Create")) balanceExists = true;
       else if (path.includes("UpdateCustomerKnockoff")) {
         const rows = JSON.parse(String(init?.body));
-        if (rows[0].receiptDocId === balanceId) balanceMatched = true;
+        if (rows[0].receiptDocId === fixtureBalanceId) balanceMatched = true;
         else depositMatched = true;
       }
       if (fault.timeout) throw new Error("synthetic disconnect");
@@ -127,7 +129,10 @@ export function coordinatorFixture() {
         JSON.stringify(
           fault.malformed
             ? { code: "0000", data: {} }
-            : { code: "0000", data: { id: path.includes("CashSales") ? billId : balanceId } },
+            : {
+                code: "0000",
+                data: { id: path.includes("CashSales") ? fixtureBillId : fixtureBalanceId },
+              },
         ),
         { status: fault.writeStatus },
       );
@@ -143,7 +148,7 @@ export function coordinatorFixture() {
           ]
         : {
             isCancelled: false,
-            id: billId,
+            id: fixtureBillId,
             docType: "CS",
             docCode: "CS-SYNTHETIC",
             docDate: snapshot.billDate,
@@ -179,7 +184,7 @@ export function coordinatorFixture() {
             ],
           };
     } else {
-      const balance = path.includes(balanceId);
+      const balance = path.includes(fixtureBalanceId);
       if (balance && !balanceExists)
         return new Response(JSON.stringify({ code: "4040" }), { status: 404 });
       const r = receipt(balance);

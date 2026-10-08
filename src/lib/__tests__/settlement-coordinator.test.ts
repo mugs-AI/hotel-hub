@@ -44,6 +44,49 @@ async function step(
   );
 }
 describe("one-step settlement coordinator", () => {
+  it("proves and closes a synthetic settlement with non-RFC N3 document GUIDs", async () => {
+    const f = coordinatorFixture({
+      billId: "22222222-2222-6222-0222-222222222222",
+      balanceId: "33333333-3333-6333-f333-333333333333",
+    });
+    const posted = await runSettlementStep(actor, post, f.deps);
+    expect(posted.bill?.id).toBe("22222222-2222-6222-0222-222222222222");
+    await step(f, "apply_deposits");
+    await step(f, "receive_balance");
+    await step(f, "apply_balance");
+    expect((await step(f, "close")).state).toBe("closed");
+    expect(f.writes).toHaveLength(4);
+  });
+  it("retains a non-RFC acknowledged locator as unknown until GET proof, without re-posting", async () => {
+    const f = coordinatorFixture({ billId: "22222222-2222-6222-0222-222222222222" });
+    f.fault.readStatus = 503;
+    const first = await runSettlementStep(actor, post, f.deps);
+    expect(first.bill).toBeNull();
+    expect(f.getIntent()?.dispatches[0].outcome).toMatchObject({
+      kind: "unknown",
+      documentId: "22222222-2222-6222-0222-222222222222",
+    });
+    f.fault.readStatus = 200;
+    expect((await reconcileSettlement(actor, intentId, f.deps)).bill?.id).toBe(
+      "22222222-2222-6222-0222-222222222222",
+    );
+    expect(f.writes).toHaveLength(1);
+  });
+  it("recovers an uncertain bill through one exact-reference non-RFC N3 identity", async () => {
+    const f = coordinatorFixture({ billId: "22222222-2222-6222-0222-222222222222" });
+    f.fault.timeout = true;
+    await runSettlementStep(actor, post, f.deps);
+    f.fault.timeout = false;
+    const v = await reconcileSettlement(actor, intentId, {
+      ...f.deps,
+      lookupExactReference: async () => ({
+        kind: "confirmed",
+        value: ["22222222-2222-6222-0222-222222222222"],
+      }),
+    });
+    expect(v.bill?.id).toBe("22222222-2222-6222-0222-222222222222");
+    expect(f.writes).toHaveLength(1);
+  });
   it("background GET verifies without persisting or dispatching", async () => {
     const { readSettlementStatus } = await import("../settlement-coordinator.server");
     const f = coordinatorFixture();
