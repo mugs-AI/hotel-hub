@@ -1,0 +1,46 @@
+{
+  "kind": "offline fault-injection probe",
+  "networkCalls": 0,
+  "productionChanges": 0,
+  "results": [
+    {
+      "test": "stale merged payload loses concurrent clerk row undetected",
+      "result": "REPRODUCED",
+      "hotelPostCheck": true,
+      "clerkRowPreserved": false
+    },
+    {
+      "test": "two writers can each pass their own write/read verification",
+      "result": "REPRODUCED",
+      "bothPassedOwnCheck": true,
+      "hotelRowEventuallyPreserved": false
+    },
+    {
+      "test": "server conditional-write model rejects stale mutation before overwrite",
+      "result": "PASS",
+      "staleStatus": 412,
+      "clerkRowPreserved": true,
+      "authority": "model only; not evidence that N3 supports this"
+    },
+    {
+      "test": "refunded receipt formula double-counts RF if all knockoffs are summed",
+      "result": "REPRODUCED",
+      "correctRemainderCents": 0,
+      "naiveRemainderCents": -4000,
+      "unknownRefundWithEmptyDetails": "UNAVAILABLE, not zero"
+    },
+    {
+      "test": "balanced success/approved GL observations do not discriminate commit vs calculation",
+      "result": "REPRODUCED",
+      "bothPass": true,
+      "authority": "logical counterexample, not a claim that actual N3 response is a preview"
+    },
+    {
+      "test": "bounded GET polling can handle delayed observations without duplicate financial POST",
+      "result": "PASS",
+      "createCalls": 1,
+      "readCalls": 3,
+      "authority": "local model; actual N3 asynchronous delay is not established"
+    }
+  ]
+}
