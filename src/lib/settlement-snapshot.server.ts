@@ -144,6 +144,10 @@ export async function loadSettlementSnapshot(
       !billDate ||
       !/^[A-Z]{3}$/.test(f.currency) ||
       !masterId(f.customerId) ||
+      !masterId(f.currencyId) ||
+      !Number.isFinite(f.currencyRate) ||
+      f.currencyRate <= 0 ||
+      f.currencyRate > 999999 ||
       !/^(0|[1-9]\d{0,18})$/.test(f.revision) ||
       !money(f.totalCents) ||
       f.totalCents <= 0
@@ -223,6 +227,8 @@ export async function loadSettlementSnapshot(
       folioId: f.folioId,
       revision: f.revision,
       currency: f.currency,
+      currencyId: f.currencyId,
+      currencyRate: f.currencyRate,
       propertyTimezone: f.propertyTimezone,
       billDate,
       customerId: f.customerId,

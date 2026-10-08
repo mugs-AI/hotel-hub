@@ -641,7 +641,7 @@ type ReceiptPostingExpectation = {
   amount: number;
   currencyId: string | null;
   currencyCode: string;
-  paymentLines: VerifiedPaymentLine[];
+  paymentLines: Array<Pick<VerifiedPaymentLine, "id" | "code" | "amount">>;
 };
 
 type PostingReadback =

@@ -9,6 +9,8 @@ export function settlementFixture(overrides: Partial<SettlementSnapshot> = {}): 
     digest: "d".repeat(64),
     revision: "0",
     currency: "MYR",
+    currencyId: 1,
+    currencyRate: 1,
     propertyTimezone: "Asia/Kuala_Lumpur",
     billDate: "2026-10-08",
     customerId: 7,

@@ -39,6 +39,16 @@ function deps(f: SnapshotFacts = facts()): SnapshotDeps {
 }
 
 describe("immutable settlement snapshot", () => {
+  it.each([{ currencyId: 0 }, { currencyRate: 0 }])(
+    "rejects invalid frozen currency header %j",
+    async (override) => {
+      const f = Object.assign(facts(), override);
+      expect(await loadSettlementSnapshot(actor, deps(f))).toEqual({
+        kind: "contradiction",
+        code: "invalid_settlement_header",
+      });
+    },
+  );
   it("rejects a quantity whose price cannot produce the prepared subtotal", async () => {
     const f = facts();
     f.lines[0].qty = 2;

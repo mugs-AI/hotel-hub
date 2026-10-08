@@ -50,6 +50,8 @@ export type SettlementSnapshot = SettlementScope & {
   digest: string;
   revision: Revision;
   currency: string;
+  currencyId: number;
+  currencyRate: number;
   propertyTimezone: string;
   billDate: string;
   customerId: number;
@@ -112,6 +114,7 @@ export type AcceptedContract = {
   evidenceHash: string;
   concurrencyProofHash: string | null;
   allocationMode: "preserve_existing" | null;
+  billTarget?: "same_id_INV" | null;
 };
 export type SettlementView = SettlementScope & {
   intentId: string | null;
