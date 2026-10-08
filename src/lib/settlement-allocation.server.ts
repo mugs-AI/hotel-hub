@@ -14,6 +14,7 @@ import {
 } from "./settlement-evidence.server";
 import {
   billingPayloadDigest,
+  billingAuthenticatedReadAt,
   buildBalanceReceiptPayload,
   n3BillingClient,
   billingPaymentAccountBoundTo,
@@ -249,7 +250,7 @@ export async function verifySettlementPaymentAccount(
     accounts.set(value, {
       actor: { ...a },
       snapshotHash: billingPayloadDigest(s),
-      verifiedAt: Date.now(),
+      verifiedAt: billingAuthenticatedReadAt(out, a, selectedId)!,
     });
     return { kind: "confirmed", value };
   } catch {

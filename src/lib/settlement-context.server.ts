@@ -20,3 +20,15 @@ export type SettlementProof = SettlementScope & {
   checkedAt: string;
   evidenceFingerprints: string[];
 };
+
+declare const settlementProgressBrand: unique symbol;
+export type SettlementProgressProof = SettlementScope & {
+  readonly [settlementProgressBrand]: true;
+  kind: "bill" | "balance_receipt" | "allocation";
+  intentId: string;
+  snapshotDigest: string;
+  digest: string;
+  checkedAt: string;
+  bill: Record<string, unknown>;
+  receipt: Record<string, unknown> | null;
+};

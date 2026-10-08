@@ -1,5 +1,9 @@
 import type { EvidenceResult, SettlementSnapshot, LinkedReceipt, ChargeLine } from "./settlement";
-import type { SettlementActor, SettlementProof } from "./settlement-context.server";
+import type {
+  SettlementActor,
+  SettlementProof,
+  SettlementProgressProof,
+} from "./settlement-context.server";
 import type { N3Outcome } from "./n3-receipts.server";
 import {
   billingDocumentBoundTo,
@@ -7,6 +11,7 @@ import {
   billingReceiptBoundTo,
   billingReceiptJournalBoundTo,
   billingPayloadDigest,
+  billingAuthenticatedReadAt,
 } from "./n3-billing.server";
 import { billingContractGate } from "./settlement-contracts.server";
 import { verifyReceiptDetail, verifyReceiptJournal } from "./deposits-store.server";
@@ -57,6 +62,7 @@ type Meta = {
   user: string;
   token: string;
   snapshotHash: string;
+  snapshotDigest: string;
   intentId?: string;
 };
 const bills = new WeakMap<object, Meta>(),
@@ -208,6 +214,7 @@ function metadata(s: SettlementSnapshot, a: SettlementActor, intentId?: string):
     user: a.n3UserKey,
     token: a.n3Token,
     snapshotHash: billingPayloadDigest(s),
+    snapshotDigest: s.digest,
     ...(intentId ? { intentId } : {}),
   };
 }
@@ -450,6 +457,12 @@ export function proveBill(
         billingPayloadDigest(j.kind === "response" ? j.body : null),
       ],
     });
+    const readAt = [
+      billingAuthenticatedReadAt(d, a, c.billId),
+      billingAuthenticatedReadAt(j, a, c.billId),
+    ];
+    if (readAt.some((t) => t === null)) missing("n3_evidence_untrusted");
+    meta.verifiedAt = Math.min(...(readAt as number[]));
     bills.set(value, meta);
     return value;
   });
@@ -578,6 +591,12 @@ export function proveReceiptBefore(
         billingPayloadDigest(j.kind === "response" ? j.body : null),
       ],
     });
+    const readAt = [
+      billingAuthenticatedReadAt(d, a, r.receiptId),
+      billingAuthenticatedReadAt(j, a, r.receiptId),
+    ];
+    if (readAt.some((t) => t === null)) missing("n3_evidence_untrusted");
+    meta.verifiedAt = Math.min(...(readAt as number[]));
     receipts.set(value, meta);
     return value;
   });
@@ -635,7 +654,9 @@ export function proveReceiptAllocation(i: {
       allocatedToBillCents: target.amountCents,
       beforeFingerprints: [...before.fingerprints],
     });
-    allocations.set(value, metadata(s, a, b.intentId));
+    const meta = metadata(s, a, b.intentId);
+    meta.verifiedAt = Math.min(bills.get(b)!.verifiedAt, receipts.get(after)!.verifiedAt);
+    allocations.set(value, meta);
     return value;
   });
 }
@@ -693,6 +714,10 @@ export function proveSettlement(
       missing("settlement_receipt_missing");
     if (b.outstandingCents !== 0 || total !== s.totalCents || b.totalCents !== s.totalCents)
       mismatch("settlement_conservation_mismatch");
+    const verifiedAt = Math.min(
+      meta!.verifiedAt,
+      ...rows.map((r) => allocations.get(r)!.verifiedAt),
+    );
     const facts = {
       tenantId: s.tenantId,
       reservationId: s.reservationId,
@@ -706,14 +731,14 @@ export function proveSettlement(
         { documentId: b.id, date: b.documentDate },
         ...rows.map((a) => ({ documentId: a.receipt.receiptId, date: a.receipt.receiptDate })),
       ].sort((a, b) => a.documentId.localeCompare(b.documentId)),
-      checkedAt,
+      checkedAt: new Date(verifiedAt).toISOString(),
       evidenceFingerprints: [...b.fingerprints, ...rows.flatMap((a) => a.fingerprints)].sort(),
     };
     const proof = freeze({
       ...facts,
       digest: billingPayloadDigest({ intentId: b.intentId, snapshotDigest: s.digest, ...facts }),
     }) as SettlementProof;
-    proofs.set(proof, { ...meta!, intentId: b.intentId });
+    proofs.set(proof, { ...meta!, verifiedAt, intentId: b.intentId });
     return proof;
   });
 }
@@ -750,4 +775,129 @@ export function verifiedEvidencePair(
   const bm = bills.get(b),
     rm = receipts.get(r);
   return bound(bm, s) && bound(rm, s) && bm!.user === rm!.user && bm!.token === rm!.token;
+}
+
+const progressProofs = new WeakMap<SettlementProgressProof, Meta>();
+function progress(
+  s: SettlementSnapshot,
+  b: VerifiedBill,
+  a: SettlementActor,
+  kind: SettlementProgressProof["kind"],
+  receipt: Record<string, unknown> | null,
+  verifiedAt = bills.get(b)!.verifiedAt,
+): SettlementProgressProof {
+  const facts = {
+    kind,
+    tenantId: s.tenantId,
+    reservationId: s.reservationId,
+    intentId: b.intentId,
+    snapshotDigest: s.digest,
+    checkedAt: new Date(verifiedAt).toISOString(),
+    bill: copy(b) as unknown as Record<string, unknown>,
+    receipt,
+  };
+  const proof = freeze({
+    ...facts,
+    digest: billingPayloadDigest(facts),
+  }) as SettlementProgressProof;
+  progressProofs.set(proof, { ...metadata(s, a, b.intentId), verifiedAt });
+  return proof;
+}
+export function makeBillProgressEvidence(
+  s: SettlementSnapshot,
+  b: VerifiedBill,
+  a: SettlementActor,
+): EvidenceResult<SettlementProgressProof> {
+  return attempt(() => {
+    if (!bound(bills.get(b), s, a)) missing("n3_evidence_untrusted");
+    return progress(s, b, a, "bill", null);
+  });
+}
+export function makeReceiptProgressEvidence(
+  s: SettlementSnapshot,
+  b: VerifiedBill,
+  r: VerifiedReceiptBefore | VerifiedAllocation,
+  a: SettlementActor,
+): EvidenceResult<SettlementProgressProof> {
+  return attempt(() => {
+    const allocation = allocations.get(r),
+      before = receipts.get(r);
+    if (!bound(bills.get(b), s, a) || !bound(allocation ?? before, s, a))
+      missing("n3_evidence_untrusted");
+    let kind: SettlementProgressProof["kind"];
+    if (allocation) {
+      const matched = r as VerifiedAllocation;
+      if (matched.intentId !== b.intentId || matched.billId !== b.id)
+        mismatch("receipt_scope_mismatch");
+      kind = "allocation";
+    } else {
+      if (
+        !("purpose" in r.receipt) ||
+        r.receipt.intentId !== b.intentId ||
+        r.allocations.length ||
+        r.refundCents !== 0 ||
+        r.remainderCents !== r.amountCents
+      )
+        mismatch("balance_creation_proof_mismatch");
+      kind = "balance_receipt";
+    }
+    const receipt = {
+      receiptId: r.receipt.receiptId,
+      code: r.code,
+      reference: r.receipt.reference,
+      documentDate: r.receipt.receiptDate,
+      purpose: "purpose" in r.receipt ? "settlement" : "deposit",
+      customerId: r.receipt.customerId,
+      currency: r.receipt.currency,
+      amountCents: r.amountCents,
+      refundCents: r.refundCents,
+      remainderCents: r.remainderCents,
+      payments: copy(r.receipt.payments),
+      allocations: r.allocations.map((x) => ({
+        docId: x.docId,
+        docType: x.docType,
+        amountCents: x.amountCents,
+      })),
+      fingerprints: [...r.fingerprints],
+      ...(allocation
+        ? {
+            allocatedToBillCents: (r as VerifiedAllocation).allocatedToBillCents,
+            beforeFingerprints: [...(r as VerifiedAllocation).beforeFingerprints],
+          }
+        : {}),
+    };
+    return progress(
+      s,
+      b,
+      a,
+      kind,
+      receipt,
+      Math.min(bills.get(b)!.verifiedAt, (allocation ?? before)!.verifiedAt),
+    );
+  });
+}
+export function settlementProgressBoundTo(
+  p: SettlementProgressProof,
+  a: SettlementActor,
+  intentId: string,
+): boolean {
+  const m = progressProofs.get(p);
+  return Boolean(
+    m &&
+    Date.now() >= m.verifiedAt &&
+    Date.now() - m.verifiedAt <= 60000 &&
+    m.intentId === intentId &&
+    m.tenantId === a.tenantId &&
+    m.reservationId === a.reservationId &&
+    m.user === a.n3UserKey &&
+    m.token === a.n3Token,
+  );
+}
+export function settlementFinalEvidenceForStore(
+  p: SettlementProof,
+  a: SettlementActor,
+  intentId: string,
+): Record<string, unknown> | null {
+  if (!settlementProofBoundTo(p, a, intentId)) return null;
+  return { ...p, kind: "settlement", intentId, snapshotDigest: proofs.get(p)!.snapshotDigest };
 }

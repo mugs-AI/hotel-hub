@@ -1,6 +1,14 @@
+import {
+  settlementProgressBoundTo,
+  settlementFinalEvidenceForStore,
+} from "./settlement-evidence.server";
 import type { DispatchFacts, StoredIntent, StoredDispatch } from "./settlement-dispatch.server";
 import { billingPayloadDigest } from "./n3-billing.server";
-import type { SettlementActor, SettlementProof } from "./settlement-context.server";
+import type {
+  SettlementActor,
+  SettlementProof,
+  SettlementProgressProof,
+} from "./settlement-context.server";
 import type {
   DispatchClaim,
   DispatchOutcome,
@@ -14,6 +22,12 @@ export type SettlementRpc = (
   args: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: null | { code?: string; message?: string } }>;
 export interface SettlementStore {
+  recordProgress(
+    actor: SettlementActor,
+    intentId: string,
+    revision: Revision,
+    proof: SettlementProgressProof,
+  ): Promise<StoredIntent>;
   read(scope: SettlementScope): Promise<StoredIntent | null>;
   freeze(
     actor: SettlementActor,
@@ -260,6 +274,13 @@ export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
     return { ...args, p_intent_id: id, p_revision: rev };
   }
   return {
+    async recordProgress(actor, id, rev, proof) {
+      if (!settlementProgressBoundTo(proof, actor, id)) fail("settlement_untrusted_proof");
+      return parseIntent(
+        await call("hotelhub_settlement_prove", { ...targeted(actor, id, rev), p_proof: proof }),
+        actor,
+      );
+    },
     async read(scope) {
       const v = await call("hotelhub_settlement_read", scopeArgs(scope));
       return v === null ? null : parseIntent(v, scope);
@@ -331,8 +352,13 @@ export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
       );
     },
     // Task5 supplies runtime proof authority; structural casts never authorize SQL.
-    async recordProof(_actor, _id, _rev, _proof) {
-      return fail("settlement_untrusted_proof");
+    async recordProof(actor, id, rev, proof) {
+      const evidence = settlementFinalEvidenceForStore(proof, actor, id);
+      if (!evidence) fail("settlement_untrusted_proof");
+      return parseIntent(
+        await call("hotelhub_settlement_prove", { ...targeted(actor, id, rev), p_proof: evidence }),
+        actor,
+      );
     },
     async abandonUnused(actor, id, rev) {
       return parseIntent(

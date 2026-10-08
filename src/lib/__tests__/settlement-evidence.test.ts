@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as gates from "../settlement-contracts.server";
 import { n3BillingClient } from "../n3-billing.server";
 import {
+  makeBillProgressEvidence,
+  makeReceiptProgressEvidence,
+  settlementProgressBoundTo,
   proveBill,
   proveReceiptBefore,
   proveReceiptAllocation,
@@ -254,8 +257,64 @@ beforeEach(() =>
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 describe("exact scoped settlement evidence", () => {
+  it("late parsing cannot reset the original authenticated read freshness window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-08T00:00:00Z"));
+    const r = await reads(bill(), billGL());
+    vi.advanceTimersByTime(59000);
+    const b = confirmed(proveBill(snapshot(), r.detail, r.journal, actor, { intentId, billId }));
+    vi.advanceTimersByTime(1001);
+    expect(makeBillProgressEvidence(snapshot(), b, actor).kind).toBe("unavailable");
+  });
+  it("progress is minted from exact verified accounting, never a copied DTO", async () => {
+    const b = await verifiedBill(450);
+    const progress = confirmed(makeBillProgressEvidence(snapshot(), b, actor));
+    expect(progress.kind).toBe("bill");
+    expect(progress.bill.outstandingCents).toBe(45000);
+    expect(settlementProgressBoundTo(progress, actor, intentId)).toBe(true);
+    expect(settlementProgressBoundTo(structuredClone(progress), actor, intentId)).toBe(false);
+    expect(makeBillProgressEvidence(snapshot(), structuredClone(b), actor).kind).toBe(
+      "unavailable",
+    );
+    expect(JSON.stringify(progress)).not.toContain(actor.n3Token);
+    const { createSettlementStore } = await import("../settlement-store.server");
+    const rpc = vi.fn(async () => ({
+      data: {
+        id: intentId,
+        tenantId: actor.tenantId,
+        reservationId: actor.reservationId,
+        revision: "2",
+        state: "bill_verified",
+        snapshot: snapshot(),
+        dispatches: [],
+      },
+      error: null,
+    }));
+    await createSettlementStore(rpc).recordProgress(actor, intentId, "1", progress);
+    expect(rpc.mock.calls[0]).toMatchObject([
+      "hotelhub_settlement_prove",
+      { p_actor: actor.n3UserKey, p_intent_id: intentId, p_proof: progress },
+    ]);
+  });
+  it("allocation progress preserves proof identity and no token/raw journal", async () => {
+    const b = await verifiedBill(450),
+      a = await allocated(receipt, 5000, b);
+    const p = confirmed(makeReceiptProgressEvidence(snapshot(), b, a, actor));
+    expect(p.kind).toBe("allocation");
+    expect(p.receipt).toMatchObject({
+      receiptId: receipt.receiptId,
+      allocatedToBillCents: 5000,
+      remainderCents: 0,
+    });
+    expect(settlementProgressBoundTo(p, actor, intentId)).toBe(true);
+    expect(makeReceiptProgressEvidence(snapshot(), b, structuredClone(a), actor).kind).toBe(
+      "unavailable",
+    );
+    expect(JSON.stringify(p)).not.toContain(actor.n3Token);
+  });
   it("tax credit is exact and cannot be replaced by an equal sales credit", async () => {
     const s = snapshot();
     s.lines[0].unitCents = s.lines[0].subtotalCents = 45000;

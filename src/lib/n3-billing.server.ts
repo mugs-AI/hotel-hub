@@ -578,3 +578,12 @@ export const n3BillingClient: N3BillingClient = {
     return request(actor, "/api/ARReceipts/Create", p);
   },
 };
+
+export function billingAuthenticatedReadAt(
+  o: N3Outcome,
+  a: SettlementActor,
+  id: string,
+): number | null {
+  const b = reads.get(o);
+  return b && bound(o, a, id, b.operation) ? b.receivedAt : null;
+}

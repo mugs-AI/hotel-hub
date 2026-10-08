@@ -85,7 +85,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND state<>'abandoned') THEN RAISE EXCEPTION 'settlement_locked'; END IF;
 END $f$;
 CREATE FUNCTION public.hotelhub_settlement_read(p_tenant_id uuid,p_reservation_id uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $f$
-SELECT jsonb_build_object('id',i.id,'tenantId',i.tenant_id,'reservationId',i.reservation_id,'revision',i.revision::text,'state',i.state,'snapshot',i.snapshot,'dispatches',coalesce((SELECT jsonb_agg(jsonb_build_object('claim',jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',a.intent_id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',a.claimed_revision::text,'payloadDigest',a.payload_digest)),'outcome',a.outcome,'facts',a.dispatch_facts) ORDER BY a.created_at,a.id) FROM public.hotel_settlement_attempts a WHERE a.tenant_id=i.tenant_id AND a.reservation_id=i.reservation_id AND a.intent_id=i.id),'[]'::jsonb)) FROM public.hotel_settlement_intents i WHERE i.tenant_id=p_tenant_id AND i.reservation_id=p_reservation_id AND i.state<>'abandoned'; $f$;
+SELECT jsonb_build_object('id',i.id,'tenantId',i.tenant_id,'reservationId',i.reservation_id,'revision',i.revision::text,'state',i.state,'snapshot',i.snapshot,'dispatches',coalesce((SELECT jsonb_agg(jsonb_build_object('claim',jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',a.intent_id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',a.claimed_revision::text,'payloadDigest',a.payload_digest)),'outcome',a.outcome,'facts',a.dispatch_facts) ORDER BY a.created_at,a.id) FROM public.hotel_settlement_attempts a WHERE a.tenant_id=i.tenant_id AND a.reservation_id=i.reservation_id AND a.intent_id=i.id),'[]'::jsonb),'evidence',coalesce((SELECT jsonb_agg(e.proof ORDER BY e.created_at,e.id) FROM public.hotel_settlement_evidence e WHERE e.tenant_id=i.tenant_id AND e.reservation_id=i.reservation_id AND e.intent_id=i.id),'[]'::jsonb)) FROM public.hotel_settlement_intents i WHERE i.tenant_id=p_tenant_id AND i.reservation_id=p_reservation_id AND i.state<>'abandoned'; $f$;
 CREATE FUNCTION public.hotelhub_settlement_freeze(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_snapshot jsonb,p_client_request_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; r public.hotel_reservations; f public.hotel_folios; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
@@ -151,8 +151,31 @@ DECLARE i public.hotel_settlement_intents; a public.hotel_settlement_attempts; B
  INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key,detail) VALUES(p_tenant_id,p_reservation_id,i.id,'dispatch_outcome',p_actor,jsonb_build_object('attemptId',a.id,'kind',p_outcome->>'kind','code',p_outcome->>'code'));
  RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
 END $f$;
--- Proof recording deliberately fails closed until Task5/7 adds the typed proof contract.
-CREATE FUNCTION public.hotelhub_settlement_prove(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_proof jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$ BEGIN RAISE EXCEPTION 'settlement_untrusted_proof'; END $f$;
+-- Only the server's opaque, bound accounting proof bridge may call this RPC.
+-- Browser roles cannot execute it. Non-bill proof kinds remain closed until completed below.
+CREATE FUNCTION public.hotelhub_settlement_prove(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_proof jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
+DECLARE i public.hotel_settlement_intents; b jsonb; proof_at timestamptz; next_state text; BEGIN
+ PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
+ PERFORM 1 FROM public.hotel_reservations WHERE tenant_id=p_tenant_id AND id=p_reservation_id FOR UPDATE;
+ SELECT * INTO i FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND id=p_intent_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'settlement_not_found'; END IF;
+ IF jsonb_typeof(p_proof) IS DISTINCT FROM 'object' OR p_proof->>'kind' IS DISTINCT FROM 'bill' OR p_proof->>'tenantId' IS DISTINCT FROM p_tenant_id::text OR p_proof->>'reservationId' IS DISTINCT FROM p_reservation_id::text OR p_proof->>'intentId' IS DISTINCT FROM i.id::text OR p_proof->>'snapshotDigest' IS DISTINCT FROM i.digest OR coalesce(p_proof->>'digest','') !~ '^[a-f0-9]{64}$' OR p_proof::text ~* '"(n3token|authorization|password|secret|rawjournal|access_token|refresh_token|cookie|session)"[[:space:]]*:' THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ IF encode(sha256(convert_to(public.hotelhub_settlement_payload_json(p_proof-'digest'),'UTF8')),'hex') IS DISTINCT FROM p_proof->>'digest' THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ IF EXISTS(SELECT 1 FROM public.hotel_settlement_evidence WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND intent_id=i.id AND proof_digest=p_proof->>'digest') THEN RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id); END IF;
+ IF i.revision::text IS DISTINCT FROM p_revision THEN RAISE EXCEPTION 'settlement_stale_revision'; END IF;
+ IF i.state IN ('frozen','closed','closing','abandoned','settled') OR NOT EXISTS(SELECT 1 FROM public.hotel_settlement_attempts WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND intent_id=i.id AND kind='bill') THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
+ BEGIN proof_at:=(p_proof->>'checkedAt')::timestamptz; EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END;
+ IF proof_at IS NULL OR proof_at<clock_timestamp()-interval '60 seconds' OR proof_at>clock_timestamp()+interval '5 seconds' THEN RAISE EXCEPTION 'settlement_expired_proof'; END IF;
+ b:=p_proof->'bill';
+ IF jsonb_typeof(b) IS DISTINCT FROM 'object' OR coalesce(b->>'id','') !~ '^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$' OR b->>'id'='00000000-0000-0000-0000-000000000000' OR b->>'targetId' IS DISTINCT FROM b->>'id' OR b->>'targetType' IS DISTINCT FROM 'INV' OR b->>'intentId' IS DISTINCT FROM i.id::text OR b->>'totalCents' IS DISTINCT FROM i.snapshot->>'totalCents' OR coalesce(b->>'outstandingCents','') !~ '^(0|[1-9][0-9]{0,9})$' OR b->>'documentDate' IS DISTINCT FROM i.snapshot->>'billDate' OR coalesce(b->>'code','')='' OR jsonb_typeof(b->'fingerprints') IS DISTINCT FROM 'array' OR jsonb_array_length(b->'fingerprints')<>2 THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ IF (b->>'outstandingCents')::bigint>(b->>'totalCents')::bigint OR EXISTS(SELECT 1 FROM jsonb_array_elements_text(b->'fingerprints') x WHERE x !~ '^[a-f0-9]{64}$') THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ IF EXISTS(SELECT 1 FROM public.hotel_settlement_evidence WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND intent_id=i.id AND proof->'bill'->>'id' IS DISTINCT FROM b->>'id') THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ next_state:=CASE WHEN EXISTS(SELECT 1 FROM public.hotel_settlement_attempts WHERE intent_id=i.id AND kind<>'bill') THEN i.state ELSE 'bill_verified' END;
+ INSERT INTO public.hotel_settlement_evidence(tenant_id,reservation_id,intent_id,proof_digest,proof) VALUES(p_tenant_id,p_reservation_id,i.id,p_proof->>'digest',p_proof);
+ UPDATE public.hotel_settlement_intents SET revision=revision+1,state=next_state WHERE id=i.id;
+ INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key,detail) VALUES(p_tenant_id,p_reservation_id,i.id,'bill_verified',p_actor,jsonb_build_object('proofDigest',p_proof->>'digest','billId',b->>'id'));
+ RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
+END $f$;
 CREATE FUNCTION public.hotelhub_settlement_abandon(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
