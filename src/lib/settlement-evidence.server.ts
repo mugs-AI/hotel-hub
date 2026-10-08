@@ -734,3 +734,20 @@ export function settlementProofBoundTo(
     m.token === a.n3Token,
   );
 }
+
+export function verifiedBillActorMatches(
+  b: VerifiedBill,
+  s: SettlementSnapshot,
+  a: SettlementActor,
+): boolean {
+  return bound(bills.get(b), s, a);
+}
+export function verifiedEvidencePair(
+  b: VerifiedBill,
+  r: VerifiedReceiptBefore,
+  s: SettlementSnapshot,
+): boolean {
+  const bm = bills.get(b),
+    rm = receipts.get(r);
+  return bound(bm, s) && bound(rm, s) && bm!.user === rm!.user && bm!.token === rm!.token;
+}

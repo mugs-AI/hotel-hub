@@ -24,6 +24,7 @@ export type BalanceReceiptInput = {
   contact: ReceiptContactFields;
 };
 export interface N3BillingClient {
+  readPaymentAccount(actor: SettlementActor, id: string): Promise<N3Outcome>;
   readReceipt(actor: SettlementActor, id: string): Promise<N3Outcome>;
   readReceiptJournal(actor: SettlementActor, id: string): Promise<N3Outcome>;
   createBill(
@@ -114,7 +115,7 @@ function canonical(p: unknown): string {
 export function billingPayloadDigest(p: unknown): string {
   return createHash("sha256").update(canonical(p)).digest("hex");
 }
-function reference(c: DispatchClaim) {
+function reference(c: Pick<DispatchClaim, "intentId">) {
   requireInput(uuid(c.intentId));
   return "HH-B-" + c.intentId.replace(/-/g, "").toLowerCase();
 }
@@ -139,7 +140,7 @@ function splitAddress(s: string) {
 }
 export function buildCashSalePayload(
   s: SettlementSnapshot,
-  c: DispatchClaim,
+  c: Pick<DispatchClaim, "intentId">,
 ): Record<string, unknown> {
   requireInput(
     masterId(s.customerId) &&
@@ -205,7 +206,7 @@ export function buildCashSalePayload(
 }
 export function buildBalanceReceiptPayload(
   p: BalanceReceiptInput,
-  c: DispatchClaim,
+  c: Pick<DispatchClaim, "intentId">,
 ): Record<string, unknown> {
   requireInput(
     masterId(p.customerId) &&
@@ -353,7 +354,7 @@ type Binding = {
   token: string;
   receivedAt: number;
   id: string;
-  operation: "detail" | "journal" | "receipt_detail" | "receipt_journal";
+  operation: "detail" | "journal" | "receipt_detail" | "receipt_journal" | "payment_account";
 };
 const reads = new WeakMap<object, Binding>();
 function bound(
@@ -488,7 +489,22 @@ export function billingReceiptJournalBoundTo(
 ): boolean {
   return bound(o, a, id, "receipt_journal");
 }
+export function billingPaymentAccountBoundTo(
+  o: N3Outcome,
+  a: SettlementActor,
+  id: string,
+): boolean {
+  return bound(o, a, id, "payment_account");
+}
 export const n3BillingClient: N3BillingClient = {
+  async readPaymentAccount(actor, id) {
+    actorAccess(actor);
+    requireInput(uuid(id));
+    return request(actor, "/api/AccountCodes/" + id, undefined, {
+      id,
+      operation: "payment_account",
+    });
+  },
   async readReceipt(actor, id) {
     actorAccess(actor);
     requireInput(uuid(id));
