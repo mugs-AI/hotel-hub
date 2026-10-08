@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
+import { SettlementCard } from "@/components/SettlementCard";
 import { FolioCard } from "@/components/FolioCard";
 import { FolioBillToCard } from "@/components/FolioBillToCard";
 import { useSessionMe } from "@/lib/session-client";
@@ -43,8 +44,7 @@ function CheckoutPreviewPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Prepare Checkout</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Read-only preview. Nothing is posted to accounting, and the reservation and rooms are
-              not changed.
+              Review the prepared folio and verified accounting status before completing checkout.
             </p>
           </div>
           <div className="flex gap-2 text-sm">
@@ -70,6 +70,7 @@ function CheckoutPreviewPage() {
             canEdit={hasPermission(role, "hotel:reservations:edit")}
           />
         ) : null}
+        <SettlementCard reservationId={id} owner={hasPermission(role, "hotel:checkout:write")} />
         {q.isLoading ? <p className="text-sm text-muted-foreground">Preparing preview…</p> : null}
         {q.error ? (
           <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
@@ -222,8 +223,8 @@ function CheckoutPreviewPage() {
                 ))}
               </ul>
               <p className="mt-4 text-sm text-muted-foreground">
-                Financial posting is disabled in this milestone: no CashMemo, no deposit matching,
-                no refund and no room-status change.
+                This preview does not post accounting or close rooms. Use Final settlement for
+                verified billing and checkout actions.
               </p>
             </section>
           </>

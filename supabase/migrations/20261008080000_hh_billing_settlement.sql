@@ -86,6 +86,22 @@ BEGIN
 END $f$;
 CREATE FUNCTION public.hotelhub_settlement_read(p_tenant_id uuid,p_reservation_id uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $f$
 SELECT jsonb_build_object('id',i.id,'tenantId',i.tenant_id,'reservationId',i.reservation_id,'revision',i.revision::text,'state',i.state,'snapshot',i.snapshot,'dispatches',coalesce((SELECT jsonb_agg(jsonb_build_object('claim',jsonb_strip_nulls(jsonb_build_object('attemptId',a.id,'intentId',a.intent_id,'kind',a.kind,'receiptId',a.receipt_id,'expectedRevision',a.claimed_revision::text,'payloadDigest',a.payload_digest)),'outcome',a.outcome,'facts',a.dispatch_facts) ORDER BY a.created_at,a.id) FROM public.hotel_settlement_attempts a WHERE a.tenant_id=i.tenant_id AND a.reservation_id=i.reservation_id AND a.intent_id=i.id),'[]'::jsonb),'evidence',coalesce((SELECT jsonb_agg(e.proof ORDER BY e.created_at,e.id) FROM public.hotel_settlement_evidence e WHERE e.tenant_id=i.tenant_id AND e.reservation_id=i.reservation_id AND e.intent_id=i.id),'[]'::jsonb)) FROM public.hotel_settlement_intents i WHERE i.tenant_id=p_tenant_id AND i.reservation_id=p_reservation_id AND i.state<>'abandoned'; $f$;
+-- Immutable reservation/deposit/effective receipt linkage, never customer equality.
+CREATE FUNCTION public.hotelhub_settlement_receipts_owned(p_tenant uuid,p_res uuid,p_receipts jsonb) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $f$
+WITH linked AS (
+ SELECT d.id,d.n3_receipt_id,v.receipt_id,v.state,v.id AS version_id
+ FROM public.hotel_reservation_deposits d
+ LEFT JOIN LATERAL(SELECT x.id,x.receipt_id,x.state FROM public.hotel_receipt_versions x WHERE x.tenant_id=d.tenant_id AND x.deposit_id=d.id ORDER BY x.version_no DESC LIMIT 1) v ON true
+ WHERE d.tenant_id=p_tenant AND d.reservation_id=p_res AND d.status='posted'
+), active AS (
+ SELECT id,CASE WHEN version_id IS NOT NULL THEN receipt_id ELSE n3_receipt_id END AS receipt_id FROM linked WHERE version_id IS NULL OR state='active'
+)
+SELECT jsonb_typeof(p_receipts)='array'
+ AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_receipts) r WHERE r->>'reservationId' IS DISTINCT FROM p_res::text OR NOT EXISTS(SELECT 1 FROM active a WHERE a.id::text=r->>'depositId' AND a.receipt_id=r->>'receiptId'))
+ AND NOT EXISTS(SELECT 1 FROM active a WHERE a.receipt_id IS NULL OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_receipts) r WHERE r->>'depositId'=a.id::text AND r->>'receiptId'=a.receipt_id))
+ AND jsonb_array_length(p_receipts)=(SELECT count(DISTINCT r->>'depositId') FROM jsonb_array_elements(p_receipts) r)
+ AND jsonb_array_length(p_receipts)=(SELECT count(DISTINCT r->>'receiptId') FROM jsonb_array_elements(p_receipts) r);
+$f$;
 CREATE FUNCTION public.hotelhub_settlement_freeze(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_snapshot jsonb,p_client_request_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; r public.hotel_reservations; f public.hotel_folios; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
@@ -100,6 +116,7 @@ DECLARE i public.hotel_settlement_intents; r public.hotel_reservations; f public
  IF NOT FOUND OR f.status<>'prepared' THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
  IF p_snapshot->>'tenantId' IS DISTINCT FROM p_tenant_id::text OR p_snapshot->>'reservationId' IS DISTINCT FROM p_reservation_id::text OR p_snapshot->>'folioId' IS DISTINCT FROM f.id::text THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF jsonb_typeof(p_snapshot) IS DISTINCT FROM 'object' OR jsonb_typeof(p_snapshot->'sourceVersions') IS DISTINCT FROM 'array' OR jsonb_typeof(p_snapshot->'receipts') IS DISTINCT FROM 'array' OR coalesce(p_snapshot->>'totalCents','') !~ '^[1-9][0-9]{0,9}$' THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
+ IF NOT public.hotelhub_settlement_receipts_owned(p_tenant_id,p_reservation_id,p_snapshot->'receipts') THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF (p_snapshot->>'totalCents')::bigint IS DISTINCT FROM (SELECT sum(total_cents) FROM public.hotel_folio_lines WHERE tenant_id=p_tenant_id AND folio_id=f.id) THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
  IF p_snapshot->'sourceVersions' IS DISTINCT FROM public.hotelhub_settlement_sources(p_tenant_id,p_reservation_id) OR p_snapshot->>'currency' IS DISTINCT FROM r.currency OR p_snapshot->>'digest' !~ '^[a-f0-9]{64}$' OR (p_snapshot->>'totalCents')::bigint NOT BETWEEN 1 AND 1000000000 THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
  INSERT INTO public.hotel_settlement_intents(tenant_id,reservation_id,client_request_id,snapshot,digest,actor_n3_user_key) VALUES(p_tenant_id,p_reservation_id,p_client_request_id,p_snapshot,p_snapshot->>'digest',p_actor) RETURNING * INTO i;
@@ -117,7 +134,7 @@ DECLARE result text; BEGIN
  END CASE; RETURN result;
 END $f$;
 CREATE FUNCTION public.hotelhub_settlement_claim(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_step text,p_receipt_id uuid,p_payload_digest text,p_dispatch_facts jsonb DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
-DECLARE i public.hotel_settlement_intents; a public.hotel_settlement_attempts; BEGIN
+DECLARE i public.hotel_settlement_intents; a public.hotel_settlement_attempts; current_bill jsonb; bill_checked timestamptz; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
  PERFORM 1 FROM public.hotel_reservations WHERE tenant_id=p_tenant_id AND id=p_reservation_id FOR UPDATE;
  SELECT * INTO i FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND id=p_intent_id FOR UPDATE;
@@ -130,6 +147,11 @@ DECLARE i public.hotel_settlement_intents; a public.hotel_settlement_attempts; B
  IF i.state IN ('needs_review','closed','closing','abandoned') THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
  IF EXISTS(SELECT 1 FROM public.hotel_settlement_attempts prior WHERE prior.intent_id=i.id AND NOT EXISTS(SELECT 1 FROM public.hotel_settlement_evidence e WHERE e.intent_id=i.id AND ((prior.kind='bill' AND e.proof->>'kind'='bill') OR (prior.kind='balance_receipt' AND e.proof->>'kind'='balance_receipt') OR (prior.kind IN ('deposit_allocation','balance_allocation') AND e.proof->>'kind'='allocation' AND e.proof->'receipt'->>'receiptId'=prior.receipt_id::text)))) THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
  IF (p_step='bill' AND i.state<>'frozen') OR (p_step IN ('deposit_allocation','balance_receipt') AND i.state NOT IN ('bill_verified','awaiting_payment','allocating')) OR (p_step='balance_allocation' AND i.state<>'balance_dispatched') THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
+ IF p_step='balance_receipt' THEN
+  SELECT e.proof->'bill',(e.proof->>'checkedAt')::timestamptz INTO current_bill,bill_checked FROM public.hotel_settlement_evidence e WHERE e.intent_id=i.id AND e.proof->'bill' IS NOT NULL ORDER BY (e.proof->>'checkedAt')::timestamptz DESC,e.created_at DESC,e.id DESC LIMIT 1;
+  IF current_bill IS NULL OR bill_checked<clock_timestamp()-interval '60 seconds' OR bill_checked>clock_timestamp()+interval '5 seconds' OR coalesce(current_bill->>'outstandingCents','') !~ '^[1-9][0-9]{0,9}$' OR current_bill->>'outstandingCents' IS DISTINCT FROM p_dispatch_facts->'input'->>'amountCents' THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
+ END IF;
+ IF p_step='deposit_allocation' AND NOT public.hotelhub_settlement_receipts_owned(p_tenant_id,p_reservation_id,i.snapshot->'receipts') THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF p_step='deposit_allocation' AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(i.snapshot->'receipts') r WHERE r->>'receiptId'=p_receipt_id::text AND r->>'reservationId'=p_reservation_id::text) THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF p_step='balance_allocation' AND NOT EXISTS(SELECT 1 FROM public.hotel_settlement_evidence e WHERE e.tenant_id=p_tenant_id AND e.reservation_id=p_reservation_id AND e.intent_id=i.id AND e.proof->>'kind'='balance_receipt' AND e.proof->'receipt'->>'receiptId'=p_receipt_id::text) THEN RAISE EXCEPTION 'settlement_scope_mismatch'; END IF;
  IF (i.snapshot->'sourceVersions') IS DISTINCT FROM public.hotelhub_settlement_sources(p_tenant_id,p_reservation_id) THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
@@ -196,6 +218,7 @@ DECLARE i public.hotel_settlement_intents; b jsonb; r jsonb; payment jsonb; atte
     IF r->>'purpose'='settlement' THEN balance_count:=balance_count+1; END IF;
    END LOOP;
    IF matched_total<>(i.snapshot->>'totalCents')::bigint OR balance_count>1 OR receipt_count<>(SELECT count(DISTINCT x->>'receiptId') FROM jsonb_array_elements(p_proof->'receipts') x) OR EXISTS(SELECT 1 FROM jsonb_array_elements(i.snapshot->'receipts') x WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_proof->'receipts') y WHERE y->>'receiptId'=x->>'receiptId')) OR EXISTS(SELECT 1 FROM public.hotel_settlement_attempts a WHERE a.intent_id=i.id AND a.kind IN ('deposit_allocation','balance_allocation') AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_proof->'receipts') y WHERE y->>'receiptId'=a.receipt_id::text)) THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+   IF EXISTS(SELECT 1 FROM public.hotel_settlement_attempts a WHERE a.intent_id=i.id AND a.kind='balance_receipt' AND (balance_count<>1 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(p_proof->'receipts') y JOIN public.hotel_settlement_evidence e ON e.intent_id=i.id AND e.proof->>'kind'='balance_receipt' AND e.proof->'receipt'->>'receiptId'=y->>'receiptId' WHERE y->>'purpose'='settlement' AND (a.outcome->>'documentId' IS NULL OR a.outcome->>'documentId'=y->>'receiptId')))) THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
    next_state:='settled';
   END IF;
  ELSIF p_proof->>'kind'='balance_receipt' THEN

@@ -29,7 +29,7 @@ const post = {
 };
 async function step(
   f: ReturnType<typeof coordinatorFixture>,
-  action: "apply_deposits" | "receive_balance" | "close",
+  action: "apply_deposits" | "receive_balance" | "apply_balance" | "close",
 ) {
   const i = f.getIntent()!;
   return runSettlementStep(
@@ -44,12 +44,25 @@ async function step(
   );
 }
 describe("one-step settlement coordinator", () => {
+  it("background GET verifies without persisting or dispatching", async () => {
+    const { readSettlementStatus } = await import("../settlement-coordinator.server");
+    const f = coordinatorFixture();
+    await runSettlementStep(actor, post, f.deps);
+    const previous = f.getIntent();
+    f.calls.length = 0;
+    vi.setSystemTime(new Date("2026-10-08T04:02:00Z"));
+    await readSettlementStatus(actor, f.deps);
+    expect(f.calls.every((x) => x.endsWith("_read"))).toBe(true);
+    expect(f.getIntent()).toEqual(previous);
+    expect(f.writes).toHaveLength(1);
+  });
+
   it("fresh proof after the clock advances permits close without treating its own save as a stale client", async () => {
     const f = coordinatorFixture();
     await runSettlementStep(actor, post, f.deps);
     await step(f, "apply_deposits");
     await step(f, "receive_balance");
-    await step(f, "receive_balance");
+    await step(f, "apply_balance");
     vi.setSystemTime(new Date("2026-10-08T04:02:00Z"));
     const v = await step(f, "close");
     expect(v.state).toBe("closed");
@@ -115,7 +128,7 @@ describe("one-step settlement coordinator", () => {
     expect(f.writes).toHaveLength(3);
     await runSettlementStep(
       actor,
-      { action: "receive_balance", intentId, expectedRevision: f.getIntent()!.revision },
+      { action: "apply_balance", intentId, expectedRevision: f.getIntent()!.revision },
       deps,
     );
     expect(f.writes).toHaveLength(4);
@@ -134,7 +147,7 @@ describe("one-step settlement coordinator", () => {
     expect(v.blockers).toEqual([]);
     expect(v.receipts).toHaveLength(2);
     expect(f.writes).toHaveLength(3);
-    v = await step(f, "receive_balance");
+    v = await step(f, "apply_balance");
     expect(v.state).toBe("settled");
     expect(v.bill?.outstandingCents).toBe(0);
     expect(f.writes).toHaveLength(4);
@@ -253,7 +266,7 @@ describe("one-step settlement coordinator", () => {
     await runSettlementStep(actor, post, f.deps);
     await step(f, "apply_deposits");
     await step(f, "receive_balance");
-    await step(f, "receive_balance");
+    await step(f, "apply_balance");
     f.fail.add("hotelhub_settlement_close");
     await step(f, "close");
     await step(f, "close");
@@ -262,4 +275,64 @@ describe("one-step settlement coordinator", () => {
     const v = await reconcileSettlement(actor, intentId, f.deps);
     expect(v.allowedActions).toEqual([]);
   });
+});
+
+it("rereads the accounting set and blocks a concurrent external unmatch", async () => {
+  const f = coordinatorFixture();
+  await runSettlementStep(actor, post, f.deps);
+  await step(f, "apply_deposits");
+  await step(f, "receive_balance");
+  await step(f, "apply_balance");
+  const priorFetch = vi.mocked(fetch).getMockImplementation()!;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (...args: Parameters<typeof fetch>) => {
+      const out = await priorFetch(...args);
+      if (String(args[0]).includes("ARReceipts/GLPosting")) f.fault.extraOutstanding = 50;
+      return out;
+    }),
+  );
+  const v = await step(f, "close");
+  expect(v.state).not.toBe("closed");
+  expect(v.blockers).toContain("settlement_evidence_changed");
+  expect(f.calls).not.toContain("hotelhub_settlement_close");
+});
+it("created and recovered balance receipts offer apply instead of another payment", async () => {
+  const f = coordinatorFixture();
+  await runSettlementStep(actor, post, f.deps);
+  await step(f, "apply_deposits");
+  const v = await step(f, "receive_balance");
+  expect(v.allowedActions).toEqual(["apply_balance"]);
+  const recovered = await reconcileSettlement(actor, intentId, f.deps);
+  expect(recovered.allowedActions).toEqual(["apply_balance"]);
+});
+
+it("a participating receipt change during final verification prevents close", async () => {
+  const f = coordinatorFixture();
+  await runSettlementStep(actor, post, f.deps);
+  await step(f, "apply_deposits");
+  await step(f, "receive_balance");
+  await step(f, "apply_balance");
+  const prior = vi.mocked(fetch).getMockImplementation()!;
+  const counts = new Map<string, number>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (...args: Parameters<typeof fetch>) => {
+      const out = await prior(...args);
+      const url = String(args[0]);
+      if (url.includes("/ARReceipts/") && !url.includes("GLPosting")) {
+        const n = (counts.get(url) || 0) + 1;
+        counts.set(url, n);
+        if (n > 1) {
+          const data = await out.json();
+          data.data.description = "Concurrent change";
+          return Response.json(data);
+        }
+      }
+      return out;
+    }),
+  );
+  const view = await step(f, "close");
+  expect(view.blockers).toContain("settlement_evidence_changed");
+  expect(f.calls).not.toContain("hotelhub_settlement_close");
 });

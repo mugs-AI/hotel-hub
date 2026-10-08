@@ -2,6 +2,8 @@ import { vi } from "vitest";
 import { settlementFixture } from "./settlement";
 import { n3BillingClient } from "../../n3-billing.server";
 import { proveBill, proveReceiptBefore } from "../../settlement-evidence.server";
+import type { SettlementReceipt } from "../../settlement-evidence.server";
+import { formatReceiptContact } from "../../receipt-contact";
 import type { EvidenceResult } from "../../settlement";
 import type { SettlementActor } from "../../settlement-context.server";
 export const fixtureActor: SettlementActor = {
@@ -134,9 +136,9 @@ export async function evidenceReceipt(
   prior: unknown[] = [],
   remainder = 50,
   s = evidenceSnapshot(),
+  r: SettlementReceipt = s.receipts[0],
 ) {
-  const r = s.receipts[0],
-    docCode = "OR-SYNTHETIC",
+  const docCode = "OR-SYNTHETIC",
     p = r.payments[0];
   const detail = {
     isCancelled: false,
@@ -150,8 +152,10 @@ export async function evidenceReceipt(
     currencyId: 1,
     currencyCode: "MYR",
     currencyRate: 1,
-    totalAmount: 50,
-    netTotalAmount: 50,
+    totalAmount: r.amountCents / 100,
+    netTotalAmount: r.amountCents / 100,
+    isMultiPayment: false,
+    ...formatReceiptContact(s.billTo),
     accountId: p.accountId,
     accountCode: p.accountCode,
     refundAmount: 0,
@@ -159,8 +163,8 @@ export async function evidenceReceipt(
     knockoff: prior,
   };
   const journal = [
-    gl(p.accountId, p.accountCode, 50, 0, docCode, r.reference, r.receiptDate),
-    gl(arId, "SYNTHETIC-AR", 0, 50, docCode, r.reference, r.receiptDate),
+    gl(p.accountId, p.accountCode, r.amountCents / 100, 0, docCode, r.reference, r.receiptDate),
+    gl(arId, "SYNTHETIC-AR", 0, r.amountCents / 100, docCode, r.reference, r.receiptDate),
   ];
   vi.stubGlobal(
     "fetch",

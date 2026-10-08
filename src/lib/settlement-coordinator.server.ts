@@ -60,6 +60,7 @@ type Context = {
   before: VerifiedReceiptBefore[];
   allocations: VerifiedAllocation[];
   proof: SettlementProof | null;
+  snapshot?: SettlementSnapshot;
   blockers: string[];
 };
 const uuid = (v: unknown): v is string =>
@@ -182,7 +183,10 @@ async function inspect(
     let i = await d.store.read(a);
     c.intent = i;
     if (requestedId && i?.id !== requestedId) throw new Error("settlement_not_found");
-    if (!i) return c;
+    if (!i) {
+      c.snapshot = value(await d.snapshot(a));
+      return c;
+    }
     if (i.state === "closed") return c;
     const s = i.snapshot,
       fresh = value(await d.snapshot(a, s));
@@ -255,6 +259,48 @@ async function inspect(
         }
       }
     }
+    // One bounded consistency pass, never a financial retry. Earlier receipt
+    // reads must still match, followed by a final bill/detail+GL read. Any
+    // change retains review instead of renewing a stale zero proof.
+    let consistencyExpired = false;
+    const consistentIntentId = i.id;
+    const assertCurrent = () => {
+      if (consistencyExpired) throw new Error("settlement_evidence_changed");
+    };
+    const consistent = async () => {
+      for (const r of [...c.allocations, ...c.before]) {
+        assertCurrent();
+        const [rd, rj] = await Promise.all([
+          outcomeRead(a, d, () => client.readReceipt(a, r.receipt.receiptId)),
+          outcomeRead(a, d, () => client.readReceiptJournal(a, r.receipt.receiptId)),
+        ]);
+        const current = value(proveReceiptBefore(s, r.receipt, rd, rj, a));
+        assertCurrent();
+        if (billingPayloadDigest(current.fingerprints) !== billingPayloadDigest(r.fingerprints))
+          throw new Error("settlement_evidence_changed");
+      }
+      assertCurrent();
+      const [bd, bj] = await Promise.all([
+        outcomeRead(a, d, () => client.readBill(a, id)),
+        outcomeRead(a, d, () => client.readBillJournal(a, id)),
+      ]);
+      const current = value(proveBill(s, bd, bj, a, { intentId: consistentIntentId, billId: id }));
+      assertCurrent();
+      if (billingPayloadDigest(current) !== billingPayloadDigest(bill))
+        throw new Error("settlement_evidence_changed");
+      return current;
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stableBill = await Promise.race([
+      consistent(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          consistencyExpired = true;
+          reject(new Error("settlement_evidence_changed"));
+        }, 40_000);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    c.bill = stableBill;
     const owned = c.allocations.reduce((n, r) => n + r.allocatedToBillCents, 0);
     if (bill.totalCents !== s.totalCents || owned + bill.outstandingCents !== s.totalCents)
       throw new Error("settlement_conservation_mismatch");
@@ -264,7 +310,7 @@ async function inspect(
     )
       throw new Error("settlement_excess_or_refund_requires_review");
     if (bill.outstandingCents === 0) {
-      c.proof = value(proveSettlement(s, bill, c.allocations, d.now().toISOString()));
+      c.proof = value(proveSettlement(s, stableBill, c.allocations, d.now().toISOString()));
       if (persist && a.role === "owner") {
         i = await d.store.recordProof(a, i.id, i.revision, c.proof);
         c.intent = i;
@@ -282,10 +328,10 @@ function view(a: SettlementActor, c: Context): SettlementView {
     tenantId: a.tenantId,
     reservationId: a.reservationId,
     intentId: i?.id || null,
-    snapshotDigest: i?.snapshot.digest || null,
-    revision: i?.revision || "0",
+    snapshotDigest: i?.snapshot.digest || c.snapshot?.digest || null,
+    revision: i?.revision || c.snapshot?.revision || "0",
     state: i?.state || null,
-    currency: i?.snapshot.currency || "MYR",
+    currency: i?.snapshot.currency || c.snapshot?.currency || "MYR",
     bill: b
       ? {
           id: b.id,
@@ -325,7 +371,8 @@ function view(a: SettlementActor, c: Context): SettlementView {
     const kind = c.before.some((r) => "purpose" in r.receipt)
       ? "balance_allocation"
       : "balance_receipt";
-    if (billingContractGate(kind).kind === "confirmed") v.allowedActions.push("receive_balance");
+    if (billingContractGate(kind).kind === "confirmed")
+      v.allowedActions.push(kind === "balance_allocation" ? "apply_balance" : "receive_balance");
   }
   return v;
 }
@@ -503,4 +550,12 @@ export async function runSettlementStep(
     c.blockers.push(code(e));
     return view(a, c);
   }
+}
+
+/** Background/status GET never persists proof or dispatches. */
+export async function readSettlementStatus(
+  actor: SettlementActor,
+  deps: SettlementDeps,
+): Promise<SettlementView> {
+  return view(actor, await inspect(actor, deps, undefined, false));
 }

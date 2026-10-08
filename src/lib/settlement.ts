@@ -104,7 +104,7 @@ export type SettlementStepInput =
       intentId?: string;
     }
   | {
-      action: "apply_deposits" | "receive_balance" | "close";
+      action: "apply_deposits" | "receive_balance" | "apply_balance" | "close";
       intentId: string;
       expectedRevision: Revision;
       selectedAccountId?: string;

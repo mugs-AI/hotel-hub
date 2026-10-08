@@ -21,6 +21,7 @@ import {
 } from "./financial-reporting";
 import { ReceiptControlError, type ReceiptSnapshot } from "./receipt-controls";
 import type { ReceiptControlActor } from "./receipt-controls-evidence.server";
+import { createHash } from "node:crypto";
 import {
   discoverMonthReceipts,
   MonthListError,
@@ -616,7 +617,12 @@ export async function readMonthlyFinancialSources(
     const u = unavailable(err.reason);
     return { period, currency: currency ?? "", receipts: u, sales: u, otherCollections: u };
   }
-  const key = `${actor.tenantId}|${period.month}|${period.timezone}|${revision}`;
+  // Current token/person are part of the authority, even on the same tenant.
+  // Keep credentials out of cache keys/logs; this digest stays server-side.
+  const authority = createHash("sha256")
+    .update(JSON.stringify([actor.n3UserKey, actor.n3Token]))
+    .digest("hex");
+  const key = `${actor.tenantId}|${authority}|${period.month}|${period.timezone}|${revision}`;
   const hit = cache.get(key);
   if (hit && clock() - hit.at <= FINANCIAL_LIMITS.cacheTtlMs) return hit.value;
   const adapter = async (
@@ -625,7 +631,8 @@ export async function readMonthlyFinancialSources(
     if (!fn) return unavailable(UNAVAILABLE_FINAL_BILLING);
     try {
       return await deadline.run(() => fn(actor, period));
-    } catch {
+    } catch (e) {
+      if (e instanceof ReceiptControlError && e.code === "unauthorized") throw e;
       return unavailable("source_incomplete");
     }
   };
@@ -963,6 +970,7 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         ["hotel_receipt_versions", "verified_at"],
         ["hotel_receipt_control_requests", "updated_at"],
         ["hotel_reservation_deposits", "updated_at"],
+        ["hotel_settlement_events", "created_at"],
       ] as const) {
         const res = await sb
           .from(table)
@@ -997,6 +1005,14 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
         // GET-only: the type deliberately excludes create.
         n3: { getById: n3Receipts.getById, getGLPosting: n3Receipts.getGLPosting },
       });
+    },
+    async sales(actor, period) {
+      const { readSettlementSales } = await import("./settlement-financial-source.server");
+      return readSettlementSales(actor, period);
+    },
+    async otherCollections(actor, period) {
+      const { readSettlementCollections } = await import("./settlement-financial-source.server");
+      return readSettlementCollections(actor, period);
     },
   };
 }

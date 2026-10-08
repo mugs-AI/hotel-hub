@@ -7,6 +7,16 @@ PERFORM hh_assert(msg=p_code,p_code||': '||coalesce(msg,'write unexpectedly succ
 CREATE FUNCTION public.hh_snapshot(p_res uuid DEFAULT 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') RETURNS jsonb LANGUAGE sql AS $$
 SELECT jsonb_build_object('tenantId','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','reservationId',p_res,'folioId',(SELECT id FROM hotel_folios WHERE reservation_id=p_res),'digest',repeat('d',64),'revision','0','currency','MYR','currencyId',1,'currencyRate',1,'customerId',7,'propertyTimezone','Asia/Kuala_Lumpur','totalCents',50000,'billDate','2026-10-08','sourceVersions',public.hotelhub_settlement_sources('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',p_res),'receipts','[]'::jsonb) $$;
 CREATE FUNCTION public.hh_sign_proof(p jsonb) RETURNS jsonb LANGUAGE sql AS $$ SELECT (p-'digest')||jsonb_build_object('digest',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(p-'digest'),'UTF8')),'hex')) $$;
+-- Real immutable receipt linkage, even when two stays share customer7.
+DO $$ DECLARE res uuid:=gen_random_uuid(); other uuid:=gen_random_uuid(); folio uuid:=gen_random_uuid(); dep uuid:=gen_random_uuid(); receipt uuid:=gen_random_uuid(); snap jsonb; BEGIN
+ INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','OWN-'||res,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner'),(other,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','ALIEN-'||other,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
+ INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES(folio,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
+ INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',folio,'add_on','Ownership test',50000,50000,50000,'synthetic-owner');
+ INSERT INTO hotel_reservation_deposits(id,tenant_id,reservation_id,amount,currency_code,idempotency_key,n3_reference_no,status,n3_receipt_id,n3_customer_id,created_by_n3_user_key) VALUES(dep,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',other,50,'MYR','ALIEN-'||dep,'ALIEN-REF','posted',receipt::text,'7','synthetic-owner');
+ snap:=hh_snapshot(res)||jsonb_build_object('receipts',jsonb_build_array(jsonb_build_object('depositId',dep,'receiptId',receipt,'reservationId',res,'customerId',7,'reference','ALIEN-REF')));
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::jsonb,gen_random_uuid()) $q$,res,snap),'settlement_scope_mismatch');
+ PERFORM hh_assert(NOT EXISTS(SELECT 1 FROM hotel_settlement_intents WHERE reservation_id=res),'shared customer cannot confer alien receipt ownership');
+END $$;
 DO $$ BEGIN
  PERFORM hh_reject($q$ SELECT hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',hh_snapshot()-'totalCents',gen_random_uuid()) $q$,'settlement_snapshot_changed');
  PERFORM hh_reject($q$ SELECT hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','synthetic-owner',hh_snapshot()||'{"totalCents":50001}',gen_random_uuid()) $q$,'settlement_snapshot_changed');
@@ -136,12 +146,44 @@ DO $$ DECLARE i jsonb; p jsonb; BEGIN
  i:=hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',(i->>'id')::uuid,i->>'revision',p);
  PERFORM hh_assert(i->>'state'='settled','GET-only proof refresh supports an expired local close retry');
 END $$;
+-- Isolated durable fence fixture: clone already exercised allocation facts,
+-- linked as an actual local deposit; this tests SQL inventory, not N3 proof.
+DO $$ DECLARE res uuid:=gen_random_uuid(); folio uuid:=gen_random_uuid(); intent uuid:=gen_random_uuid(); dep uuid:=gen_random_uuid(); template uuid; s jsonb; r jsonb; p jsonb; facts jsonb; wire jsonb; balance_facts jsonb; claim_result jsonb; balance_rejected boolean:=false; receipt text; revision text; BEGIN
+ SELECT id INTO template FROM hotel_settlement_intents WHERE reservation_id='10101010-1010-4010-8010-101010101010';
+ SELECT proof INTO p FROM hotel_settlement_evidence WHERE intent_id=template AND proof->>'kind'='settlement' ORDER BY created_at DESC,id DESC LIMIT 1;
+ r:=p->'receipts'->0; receipt:=r->>'receiptId';
+ INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','BALANCE-FENCE-'||res,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
+ INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES(folio,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
+ INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',folio,'add_on','Balance fence test',50000,50000,50000,'synthetic-owner');
+ INSERT INTO hotel_reservation_deposits(id,tenant_id,reservation_id,amount,currency_code,idempotency_key,n3_reference_no,status,n3_receipt_id,created_by_n3_user_key) VALUES(dep,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,500,'MYR','FINAL-'||dep,'FINAL-'||left(dep::text,12),'posted',receipt,'synthetic-owner');
+ r:=r||jsonb_build_object('purpose','deposit','reference','FINAL-'||left(dep::text,12));
+ s:=hh_snapshot(res)||jsonb_build_object('receipts',jsonb_build_array(jsonb_build_object('depositId',dep,'receiptId',receipt,'reservationId',res,'reference',r->>'reference','receiptDate',r->>'documentDate','payments',r->'payments')));
+ INSERT INTO hotel_settlement_intents(id,tenant_id,reservation_id,client_request_id,snapshot,digest,state,actor_n3_user_key) VALUES(intent,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,gen_random_uuid(),s,s->>'digest','allocating','synthetic-owner');
+ INSERT INTO hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,claimed_revision,payload_digest,dispatch_facts,actor_n3_user_key) SELECT tenant_id,res,intent,kind,1,payload_digest,dispatch_facts,'synthetic-owner' FROM hotel_settlement_attempts WHERE intent_id=template AND kind='bill';
+ SELECT dispatch_facts INTO facts FROM hotel_settlement_attempts WHERE intent_id=template AND kind='balance_allocation';
+ facts:=facts||jsonb_build_object('kind','deposit_allocation','receipt',s->'receipts'->0);
+ facts:=jsonb_set(facts,'{before,receipt}',s->'receipts'->0);
+ INSERT INTO hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,receipt_id,claimed_revision,payload_digest,dispatch_facts,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,intent,'deposit_allocation',receipt::uuid,1,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(facts->'payload'),'UTF8')),'hex'),facts,'synthetic-owner');
+ p:=hh_sign_proof(p||jsonb_build_object('reservationId',res,'intentId',intent,'bill',p->'bill'||jsonb_build_object('intentId',intent),'receipts',jsonb_build_array(r),'checkedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ INSERT INTO hotel_settlement_evidence(tenant_id,reservation_id,intent_id,proof_digest,proof) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,intent,hh_sign_proof(p||jsonb_build_object('kind','bill','receipts',NULL))->>'digest',hh_sign_proof(p||jsonb_build_object('kind','bill','receipts',NULL))),( 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,intent,hh_sign_proof(p||jsonb_build_object('kind','allocation','receipt',r,'receipts',NULL))->>'digest',hh_sign_proof(p||jsonb_build_object('kind','allocation','receipt',r,'receipts',NULL)));
+ wire:=jsonb_build_object('docType','AROR','totalAmount',500);
+ balance_facts:=jsonb_build_object('kind','balance_receipt','snapshotDigest',s->>'digest','payload',wire,'input',jsonb_build_object('amountCents',50000));
+ BEGIN
+  claim_result:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',intent,'1','balance_receipt',NULL,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),balance_facts);
+  RAISE EXCEPTION 'fixture_rollback';
+ EXCEPTION WHEN OTHERS THEN balance_rejected:=SQLERRM='settlement_invalid_state'; END;
+ -- Simulate a prior-version accepted unknown creation under privileged test setup.
+ INSERT INTO hotel_settlement_attempts(tenant_id,reservation_id,intent_id,kind,claimed_revision,payload_digest,dispatch_facts,actor_n3_user_key,outcome) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,intent,'balance_receipt',1,repeat('a',64),balance_facts,'synthetic-owner','{"kind":"unknown","code":"timeout"}');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_prove('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::uuid,'1',%L::jsonb) $q$,res,intent,p),'settlement_untrusted_proof');
+ PERFORM hh_assert(balance_rejected,'zero outstanding refuses a new balance receipt claim');
+END $$;
 -- A proof of an older allocation cannot clear a later unresolved attempt.
 DO $$ DECLARE i jsonb; c jsonb; p jsonb; r jsonb; snap jsonb; wire jsonb; facts jsonb; before_state jsonb; expected_state jsonb; res uuid:=gen_random_uuid(); folio uuid:=gen_random_uuid(); bill uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); BEGIN
  INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','SYNTHETIC-FENCE-'||res,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
  INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES(folio,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
  INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',folio,'add_on','Synthetic proof fence',50000,50000,50000,'synthetic-owner');
- snap:=hh_snapshot(res)||jsonb_build_object('receipts',jsonb_build_array(jsonb_build_object('receiptId',a,'reservationId',res,'reference','SYNTHETIC-A','receiptDate','2026-10-08','payments','[]'::jsonb),jsonb_build_object('receiptId',b,'reservationId',res,'reference','SYNTHETIC-B','receiptDate','2026-10-08','payments','[]'::jsonb)));
+ INSERT INTO hotel_reservation_deposits(id,tenant_id,reservation_id,amount,currency_code,idempotency_key,n3_reference_no,status,n3_receipt_id,created_by_n3_user_key) VALUES(a,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,50,'MYR','FENCE-A-'||a,'A-'||left(a::text,12),'posted',a::text,'synthetic-owner'),(b,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,50,'MYR','FENCE-B-'||b,'B-'||left(b::text,12),'posted',b::text,'synthetic-owner');
+ snap:=hh_snapshot(res)||jsonb_build_object('receipts',jsonb_build_array(jsonb_build_object('depositId',a,'receiptId',a,'reservationId',res,'reference','SYNTHETIC-A','receiptDate','2026-10-08','payments','[]'::jsonb),jsonb_build_object('depositId',b,'receiptId',b,'reservationId',res,'reference','SYNTHETIC-B','receiptDate','2026-10-08','payments','[]'::jsonb)));
  i:=hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',snap,gen_random_uuid());
  wire:='{"synthetic":true}';
  c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload',wire));

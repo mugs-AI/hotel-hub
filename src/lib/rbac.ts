@@ -27,6 +27,7 @@ export type Permission =
   | "hotel:operations:view" // read the operation request ledger + timeline
   | "hotel:operations:request" // raise an operation request needing approval
   | "hotel:operations:approve" // approve / reject an operation request
+  | "hotel:checkout:write" // Owner-only settlement actions and recovery
   | "hotel:checkout:view" // read the departures board and the read-only checkout preview
   // HH-GOLIVE-01A — authoritative folio, add-on catalogue and tax readiness
   | "hotel:folio:view" // read the prepared folio for a reservation
@@ -80,6 +81,7 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // Read-only departures board + checkout preview (Run 5D3.1). Housekeeper is
   // excluded: the preview exposes room rates and deposit money.
   "hotel:checkout:view": new Set(["owner", "front_desk"]),
+  "hotel:checkout:write": new Set(["owner"]),
 
   // HH-GOLIVE-01A. Front desk prepares the folio (adds catalogue items,
   // classifies the guest for Tourism Tax); every money-changing act

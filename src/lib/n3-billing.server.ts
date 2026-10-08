@@ -413,6 +413,13 @@ async function request(
       signal: controller.signal,
       redirect: "error",
     });
+    // Classify an observed401 before reading its potentially broken error body.
+    // A dispatched write remains unknown and retains its durable fence.
+    if (response.status === 401) {
+      controller.abort();
+      void response.body?.cancel().catch(() => {});
+      return freeze({ kind: "response", status: 401, body: null, durationMs: duration() });
+    }
     const length = response.headers.get("content-length");
     if (length && /^\d+$/.test(length) && Number(length) > BYTE_CAP) {
       controller.abort();

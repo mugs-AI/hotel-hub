@@ -32,7 +32,7 @@ describe("settlement close service boundary", () => {
       },
       f.deps,
     );
-    const step = async (action: "apply_deposits" | "receive_balance" | "close") =>
+    const step = async (action: "apply_deposits" | "receive_balance" | "apply_balance" | "close") =>
       runSettlementStep(
         actor,
         {
@@ -47,7 +47,7 @@ describe("settlement close service boundary", () => {
     expect(f.calls.filter((x) => x.endsWith("_close"))).toHaveLength(0);
     await step("apply_deposits");
     await step("receive_balance");
-    await step("receive_balance");
+    await step("apply_balance");
     expect((await step("close")).state).toBe("closed");
     await step("close");
     expect(f.calls.filter((x) => x.endsWith("_close"))).toHaveLength(1);

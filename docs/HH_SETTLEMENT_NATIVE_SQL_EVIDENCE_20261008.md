@@ -265,3 +265,95 @@ Exact remote `286426f0b9e85a58689d22505808003a80b684df`, local `54479ba9fde8532c
 2026-10-08T03:57:12.7006750Z PASS child-first rollback and no deadlock
 2026-10-08T03:57:12.7007232Z PASS all named native multi-session checks; no N3 calls
 ```
+
+
+## Atomic-close checkpoint — native CI run5
+
+Exact remote `f8ced15d6e4126f8d30d0ca52d6e6dcb8aadc0ed`, local `2db0ba85296362182418c6f57d675055648bb1b1`, tree `878917f2c0251479fb7affd6e702c889ffdcf497`. [Run37725810756](https://github.com/mugs-AI/hotel-hub/actions/runs/37725810756), job113143578641. Both native SQL steps successful; actual84 PASS assertion lines inspected. Covers two-room close, rollback of room2 failure, scoped room FK/occupant/TTL guards, replay and20 simultaneous native closes with exactly1 close event/2 applied handoffs. Synthetic disposable PostgreSQL17.6 only, no N3 calls or live migration.
+
+```text
+2026-10-08T04:06:00.5710339Z PASS settlement_snapshot_changed: settlement_snapshot_changed
+2026-10-08T04:06:00.5729915Z PASS settlement_snapshot_changed: settlement_snapshot_changed
+2026-10-08T04:06:00.5772820Z PASS freeze creates immutable intent
+2026-10-08T04:06:00.5794429Z PASS same key/digest replays
+2026-10-08T04:06:00.5812816Z PASS settlement_conflicting_request: settlement_conflicting_request
+2026-10-08T04:06:00.5822499Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.5830684Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.5837207Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.5844273Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.5846380Z PASS locked writes roll back
+2026-10-08T04:06:00.5858870Z PASS settlement_invalid_dispatch_facts: settlement_invalid_dispatch_facts
+2026-10-08T04:06:00.5917295Z PASS one claim in 20 sequential calls (NOT concurrency proof)
+2026-10-08T04:06:00.5918349Z PASS dispatch recovery facts survive a new read
+2026-10-08T04:06:00.5919865Z PASS settlement_stale_revision: settlement_stale_revision
+2026-10-08T04:06:00.5921681Z PASS settlement_dispatched: settlement_dispatched
+2026-10-08T04:06:00.5923039Z PASS browser tables denied
+2026-10-08T04:06:00.5924066Z PASS browser functions denied
+2026-10-08T04:06:00.5931264Z PASS cross_tenant_fk_denied
+2026-10-08T04:06:00.5939689Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.5941020Z PASS settlement_immutable: settlement_immutable
+2026-10-08T04:06:00.5943564Z PASS settlement_immutable: settlement_immutable
+2026-10-08T04:06:00.5949109Z PASS settlement_immutable: settlement_immutable
+2026-10-08T04:06:00.5962354Z PASS unknown stays frozen
+2026-10-08T04:06:00.5963343Z PASS expired_lease_never_redispatches (no lease reset exists)
+2026-10-08T04:06:00.5968012Z PASS cross tenant read empty
+2026-10-08T04:06:00.5993349Z PASS settlement_pending_financial_operation: settlement_pending_financial_operation
+2026-10-08T04:06:00.6013608Z PASS settlement_pending_financial_operation: settlement_pending_financial_operation
+2026-10-08T04:06:00.6040352Z PASS settlement_pending_financial_operation: settlement_pending_financial_operation
+2026-10-08T04:06:00.6070154Z PASS settlement_pending_financial_operation: settlement_pending_financial_operation
+2026-10-08T04:06:00.6071359Z PASS pending deposit or receipt execution refuses freeze
+2026-10-08T04:06:00.6075762Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6082301Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6085098Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6089480Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6092103Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6095038Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6107906Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6181949Z PASS unknown bill cannot advance without bound evidence
+2026-10-08T04:06:00.6203697Z PASS settlement_expired_proof: settlement_expired_proof
+2026-10-08T04:06:00.6213450Z PASS settlement_untrusted_proof: settlement_untrusted_proof
+2026-10-08T04:06:00.6219651Z PASS settlement_untrusted_proof: settlement_untrusted_proof
+2026-10-08T04:06:00.6221938Z PASS invalid progress cannot persist evidence
+2026-10-08T04:06:00.6239859Z PASS only accounting proof resolves unknown bill
+2026-10-08T04:06:00.6240871Z PASS progress evidence is append-only
+2026-10-08T04:06:00.6248712Z PASS same progress digest replays without extra event
+2026-10-08T04:06:00.6291456Z PASS proven balance receipt recovers unknown create without repost
+2026-10-08T04:06:00.6292316Z PASS settlement balance is never inserted as a deposit
+2026-10-08T04:06:00.6338880Z PASS allocation proof resolves unknown without a second POST
+2026-10-08T04:06:00.6349900Z PASS settlement_untrusted_proof: settlement_untrusted_proof
+2026-10-08T04:06:00.6360804Z PASS settlement_untrusted_proof: settlement_untrusted_proof
+2026-10-08T04:06:00.6383426Z PASS full conservation proof settles without a financial retry
+2026-10-08T04:06:00.6384257Z PASS bill balance and allocation each retain exactly one attempt
+2026-10-08T04:06:00.6410383Z PASS GET-only proof refresh supports an expired local close retry
+2026-10-08T04:06:00.6515474Z PASS settlement_invalid_state: settlement_invalid_state
+2026-10-08T04:06:00.6516208Z PASS unresolved later allocation fences every subsequent write
+2026-10-08T04:06:00.6538799Z PASS settlement_stale_revision: settlement_stale_revision
+2026-10-08T04:06:00.6543396Z PASS settlement_untrusted_proof: settlement_untrusted_proof
+2026-10-08T04:06:00.6554941Z PASS settlement_expired_proof: settlement_expired_proof
+2026-10-08T04:06:00.6563675Z PASS alien room reparenting rejected by scoped FK
+2026-10-08T04:06:00.6596197Z PASS settlement_room_scope_mismatch: settlement_room_scope_mismatch
+2026-10-08T04:06:00.6654185Z PASS synthetic_room_two_failure: synthetic_room_two_failure
+2026-10-08T04:06:00.6656812Z PASS room2 failure rolls back reservation room1 and DND
+2026-10-08T04:06:00.6657603Z PASS failed close has zero handoffs and close events
+2026-10-08T04:06:00.6717450Z PASS settled stay closes atomically
+2026-10-08T04:06:00.6718719Z PASS all occupied rooms released Dirty DNDoff
+2026-10-08T04:06:00.6720650Z PASS one intent-linked housekeeping handoff per room
+2026-10-08T04:06:00.6722266Z PASS one close event
+2026-10-08T04:06:00.6730943Z PASS repeated close returns same durable result
+2026-10-08T04:06:00.6733567Z PASS settlement_locked: settlement_locked
+2026-10-08T04:06:00.6734771Z PASS browser cannot close
+2026-10-08T04:06:00.6744781Z PASS native PostgreSQL17.6 setup and single-session checks
+2026-10-08T04:06:00.8741529Z PASS one_claim_in_20_sessions
+2026-10-08T04:06:00.8747324Z PASS one durable dispatch attempt
+2026-10-08T04:06:00.9076681Z PASS freeze waits for started deposit
+2026-10-08T04:06:00.9098793Z PASS pending deposit blocks concurrent freeze
+2026-10-08T04:06:00.9432429Z PASS deposit waits for freezing transaction
+2026-10-08T04:06:00.9444442Z PASS freeze wins deposit check/insert race
+2026-10-08T04:06:00.9489898Z PASS settlement_busy
+2026-10-08T04:06:00.9497576Z PASS child-first rollback and no deadlock
+2026-10-08T04:06:01.0012726Z PASS 20 parallel closes return one durable outcome
+2026-10-08T04:06:01.0022284Z PASS parallel close has one close event
+2026-10-08T04:06:01.0028630Z PASS parallel close has exactly two applied room handoffs
+2026-10-08T04:06:01.0034213Z PASS parallel close releases every room Dirty DNDoff
+2026-10-08T04:06:01.0035183Z PASS all named native multi-session checks; no N3 calls
+```

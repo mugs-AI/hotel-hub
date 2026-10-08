@@ -298,7 +298,7 @@ function journalExact(
   out: N3Outcome,
   s: SettlementSnapshot,
   expected: Posting[],
-  doc: { code: string; reference: string; date: string },
+  doc: { id: string; code: string; reference: string; date: string },
 ): void {
   const actual = new Map<string, { debit: number; credit: number }>(),
     want = new Map<string, { debit: number; credit: number }>();
@@ -338,6 +338,24 @@ function journalExact(
     assertEqual(field(r, ["currencyRate"], number), s.currencyRate);
     const customers = aliases(r, ["customerId"]);
     for (const c of customers) if (c !== null) assertEqual(master(c), s.customerId);
+    for (const customer of aliases(r, ["customer", "customerLookup"])) {
+      if (customer === null) continue;
+      for (const c of aliases(customer, ["id", "customerId"]))
+        if (c !== null) assertEqual(master(c), s.customerId);
+    }
+    for (const value of aliases(r, ["docId", "documentId", "sourceDocumentId"]))
+      if (value !== null) assertEqual(id(value), doc.id.toLowerCase());
+    for (const document of aliases(r, ["document", "doc", "sourceDocument"])) {
+      if (document === null) continue;
+      for (const value of aliases(document, ["id", "docId", "documentId"]))
+        if (value !== null) assertEqual(id(value), doc.id.toLowerCase());
+      for (const value of aliases(document, ["code", "docCode", "docNo"]))
+        if (value !== null) assertEqual(string(value), doc.code);
+      for (const value of aliases(document, ["reference", "referenceNo"]))
+        if (value !== null) assertEqual(string(value), doc.reference);
+      for (const value of aliases(document, ["docDate"]))
+        if (value !== null) assertEqual(day(value), doc.date);
+    }
     for (const alias of [
       ["debitLocal", debit],
       ["creditLocal", credit],
@@ -458,6 +476,7 @@ export function proveBill(
       }
     }
     journalExact(j, s, posting, {
+      id: c.billId,
       code,
       reference: "HH-B-" + c.intentId.replace(/-/g, "").toLowerCase(),
       date: s.billDate,
@@ -581,7 +600,7 @@ export function proveReceiptBefore(
         },
         { account: ar, debit: 0, credit: r.amountCents },
       ],
-      { code, reference: r.reference, date: r.receiptDate },
+      { id: r.receiptId, code, reference: r.reference, date: r.receiptDate },
     );
     // Only a newly created, still-unapplied balance uses the original creation guard.
     if ("purpose" in r && r.purpose === "settlement" && !rows.length && refund === 0) {
@@ -871,6 +890,13 @@ export function verifiedBillActorMatches(
   a: SettlementActor,
 ): boolean {
   return bound(bills.get(b), s, a);
+}
+export function verifiedReceiptActorMatches(
+  r: VerifiedReceiptBefore,
+  s: SettlementSnapshot,
+  a: SettlementActor,
+): boolean {
+  return bound(receipts.get(r), s, a);
 }
 export function verifiedEvidencePair(
   b: VerifiedBill,

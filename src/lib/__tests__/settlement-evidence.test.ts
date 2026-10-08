@@ -752,3 +752,15 @@ describe("exact scoped settlement evidence", () => {
     expect(proveSettlement(snapshot(), b, [a], "not-a-time").kind).not.toBe("confirmed");
   });
 });
+
+it.each([
+  { customer: { id: 8 } },
+  { docId: "99999999-9999-4999-8999-999999999999" },
+  { document: { id: "99999999-9999-4999-8999-999999999999", docCode: "ALIEN" } },
+])("contradictory nested GL identity %j is refused", async (override) => {
+  const rows = billGL().map((r) => ({ ...r, ...override }));
+  const r = await reads(bill(), rows);
+  expect(proveBill(snapshot(), r.detail, r.journal, actor, { intentId, billId }).kind).toBe(
+    "contradiction",
+  );
+});

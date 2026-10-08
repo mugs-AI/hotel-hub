@@ -329,3 +329,32 @@ describe("fixed bounded billing transports", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+it.each(["read", "write"] as const)(
+  "observed401 survives oversized or failing body for %s",
+  async (mode) => {
+    openGate();
+    for (const failure of ["length", "stream"]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          async () =>
+            new Response(
+              new ReadableStream({
+                start(c) {
+                  if (failure === "stream") c.error(new Error("broken body"));
+                },
+              }),
+              { status: 401, headers: failure === "length" ? { "content-length": "2000001" } : {} },
+            ),
+        ),
+      );
+      const out =
+        mode === "read"
+          ? await n3BillingClient.readBill(actor, billId)
+          : await n3BillingClient.createBill(actor, billClaim(), settlementFixture());
+      expect(out).toMatchObject({ kind: "response", status: 401 });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    }
+  },
+);

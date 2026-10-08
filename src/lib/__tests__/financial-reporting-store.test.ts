@@ -396,6 +396,22 @@ describe("readMonthlyFinancialDashboard", () => {
     await readMonthlyFinancialDashboard(owner, "2026-10", deps);
     expect(spy).not.toHaveBeenCalled();
   });
+  it("a cached monthly batch never crosses a person or token", async () => {
+    const { deps, calls } = makeDeps(world([dep(1)]));
+    await readMonthlyFinancialDashboard(owner, "2026-10", deps);
+    await readMonthlyFinancialDashboard({ ...owner, n3UserKey: "other-owner" }, "2026-10", deps);
+    await readMonthlyFinancialDashboard({ ...owner, n3Token: "renewed-token" }, "2026-10", deps);
+    expect(calls.pages).toBe(3);
+  });
+  it("a settlement adapter 401 terminates the monthly read", async () => {
+    const { deps } = makeDeps(world([dep(1)]));
+    deps.sales = async () => {
+      throw new ReceiptControlError("unauthorized");
+    };
+    await expect(readMonthlyFinancialDashboard(owner, "2026-10", deps)).rejects.toThrow(
+      "unauthorized",
+    );
+  });
 });
 
 describe("monthly review 5a26829 fixes", () => {

@@ -60,7 +60,8 @@ export function FinancialDashboard({ enabled }: { enabled: boolean }) {
           <h2 className="font-semibold text-[#102A43]">Monthly finance</h2>
           <CardInfoPopover label="About Monthly finance">
             Current verified state from N3, not a closing balance. Deposits are part of collections
-            — do not add the two cards together. Prepared folios are never counted as sales.
+            — do not add the two cards together. Sales use the bill date; balance payments use the
+            receipt date. Allocations add no cash. Prepared folios are never counted as sales.
           </CardInfoPopover>
         </div>
         {shown && max ? (
