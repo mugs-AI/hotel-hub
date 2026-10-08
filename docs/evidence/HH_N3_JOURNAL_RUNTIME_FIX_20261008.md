@@ -63,3 +63,21 @@ No financial gate opens. Do not repeat existing receipt/cash-sale/refund creatio
 After the corrected deployment is verified: refresh HotelHub, retain the same
 company/date range, Include GL journals, press Get Result once, then Download JSON.
 The needed follow-up is a bounded GET-only read, not a payment operation.
+
+## Published result
+
+Correction merged to main974cb476e95d2b99c4b3236969d06719130209b5,
+treea41071b6be92fa3feb517c716f9101604bbeb67e, exactly matching the tested local
+0a209d4a95e5670c40a35427de18d75a668d79be. Review8bfc380767e3c228c498cf2480030729195f06ec
+contains the same tree. Lovable target/workspace reverified, synced to the exact
+main SHA, ready/agentFinished=true before one publish call.
+Deployment539d81dc-b0ed-4e13-bc7c-fe8fd9fa9719 is publicly serving the verification
+page with HTTP200 and matching x-deployment-id. The initial publish tool returned
+pending; the public response established actual serving, without a duplicate publish.
+Signed-in journal success still requires the Owner's next GET-only export.
+
+Original billing preserved at localab2cd9c3d4411f083a01e0c2fe6d1e432bf75dd7,
+remotef4a6c4c686788af6b874e041c265d42da644d3f8, same tree
+365bb73cd125b13a23964af2e34355749f4dcc04. Full billing2254passed20skipped0failed.
+No SQL or production adapter changes were added. No build/test/type/lint task
+remained running on the final direct process inspection.
