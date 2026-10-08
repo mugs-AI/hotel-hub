@@ -714,16 +714,20 @@ function ResourceCard({ report, extra }: { report: ResourceReport; extra?: React
   );
 }
 
-function KnockoffCard({ data }: { data: ApiResponse }) {
+export function KnockoffCard({ data }: { data: Pick<ApiResponse, "comparisons"> }) {
   const rows = data.comparisons.orToCashMemo;
+  const label: MafLabel = rows.some((r) => r.correlation === "mismatch")
+    ? "Mismatch"
+    : rows.length && rows.every((r) => r.correlation === "immutable_id")
+      ? "Live N3 Confirmed"
+      : "Not Available";
   return (
     <section
       className="rounded-xl border bg-white p-5 shadow-sm"
       style={{ borderColor: `${NAVY}1F` }}
     >
       <h2 className="text-sm font-semibold" style={{ color: NAVY }}>
-        OR ↔ Cash Memo Identity Check{" "}
-        <MafBadge label={rows.length ? "Live N3 Confirmed" : "Not Available"} />
+        OR ↔ Cash Memo Identity Check <MafBadge label={label} />
       </h2>
       {rows.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
@@ -763,13 +767,7 @@ function KnockoffCard({ data }: { data: ApiResponse }) {
                   </td>
                   <td className="p-2">{k.sameUuid === null ? "—" : k.sameUuid ? "Yes" : "No"}</td>
                   <td className="p-2">{k.appliedAmount ?? "—"}</td>
-                  <td className="p-2">
-                    {k.correlation === "immutable_id"
-                      ? "Immutable ID"
-                      : k.correlation === "document_number_only"
-                        ? "Document-number correlation only — not proven"
-                        : "None"}
-                  </td>
+                  <td className="p-2">{k.evidenceLabel}</td>
                 </tr>
               ))}
             </tbody>

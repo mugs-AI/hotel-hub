@@ -1,6 +1,7 @@
 # HotelHub billing API proof jobs — 08/10/2026
 
-Status: **prepared, not executed or accepted**. Repository implementation/test
+Status: **jobs prepared; Owner-operated GET console evidence received;
+financial operation contracts not accepted**. Repository implementation/test
 approval does not authorize these N3 transaction lanes. All production billing
 contract gates remain closed. No credentials or guest journals belong here.
 
@@ -18,7 +19,7 @@ CashSale-to-INV identity, completeness, or atomic concurrency behavior.
 
 | Field | Current value / requirement |
 | --- | --- |
-| N3 environment and tenant | **Not designated.** Owner must name a disposable non-production tenant. Do not infer it from the HotelHub database reference. |
+| N3 environment and tenant | Owner designated test company **9AC-0D9-2F1 — MUGS AI LAB TEST SDN. BHD.**; matched by the uploaded Owner-console GET bundle. This identifies the test company, not permission for new financial transactions or proof of a disposable cleanup target. |
 | Current actor | Owner session launched through N3; record only permitted user/tenant identity hashes. Never request or persist a token. |
 | Reservation / intent | New explicitly designated synthetic stay and UUID intent; immutable receipt links must belong to this stay. |
 | Customer / currency | Exact current integer IDs, MYR, rate1; record current active master/read evidence. No sample IDs from API documentation. |
@@ -163,5 +164,49 @@ the allocation-aware detail/GL proof adapter without relaxing creation guards.
   DNDoff/cross-device/Monthly/export verification. API response success alone is
   insufficient.
 
-Result register: G/B/R/A/C/M **not executed, not accepted**. No N3 writer gate
-was changed, no N3 transaction issued, and no cleanup performed.
+## Owner GET evidence received — 08/10/2026, 18:13 Malaysia
+
+Bundle schema5d0.3, run `20261008T101353-oxg675`, dates26/09–27/09,
+no optional filters. Original attachment SHA256:
+`7af5f30224bca23a2ecab7842c53711f9adad01cb7c07b7c1970189ebc521c95`.
+The attachment stays private; this repository records selected non-secret facts
+and synthetic regression fixtures, not the raw customer/accounting bundle.
+
+Four receipt details, one cash-sale detail and one refund detail returned
+HTTP200/envelope0000. Two INV rows target the same immutable UUID as
+CS2609/001; RF2609/001 targets OR2609/001 by immutable UUID. Correct matched
+payments are60.01,150.00 and40.00 respectively; `amount` in these rows is the
+original target document total, while `paymentAmount` is the matching amount.
+Bill324.03 less210.01 matching leaves114.02, consistent with its current detail.
+Same numeric customer identity and MYR/rate1 are observed in these detail DTOs.
+These documents have no new settlement-intent reference or proven stay ownership.
+
+The legacy console had incorrectly displayed324.03 twice and100.01 for the
+refund match, dropped numeric customer identity and failed to classify actual
+`specialCode=BAC/CAC`, `isActive=true`, `hasChildren=false` GL rows. The review
+candidate now corrects these diagnostic interpretations without creating any
+runtime proof authority. Missing/contradictory payment fields display unavailable;
+different known customers are a mismatch. Legacy explicit payment aliases remain
+supported, but plain target `amount` is no longer promoted to an applied amount.
+
+Refunded OR2609/001 has invoice matching60.01, refund40.00, an RF knockoff row,
+and reported outstanding40.00. This does not establish spendable remainder:
+100.01−60.01−40.00 is0.00. The strict current prover rejects unsupported RF
+allocation rows and inconsistent refund/remainder conservation. Do not drop
+the RF row, subtract the refund twice, or weaken the prover to make this DTO pass.
+Accept the vendor's current refund/outstanding semantics and bound journal
+evidence before admitting this historical shape into a production adapter.
+
+| Lane | Current acceptance |
+| --- | --- |
+| G | Partial: observed detail/account-list shapes and immutable links; no current master-detail set or bound GL postings. |
+| B | Historical Post-to-AR flag/INV same-ID example observed; no new intent-owned create/detail/journal proof. |
+| R | Historical single/split receipt details observed; no purpose-bound balance receipt or GL proof. |
+| A | Existing matching payments observed; no before/after preservation, replacement/append or repetition proof. |
+| C | No vendor atomic stale/concurrency mechanism or race evidence. Allocation gates stay closed. |
+| M | One bounded historical list page observed; no accepted full-period pagination, intent-owned discovery, reversals or refund policy. |
+
+Result register: G **partial GET evidence only**; B/R/A/C/M **not accepted**.
+No new financial proof job, N3 writer gate, transaction or cleanup was executed
+by Codex. This update records the Owner's completed reads; do not repeat their
+old transactions or use the disputed OR2610/001 correction as a fixture.

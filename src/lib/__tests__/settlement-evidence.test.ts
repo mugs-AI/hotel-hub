@@ -580,6 +580,42 @@ describe("exact scoped settlement evidence", () => {
       allocations: [{ docId: priorId, amountCents: 1000 }],
     });
   });
+  it("does not treat the observed refunded receipt's RF row as an ordinary invoice allocation", async () => {
+    const r = {
+      ...receipt,
+      amountCents: 10001,
+      payments: [{ ...receipt.payments[0], amountCents: 10001 }],
+    };
+    const s = snapshot();
+    s.receipts = [r];
+    const d = receiptDetail(
+      r,
+      [row(r, 60.01), { ...row(r, 40, "99999999-9999-4999-8999-999999999999"), docType: "RF" }],
+      40,
+    );
+    d.refundAmount = 40;
+    const out = await reads(d, receiptGL(r), r.receiptId, true);
+    expect(proveReceiptBefore(s, r, out.detail, out.journal, actor)).toMatchObject({
+      kind: "contradiction",
+      code: "receipt_allocation_type_invalid",
+    });
+  });
+  it("does not infer spendable money by dropping the RF row but retaining its outstanding field", async () => {
+    const r = {
+      ...receipt,
+      amountCents: 10001,
+      payments: [{ ...receipt.payments[0], amountCents: 10001 }],
+    };
+    const s = snapshot();
+    s.receipts = [r];
+    const d = receiptDetail(r, [row(r, 60.01)], 40);
+    d.refundAmount = 40;
+    const out = await reads(d, receiptGL(r), r.receiptId, true);
+    expect(proveReceiptBefore(s, r, out.detail, out.journal, actor)).toMatchObject({
+      kind: "contradiction",
+      code: "receipt_conservation_mismatch",
+    });
+  });
   it.each([
     { refundAmount: undefined },
     { outstandingAmount: 49 },
