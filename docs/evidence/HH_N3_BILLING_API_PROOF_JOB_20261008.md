@@ -5,15 +5,35 @@ financial operation contracts not accepted**. Repository implementation/test
 approval does not authorize these N3 transaction lanes. All production billing
 contract gates remain closed. No credentials or guest journals belong here.
 
+Upload to Project Sources: **No** — repository execution evidence.
+
+Latest continuation: 08/10/2026, following the22:05Malaysia resume instruction.
+The6/6 journal capture and GUID compatibility correction are complete; neither
+needs repetition. The result register below supersedes its earlier observations.
+
 Authority: approved settlement specification and implementation plan, Tasks2,
 5–7 and9–12. Historical Cloud UI billing/receipt examples remain historical;
 do not repeat them or use the disputed BK260920001 / OR2610/001 receipt.
 
 Public schema inspected: `https://openapi.account.qne.cloud/doc/sales-v1.json`;
-08/10/2026 snapshot SHA256
+earlier08/10/2026 snapshot SHA256
 `d9375f8fac7af01fe5f6fc8828ab948f433151bf1d48a610df10c00077404143`.
 The schema establishes request shapes, not current tenant response/GL,
 CashSale-to-INV identity, completeness, or atomic concurrency behavior.
+
+Current public documentation was re-read directly, without authentication or any
+tenant API operation, from the scopes advertised by `/doc/index.json`:
+
+| Official document | Current SHA256 |
+| --- | --- |
+| `/doc/sales-v1.json` | `75d19091a0667cf75353a5b9259a39d3572cbe1a82b5b7eec5d64e2bc3ed9a2c` |
+| `/doc/gl-v1.json` | `64599720fd623e12895c4bf13eb071cade0ac9d0c548545f8b2d94b43927fa4b` |
+| `/doc/stock-v1.json` | `5914d9d9948d50f24ad19a3dae1061c1e3a93b58619e0f7383fd01012e0b3cc6` |
+| `/doc/platform-v1.json` | `d84df24e89fa26e2462d45628b18cc34cd6aaeb5f21ea4e808f83ce6790a68d1` |
+
+The changed sales-document hash is a fresh snapshot, not proof of an API behavior
+change or an accepted contract. Raw public schema copies remain execution scratch;
+raw Owner exports are not committed.
 
 ## Target manifest required before execution
 
@@ -24,9 +44,9 @@ CashSale-to-INV identity, completeness, or atomic concurrency behavior.
 | Reservation / intent | New explicitly designated synthetic stay and UUID intent; immutable receipt links must belong to this stay. |
 | Customer / currency | Exact current integer IDs, MYR, rate1; record current active master/read evidence. No sample IDs from API documentation. |
 | Stock / UOM / tax | Exact active integer IDs for every prepared charge kind; current account mappings and approved tax treatment, including derived charges. |
-| Bank / cash account | Exact active leaf UUID account ID/code/currency; selected by Owner. |
-| Existing deposit | One exact designated synthetic receipt UUID, amount/date/payment/header + bound GL + refund + all allocations captured before any write. |
-| Bill / invoice target | Created bill UUID plus independently proven immutable INV relationship; same-ID INV is an unaccepted candidate, not an assumption. |
+| Bank / cash account | Exact active leaf GUID account ID/code/currency; selected by Owner. |
+| Existing deposit | One exact designated synthetic receipt GUID, amount/date/payment/header + bound GL + refund + all allocations captured before any write. |
+| Bill / invoice target | Created bill GUID plus independently proven immutable INV relationship; same-ID INV is an unaccepted candidate, not an assumption. |
 | Proposed limits | Synthetic bill MYR500.00, deposit MYR50.00, balance MYR450.00, with each exact amount and document date explicitly approved for the target. These are limits for proposed jobs, not permission to spend or post. |
 | Date boundary | Separate approved deposit30/09/2026 and bill08/10/2026 scenarios only if that tenant permits these dates; otherwise record its permitted dates and test the boundary using sanitized fixtures. Never silently backdate. |
 | Cleanup | Separately authorized lane after evidence capture; no automatic clear/unmatch/refund/void/delete. |
@@ -44,8 +64,24 @@ Current known fixed reads are:
 * `GET /api/CashSales/{billUUID}` and `/api/CashSales/GLPosting?key={billUUID}`
 * `GET /api/ARReceipts/{receiptUUID}` and `/api/ARReceipts/GLPosting?key={receiptUUID}`
 
-Resolve customer/currency/stock/UOM/tax and sales/tax/AR account read paths
-against the current public schema before adding a fixed server operation.
+The current public schemas identify these exact master-detail GET operations:
+
+| Master | Fixed path | ID type / required acceptance |
+| --- | --- | --- |
+| Customer | `/api/Customers/{id}` | int32; exact customer and current AR-account relationship |
+| Currency | `/api/Currencies/{id}` | int32; actual currency and applicable rate contract |
+| Stock | `/api/Stocks/{id}` | int32; active stock and its full current mapping graph |
+| UOM | `/api/UOMs/{id}` | int32; active UOM belongs to the exact stock |
+| Tax | `/api/TaxCodes/{id}` | int32; active/output tax, applicable rate and account relationship |
+| GL account | `/api/AccountCodes/{id}` | GUID; active leaf, code/currency/type and current posting role |
+
+These are documented paths, not newly implemented readers or accepted current
+tenant shapes. The current TaxCode DTO constrains `rate` to0..1; do not confuse
+that field with a displayed percentage or infer applicability from a list label.
+Master values must come from the approved prepared-folio manifest and current
+bound server reads, not guessed IDs, sample documentation, historical CS lines
+or the Owner's uploaded JSON. Customer/currency inactivity semantics and exact
+AR/sales/tax ledger relationships still require current-response acceptance.
 No generic caller URL, browser endpoint, invented master read, or environment
 gate is permitted. Capture actual headers, aliases, null/missing/cancelled
 semantics, currency rates, account codes, timestamps and pagination rules in
@@ -199,7 +235,7 @@ evidence before admitting this historical shape into a production adapter.
 
 | Lane | Current acceptance |
 | --- | --- |
-| G | Partial: observed detail/account-list shapes and immutable links; no current master-detail set or bound GL postings. |
+| G | Partial: current detail/account-list shapes and immutable links observed;6/6 journal responses now captured and balanced. Current master-detail set, persisted-posting semantics and customer-ledger mapping remain unaccepted. |
 | B | Historical Post-to-AR flag/INV same-ID example observed; no new intent-owned create/detail/journal proof. |
 | R | Historical single/split receipt details observed; no purpose-bound balance receipt or GL proof. |
 | A | Existing matching payments observed; no before/after preservation, replacement/append or repetition proof. |
@@ -210,3 +246,75 @@ Result register: G **partial GET evidence only**; B/R/A/C/M **not accepted**.
 No new financial proof job, N3 writer gate, transaction or cleanup was executed
 by Codex. This update records the Owner's completed reads; do not repeat their
 old transactions or use the disputed OR2610/001 correction as a fixture.
+
+## Completed evidence and exact remaining questions
+
+The latest Owner bundle is schema5d0.4, run`20261008T133334-1le2bt`, SHA256
+`e359b6b25f6a89d877dd1540ed4ac3c7f3206364e5540d6c768d11a1301c9db5`.
+All six selected journal reads returned200/0000 with complete captures. All15
+rows reconcile their document's debit/credit totals, including CS324.03 and
+RF40.00. Capture transport failure is resolved; do not request another identical
+export. The published diagnostic release receipt is
+`HH_N3_JOURNAL_RUNTIME_FIX_20261008.md` on the separate journal-release branch;
+this billing branch records acceptance in `HH_N3_JOURNAL_ACCEPTANCE_20261008.md`.
+
+The current public `DocumentStatus` enum defines2 as Approved, alongside
+0Draft/1WaitingForApproval. That resolves the enum's documented label; it does
+not establish when actual GL postings exist. OR/CS captures still have zero row
+IDs, default dates, null document codes and zero scalar currency fields despite
+positive nested currency. RF physical fields differ. The SalesInvoices GL
+operation expressly permits live or temporary park/post data; that other
+operation's wording cannot establish ARReceipt/CashSale behavior. Keep strict
+posting proof unavailable rather than silently replacing missing fields.
+
+Current `UpdateCustomerKnockoff` remains an array request. Its advertised
+parameters are empty; the allocation DTO advertises no explicit revision,
+timestamp, ETag or comparison token. A response of1 still does not prove
+preservation or a stale-update fence. This is absence of a documented mechanism,
+not a claim that QNE has no supported mechanism.
+
+The remaining QNE clarification is precise and requires no new test transaction:
+
+1. **Posted GL identity:** for Approved OR/CS with park/post disabled, does
+   GLPosting contain actual committed entries or calculated rows? Explain zero
+   IDs/default dates/null codes and the customer-ledger rows with no account ID.
+   Specify the supported read and exact identity/account mapping that proves
+   committed posting for the requested document.
+2. **Refund/remainder:** for OR100.01 applied to INV60.01 and refunded40.00,
+   why are both refundAmount and outstandingAmount40.00? Specify the supported
+   spendable-remainder rule and how the RF knockoff participates so the refund
+   cannot be counted twice.
+3. **Atomic matching:** what supported request/header/version mechanism causes
+   UpdateCustomerKnockoff to reject a stale allocation atomically? Specify how
+   unrelated existing matches survive competing N3 clients and the exact stale
+   rejection result. A HotelHub lock or read-after-write check is insufficient.
+
+These questions are prepared, not sent. New creates, rematching, refund, void,
+unmatch, cleanup and race tests remain separately bounded lanes. The old500/50/
+450 proposal above is not a new instruction to create documents tonight.
+
+## Resume register
+
+| Work | Current state / next dependency |
+| --- | --- |
+| Tasks1–8 and durable proof/close foundations | Completed; preserve and do not reimplement |
+| GUID and taxed CashSale header compatibility | Completed on billing review branch;2,280tests passed,20existing skips in the last code checkpoint |
+| Current master/snapshot adapter | Pending accepted exact master responses and prepared-folio mapping provenance |
+| Journal/refund and matching acceptance | Pending the three vendor answers above; all operation gates unavailable |
+| Frozen print mounting | Foundation complete; schema/current snapshot acceptance required before mounting |
+| Monthly/matched-deposit and exact-reference adapters | Pending complete discovery/provenance and accepted financial semantics |
+| Desktop/mobile browser inspection | Still unverified; the prior local browser download failed, not a passed UI check |
+| Operational schema, full billing merge/publish/UAT | Separate unperformed lanes; code tests do not prove live readiness |
+
+This continuation changes only proof instructions and the execution register.
+No code, dependency, SQL or operation gate changes, new tests/builds, tenant N3
+requests, database writes/migration, deployment, public publish or AI Build.
+Last code verification remains the GUID checkpoint, not a new test claim.
+
+Ruling: use the newly documented master paths to specify pending reads, while
+retaining the unavailable production adapter — schema fields do not establish
+current tenant mappings — cost if wrong: activation is delayed rather than
+posting from a guessed relationship.
+Ruling: accept the documented status2 label only, without equating approval with
+committed posting — the schema does not establish that implication for these
+GL endpoints — cost if wrong: vendor posting verification remains pending.
