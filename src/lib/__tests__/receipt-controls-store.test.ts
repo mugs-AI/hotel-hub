@@ -704,6 +704,13 @@ describe("review blocker: verify requires an approval", () => {
 });
 
 describe("db error mapping + http status", () => {
+  it.each(["settlement_locked", "settlement_busy"])(
+    "preserves %s as a 409 without exposing database text",
+    (code) => {
+      expect(mapDbError({ code: "P0001", message: code }).code).toBe(code);
+      expect(statusForReceiptControlError(code)).toBe(409);
+    },
+  );
   it("maps missing staged objects to unavailable", () => {
     expect(mapDbError({ code: "42883", message: "function does not exist" }).code).toBe(
       "receipt_controls_unavailable",

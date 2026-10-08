@@ -1,3 +1,4 @@
+import { SETTLEMENT_LOCK_CODES } from "./settlement-lock";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Server-only reservation operations store (HotelHub Run 5D2).
 //
@@ -40,6 +41,7 @@ export type OperationState = (typeof OPERATION_STATES)[number];
 
 /** Stable, non-leaking error codes surfaced to the browser. */
 export const OPERATION_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "unauthorized",
   "reservation_not_found",
   "operation_not_found",

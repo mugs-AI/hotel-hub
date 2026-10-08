@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+  upsertError: null as null | { message: string },
   allowed: true,
   exists: true,
   rows: [] as Record<string, unknown>[],
@@ -56,7 +57,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       }),
       upsert: async (row: Record<string, unknown>) => {
         state.rows.push(row);
-        return { error: null };
+        return { error: state.upsertError };
       },
     }),
   },
@@ -71,11 +72,26 @@ function put(body: unknown, origin = "https://hotel.example") {
 
 describe("folio bill-to route", () => {
   beforeEach(() => {
+    state.upsertError = null;
     state.allowed = true;
     state.exists = true;
     state.rows.length = 0;
     state.filters.length = 0;
   });
+  it.each(["settlement_locked", "settlement_busy"])(
+    "returns a safe 409 for %s instead of a generic save failure",
+    async (code) => {
+      state.upsertError = { message: code };
+      const { handleSaveBillTo } =
+        await import("@/routes/api/hotel/reservations.$id.folio.bill-to");
+      const response = await handleSaveBillTo({
+        request: put({ name: "Guest", company: "", address: "", phone: "", email: "" }),
+        params: { id },
+      });
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error: code });
+    },
+  );
   it("reads the primary guest by default through a tenant-scoped lookup", async () => {
     const { handleReadBillTo } = await import("@/routes/api/hotel/reservations.$id.folio.bill-to");
     const response = await handleReadBillTo({ params: { id } });

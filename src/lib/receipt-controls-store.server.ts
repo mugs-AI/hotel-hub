@@ -3,6 +3,7 @@
 // All writes go through service-role transaction functions (staged migration
 // 20261002110000). Until that migration is applied every call fails closed
 // with `receipt_controls_unavailable` and deposit behaviour is unchanged.
+import { settlementLockCode } from "./settlement-lock";
 import { createHash } from "node:crypto";
 import type { HotelRole } from "./rbac";
 import {
@@ -169,6 +170,8 @@ const DB_CODES = new Set([
 
 /** Map a database error to a safe code; missing objects = staged migration not applied. */
 export function mapDbError(err: { code?: string; message?: string } | null): ReceiptControlError {
+  const lock = settlementLockCode(err);
+  if (lock) return new ReceiptControlError(lock);
   const msg = err?.message ?? "";
   for (const c of DB_CODES) if (msg.includes(c)) return new ReceiptControlError(c);
   if (["42P01", "42883", "PGRST202", "PGRST205"].includes(err?.code ?? ""))

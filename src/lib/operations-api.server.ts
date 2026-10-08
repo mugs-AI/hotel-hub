@@ -65,6 +65,9 @@ export async function readJsonBody(request: Request): Promise<BodyResult> {
 /** Map a stable operation error code onto a meaningful HTTP status. */
 export function statusForOperationError(code: string): number {
   switch (code) {
+    case "settlement_locked":
+    case "settlement_busy":
+      return 409;
     case "unauthorized":
       return 401;
     case "policy_denied":

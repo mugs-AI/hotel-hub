@@ -46,6 +46,9 @@ export function isSameOriginWrite(request: Request): boolean {
 
 export function statusForDepositError(code: string): number {
   switch (code) {
+    case "settlement_locked":
+    case "settlement_busy":
+      return 409;
     case "unauthorized":
       return 401;
     case "deposit_writes_disabled":

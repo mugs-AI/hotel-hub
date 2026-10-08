@@ -9,6 +9,7 @@
 //   database claim taken BEFORE the outbound POST.
 // - Ambiguous outcomes become `unknown` and are never auto-retried.
 
+import { settlementLockCode, SETTLEMENT_LOCK_CODES } from "./settlement-lock";
 import { todayInKualaLumpurIso } from "./malaysia-date";
 import { isDepositReservationEligible } from "./deposit-entry";
 import { getOrCreateHotelSettings } from "./hotel-store.server";
@@ -55,6 +56,7 @@ export function isDepositWriteEnabled(
 // ---------------------------------------------------------------- validation
 
 export const DEPOSIT_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_amount",
   "receipt_contact_unavailable",
   "receipt_contact_too_long",
@@ -1158,7 +1160,8 @@ async function updateDeposit(tenantId: string, id: string, patch: Record<string,
     .eq("id", id)
     .select(SELECT_COLS)
     .maybeSingle();
-  if (res.error || !res.data) throw new DepositError("deposit_write_failed");
+  if (res.error || !res.data)
+    throw new DepositError(settlementLockCode(res.error) ?? "deposit_write_failed");
   return toRecord(res.data);
 }
 
@@ -1291,6 +1294,8 @@ export async function createDeposit(
     .select(SELECT_COLS)
     .maybeSingle();
 
+  const claimLock = settlementLockCode(claim.error);
+  if (claimLock) throw new DepositError(claimLock);
   if (claim.error || !claim.data) {
     // Lost the race with a concurrent duplicate: return that row, no POST.
     const raced = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
