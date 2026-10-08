@@ -143,6 +143,54 @@ try {
       .quantity === 1,
     "child-first rollback and no deadlock",
   );
+  const closing = (await owner.query("SELECT hh_settled_close_fixture() AS fixture")).rows[0]
+    .fixture;
+  const closed = await Promise.all(
+    workers.map((c) =>
+      c.query("SELECT hotelhub_settlement_close($1,$2,'synthetic-owner',$3,$4,$5) AS result", [
+        tenant,
+        closing.res,
+        closing.intent,
+        closing.revision,
+        closing.digest,
+      ]),
+    ),
+  );
+  assert(
+    closed.every(
+      (x) =>
+        x.rows[0].result.state === "closed" &&
+        JSON.stringify(x.rows[0].result) === JSON.stringify(closed[0].rows[0].result),
+    ),
+    "20 parallel closes return one durable outcome",
+  );
+  assert(
+    (
+      await owner.query(
+        "SELECT count(*)::integer AS n FROM hotel_settlement_events WHERE intent_id=$1 AND event='closed'",
+        [closing.intent],
+      )
+    ).rows[0].n === 1,
+    "parallel close has one close event",
+  );
+  assert(
+    (
+      await owner.query(
+        "SELECT count(*)::integer AS n FROM hotel_housekeeping_handoffs WHERE settlement_intent_id=$1 AND state='applied'",
+        [closing.intent],
+      )
+    ).rows[0].n === 2,
+    "parallel close has exactly two applied room handoffs",
+  );
+  assert(
+    (
+      await owner.query(
+        "SELECT count(*)::integer AS n FROM hotel_reservation_rooms rr JOIN hotel_room_housekeeping hk ON hk.tenant_id=rr.tenant_id AND hk.hotel_room_id=rr.hotel_room_id WHERE rr.reservation_id=$1 AND rr.allocation_status='released' AND hk.condition='dirty' AND NOT hk.dnd_active",
+        [closing.res],
+      )
+    ).rows[0].n === 2,
+    "parallel close releases every room Dirty DNDoff",
+  );
   console.log("PASS all named native multi-session checks; no N3 calls");
 } catch (err) {
   console.error(err.message);

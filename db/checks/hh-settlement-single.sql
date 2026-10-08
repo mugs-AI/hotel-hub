@@ -76,6 +76,9 @@ DO $$ DECLARE i jsonb; c jsonb; p jsonb; result jsonb; res uuid:='10101010-1010-
  INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','SYNTHETIC-PROGRESS','walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
  INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES('13131313-1313-4313-8313-131313131313','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
  INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','13131313-1313-4313-8313-131313131313','add_on','Synthetic proof charge',50000,50000,50000,'synthetic-owner');
+ INSERT INTO hotel_rooms(id,tenant_id,n3_stock_id,n3_stock_code,room_number) VALUES('15151515-1515-4515-8515-151515151515','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','151','SYNTHETIC-151','SYNTHETIC-151'),('16161616-1616-4616-8616-161616161616','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','161','SYNTHETIC-161','SYNTHETIC-161');
+ INSERT INTO hotel_reservation_rooms(tenant_id,reservation_id,hotel_room_id,arrival_date,departure_date,base_rate_snapshot,agreed_rate,adults,allocation_status) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'15151515-1515-4515-8515-151515151515','2026-10-07','2026-10-09',250,250,1,'occupied'),('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'16161616-1616-4616-8616-161616161616','2026-10-07','2026-10-09',250,250,1,'occupied');
+ INSERT INTO hotel_room_housekeeping(tenant_id,hotel_room_id,condition,dnd_active,initialized_by_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','15151515-1515-4515-8515-151515151515','ready',true,'synthetic-owner'),('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','16161616-1616-4616-8616-161616161616','ready',true,'synthetic-owner');
  i:=hotelhub_settlement_freeze('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',hh_snapshot(res),gen_random_uuid());
  c:=hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,i->>'revision','bill',NULL,encode(sha256(convert_to('{"synthetic":true}','UTF8')),'hex'),jsonb_build_object('kind','bill','snapshotDigest',repeat('d',64),'payload','{"synthetic":true}'::jsonb));
  i:=hotelhub_settlement_outcome('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'synthetic-owner',(i->>'id')::uuid,c->>'expectedRevision',(c->>'attemptId')::uuid,c->>'payloadDigest',jsonb_build_object('kind','unknown','code','timeout'));
@@ -165,4 +168,56 @@ DO $$ DECLARE i jsonb; c jsonb; p jsonb; r jsonb; snap jsonb; wire jsonb; facts 
  facts:=jsonb_build_object('kind','balance_receipt','snapshotDigest',repeat('d',64),'payload',wire);
  PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_claim('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',%L::uuid,'synthetic-owner',%L::uuid,%L,'balance_receipt',NULL,%L,%L::jsonb) $q$,res,i->>'id',i->>'revision',encode(sha256(convert_to(public.hotelhub_settlement_payload_json(wire),'UTF8')),'hex'),facts),'settlement_invalid_state');
  PERFORM hh_assert((SELECT count(*) FROM hotel_settlement_attempts WHERE intent_id=(i->>'id')::uuid)=3,'unresolved later allocation fences every subsequent write');
+END $$;
+CREATE FUNCTION public.hh_fail_room_two() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.hotel_room_id='16161616-1616-4616-8616-161616161616' AND NEW.condition='dirty' THEN RAISE EXCEPTION 'synthetic_room_two_failure'; END IF; RETURN NEW; END $$;
+CREATE TRIGGER zz_fail_room_two BEFORE UPDATE ON hotel_room_housekeeping FOR EACH ROW EXECUTE FUNCTION hh_fail_room_two();
+DO $$ DECLARE i jsonb; digest text; result jsonb; expired jsonb; scope_error text; BEGIN
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010');
+ digest:=(SELECT proof_digest FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid AND proof->>'kind'='settlement' ORDER BY (proof->>'checkedAt')::timestamptz DESC,id DESC LIMIT 1);
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',%L::uuid,%L,%L) $q$,i->>'id','0',digest),'settlement_stale_revision');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',%L::uuid,%L,%L) $q$,i->>'id',i->>'revision',repeat('e',64)),'settlement_untrusted_proof');
+ expired:=hh_sign_proof((SELECT proof FROM hotel_settlement_evidence WHERE proof_digest=digest AND intent_id=(i->>'id')::uuid)||jsonb_build_object('checkedAt',to_char((clock_timestamp()-interval '61 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ INSERT INTO hotel_settlement_evidence(tenant_id,reservation_id,intent_id,proof_digest,proof) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010',(i->>'id')::uuid,expired->>'digest',expired);
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',%L::uuid,%L,%L) $q$,i->>'id',i->>'revision',expired->>'digest'),'settlement_expired_proof');
+ BEGIN UPDATE hotel_rooms SET tenant_id='99999999-9999-4999-8999-999999999999' WHERE id='16161616-1616-4616-8616-161616161616'; EXCEPTION WHEN OTHERS THEN GET STACKED DIAGNOSTICS scope_error=RETURNED_SQLSTATE; END;
+ PERFORM hh_assert(scope_error='23503','alien room reparenting rejected by scoped FK');
+ INSERT INTO hotel_reservation_rooms(tenant_id,reservation_id,hotel_room_id,arrival_date,departure_date,base_rate_snapshot,agreed_rate,adults,allocation_status) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','88888888-8888-4888-8888-888888888888','16161616-1616-4616-8616-161616161616','2026-10-10','2026-10-11',250,250,1,'occupied');
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',%L::uuid,%L,%L) $q$,i->>'id',i->>'revision',digest),'settlement_room_scope_mismatch');
+ DELETE FROM hotel_reservation_rooms WHERE reservation_id='88888888-8888-4888-8888-888888888888' AND hotel_room_id='16161616-1616-4616-8616-161616161616';
+ PERFORM hh_reject(format($q$ SELECT hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',%L::uuid,%L,%L) $q$,i->>'id',i->>'revision',digest),'synthetic_room_two_failure');
+ PERFORM hh_assert((SELECT status='checked_in' FROM hotel_reservations WHERE id='10101010-1010-4010-8010-101010101010') AND (SELECT count(*)=2 FROM hotel_reservation_rooms WHERE reservation_id='10101010-1010-4010-8010-101010101010' AND allocation_status='occupied') AND (SELECT count(*)=2 FROM hotel_room_housekeeping WHERE hotel_room_id IN ('15151515-1515-4515-8515-151515151515','16161616-1616-4616-8616-161616161616') AND condition='ready' AND dnd_active),'room2 failure rolls back reservation room1 and DND');
+ PERFORM hh_assert(NOT EXISTS(SELECT 1 FROM hotel_housekeeping_handoffs WHERE reservation_id='10101010-1010-4010-8010-101010101010') AND NOT EXISTS(SELECT 1 FROM hotel_settlement_events WHERE intent_id=(i->>'id')::uuid AND event='closed'),'failed close has zero handoffs and close events');
+END $$;
+DROP TRIGGER zz_fail_room_two ON hotel_room_housekeeping;
+DO $$ DECLARE i jsonb; digest text; result jsonb; BEGIN
+ i:=hotelhub_settlement_read('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010');
+ digest:=(SELECT proof_digest FROM hotel_settlement_evidence WHERE intent_id=(i->>'id')::uuid AND proof->>'kind'='settlement' ORDER BY (proof->>'checkedAt')::timestamptz DESC,id DESC LIMIT 1);
+ result:=hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',(i->>'id')::uuid,i->>'revision',digest);
+ PERFORM hh_assert(result->>'state'='closed' AND (SELECT status='checked_out' FROM hotel_reservations WHERE id='10101010-1010-4010-8010-101010101010'),'settled stay closes atomically');
+ PERFORM hh_assert((SELECT count(*)=2 FROM hotel_reservation_rooms WHERE reservation_id='10101010-1010-4010-8010-101010101010' AND allocation_status='released') AND (SELECT count(*)=2 FROM hotel_room_housekeeping WHERE hotel_room_id IN ('15151515-1515-4515-8515-151515151515','16161616-1616-4616-8616-161616161616') AND condition='dirty' AND NOT dnd_active),'all occupied rooms released Dirty DNDoff');
+ PERFORM hh_assert((SELECT count(*)=2 FROM hotel_housekeeping_handoffs WHERE settlement_intent_id=(i->>'id')::uuid AND source='settlement' AND state='applied'),'one intent-linked housekeeping handoff per room');
+ PERFORM hh_assert((SELECT count(*)=1 FROM hotel_settlement_events WHERE intent_id=(i->>'id')::uuid AND event='closed'),'one close event');
+ PERFORM hh_assert(hotelhub_settlement_close('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','10101010-1010-4010-8010-101010101010','synthetic-owner',(i->>'id')::uuid,i->>'revision',digest)=result,'repeated close returns same durable result');
+ PERFORM hh_reject($q$ UPDATE hotel_reservations SET notes='after-close mutation' WHERE id='10101010-1010-4010-8010-101010101010' $q$,'settlement_locked');
+ PERFORM hh_assert(NOT has_function_privilege('authenticated','hotelhub_settlement_close(uuid,uuid,text,uuid,text,text)','EXECUTE'),'browser cannot close');
+END $$;
+-- Isolated proven-state fixture for the native close race; final proof validation above
+-- is independent from the reservation/intent/room lock contention tested here.
+CREATE FUNCTION public.hh_settled_close_fixture() RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE res uuid:=gen_random_uuid(); folio uuid:=gen_random_uuid(); room uuid; intent uuid:=gen_random_uuid(); s jsonb; p jsonb; BEGIN
+ INSERT INTO hotel_reservations(id,tenant_id,booking_reference,booking_source,status,arrival_date,departure_date,currency,created_by_n3_user_key) VALUES(res,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','SYNTHETIC-CLOSE-'||res,'walk_in','checked_in','2026-10-07','2026-10-09','MYR','synthetic-owner');
+ INSERT INTO hotel_folios(id,tenant_id,reservation_id,status) VALUES(folio,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,'prepared');
+ INSERT INTO hotel_folio_lines(tenant_id,folio_id,line_type,description_snapshot,unit_price_cents,subtotal_cents,total_cents,actor_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',folio,'add_on','Synthetic close race',50000,50000,50000,'synthetic-owner');
+ FOR n IN 1..2 LOOP
+  room:=gen_random_uuid();
+  INSERT INTO hotel_rooms(id,tenant_id,n3_stock_id,n3_stock_code,room_number) VALUES(room,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',room::text,room::text,room::text);
+  INSERT INTO hotel_reservation_rooms(tenant_id,reservation_id,hotel_room_id,arrival_date,departure_date,base_rate_snapshot,agreed_rate,adults,allocation_status) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,room,'2026-10-07','2026-10-09',250,250,1,'occupied');
+  INSERT INTO hotel_room_housekeeping(tenant_id,hotel_room_id,condition,dnd_active,initialized_by_n3_user_key) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',room,'ready',true,'synthetic-owner');
+ END LOOP;
+ s:=hh_snapshot(res);
+ INSERT INTO hotel_settlement_intents(id,tenant_id,reservation_id,client_request_id,snapshot,digest,state,actor_n3_user_key) VALUES(intent,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,gen_random_uuid(),s,s->>'digest','settled','synthetic-owner');
+ p:=(SELECT proof FROM hotel_settlement_evidence WHERE reservation_id='10101010-1010-4010-8010-101010101010' AND proof->>'kind'='settlement' ORDER BY (proof->>'checkedAt')::timestamptz DESC LIMIT 1);
+ p:=hh_sign_proof(p||jsonb_build_object('reservationId',res,'intentId',intent,'bill',p->'bill'||jsonb_build_object('intentId',intent),'checkedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')));
+ INSERT INTO hotel_settlement_evidence(tenant_id,reservation_id,intent_id,proof_digest,proof) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',res,intent,p->>'digest',p);
+ RETURN jsonb_build_object('res',res,'intent',intent,'revision','1','digest',p->>'digest');
 END $$;

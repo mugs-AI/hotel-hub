@@ -253,6 +253,9 @@ const safeErrors = new Set([
   "settlement_not_found",
   "settlement_invalid_state",
   "settlement_untrusted_proof",
+  "settlement_expired_proof",
+  "settlement_room_scope_mismatch",
+  "settlement_housekeeping_failed",
 ]);
 export function createSettlementStore(rpc: SettlementRpc): SettlementStore {
   async function call(name: string, args: Record<string, unknown>): Promise<unknown> {

@@ -216,6 +216,46 @@ DECLARE i public.hotel_settlement_intents; b jsonb; r jsonb; payment jsonb; atte
  INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key,detail) VALUES(p_tenant_id,p_reservation_id,i.id,(p_proof->>'kind')||'_verified',p_actor,jsonb_build_object('proofDigest',p_proof->>'digest','billId',b->>'id'));
  RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
 END $f$;
+-- Dedicated intent identity, distinct from a room-change operation request.
+ALTER TABLE public.hotel_housekeeping_handoffs ADD COLUMN settlement_intent_id uuid;
+ALTER TABLE public.hotel_housekeeping_handoffs ADD CONSTRAINT hotel_hk_settlement_fk FOREIGN KEY(tenant_id,reservation_id,settlement_intent_id) REFERENCES public.hotel_settlement_intents(tenant_id,reservation_id,id);
+CREATE UNIQUE INDEX hotel_hk_settlement_room ON public.hotel_housekeeping_handoffs(tenant_id,settlement_intent_id,hotel_room_id) WHERE settlement_intent_id IS NOT NULL;
+CREATE FUNCTION public.hotelhub_settlement_close(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text,p_proof_digest text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
+DECLARE i public.hotel_settlement_intents; res public.hotel_reservations; evidence jsonb; allocation public.hotel_reservation_rooms; handoff uuid; applied boolean; room_ids uuid[]; BEGIN
+ PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
+ SELECT * INTO res FROM public.hotel_reservations WHERE tenant_id=p_tenant_id AND id=p_reservation_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'settlement_not_found'; END IF;
+ SELECT * INTO i FROM public.hotel_settlement_intents WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND id=p_intent_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'settlement_not_found'; END IF;
+ IF i.state='closed' THEN
+  IF NOT EXISTS(SELECT 1 FROM public.hotel_settlement_events WHERE intent_id=i.id AND event='closed' AND detail->>'proofDigest'=p_proof_digest) THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+  RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
+ END IF;
+ IF i.revision::text IS DISTINCT FROM p_revision THEN RAISE EXCEPTION 'settlement_stale_revision'; END IF;
+ IF i.state<>'settled' OR res.status<>'checked_in' THEN RAISE EXCEPTION 'settlement_invalid_state'; END IF;
+ SELECT proof INTO evidence FROM public.hotel_settlement_evidence WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND intent_id=i.id AND proof_digest=p_proof_digest AND proof->>'kind'='settlement';
+ IF NOT FOUND OR evidence->>'snapshotDigest' IS DISTINCT FROM i.digest OR evidence->'bill'->>'outstandingCents' IS DISTINCT FROM '0' THEN RAISE EXCEPTION 'settlement_untrusted_proof'; END IF;
+ IF (evidence->>'checkedAt')::timestamptz<clock_timestamp()-interval '60 seconds' OR (evidence->>'checkedAt')::timestamptz>clock_timestamp()+interval '5 seconds' THEN RAISE EXCEPTION 'settlement_expired_proof'; END IF;
+ IF i.snapshot->'sourceVersions' IS DISTINCT FROM public.hotelhub_settlement_sources(p_tenant_id,p_reservation_id) THEN RAISE EXCEPTION 'settlement_snapshot_changed'; END IF;
+ PERFORM 1 FROM public.hotel_reservation_rooms WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id ORDER BY hotel_room_id,id FOR UPDATE;
+ SELECT array_agg(hotel_room_id ORDER BY hotel_room_id) INTO room_ids FROM public.hotel_reservation_rooms WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND allocation_status='occupied';
+ IF room_ids IS NULL OR cardinality(room_ids)<>(SELECT count(DISTINCT x) FROM unnest(room_ids) x) OR EXISTS(SELECT 1 FROM public.hotel_reservation_rooms WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND allocation_status='reserved') THEN RAISE EXCEPTION 'settlement_room_scope_mismatch'; END IF;
+ PERFORM 1 FROM public.hotel_rooms WHERE tenant_id=p_tenant_id AND id=ANY(room_ids) ORDER BY id FOR UPDATE;
+ IF (SELECT count(*) FROM public.hotel_rooms WHERE tenant_id=p_tenant_id AND id=ANY(room_ids))<>cardinality(room_ids) OR EXISTS(SELECT 1 FROM public.hotel_reservation_rooms rr WHERE rr.hotel_room_id=ANY(room_ids) AND rr.allocation_status='occupied' AND (rr.tenant_id<>p_tenant_id OR rr.reservation_id<>p_reservation_id)) THEN RAISE EXCEPTION 'settlement_room_scope_mismatch'; END IF;
+ -- Only this private transition admits exact checked_out/released row changes.
+ UPDATE public.hotel_settlement_intents SET state='closing' WHERE id=i.id;
+ FOR allocation IN SELECT * FROM public.hotel_reservation_rooms WHERE tenant_id=p_tenant_id AND reservation_id=p_reservation_id AND allocation_status='occupied' ORDER BY hotel_room_id,id LOOP
+  UPDATE public.hotel_reservation_rooms SET allocation_status='released',updated_at=clock_timestamp() WHERE tenant_id=p_tenant_id AND id=allocation.id;
+  INSERT INTO public.hotel_housekeeping_handoffs(tenant_id,hotel_room_id,reservation_id,settlement_intent_id,source,actor_n3_user_key,state) VALUES(p_tenant_id,allocation.hotel_room_id,p_reservation_id,i.id,'settlement',p_actor,'pending') RETURNING id INTO handoff;
+  SELECT out_applied INTO applied FROM public.hotelhub_hk_vacate_room_v2(p_tenant_id,allocation.hotel_room_id,p_actor,'settlement',handoff);
+  IF applied IS DISTINCT FROM true THEN RAISE EXCEPTION 'settlement_housekeeping_failed'; END IF;
+ END LOOP;
+ UPDATE public.hotel_reservations SET status='checked_out',updated_at=clock_timestamp() WHERE tenant_id=p_tenant_id AND id=p_reservation_id;
+ UPDATE public.hotel_settlement_intents SET state='closed',revision=revision+1 WHERE id=i.id;
+ INSERT INTO public.hotel_settlement_events(tenant_id,reservation_id,intent_id,event,actor_n3_user_key,detail) VALUES(p_tenant_id,p_reservation_id,i.id,'closed',p_actor,jsonb_build_object('proofDigest',p_proof_digest,'roomIds',to_jsonb(room_ids)));
+ INSERT INTO public.hotel_audit_events(tenant_id,n3_user_key,event_type,detail) VALUES(p_tenant_id,p_actor,'reservation_checked_out',jsonb_build_object('reservationId',p_reservation_id,'settlementIntentId',i.id,'roomIds',to_jsonb(room_ids)));
+ RETURN public.hotelhub_settlement_read(p_tenant_id,p_reservation_id);
+END $f$;
 CREATE FUNCTION public.hotelhub_settlement_abandon(p_tenant_id uuid,p_reservation_id uuid,p_actor text,p_intent_id uuid,p_revision text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
 DECLARE i public.hotel_settlement_intents; BEGIN
  PERFORM public.hotelhub_settlement_owner(p_tenant_id,p_actor);
@@ -245,6 +285,10 @@ DECLARE n jsonb; o jsonb; rowdata jsonb; tenant uuid; parent uuid; rec record; B
   ELSIF TG_TABLE_NAME='hotel_receipt_versions' THEN SELECT reservation_id INTO parent FROM public.hotel_reservation_deposits WHERE tenant_id=tenant AND id=(rowdata->>'deposit_id')::uuid;
   ELSIF TG_TABLE_NAME='hotel_receipt_control_executions' THEN SELECT reservation_id INTO parent FROM public.hotel_receipt_control_requests WHERE tenant_id=tenant AND id=(rowdata->>'request_id')::uuid;
   ELSE parent:=(rowdata->>'reservation_id')::uuid; END IF;
+  IF TG_OP='UPDATE' AND EXISTS(SELECT 1 FROM public.hotel_settlement_intents WHERE tenant_id=tenant AND reservation_id=parent AND state='closing') THEN
+   IF TG_TABLE_NAME='hotel_reservations' AND o->>'status'='checked_in' AND n->>'status'='checked_out' AND (n-'status'-'updated_at')=(o-'status'-'updated_at') THEN RETURN NEW; END IF;
+   IF TG_TABLE_NAME='hotel_reservation_rooms' AND o->>'allocation_status'='occupied' AND n->>'allocation_status'='released' AND (n-'allocation_status'-'updated_at'-'stay_range')=(o-'allocation_status'-'updated_at'-'stay_range') THEN RETURN NEW; END IF;
+  END IF;
   -- Direct child UPDATE/DELETE already owns a row lock: NOWAIT prevents inversion
   -- against a parent-first freeze/close. INSERT can safely wait on the parent.
   PERFORM public.hotelhub_settlement_guard(tenant,parent,TG_OP='INSERT');
@@ -2447,5 +2491,5 @@ $function$
 
 DO $f$ DECLARE r record; BEGIN FOR r IN SELECT p.oid::regprocedure AS sig,p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname LIKE 'hotelhub_settlement_%' LOOP
  EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,anon,authenticated,service_role',r.sig);
- IF r.proname IN ('hotelhub_settlement_read','hotelhub_settlement_sources','hotelhub_settlement_freeze','hotelhub_settlement_claim','hotelhub_settlement_outcome','hotelhub_settlement_prove','hotelhub_settlement_abandon') THEN EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',r.sig); END IF;
+ IF r.proname IN ('hotelhub_settlement_read','hotelhub_settlement_sources','hotelhub_settlement_freeze','hotelhub_settlement_claim','hotelhub_settlement_outcome','hotelhub_settlement_prove','hotelhub_settlement_abandon','hotelhub_settlement_close') THEN EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role',r.sig); END IF;
  END LOOP; END $f$;
