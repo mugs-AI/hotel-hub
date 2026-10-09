@@ -130,14 +130,8 @@ function productionBillToService() {
     reservation: getReservationById,
     async read(actor, id) {
       const sb = await changeAdmin();
-      const [bill, row, pending] = await Promise.all([
-        sb.rpc("hotelhub_bill_to_current", { p_tenant: actor.tenantId, p_res: id }),
-        sb
-          .from("hotel_folio_bill_to")
-          .select("effective_revision")
-          .eq("tenant_id", actor.tenantId)
-          .eq("reservation_id", id)
-          .maybeSingle(),
+      const [bill, pending] = await Promise.all([
+        sb.rpc("hotelhub_bill_to_read", { p_tenant: actor.tenantId, p_res: id }),
         sb
           .from("hotel_bill_to_change_requests")
           .select("*")
@@ -146,13 +140,13 @@ function productionBillToService() {
           .in("state", ["pending", "needs_review"])
           .maybeSingle(),
       ]);
-      for (const r of [bill, row, pending]) if (r.error) throw changeDbError(r.error);
-      const rev = row.data?.effective_revision ?? 0;
-      if (typeof rev === "number" && !Number.isSafeInteger(rev))
+      for (const r of [bill, pending]) if (r.error) throw changeDbError(r.error);
+      const rev = bill.data?.effectiveRevision;
+      if (typeof rev !== "string" || !/^(0|[1-9]\d*)$/.test(rev))
         throw new ReceiptControlError("change_controls_unavailable");
       return {
-        billTo: bill.data,
-        effectiveRevision: String(rev),
+        billTo: bill.data.billTo,
+        effectiveRevision: rev,
         pending: pending.data ? await toBillToDTO(actor, pending.data) : null,
       };
     },

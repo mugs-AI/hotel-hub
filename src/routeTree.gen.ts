@@ -43,6 +43,7 @@ import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/hou
 import { Route as ApiHotelFinancialPeriodRouteImport } from './routes/api/hotel/financial-period'
 import { Route as ApiHotelFinancialDashboardRouteImport } from './routes/api/hotel/financial-dashboard'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
+import { Route as ApiHotelChangeRevisionRouteImport } from './routes/api/hotel/change-revision'
 import { Route as ApiHotelChangeControlsRouteImport } from './routes/api/hotel/change-controls'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
 import { Route as ApiHotelBillToChangesRouteImport } from './routes/api/hotel/bill-to-changes'
@@ -263,6 +264,11 @@ const ApiHotelFinancialDashboardRoute =
 const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   id: '/api/hotel/departures',
   path: '/api/hotel/departures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelChangeRevisionRoute = ApiHotelChangeRevisionRouteImport.update({
+  id: '/api/hotel/change-revision',
+  path: '/api/hotel/change-revision',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHotelChangeControlsRoute = ApiHotelChangeControlsRouteImport.update({
@@ -548,6 +554,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -630,6 +637,7 @@ export interface FileRoutesByTo {
   '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -713,6 +721,7 @@ export interface FileRoutesById {
   '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -797,6 +806,7 @@ export interface FileRouteTypes {
     | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
     | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -879,6 +889,7 @@ export interface FileRouteTypes {
     | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
     | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -961,6 +972,7 @@ export interface FileRouteTypes {
     | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
     | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -1044,6 +1056,7 @@ export interface RootRouteChildren {
   ApiHotelBillToChangesRoute: typeof ApiHotelBillToChangesRouteWithChildren
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
   ApiHotelChangeControlsRoute: typeof ApiHotelChangeControlsRoute
+  ApiHotelChangeRevisionRoute: typeof ApiHotelChangeRevisionRoute
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
   ApiHotelFinancialDashboardRoute: typeof ApiHotelFinancialDashboardRoute
   ApiHotelFinancialPeriodRoute: typeof ApiHotelFinancialPeriodRoute
@@ -1311,6 +1324,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hotel/departures'
       fullPath: '/api/hotel/departures'
       preLoaderRoute: typeof ApiHotelDeparturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/change-revision': {
+      id: '/api/hotel/change-revision'
+      path: '/api/hotel/change-revision'
+      fullPath: '/api/hotel/change-revision'
+      preLoaderRoute: typeof ApiHotelChangeRevisionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/change-controls': {
@@ -1926,6 +1946,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelBillToChangesRoute: ApiHotelBillToChangesRouteWithChildren,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
   ApiHotelChangeControlsRoute: ApiHotelChangeControlsRoute,
+  ApiHotelChangeRevisionRoute: ApiHotelChangeRevisionRoute,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
   ApiHotelFinancialDashboardRoute: ApiHotelFinancialDashboardRoute,
   ApiHotelFinancialPeriodRoute: ApiHotelFinancialPeriodRoute,

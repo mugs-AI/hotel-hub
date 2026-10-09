@@ -1,9 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- additive tables await separately approved schema/types generation */
-import {
-  defaultChangePolicy,
-  type ChangePolicy,
-  type ChangePolicyInput,
-} from "./hotel-change-controls";
+import { type ChangePolicy, type ChangePolicyInput } from "./hotel-change-controls";
 import { ReceiptControlError } from "./receipt-controls";
 import type { ReceiptControlActor } from "./receipt-controls-evidence.server";
 import { mapDbError } from "./receipt-controls-store.server";
@@ -34,28 +30,28 @@ export function validateChangePolicyInput(value: unknown): ChangePolicyInput {
   return p as ChangePolicyInput;
 }
 export async function readChangePolicy(tenantId: string): Promise<ChangePolicy | null> {
-  const { data, error } = await (await changeAdmin())
-    .from("hotel_change_control_policies")
-    .select("revision,deposit_approval_required,contact_approval_required")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
+  const sb = await changeAdmin();
+  const { data, error } = await sb.rpc("hotelhub_change_policy_read", { p_tenant: tenantId });
   if (error) {
     if (missingChangeInstallation(error)) return null;
+    if (["PGRST202", "42883"].includes(error.code ?? "")) {
+      const probe = await sb.from("hotel_change_control_policies").select("tenant_id").limit(0);
+      if (probe.error && missingChangeInstallation(probe.error)) return null;
+    }
     throw new ReceiptControlError("change_controls_unavailable");
   }
-  if (!data) return defaultChangePolicy();
-  // bigint comes through PostgREST as number: unsafe numeric values cannot be trusted.
-  if (typeof data.revision === "number" && !Number.isSafeInteger(data.revision))
-    throw new ReceiptControlError("change_controls_unavailable");
   if (
-    typeof data.deposit_approval_required !== "boolean" ||
-    typeof data.contact_approval_required !== "boolean"
+    !data ||
+    typeof data.revision !== "string" ||
+    !/^(0|[1-9]\d*)$/.test(data.revision) ||
+    typeof data.depositApprovalRequired !== "boolean" ||
+    typeof data.contactApprovalRequired !== "boolean"
   )
     throw new ReceiptControlError("change_controls_unavailable");
   return {
-    revision: String(data.revision),
-    depositApprovalRequired: data.deposit_approval_required,
-    contactApprovalRequired: data.contact_approval_required,
+    revision: data.revision,
+    depositApprovalRequired: data.depositApprovalRequired,
+    contactApprovalRequired: data.contactApprovalRequired,
   };
 }
 export async function requireFreshChangeOwner(actor: ReceiptControlActor): Promise<void> {

@@ -108,11 +108,24 @@ export const RECEIPT_EFFECT_QUERY_PREFIXES = [
 export function invalidateReceiptEffects(qc: {
   invalidateQueries: (f: { queryKey: readonly unknown[] }) => unknown;
 }) {
-  for (const k of RECEIPT_EFFECT_QUERY_PREFIXES) void qc.invalidateQueries({ queryKey: [k] });
+  for (const k of [
+    ...RECEIPT_EFFECT_QUERY_PREFIXES,
+    "folio-bill-to",
+    "hotel-change-policy",
+    "bill-to-changes",
+  ])
+    void qc.invalidateQueries({ queryKey: [k] });
 }
 
 /** Query prefixes holding receipt/finance data that must never cross identities. */
-export const SENSITIVE_RECEIPT_PREFIXES = ["receipt-controls", "financial-reporting"] as const;
+export const SENSITIVE_RECEIPT_PREFIXES = [
+  "receipt-controls",
+  "financial-reporting",
+  "hotel-change-policy",
+  "folio-bill-to",
+  "bill-to-changes",
+  "hotel-change-revision",
+] as const;
 
 type PurgeableClient = {
   removeQueries: (f: {

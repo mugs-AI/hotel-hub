@@ -906,7 +906,12 @@ describe("frozen42f review fixes", () => {
       "folio",
     ])
       expect(inv).toContain(need);
-    expect(RECEIPT_EFFECT_QUERY_PREFIXES.length).toBe(inv.length);
+    expect(inv).toEqual([
+      ...RECEIPT_EFFECT_QUERY_PREFIXES,
+      "folio-bill-to",
+      "hotel-change-policy",
+      "bill-to-changes",
+    ]);
   });
 
   it("race: claimed prior-approved Needs review cannot be rejected; completion stays fenced", async () => {

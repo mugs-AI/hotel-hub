@@ -330,3 +330,19 @@ CREATE TRIGGER hotel_receipt_attempt_guard BEFORE UPDATE OR DELETE ON public.hot
 CREATE TRIGGER hotel_bill_to_intent_guard BEFORE UPDATE OR DELETE ON public.hotel_bill_to_change_requests FOR EACH ROW EXECUTE FUNCTION public.hotelhub_change_intent_guard();
 REVOKE ALL ON FUNCTION public.hotelhub_change_intent_guard() FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.hotelhub_change_intent_guard() TO service_role;
+
+-- Lossless decimal revisions: PostgREST bigint JSON numbers are unsafe in JS.
+CREATE FUNCTION public.hotelhub_change_revision_read(p_tenant uuid)
+RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT coalesce((SELECT revision::text FROM public.hotel_change_revisions WHERE tenant_id=p_tenant),'0')
+$$;
+CREATE FUNCTION public.hotelhub_change_policy_read(p_tenant uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT jsonb_build_object('revision',coalesce(p.revision::text,'0'),'depositApprovalRequired',coalesce(p.deposit_approval_required,true),'contactApprovalRequired',coalesce(p.contact_approval_required,false)) FROM (SELECT 1) seed LEFT JOIN public.hotel_change_control_policies p ON p.tenant_id=p_tenant
+$$;
+CREATE FUNCTION public.hotelhub_bill_to_read(p_tenant uuid,p_res uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ SELECT jsonb_build_object('billTo',public.hotelhub_bill_to_current(p_tenant,p_res),'effectiveRevision',coalesce((SELECT effective_revision::text FROM public.hotel_folio_bill_to WHERE tenant_id=p_tenant AND reservation_id=p_res),'0'))
+$$;
+REVOKE ALL ON FUNCTION public.hotelhub_change_revision_read(uuid),public.hotelhub_change_policy_read(uuid),public.hotelhub_bill_to_read(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.hotelhub_change_revision_read(uuid),public.hotelhub_change_policy_read(uuid),public.hotelhub_bill_to_read(uuid,uuid) TO service_role;
