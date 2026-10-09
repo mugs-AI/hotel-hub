@@ -31,8 +31,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci --no-audit --no-fund
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
       - name: Install external test client only
         run: npm install --prefix "$RUNNER_TEMP/hh-pg-client" --no-audit --no-fund pg@8.16.3
       - name: Test disposable native PostgreSQL including real dispatch race
