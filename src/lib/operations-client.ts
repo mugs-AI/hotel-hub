@@ -1,3 +1,4 @@
+import { SECURITY_ERRORS } from "./security-cash";
 import { settlementLockMessage } from "./settlement-lock";
 // Browser-side reservation-operation queries/mutations. Same-origin,
 // cookie-authenticated, no direct Supabase or N3 access.
@@ -128,6 +129,7 @@ export function operationStateLabel(s: string): string {
 }
 
 export function operationErrorMessage(code: string, operationType?: string): string {
+  if (SECURITY_ERRORS[code]) return SECURITY_ERRORS[code];
   const lock = settlementLockMessage(code);
   if (lock) return lock;
   switch (code) {

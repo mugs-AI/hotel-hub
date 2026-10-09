@@ -1,3 +1,4 @@
+import { SecurityCashCard } from "@/components/SecurityCashCard";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { SettlementCard } from "@/components/SettlementCard";
@@ -70,6 +71,7 @@ function CheckoutPreviewPage() {
             canEdit={hasPermission(role, "hotel:reservations:edit")}
           />
         ) : null}
+        <SecurityCashCard reservationId={id} owner={role === "owner"} />
         <SettlementCard reservationId={id} owner={hasPermission(role, "hotel:checkout:write")} />
         {q.isLoading ? <p className="text-sm text-muted-foreground">Preparing preview…</p> : null}
         {q.error ? (

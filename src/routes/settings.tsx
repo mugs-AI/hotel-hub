@@ -1,3 +1,4 @@
+import { SecurityCashSettings } from "@/components/SecurityCashSettings";
 // Owner-only Settings page. Booking Sources management with a polished,
 // commercial-looking UI: summary cards, a table with status pills and
 // usage counts, add/edit dialogs, and a deactivation confirmation.
@@ -221,7 +222,10 @@ function SettingsWorkspace() {
       {tab === "sources" ? (
         <BookingSourcesScreen />
       ) : tab === "deposits" ? (
-        <DepositModuleSettingsPanel />
+        <div>
+          <DepositModuleSettingsPanel />
+          <SecurityCashSettings />
+        </div>
       ) : tab === "users" ? (
         <UserControlPanel />
       ) : tab === "charges" ? (

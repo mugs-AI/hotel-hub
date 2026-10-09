@@ -42,6 +42,8 @@ export type OperationState = (typeof OPERATION_STATES)[number];
 /** Stable, non-leaking error codes surfaced to the browser. */
 export const OPERATION_ERROR_CODES = new Set([
   ...SETTLEMENT_LOCK_CODES,
+  "security_collection_required",
+  "security_return_required",
   "unauthorized",
   "reservation_not_found",
   "operation_not_found",

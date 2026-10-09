@@ -45,7 +45,10 @@ function state(data: unknown): DepositModulePolicyState {
     throw new DepositModulePolicyError("deposit_module_policy_unavailable");
   }
 }
-export async function readDepositModulePolicy(tenantId: string): Promise<DepositModulePolicyState> {
+export async function readDepositModulePolicy(
+  tenantId: string,
+  probeSecurityInstallation = true,
+): Promise<DepositModulePolicyState> {
   validScope(tenantId);
   try {
     const result = await (await db())
@@ -58,16 +61,25 @@ export async function readDepositModulePolicy(tenantId: string): Promise<Deposit
         return { policy: legacyDepositModulePolicy(), available: false, securityReady: false };
       throw new DepositModulePolicyError("deposit_module_policy_unavailable");
     }
-    return result.data === null
-      ? { policy: legacyDepositModulePolicy(), available: true, securityReady: false }
-      : state(result.data);
+    if (result.data === null) {
+      // Installed schema can serve a new tenant before its first settings save.
+      const installed = probeSecurityInstallation
+        ? await (async () => (await db()).rpc("hh_security_installed", {}))().catch(() => null)
+        : null;
+      return {
+        policy: legacyDepositModulePolicy(),
+        available: true,
+        securityReady: installed?.data === true,
+      };
+    }
+    return state(result.data);
   } catch (error) {
     if (error instanceof DepositModulePolicyError) throw error;
     throw new DepositModulePolicyError("deposit_module_policy_unavailable");
   }
 }
 export async function assertRoomAdvanceCollectionEnabled(tenantId: string): Promise<void> {
-  if (!(await readDepositModulePolicy(tenantId)).policy.roomAdvanceEnabled)
+  if (!(await readDepositModulePolicy(tenantId, false)).policy.roomAdvanceEnabled)
     throw new DepositModulePolicyError("room_advance_disabled");
 }
 export async function updateDepositModulePolicy(

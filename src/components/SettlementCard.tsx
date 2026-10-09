@@ -1,3 +1,4 @@
+import { SECURITY_ERRORS } from "@/lib/security-cash";
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,7 +13,8 @@ import { usePaymentAccounts } from "@/lib/deposits-client";
 import type { SettlementStepInput, SettlementView } from "@/lib/settlement";
 import { isoToMyDate } from "@/lib/malaysia-date";
 export const settlementMessage = (code: string) =>
-  ({
+  SECURITY_ERRORS[code] ||
+  {
     settlement_setup_required: "Settlement is unavailable while setup is pending.",
     n3_settlement_master_contract_unverified:
       "Settlement is unavailable until accounting mappings are verified.",
@@ -25,7 +27,8 @@ export const settlementMessage = (code: string) =>
     settlement_excess_or_refund_requires_review: "A receipt remainder or refund needs review.",
     settlement_stale_revision: "The status changed on another device. Refresh the settlement.",
     n3_session_expired: "Your session expired. Relaunch HotelHub from N3.",
-  })[code] || "Settlement needs review. Check the accounting result before proceeding.";
+  }[code] ||
+  "Settlement needs review. Check the accounting result before proceeding.";
 const amount = (cents: number, currency: string) => `${currency} ${(cents / 100).toFixed(2)}`;
 export function SettlementStatus({ view, owner }: { view: SettlementView; owner: boolean }) {
   const p = settlementPresentation(view, owner);

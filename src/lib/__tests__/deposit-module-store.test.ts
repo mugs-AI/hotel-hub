@@ -118,3 +118,16 @@ it.each(["deposit_module_policy_conflict", "security_deposit_unavailable"])(
     ).rejects.toThrow(code);
   },
 );
+it("recognizes an installed security workflow for a tenant with no policy row", async () => {
+  io.read.mockResolvedValue({ data: null, error: null });
+  io.save.mockResolvedValue({ data: true, error: null });
+  expect((await readDepositModulePolicy(tenantId)).securityReady).toBe(true);
+});
+it("advance authorization does not depend on the separate security installation RPC", async () => {
+  io.read.mockResolvedValue({ data: null, error: null });
+  io.save.mockImplementation(() => {
+    throw new Error("security installation RPC unavailable");
+  });
+  await expect(assertRoomAdvanceCollectionEnabled(tenantId)).resolves.toBeUndefined();
+  expect(io.save).not.toHaveBeenCalled();
+});

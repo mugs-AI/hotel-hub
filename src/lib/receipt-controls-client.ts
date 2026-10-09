@@ -113,6 +113,7 @@ export const SENSITIVE_RECEIPT_PREFIXES = [
   "receipt-controls",
   "financial-reporting",
   "deposit-module-policy",
+  "security-cash",
 ] as const;
 
 type PurgeableClient = {
