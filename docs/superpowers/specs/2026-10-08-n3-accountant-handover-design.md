@@ -2,8 +2,8 @@
 
 Date: 08/10/2026, Asia/Kuala_Lumpur.
 Upload to Project Sources: **No** — proposed design; not an installed product policy.
-Status: **written proposal for Owner review; no implementation/activation approval
-or production behavior change is claimed**.
+Status: **written design approved by the Owner on 09/10/2026; scoped implementation
+plan pending review. No production behavior or financial activation change is claimed**.
 Scope: revised receipt surplus/refund handover, persistent accountant exception
 list, read-only verification and actionable N3 recovery. Preserve the existing
 billing work and its durable dispatch/proof/close foundations.
@@ -21,6 +21,11 @@ before checkout. A separate remaining credit/refund-review case can stay open fo
 accounting after the hotel stay closes. There is no Owner override for an unpaid,
 unverified or contradictory guest bill. Releasing rooms cannot label an accounting
 exception resolved or create a zero balance.
+
+Approved source-billing amendment (09/10/2026): a correctly configured source-paid
+room leg may retain a verified OTA receivable after hotel checkout, with a linked
+accountant case. Guest-paid legs must still have verified zero outstanding. See
+`2026-10-09-source-billing-design.md`; the OTA bill is issued, not falsely marked paid.
 
 These are separate outcomes: **guest bill settled / hotel stay closed** and
 **receipt accounting case open/resolved**. Leftover OR credit is not a second guest
