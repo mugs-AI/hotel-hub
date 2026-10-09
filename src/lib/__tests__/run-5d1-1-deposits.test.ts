@@ -244,6 +244,7 @@ function baseInput(clientRequestId: string) {
 }
 
 beforeEach(() => {
+  tables.hotel_deposit_module_policies = [];
   claimError = null;
   visibility.value = {};
   visibility.aliases = {};
@@ -273,6 +274,59 @@ beforeEach(() => {
   ];
 });
 describe("saved reservation deposits", () => {
+  it("disabled advance blocks direct creation before any N3 preflight", async () => {
+    tables.hotel_deposit_module_policies = [
+      {
+        tenant_id: TENANT,
+        room_advance_enabled: false,
+        security_deposit_enabled: false,
+        security_module_ready: false,
+        version: ACCOUNT_ID,
+      },
+    ];
+    const { client, calls } = makeN3();
+    client.getNew = async () => {
+      throw new Error("disabled collection reached N3");
+    };
+    await expect(
+      createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code: "room_advance_disabled" });
+    expect(calls.create).toBe(0);
+    expect(tables.hotel_reservation_deposits).toHaveLength(0);
+  });
+  it("disabling preserves same-key recovery without a second financial POST", async () => {
+    const { client, calls } = makeN3();
+    const input = baseInput(crypto.randomUUID());
+    await createDeposit(input, { n3: client, env: ENV });
+    tables.hotel_deposit_module_policies = [
+      {
+        tenant_id: TENANT,
+        room_advance_enabled: false,
+        security_deposit_enabled: false,
+        security_module_ready: false,
+        version: ACCOUNT_ID,
+      },
+    ];
+    const result = await createDeposit(input, { n3: client, env: ENV });
+    expect(result.reused).toBe(true);
+    expect(calls.create).toBe(1);
+  });
+  it("a key belonging to another reservation cannot recover its receipt", async () => {
+    const { client } = makeN3();
+    const input = baseInput(crypto.randomUUID());
+    await createDeposit(input, { n3: client, env: ENV });
+    await expect(
+      createDeposit({ ...input, reservationId: ACCOUNT_ID }, { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code: "reference_conflict" });
+  });
+  it("disable at the durable claim denies before financial POST", async () => {
+    claimError = { code: "P0001", message: "room_advance_disabled" };
+    const { client, calls } = makeN3();
+    await expect(
+      createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV }),
+    ).rejects.toMatchObject({ code: "room_advance_disabled" });
+    expect(calls.create).toBe(0);
+  });
   it.each(["settlement_locked", "settlement_busy"])(
     "%s deposit claim creates no N3 document",
     async (code) => {

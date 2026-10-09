@@ -10,6 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-09-source-billing-design.md` (Owner-approved09/10). Cases/externally performed matching use the interfaces in `2026-10-09-n3-accountant-handover.md`.
 
+**Approval:** Owner approved this plan at13:09 Malaysia time with independent Room
+Advance Payments/Security Deposit switches; incorporate the amendment below.
+
 ## Global Constraints
 
 - "Guest charges must be verified settled before checkout." A correctly configured source bill may remain outstanding for accountant reconciliation; never label it Paid.
@@ -46,6 +49,8 @@ Create `src/lib/source-billing.ts`:
 Leg snapshots use stable persisted local UUIDs, not customer code/room number. Existing `SettlementSnapshot` and proofs remain the unit for one debtor bill. New wrapper APIs own multi-leg orchestration; don't rewrite single-leg APIs into a magic two-customer payload.
 
 ### Task 1: Source policies, compatibility mapping and booking payer confirmation
+
+**Approved settings amendment:** Add `DepositModulePolicy = {roomAdvanceEnabled:boolean;securityDepositEnabled:boolean;version:string}` in a separate browser-safe `src/lib/deposit-module-policy.ts`, with service-only scoped storage and Owner settings API/panel. Existing tenants default true/false. Four combinations are legal; collect capabilities intersect policy and installed/accepted module readiness. AdvanceOff leaves checkout-balance payment and existing-advance matching/readback intact. SecurityOff stops new cash collection while preserving returns/history. A fresh collection must check current policy server-side and at durable local claim; no UI-only guard or N3 contract activation by toggle. New tests `four_deposit_modes_independent`, `disabled_module_direct_collect_denied`, `disable_preserves_existing_recovery`, `advance_off_keeps_checkout_payment`, `security_toggle_cannot_enable_n3_refund`, `legacy_defaults_preserved` own this amendment. Security custody itself is specified/planned separately; do not advertise an operational security module before its workflow/schema exists.
 
 **Files:** Create `src/lib/source-billing.ts`, `source-billing-policy.server.ts`, `src/lib/__tests__/source-billing-policy.test.ts`; modify `booking-sources-store.server.ts`, `reservations-client.ts`, `reservations-store.server.ts`, `src/routes/settings.tsx`, `src/components/PropertySettingsPanels.tsx`, existing booking-source API routes and reservation entry; create CLI-generated migration `hh_source_billing`.
 
@@ -158,5 +163,5 @@ and verified; this plan neither reclassifies it nor enables an unaccepted Update
 Then implement accountant handover foundations and source-billing tasks in dependency
 order, reusing finished work. Security cash is a separate optional module and does
 not enter these plans' N3 allocation code. Written source design is approved; this
-new scoped implementation plan awaits consolidated review, with native execution
-already selected. Upload to Project Sources: **No** — engineering plan, not release evidence.
+scoped implementation plan is approved with the independent-switch amendment,
+with native execution already selected. Upload to Project Sources: **No** — engineering plan, not release evidence.

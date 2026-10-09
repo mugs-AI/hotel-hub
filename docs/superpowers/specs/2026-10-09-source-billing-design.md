@@ -1,7 +1,8 @@
 # Booking Sources and separate payer bills
 
 9 October 2026. Written design approved by the Owner's "Approved all" at
-12:41 Malaysia time; implementation plan pending review. Not implemented or deployed.
+12:41 Malaysia time; scoped implementation plan approved with the two independent
+deposit-module switches at13:09. Not implemented or deployed.
 Priority: resolve the existing RM50 → RM65 correction first, using its existing
 request. Preserve completed billing tasks and the parked automatic candidate.
 
@@ -67,6 +68,15 @@ use a separate guest accommodation statement when suppression is inappropriate.
 Guest receipt funds cannot automatically match an OTA customer's room bill.
 Existing guest deposits belong to the guest leg; leftover funds remain visible
 for accountant treatment under the approved carry-forward report design.
+
+Settings amendment13:09: Room Advance Payments and Refundable Security Deposits
+have independent collection switches, allowing either/both/neither. AdvanceOff
+does not disable payment of a billed guest balance or use of an existing verified
+advance. SecurityOff preserves returns of already held cash. Source collection
+mode remains an independent payer control; it cannot enable a disabled deposit
+module or turn security cash into an OTA/customer receipt. Existing tenants keep
+advanceOn/securityOff until Owner changes their policy. See the approved security
+specification for the complete switch matrix.
 
 ## Document numbering and posting
 

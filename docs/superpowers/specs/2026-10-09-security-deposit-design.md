@@ -2,8 +2,8 @@
 
 09/10/2026, Asia/Kuala_Lumpur. Upload to Project Sources: **No** — engineering
 specification, not a released policy. Owner approved the in-chat workflow at
-12:41; this newly written specification awaits consolidated review. No code,
-schema, N3 write or public activation is claimed.
+12:41 and the written specification with independent module switches at13:09
+Malaysia time. No code, schema, N3 write or public activation is claimed.
 
 ## Goal and scope
 
@@ -24,9 +24,36 @@ Cash-only is the selected property policy. Research supports it as a practice at
 some Malaysian hotels, not as a universal legal rule. HASiL's refundable-deposit
 e-Invoice treatment does not eliminate accounting/source-document records.
 
+## Independent module switches — Owner-approved amendment13:09
+
+Settings → Deposits has two independent booleans: `roomAdvanceEnabled` and
+`securityDepositEnabled`. They are not a radio selector and not one shared
+deposit/refund toggle. Owner/Admin may enable Room Advance Payments only,
+Refundable Security Deposits only, both, or neither when no deposit is required.
+
+| Room Advance | Security Deposit | New collections permitted |
+| --- | --- | --- |
+| On | Off | N3 room advance only |
+| Off | On | Local refundable security cash only |
+| On | On | Both, in separate cards/receipts/ledgers |
+| Off | Off | No new advance/security collection |
+
+Existing tenants default to advanceOn/securityOff to preserve their current N3
+payment behavior. Security may be enabled after its custody workflow is installed;
+a switch cannot override missing schema or an unaccepted financial capability.
+Disabling either stops new collections in that module, not its existing records,
+returns, accounting reports or read-only recovery. Existing N3 advances can still
+be verified/matched to a guest bill; security holdings can still be returned.
+Never permit a fresh collect action by calling a hidden endpoint directly.
+
+Room Advance Payments Off does not disable ordinary checkout payment of a billed
+guest balance. Security-only mode does not use the security cash as that payment.
+The N3 refund option and both collection switches are separate controls. Enabling
+security cash returns never enables an N3 refund writer.
+
 ## Settings and roles
 
-- Module default off for existing tenants. Enabling does not reclassify old money.
+- Security module default off for existing tenants. Enabling does not reclassify old money.
 - Default amount RM50 per room per stay, Owner-configurable in safe positive cents.
   This is a selected starting policy, not an industry or statutory rate.
 - Accepted method: Malaysian cash notes. No card/bank selection or invented cash
@@ -140,8 +167,9 @@ deduction approval alone does not decrease physical cash.
 ## Reports and UI
 
 Reservation shows separate cards/actions for Room Payments and Security Deposit.
-Checkout shows room settlement and security return independently. Hide unavailable
-security actions when the module is off. Do not show N3 Print/Verify for these
+Checkout shows room settlement and security return independently. Hide new collect
+actions when the corresponding module is off; retain actions for existing holdings.
+Do not show N3 Print/Verify for these
 local receipts. Existing N3 financial totals remain unchanged.
 
 Front Desk sees permitted booking/shift custody work; Owner sees property-wide
@@ -154,12 +182,13 @@ numbers/contact data on the report or store new identity-document images.
 
 ## Acceptance and boundaries
 
-Verify module-off compatibility; no N3 calls on any security action; cash-only
+Verify all four module-switch combinations and module-off compatibility; no N3 calls on any security action; cash-only
 validation; duplicate collection/return; wrong tenant/role/recipient; room changes;
 multi-room release; lost receipt; Owner deduction/waiver; interrupted physical
 return; correction history; two/single-person shift handover; shortages; month
 carry-forward and immutable as-at reports; no inclusion in sales/AR matching;
-independent N3 refund setting; mobile receipt/checkout layout and printing.
+independent N3 refund setting; disabling collection preserves existing return,
+matching/recovery and checkout-balance payment; mobile receipt/checkout layout and printing.
 
 Reuse the approved accountant-report presentation patterns, keeping security
 cash facts distinct from uncertain N3 receipt balances. Preserve all existing

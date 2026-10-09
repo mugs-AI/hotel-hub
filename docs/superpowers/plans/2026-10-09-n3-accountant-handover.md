@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-08-n3-accountant-handover-design.md`; source-debtor close extension is owned by `2026-10-09-source-billing-design.md` and its separate plan.
 
+**Approval:** Owner approved the scoped plans13:09 Malaysia time with two independent
+deposit-module collection switches. Existing receipt matching/readback/reporting
+and security-cash returns remain available when new collection is disabled.
+
 ## Global Constraints
 
 - "Bill settled first" applies to guest-paid legs; source-paid legs use the approved source-billing amendment, never a generic Owner bypass.
@@ -136,6 +140,6 @@ uses Task3 case persistence and Task4 close foundations, then introduces distinc
 OTA/guest legs. Security cash has its own written specification and separate
 custody schema; never put security funds into these N3 receipt balance calculations.
 
-The accountant design is approved; this newly written implementation plan requires
-review under the selected skill. Existing authorization and native method remain
-valid. No product implementation or new test/build run occurred while writing it.
+The accountant design and this implementation plan are approved with that
+amendment. Existing authorization and native method remain valid. No product
+implementation or new test/build run occurred while writing this amendment.

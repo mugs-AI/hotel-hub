@@ -7,6 +7,7 @@ import { logAudit } from "@/lib/audit.server";
 import { hasPermission } from "@/lib/rbac";
 import { summarizePostedDeposits } from "@/lib/recorded-deposits";
 import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
+import { readDepositModulePolicy } from "@/lib/deposit-module-policy.server";
 import {
   createDeposit,
   DepositError,
@@ -52,7 +53,10 @@ export function statusForDepositError(code: string): number {
     case "unauthorized":
       return 401;
     case "deposit_writes_disabled":
+    case "room_advance_disabled":
       return 403;
+    case "deposit_module_policy_unavailable":
+      return 503;
     case "reservation_not_found":
     case "deposit_not_found":
       return 404;
@@ -114,7 +118,12 @@ export async function handleDepositsList({
       ctx.session.tenantId!,
       rowsList.map((d) => d.createdByN3UserKey),
     );
+    // Policy read errors close collection, not access to previously saved money.
+    const advanceEnabled = await readDepositModulePolicy(ctx.session.tenantId!)
+      .then((state) => state.policy.roomAdvanceEnabled)
+      .catch(() => false);
     const canCreate =
+      advanceEnabled &&
       hasPermission(ctx.role, "hotel:deposits:create") &&
       isDepositWriteEnabled(ctx.session.n3TenantKey);
     return Response.json(

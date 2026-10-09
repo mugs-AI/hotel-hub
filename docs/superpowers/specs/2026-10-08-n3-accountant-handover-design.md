@@ -3,7 +3,8 @@
 Date: 08/10/2026, Asia/Kuala_Lumpur.
 Upload to Project Sources: **No** — proposed design; not an installed product policy.
 Status: **written design approved by the Owner on 09/10/2026; scoped implementation
-plan pending review. No production behavior or financial activation change is claimed**.
+plan approved with independent deposit-module switches at13:09 Malaysia time.
+No production behavior or financial activation change is claimed**.
 Scope: revised receipt surplus/refund handover, persistent accountant exception
 list, read-only verification and actionable N3 recovery. Preserve the existing
 billing work and its durable dispatch/proof/close foundations.

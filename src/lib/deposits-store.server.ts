@@ -16,6 +16,10 @@ import { getOrCreateHotelSettings } from "./hotel-store.server";
 import { logAudit } from "./audit.server";
 import { readReceiptContact, type ReceiptContact } from "./receipt-contact.server";
 import {
+  assertRoomAdvanceCollectionEnabled,
+  DepositModulePolicyError,
+} from "./deposit-module-policy.server";
+import {
   isRealN3Id,
   isSafeReferenceNo,
   n3Receipts,
@@ -65,6 +69,8 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "payment_method_hidden",
   "multi_payment_contract_unverified",
   "deposit_writes_disabled",
+  "room_advance_disabled",
+  "deposit_module_policy_unavailable",
   "reservation_not_found",
   "reservation_not_eligible",
   "walk_in_customer_not_mapped",
@@ -1218,6 +1224,8 @@ export async function createDeposit(
   // never issues a second N3 create call.
   const existing = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
   if (existing) {
+    if (existing.reservationId !== input.reservationId)
+      throw new DepositError("reference_conflict");
     if (
       existing.amount !== amount ||
       JSON.stringify(existing.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==
@@ -1225,6 +1233,12 @@ export async function createDeposit(
     )
       throw new DepositError("invalid_payment_lines");
     return { deposit: existing, reused: true };
+  }
+  try {
+    await assertRoomAdvanceCollectionEnabled(input.tenantId);
+  } catch (error) {
+    if (error instanceof DepositModulePolicyError) throw new DepositError(error.code);
+    throw new DepositError("deposit_module_policy_unavailable");
   }
   if (
     choices.length > 1 &&
@@ -1296,10 +1310,13 @@ export async function createDeposit(
 
   const claimLock = settlementLockCode(claim.error);
   if (claimLock) throw new DepositError(claimLock);
+  if (claim.error?.message === "room_advance_disabled")
+    throw new DepositError("room_advance_disabled");
   if (claim.error || !claim.data) {
     // Lost the race with a concurrent duplicate: return that row, no POST.
     const raced = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
     if (raced) {
+      if (raced.reservationId !== input.reservationId) throw new DepositError("reference_conflict");
       if (
         raced.amount !== amount ||
         JSON.stringify(raced.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==

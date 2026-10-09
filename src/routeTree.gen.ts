@@ -42,6 +42,7 @@ import { Route as ApiHotelPaymentAccountsRouteImport } from './routes/api/hotel/
 import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/housekeeping'
 import { Route as ApiHotelFinancialPeriodRouteImport } from './routes/api/hotel/financial-period'
 import { Route as ApiHotelFinancialDashboardRouteImport } from './routes/api/hotel/financial-dashboard'
+import { Route as ApiHotelDepositModulesRouteImport } from './routes/api/hotel/deposit-modules'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
@@ -259,6 +260,11 @@ const ApiHotelFinancialDashboardRoute =
     path: '/api/hotel/financial-dashboard',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHotelDepositModulesRoute = ApiHotelDepositModulesRouteImport.update({
+  id: '/api/hotel/deposit-modules',
+  path: '/api/hotel/deposit-modules',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   id: '/api/hotel/departures',
   path: '/api/hotel/departures',
@@ -542,6 +548,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/deposit-modules': typeof ApiHotelDepositModulesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
@@ -623,6 +630,7 @@ export interface FileRoutesByTo {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/deposit-modules': typeof ApiHotelDepositModulesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
@@ -705,6 +713,7 @@ export interface FileRoutesById {
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
+  '/api/hotel/deposit-modules': typeof ApiHotelDepositModulesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
   '/api/hotel/housekeeping': typeof ApiHotelHousekeepingRouteWithChildren
@@ -788,6 +797,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/deposit-modules'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
     | '/api/hotel/housekeeping'
@@ -869,6 +879,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/deposit-modules'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
     | '/api/hotel/housekeeping'
@@ -950,6 +961,7 @@ export interface FileRouteTypes {
     | '/api/hotel/availability'
     | '/api/hotel/booking-sources'
     | '/api/hotel/departures'
+    | '/api/hotel/deposit-modules'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
     | '/api/hotel/housekeeping'
@@ -1032,6 +1044,7 @@ export interface RootRouteChildren {
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
+  ApiHotelDepositModulesRoute: typeof ApiHotelDepositModulesRoute
   ApiHotelFinancialDashboardRoute: typeof ApiHotelFinancialDashboardRoute
   ApiHotelFinancialPeriodRoute: typeof ApiHotelFinancialPeriodRoute
   ApiHotelHousekeepingRoute: typeof ApiHotelHousekeepingRouteWithChildren
@@ -1291,6 +1304,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hotel/financial-dashboard'
       fullPath: '/api/hotel/financial-dashboard'
       preLoaderRoute: typeof ApiHotelFinancialDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/deposit-modules': {
+      id: '/api/hotel/deposit-modules'
+      path: '/api/hotel/deposit-modules'
+      fullPath: '/api/hotel/deposit-modules'
+      preLoaderRoute: typeof ApiHotelDepositModulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/departures': {
@@ -1909,6 +1929,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
+  ApiHotelDepositModulesRoute: ApiHotelDepositModulesRoute,
   ApiHotelFinancialDashboardRoute: ApiHotelFinancialDashboardRoute,
   ApiHotelFinancialPeriodRoute: ApiHotelFinancialPeriodRoute,
   ApiHotelHousekeepingRoute: ApiHotelHousekeepingRouteWithChildren,

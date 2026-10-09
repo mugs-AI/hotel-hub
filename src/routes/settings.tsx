@@ -62,6 +62,7 @@ import {
   useHotelSettings,
 } from "@/components/PropertySettingsPanels";
 import { ChargesTaxesPanel } from "@/components/ChargesTaxesPanel";
+import { DepositModuleSettingsPanel } from "@/components/DepositModuleSettingsPanel";
 import { UserControlPanel } from "@/components/UserControlPanel";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +129,7 @@ function SettingsInner() {
 }
 
 type SettingsTab =
+  | "deposits"
   | "property"
   | "guests"
   | "operations"
@@ -138,6 +140,7 @@ type SettingsTab =
   | "sources";
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: "deposits", label: "Deposits" },
   { id: "property", label: "Property" },
   { id: "guests", label: "Guest Controls" },
   { id: "operations", label: "Operations" },
@@ -217,6 +220,8 @@ function SettingsWorkspace() {
 
       {tab === "sources" ? (
         <BookingSourcesScreen />
+      ) : tab === "deposits" ? (
+        <DepositModuleSettingsPanel />
       ) : tab === "users" ? (
         <UserControlPanel />
       ) : tab === "charges" ? (

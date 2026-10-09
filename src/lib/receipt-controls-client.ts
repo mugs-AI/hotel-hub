@@ -109,7 +109,11 @@ export function invalidateReceiptEffects(qc: {
 }
 
 /** Query prefixes holding receipt/finance data that must never cross identities. */
-export const SENSITIVE_RECEIPT_PREFIXES = ["receipt-controls", "financial-reporting"] as const;
+export const SENSITIVE_RECEIPT_PREFIXES = [
+  "receipt-controls",
+  "financial-reporting",
+  "deposit-module-policy",
+] as const;
 
 type PurgeableClient = {
   removeQueries: (f: {
