@@ -2,7 +2,29 @@
 
 Upload to Project Sources: No. This is repository release evidence.
 
-## Latest checkpoint — 10/10/2026, 20:59 Malaysia
+## Latest checkpoint — 10/10/2026, controlled-test preparation
+
+The existing proof tool now has one server-owned disposable RM50→RM65 case,
+with a fixed cutoff at23:30 Malaysia on10/10/2026. It does not renew automatically.
+The source amendment does not enable the runtime flag, modify a receipt or replay
+the old manual request. The sourceReference is the reviewed adapter baseline;
+the separately recorded release commit identifies the manifest amendment.
+
+Fresh manifest RED2failed/6passed, then focused30/30 and full2200passed/38skipped/
+zero failures. TypeScript, production build, touched-file lint and product-only
+diff checks passed. Focused independent review found no Critical, Important or
+Minor amendment issue. This is source/mock evidence, not live acceptance.
+
+Lovable owner access is now authenticated. Authorized name-only configuration
+inspection found the proof-enable, normal direct-edit and global execution-budget
+settings absent. No value was read or setting changed. Main/runtime still use the
+earlier source. The30-second package budget is a local operation cap, not proof of
+the actual hosting deadline or adequate live execution. Hosting adequacy,
+intentional test-runtime release/configuration, fresh receipt/journal preflight and
+Owner-controlled Update/readback remain pending. Ordinary automatic editing stays
+disabled. No new DB/N3 write, main merge, publish or deployment occurred.
+
+## Earlier checkpoint — 10/10/2026, 20:59 Malaysia
 
 Migration20261003120216 was explicitly approved, applied once to the existing
 HotelHub Lovable Cloud database, and independently read back. Exact approved SQL
