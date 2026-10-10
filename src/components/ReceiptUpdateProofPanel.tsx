@@ -2,6 +2,41 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import type { ProofSummary, ProofReport } from "@/lib/receipt-update-proof";
 import { formatMyDate } from "@/lib/malaysia-date";
+export function ReceiptProofDiagnostics({ report }: { report: ProofReport }) {
+  return (
+    <div className="space-y-1">
+      {report.attempt ? (
+        <>
+          <p>
+            Update call: {report.attempt.dispatch === "attempted" ? "started" : "not started"}. This
+            does not prove N3 accepted the change.
+          </p>
+          <p>
+            Stage: {report.attempt.stage}. Result: {report.attempt.reason ?? "verified"}.
+          </p>
+          {report.attempt.httpStatus !== null ? (
+            <p>
+              N3 response: HTTP {report.attempt.httpStatus}; code{" "}
+              {report.attempt.envelopeCode ?? "unavailable"}.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p>Earlier attempt details were not recorded.</p>
+      )}
+      {report.readback ? (
+        <p>
+          Last read:{" "}
+          {report.readback.observedCents === null
+            ? "amount unavailable"
+            : `RM${(report.readback.observedCents / 100).toFixed(2)}`}
+          . Result: {report.readback.reason ?? report.readback.outcome}.
+        </p>
+      ) : null}
+      {report.outcome === "needs_review" ? <p>Use Check N3 result; do not resend.</p> : null}
+    </div>
+  );
+}
 const API = "/api/hotel/receipt-update-proof";
 export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }) {
   const [cases, setCases] = useState<ProofSummary[]>([]),
@@ -204,6 +239,7 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
               : "Needs review — keep the existing result on hold."}
           </p>
           <p>External concurrency protection: not proven.</p>
+          <ReceiptProofDiagnostics report={report} />
           <Button
             variant="outline"
             onClick={() => {

@@ -4,6 +4,26 @@ import {
   productionUpdateContract,
   updateN3Receipt,
 } from "../n3-receipt-update.server";
+import { postReceiptUpdate } from "../n3-receipts.server";
+it("does not mark a fetch attempt when request serialization fails", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const dispatched = vi.fn();
+  const body: Record<string, unknown> = {};
+  body.loop = body;
+  const result = await postReceiptUpdate(
+    "test-token",
+    body,
+    {
+      deadlineAt: Date.now() + 1000,
+      signal: new AbortController().signal,
+    },
+    dispatched,
+  );
+  expect(result.kind).toBe("transport_error");
+  expect(dispatched).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
 import { canAutoUpdate } from "../receipt-automation-gates.server";
 import {
   RECEIPT_50,
@@ -245,10 +265,12 @@ it("documented Update reads once then posts the preserved same receipt once", as
   expect(contract).not.toBeNull();
   const p = buildReceiptUpdatePayload(raw, RECEIPT_50, PROPOSAL_65, contract!);
   const methods: string[] = [];
+  const dispatched = vi.fn();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (_url: string, init?: RequestInit) => {
       methods.push(init?.method || "GET");
+      expect(dispatched).toHaveBeenCalledTimes(init?.method === "POST" ? 1 : 0);
       return Response.json({
         success: true,
         code: "0000",
@@ -256,10 +278,16 @@ it("documented Update reads once then posts the preserved same receipt once", as
       });
     }),
   );
-  const result = await updateN3Receipt(actor, p, {
-    deadlineAt: Date.now() + 1000,
-    signal: new AbortController().signal,
-  });
+  const result = await updateN3Receipt(
+    actor,
+    p,
+    {
+      deadlineAt: Date.now() + 1000,
+      signal: new AbortController().signal,
+    },
+    dispatched,
+  );
   expect(result.kind).toBe("response");
   expect(methods).toEqual(["GET", "POST"]);
+  expect(dispatched).toHaveBeenCalledTimes(1);
 });
