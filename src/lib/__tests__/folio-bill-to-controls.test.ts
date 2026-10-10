@@ -9,6 +9,7 @@ const actor = {
 };
 const original = { name: "Original", company: "", address: "", phone: "", email: "" };
 const input = {
+  original,
   billTo: { ...original, name: " Proposed " },
   expectedRevision: "0",
   clientRequestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -32,6 +33,23 @@ function setup(on: boolean) {
   return { service, rpc };
 }
 describe("local bill-to control service", () => {
+  it("rejects a first-edit fallback changed after the form opened, even at revision zero", async () => {
+    const save = vi.fn();
+    const service = createBillToService({
+      reservation: async () => ({ status: "checked_in" }),
+      read: async () => ({
+        billTo: { ...original, address: "New address B" },
+        effectiveRevision: "0",
+        pending: null,
+      }),
+      save,
+      decide: vi.fn(),
+    });
+    await expect(
+      service.save(actor, "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", input),
+    ).rejects.toThrow("bill_to_changed");
+    expect(save).not.toHaveBeenCalled();
+  });
   it("keeps effective values until approval; OFF applies authorized local edits without N3", async () => {
     const on = setup(true);
     expect(

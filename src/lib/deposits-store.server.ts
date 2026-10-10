@@ -1759,6 +1759,7 @@ export function toDepositDTO(
     effectiveState?: "active" | "voided";
     needsReview?: boolean;
     originalAmount?: number;
+    effectiveContact?: import("./receipt-controls").ReceiptContactFields;
     effectivePaymentLines?: Array<{
       accountId: string;
       code: string;
@@ -1777,7 +1778,7 @@ export function toDepositDTO(
     currency: d.currencyCode,
     n3DocCode: d.n3DocCode,
     n3ReceiptId: d.status === "posted" ? d.n3ReceiptId : null,
-    customerLabel: d.n3CustomerName ?? d.n3CustomerCode,
+    customerLabel: d.effectiveContact?.customerName ?? d.n3CustomerName ?? d.n3CustomerCode,
     accountLabel:
       d.n3AccountCode && d.n3AccountName
         ? `${d.n3AccountCode} — ${d.n3AccountName}`

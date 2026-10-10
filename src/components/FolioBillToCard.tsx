@@ -170,6 +170,7 @@ export function FolioBillToCard({
               attempt.current ??= crypto.randomUUID();
               save.mutate({
                 billTo: form,
+                original: draft.original,
                 expectedRevision: draft.revision,
                 clientRequestId: attempt.current,
                 reason: reason.trim(),

@@ -68,10 +68,14 @@ export async function toAutomationDTO(
       productionUpdateContract(),
       process.env,
     );
+  const currentPolicy = await readChangePolicy(actor.tenantId);
+  if (!currentPolicy) throw new ReceiptControlError("change_controls_unavailable");
   const requiresApproval =
     !!row.automation &&
-    ((row.automation.categories.deposit && row.automation.policy.depositApprovalRequired) ||
-      (row.automation.categories.contact && row.automation.policy.contactApprovalRequired));
+    ((row.automation.categories.deposit &&
+      (row.automation.policy.depositApprovalRequired || currentPolicy.depositApprovalRequired)) ||
+      (row.automation.categories.contact &&
+        (row.automation.policy.contactApprovalRequired || currentPolicy.contactApprovalRequired)));
   return {
     ...dto,
     automation: row.automation,

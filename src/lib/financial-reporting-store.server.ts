@@ -372,7 +372,10 @@ export async function readReceiptEvents(
       const line = lineOf(d);
       const base = {
         bookingReference: refs.get(d.reservationId) ?? "",
-        customerLabel: d.customerLabel,
+        customerLabel:
+          o.confirmed.state === "active" && o.confirmed.verifiedContact
+            ? o.confirmed.verifiedContact.customerName
+            : d.customerLabel,
         currency: d.currency,
         creationAmountCents: d.amountCents,
         savedPaymentName: lineNames(d),

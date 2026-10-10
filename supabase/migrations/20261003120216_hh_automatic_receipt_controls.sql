@@ -131,7 +131,7 @@ BEGIN
   IF v.state NOT IN ('pending','needs_review','approved_awaiting_n3') THEN RAISE EXCEPTION 'invalid_transition'; END IF;
   UPDATE public.hotel_receipt_control_requests SET state='rejected',version=version+1,outcome_code='rejected' WHERE id=v.id RETURNING * INTO v;
  ELSE
-  approval:=((v.automation_meta->'categories'->>'deposit')::boolean AND p.deposit_approval_required) OR ((v.automation_meta->'categories'->>'contact')::boolean AND p.contact_approval_required);
+  approval:=((v.automation_meta->'categories'->>'deposit')::boolean AND (p.deposit_approval_required OR coalesce((v.automation_meta->'policy'->>'depositApprovalRequired')::boolean,false))) OR ((v.automation_meta->'categories'->>'contact')::boolean AND (p.contact_approval_required OR coalesce((v.automation_meta->'policy'->>'contactApprovalRequired')::boolean,false)));
   IF coalesce(v_kind,'') NOT IN ('manual_approval','direct_policy') OR (v_kind='direct_policy' AND approval) THEN RAISE EXCEPTION 'approval_required'; END IF;
   IF v.automation_meta->>'authorizedAt' IS NOT NULL AND v_kind='manual_approval' AND v.approved_at IS NULL THEN
    IF v.state NOT IN ('pending','needs_review','approved_awaiting_n3') THEN RAISE EXCEPTION 'invalid_transition'; END IF;
@@ -140,7 +140,16 @@ BEGIN
    UPDATE public.hotel_receipt_control_requests SET approved_at=now(),approved_by_n3_user_key=p_actor,decided_at=now(),decided_by_n3_user_key=p_actor,state='approved_awaiting_n3',version=version+1,outcome_code='policy_tightening_approved' WHERE id=v.id RETURNING * INTO v;
    PERFORM public.hotelhub_change_revision_bump(p_tenant_id); RETURN to_jsonb(v);
   END IF;
-  IF v.automation_meta->>'authorizedAt' IS NOT NULL THEN RETURN to_jsonb(v); END IF;
+  IF v.automation_meta->>'authorizedAt' IS NOT NULL THEN
+   IF v.state='approved_awaiting_n3' THEN RETURN to_jsonb(v); END IF;
+   IF v.state<>'needs_review' THEN RAISE EXCEPTION 'invalid_transition'; END IF;
+   -- No attempt exists (checked above). Restore only pre-dispatch holds;
+   -- immutable authorization/approval history remains exactly as recorded.
+   UPDATE public.hotel_receipt_control_requests SET state='approved_awaiting_n3',version=version+1,outcome_code='pre_dispatch_retry_authorized' WHERE id=v.id RETURNING * INTO v;
+   INSERT INTO public.hotel_receipt_control_decisions(tenant_id,request_id,decision,from_state,to_state,actor_n3_user_key,requester_n3_user_key,self_approved,outcome_code)
+   VALUES(p_tenant_id,v.id,CASE WHEN v_kind='manual_approval' THEN 'approve' ELSE 'apply' END,previous_state,v.state,p_actor,v.requested_by_n3_user_key,v_kind='manual_approval' AND p_actor=v.requested_by_n3_user_key,v.outcome_code);
+   PERFORM public.hotelhub_change_revision_bump(p_tenant_id); RETURN to_jsonb(v);
+  END IF;
   IF v.state NOT IN ('pending','needs_review') THEN RAISE EXCEPTION 'invalid_transition'; END IF;
   UPDATE public.hotel_receipt_control_requests SET state='approved_awaiting_n3',version=version+1,
    approved_at=CASE WHEN v_kind='manual_approval' THEN now() ELSE NULL END,
@@ -168,7 +177,7 @@ BEGIN
  IF v.state<>'approved_awaiting_n3' OR v.automation_meta->>'authorizedAt' IS NULL THEN RAISE EXCEPTION 'not_approved'; END IF;
  SELECT * INTO p FROM public.hotel_change_control_policies WHERE tenant_id=p_tenant_id FOR UPDATE;
  IF NOT FOUND OR p.revision::text IS DISTINCT FROM p_data->>'policyRevision' THEN RAISE EXCEPTION 'version_conflict'; END IF;
- IF v.automation_meta->>'authorizationKind'='direct_policy' AND v.approved_at IS NULL AND (((v.automation_meta->'categories'->>'deposit')::boolean AND p.deposit_approval_required) OR ((v.automation_meta->'categories'->>'contact')::boolean AND p.contact_approval_required)) THEN RAISE EXCEPTION 'approval_required'; END IF;
+ IF v.automation_meta->>'authorizationKind'='direct_policy' AND v.approved_at IS NULL AND (((v.automation_meta->'categories'->>'deposit')::boolean AND (p.deposit_approval_required OR coalesce((v.automation_meta->'policy'->>'depositApprovalRequired')::boolean,false))) OR ((v.automation_meta->'categories'->>'contact')::boolean AND (p.contact_approval_required OR coalesce((v.automation_meta->'policy'->>'contactApprovalRequired')::boolean,false)))) THEN RAISE EXCEPTION 'approval_required'; END IF;
  UPDATE public.hotel_receipt_control_requests SET state='applying',version=version+1,outcome_code='dispatch_reserved' WHERE id=v.id RETURNING * INTO v;
  INSERT INTO public.hotel_receipt_edit_attempts(tenant_id,request_id,claimed_version,payload_hash,actor) VALUES(p_tenant_id,v.id,v.version,p_data->>'payloadHash',p_actor) RETURNING * INTO a;
  PERFORM public.hotelhub_change_revision_bump(p_tenant_id);

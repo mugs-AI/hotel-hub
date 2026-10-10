@@ -1,60 +1,62 @@
-# Automatic correction implementation recovery candidate
+# Same-receipt correction candidate — 10/10/2026
 
-Date: 03/10/2026 (Malaysia). **INCOMPLETE — NOT RELEASE-READY.**
+Upload to Project Sources: No. This is repository release evidence.
 
-Latest product source: `b4a783f3ba3a90a743905ea65374e36e8f4297a7`;
-tree `29ab016be7a8a5d4a2d19091e9f9692be0887d8f`;
-branch `review/hh-receipt-diagnostic-20261002`.
-See [durable execution evidence](evidence/HH_AUTOMATIC_CORRECTION_EXECUTION_20261003.md)
-and [approved implementation plan](superpowers/plans/2026-10-03-automatic-receipt-correction.md).
+The existing review branch implements same-document receipt amount/contact Update,
+durable one-dispatch claims, verified amount/contact projections, approval Settings,
+separate local bill-to changes and cross-session refresh. The Owner test panel uses
+server-designated disposable receipts; the package list remains empty. Production
+automation remains disabled. CashMemo/Sales Invoice editing is a later delivery.
 
-## Implemented review source
+The current-main journal readers, lossless JSON parser, capture UI and associated
+tests were integrated from main 974cb476e95d2b99c4b3236969d06719130209b5. Eleven
+files match main byte for byte; the Settings screen combines both sets of changes.
+This source integration did not merge main or start a Lovable build.
 
-- Independent deposit/contact approval policies: defaults ON / OFF; OFF means
-  authorized direct application. Settings switches are unavailable without the
-  installed control schema. N3 execution remains Owner-only.
-- Additive, unapplied policies/attempts/local-contact-proposals/revisions migration;
-  immutable proposals, tenant scope, one dispatch, policy/version checks, atomic
-  effective-version settlement and legacy generation fencing.
-- Local guest-folio contact save/approval service and Dashboard queue. Approval
-  required keeps the original effective contact; no N3 customer-master write.
-- Dormant, fixed-path N3 Update adapter and approve/apply/result orchestration.
-  Unknown financial outcomes cannot resend or release the receipt's active claim.
-  Strict receipt/contact/account/customer/date/reference/journal proof is required
-  before an effective version is recorded. Production contract is still null.
-- Compact full comparison cards with right-side Approve/Apply/check-result actions;
-  old manual requests retain explicit manual N3/Verify wording. No duplicate deposit
-  editor was introduced in Prepare Checkout. Local drafts retain conflict warnings.
+Independent whole-branch review found five Important issues. Regression tests
+reproduced them before the fixes: tightened policy now exposes Approve; original
+approval requirements survive policy relaxation in UI and SQL; authorized holds
+before dispatch recover through an audited/version-fenced transition; verified
+contact flows to deposit/report projections; first bill-to saves include the exact
+displayed original fallback; transient revision errors keep polling while auth
+failures stop it. An existing SQL fixture that expected policy relaxation to execute
+an old proposal was corrected to close the old proposal and create a new one under
+the relaxed policy. Existing dispatch/unknown-result protections remain enforced.
 
-## Required continuation
+Validation at this checkpoint:
 
-Execution runtime disconnected with `environment_offline: Environment is not connected`.
-Task 7 initial local revision work is uncommitted and must be recovered/reverified
-or rebuilt from the plan. Complete lossless policy/bill-to revision readers,
-role-filtered visible-page refresh, auth/draft/cache denial tests, all effective
-projection checks and intercepted two-session/browser acceptance. Task 8 dormant
-Owner proof permit tool and Task 9 exact-source full regression and independent
-whole-branch review remain undone. Existing implementation approval is sufficient
-for this continuation; no repeated approval question is needed.
+- Full Vitest: 2,134 passed / 38 skipped, zero failures. Skips include the isolated
+  database cases, which run separately; these are not live acceptance results.
+- Separate PostgreSQL WASM: 17 passed / one real native-concurrency case skipped.
+- Mounted proof-panel fixtures: five passed.
+- TypeScript, production build, changed-file lint and product diff whitespace
+  checks passed. Full-repository lint remains 170 formatting errors / 37 warnings
+  in unchanged legacy scripts; it is not a clean full-lint result.
+- Protected dependency/auth/integration baseline and three already-applied SQL
+  files remain unchanged. All unrelated working-tree documentation is preserved.
+- Updated native PostgreSQL CI must be read on this exact pushed candidate before
+  treating the schema candidate as release-ready. Earlier native runs are historical.
 
-| Lane | Current state | Required before advancing |
-| --- | --- | --- |
-| Review source | Partial implementation pushed; latest UI targeted/type checks pass | Finish Tasks 7–9 and independent review; exact SHA/tree checks |
-| Database | New migration NOT APPLIED; old migrations freshly verified | Native disposable PostgreSQL grants/races, final SQL/hash and separate approval |
-| N3 writes | NONE performed; production Update OFF | Exact approved sandbox package, conditional-write/accounting proof, deadline measurement |
-| main merge | NOT MERGED; main still `734ac40` | Tested complete candidate and separate merge gate |
-| Runtime/function deployment | NOT deployed by this work | Approved compatible source/schema; verify actual deployed runtime |
-| Public publishing | NOT performed | Separate publish approval and deployment/HTTP evidence |
-| Live acceptance | NOT completed | Owner signed-in two-device amount/contact tests after approved activation |
+Schema candidate, still UNAPPLIED:
+`supabase/migrations/20261003120216_hh_automatic_receipt_controls.sql`
+SHA256 `f6d7bdfbdb0586bc50233af6a9f58cb014451c8f714828c6ed8b4ab5b79eb6d7`.
 
-Last full suite: 2,008 passed / 33 skipped at Task 5 source `e4fc313`.
-Latest UI: 80 targeted passes; TypeScript zero errors, targeted lint zero errors
-(9 existing warnings). WASM SQL: 12 passes / 1 native race skipped.
-These figures do not certify a full final candidate or live financial behavior.
-All protected blobs/modes match the locked baseline. Sales/Collections remain
-Unavailable; N3 receipt-date and 100-candidate boundaries, alert OFF and automatic
-void/replacement/refund/unmatch restrictions remain unchanged.
+Schema compatibility: new code depends on additive policy/revision/attempt/proof
+tables and verified_contact. Apply/verify the exact schema before activating the
+new runtime. Missing or inconsistent evidence holds the operation. Old code with
+new schema retains the legacy generation fence; it cannot execute generation-2
+requests. Disabling capability or reverting source does not reverse any N3 write.
 
-Fresh scoped backend record confirms the real RM65 request remains manual / Needs
-review / version 12 / `n3_result_mismatch`. Do not convert or auto-execute it.
-This local record does not prove the current external N3 amount.
+Remaining release evidence: exact disposable test OR designation, schema/RPC/RLS
+inspection, source merge/runtime setup, measured hosting budget, Owner same-OR
+amount/contact and exact journal readback, signed-in mobile/two-device acceptance,
+and public release. Use the already approved documented Update contract; upstream
+conditional-write semantics remain not_proven and are not an invented new gate.
+
+The legacy manual amount correction remains its separate audited recovery action.
+No live amount is asserted from fixtures. No operational migration, N3 write,
+main merge, publication or deployment occurred at this checkpoint. Security cash
+remains in its separate worktree and was not modified by this continuation.
+
+Deferred minor: durationMs reports the latest operation, including a read-only
+recovery. It is not the original attempt duration or hosting-budget evidence.

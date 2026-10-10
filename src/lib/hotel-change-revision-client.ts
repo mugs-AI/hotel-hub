@@ -108,7 +108,10 @@ export function useHotelChangeRevision(): void {
     },
     enabled: revisionPollInterval(identity, visible, true) !== false && blocked !== identity,
     refetchInterval: (q) =>
-      q.state.status === "error"
+      q.state.status === "error" &&
+      !!q.state.error &&
+      "status" in q.state.error &&
+      [401, 403].includes(Number(q.state.error.status))
         ? false
         : revisionPollInterval(identity, visible, q.state.data?.available !== false),
     refetchIntervalInBackground: false,

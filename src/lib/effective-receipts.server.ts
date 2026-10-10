@@ -32,7 +32,7 @@ export function receiptReader(client?: { from: (t: string) => any }): Reader {
       const res = await (await sb())
         .from("hotel_receipt_versions")
         .select(
-          "deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at",
+          "deposit_id, request_id, version_no, state, receipt_id, doc_code, document_date, currency, amount_cents, payment_lines, replacement_of, verified_at, verified_contact",
         )
         .eq("tenant_id", tenantId)
         .in("deposit_id", ids);
@@ -53,6 +53,7 @@ export function receiptReader(client?: { from: (t: string) => any }): Reader {
         paymentLines: r.payment_lines ?? [],
         replacementOf: r.replacement_of ?? null,
         verifiedAt: r.verified_at,
+        verifiedContact: r.verified_contact ?? null,
       }));
     },
     async unresolved(tenantId, ids) {

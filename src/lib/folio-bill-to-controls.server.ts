@@ -22,7 +22,7 @@ export function validateBillToInput(value: unknown): BillToSaveInput {
   const b = value as Record<string, unknown>;
   if (
     Object.keys(b).some(
-      (k) => !["billTo", "expectedRevision", "clientRequestId", "reason"].includes(k),
+      (k) => !["billTo", "original", "expectedRevision", "clientRequestId", "reason"].includes(k),
     ) ||
     typeof b.expectedRevision !== "string" ||
     !/^(0|[1-9]\d{0,18})$/.test(b.expectedRevision) ||
@@ -45,8 +45,19 @@ export function validateBillToInput(value: unknown): BillToSaveInput {
   if (!billTo.name && !billTo.company) throw new ReceiptControlError("bill_to_name_required");
   if (billTo.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billTo.email))
     throw new ReceiptControlError("invalid_bill_to_email");
+  if (!b.original || typeof b.original !== "object" || Array.isArray(b.original))
+    throw new ReceiptControlError("invalid_body");
+  const original = b.original as Record<string, unknown>;
+  if (
+    Object.keys(original).some((k) => !(k in fields)) ||
+    (Object.keys(fields) as (keyof FolioBillTo)[]).some(
+      (k) => typeof original[k] !== "string" || (original[k] as string).length > fields[k],
+    )
+  )
+    throw new ReceiptControlError("invalid_body");
   return {
     billTo,
+    original: { ...(original as FolioBillTo) },
     expectedRevision: b.expectedRevision,
     clientRequestId: b.clientRequestId,
     ...(b.reason === undefined ? {} : { reason: (b.reason as string).trim() }),
@@ -81,9 +92,14 @@ export function createBillToService(deps: BillToDeps) {
       if (!["confirmed", "checked_in"].includes(res.status))
         throw new ReceiptControlError("bill_to_locked");
       const current = await deps.read(actor, id);
-      if (current.effectiveRevision !== valid.expectedRevision)
+      if (
+        current.effectiveRevision !== valid.expectedRevision ||
+        (Object.keys(fields) as (keyof FolioBillTo)[]).some(
+          (k) => current.billTo[k] !== valid.original[k],
+        )
+      )
         throw new ReceiptControlError("bill_to_changed");
-      return deps.save(actor, { ...valid, reservationId: id, original: current.billTo });
+      return deps.save(actor, { ...valid, reservationId: id });
     },
     async decide(
       actor: ReceiptControlActor,

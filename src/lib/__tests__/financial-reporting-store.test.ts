@@ -202,6 +202,24 @@ function world(deposits: FinancialDeposit[], extra: Partial<World> = {}): World 
 beforeEach(() => clearFinancialCache());
 
 describe("readMonthlyFinancialDashboard", () => {
+  it("receipt report uses verified receipt contact while retaining its creation amount", async () => {
+    const d = dep(1, { customerLabel: "Alice" });
+    const contact = { customerName: "Bob", remark1: "", remark2: "", remark3: "", remark4: "" };
+    const w = world([d], {
+      versions: [version(d, { amountCents: 5000, verifiedContact: contact })],
+    });
+    w.snaps.set(d.id, snap(d, { contact }));
+    const { deps } = makeDeps(w);
+    const report = await readReceiptReport(
+      owner,
+      validateReceiptReportFilter(
+        new URLSearchParams(),
+        financialMonth("2026-10", "Asia/Kuala_Lumpur"),
+      ),
+      deps,
+    );
+    expect(report.items[0]).toMatchObject({ customerLabel: "Bob", creationAmount: 50 });
+  });
   it("denies non-Owners before any source read", async () => {
     const { deps, calls } = makeDeps(world([dep(1)]));
     for (const role of ["front_desk", "housekeeper"] as const)

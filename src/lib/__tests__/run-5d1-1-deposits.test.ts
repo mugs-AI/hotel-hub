@@ -877,6 +877,27 @@ describe("5D1.1 idempotency", () => {
     expect(toDepositDTO(second.deposit).clientRequestId).toBe(id);
   });
 
+  it("deposit display uses verified receipt contact without changing creation contact", async () => {
+    const { client } = makeN3({
+      create: {
+        kind: "response",
+        status: 200,
+        body: { code: "0000", data: { id: "r1", docNo: "OR-1" } },
+      },
+    });
+    const result = await createDeposit(baseInput(crypto.randomUUID()), { n3: client, env: ENV });
+    const contact = {
+      customerName: "Corrected Bob",
+      remark1: "Company",
+      remark2: "Address",
+      remark3: "Phone",
+      remark4: "Email",
+    };
+    expect(toDepositDTO({ ...result.deposit, effectiveContact: contact }).customerLabel).toBe(
+      "Corrected Bob",
+    );
+    expect(result.deposit.n3CustomerName).not.toBe("Corrected Bob");
+  });
   it("concurrent duplicates still result in one N3 create", async () => {
     const { client, calls } = makeN3({
       create: {

@@ -42,6 +42,8 @@ export type BillToReadDTO = {
 };
 export type BillToSaveInput = {
   billTo: FolioBillTo;
+  /** Exact effective/fallback details displayed when the form opened. */
+  original: FolioBillTo;
   expectedRevision: string;
   clientRequestId: string;
   reason?: string;

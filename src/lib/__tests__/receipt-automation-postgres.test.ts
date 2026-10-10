@@ -35,7 +35,7 @@ const call = async (name: string, data: unknown = {}, role = "owner", tenant = T
       [tenant, "owner-1", role, JSON.stringify(data)],
     )
   ).rows[0]!.result;
-const create = () => {
+const create = (policyRevision = "0") => {
   const original = receiptSnapshot();
   return call("hotelhub_receipt_control_v2_create", {
     reservationId: R,
@@ -51,7 +51,7 @@ const create = () => {
       contact: original.contact,
     },
     comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
-    policyRevision: "0",
+    policyRevision,
   });
 };
 
@@ -200,7 +200,9 @@ describe.skipIf(!wasmModule && !nativeUrl)(
     });
     it("refuses missing authorization kind instead of recording a false direct authorization", async () => {
       const q = (
-        await db.query<Record<string, unknown>>("select * from hotel_receipt_control_requests")
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_control_requests where tenant_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and state<>'rejected'",
+        )
       ).rows[0]!;
       await expect(
         call("hotelhub_receipt_control_v2_authorize", {
@@ -218,17 +220,36 @@ describe.skipIf(!wasmModule && !nativeUrl)(
       });
       expect(policy.revision).toBe("1");
       const q = (
-        await db.query<Record<string, unknown>>("select * from hotel_receipt_control_requests")
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_control_requests where tenant_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and state<>'rejected'",
+        )
       ).rows[0]!;
-      const authorized = await call("hotelhub_receipt_control_v2_authorize", {
+      // The original was created with approval ON. Relaxation must not
+      // execute it; close it and create a NEW proposal under the OFF policy.
+      await expect(
+        call("hotelhub_receipt_control_v2_authorize", {
+          requestId: q.id,
+          expectedVersion: q.version,
+          kind: "direct_policy",
+          policyRevision: "1",
+        }),
+      ).rejects.toThrow("approval_required");
+      await call("hotelhub_receipt_control_v2_authorize", {
         requestId: q.id,
         expectedVersion: q.version,
+        kind: "reject",
+        policyRevision: "1",
+      });
+      const direct = await create("1");
+      const authorized = await call("hotelhub_receipt_control_v2_authorize", {
+        requestId: direct.id,
+        expectedVersion: direct.version,
         kind: "direct_policy",
         policyRevision: "1",
       });
       expect(authorized.approved_at).toBe(null);
       const first = await call("hotelhub_receipt_control_v2_reserve", {
-        requestId: q.id,
+        requestId: direct.id,
         expectedVersion: authorized.version,
         payloadHash: "sha256-payload-00000001",
         policyRevision: "1",
@@ -237,7 +258,7 @@ describe.skipIf(!wasmModule && !nativeUrl)(
       expect(
         (
           await call("hotelhub_receipt_control_v2_reserve", {
-            requestId: q.id,
+            requestId: direct.id,
             expectedVersion: authorized.version,
             payloadHash: "sha256-payload-00000001",
             policyRevision: "1",
@@ -247,7 +268,9 @@ describe.skipIf(!wasmModule && !nativeUrl)(
     });
     it("does not release an unknown write through legacy recovery/rejection", async () => {
       const q = (
-        await db.query<Record<string, unknown>>("select * from hotel_receipt_control_requests")
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_control_requests where tenant_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and state<>'rejected'",
+        )
       ).rows[0]!;
       const a = (
         await db.query<Record<string, unknown>>("select * from hotel_receipt_edit_attempts")
@@ -276,7 +299,9 @@ describe.skipIf(!wasmModule && !nativeUrl)(
     });
     it("fences late workers and atomically completes a proven MYR65 result once", async () => {
       const q = (
-        await db.query<Record<string, unknown>>("select * from hotel_receipt_control_requests")
+        await db.query<Record<string, unknown>>(
+          "select * from hotel_receipt_control_requests where tenant_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and state<>'rejected'",
+        )
       ).rows[0]!;
       const a = (
         await db.query<Record<string, unknown>>("select * from hotel_receipt_edit_attempts")
@@ -575,6 +600,178 @@ describe.skipIf(!wasmModule && !nativeUrl)(
         )
       ).rows[0]!;
       expect(decision.from_state).toBe("needs_review");
+    });
+    for (const kind of ["manual_approval", "direct_policy"] as const) {
+      it(`recovers ${kind} after a pre-dispatch hold without altering authorization or resending an attempt`, async () => {
+        const tenant = crypto.randomUUID(),
+          res = crypto.randomUUID(),
+          dep = crypto.randomUUID();
+        await db.query("insert into hotel_tenants values($1)", [tenant]);
+        await db.query(
+          "insert into hotel_reservations(tenant_id,id,status) values($1,$2,'checked_in')",
+          [tenant, res],
+        );
+        await db.query(
+          "insert into hotel_reservation_deposits(tenant_id,id,reservation_id,status) values($1,$2,$3,'posted')",
+          [tenant, dep, res],
+        );
+        const revision = kind === "direct_policy" ? "1" : "0";
+        if (kind === "direct_policy")
+          await call(
+            "hotelhub_change_policy_set",
+            {
+              expectedRevision: "0",
+              depositApprovalRequired: false,
+              contactApprovalRequired: false,
+            },
+            "owner",
+            tenant,
+          );
+        const original = receiptSnapshot();
+        const q = await call(
+          "hotelhub_receipt_control_v2_create",
+          {
+            reservationId: res,
+            depositId: dep,
+            clientRequestId: crypto.randomUUID(),
+            fingerprint: "hold-retry-proposal-00000001",
+            reason: "correction",
+            original,
+            proposal: {
+              kind: "correction",
+              amountCents: 6500,
+              accountId: original.paymentLines[0]!.accountId,
+              contact: original.contact,
+            },
+            comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
+            policyRevision: revision,
+          },
+          "owner",
+          tenant,
+        );
+        const a = await call(
+          "hotelhub_receipt_control_v2_authorize",
+          { requestId: q.id, expectedVersion: q.version, kind, policyRevision: revision },
+          "owner",
+          tenant,
+        );
+        const held = await call(
+          "hotelhub_receipt_control_v2_hold",
+          { requestId: q.id, expectedVersion: a.version, code: "n3_preflight_unavailable" },
+          "owner",
+          tenant,
+        );
+        await expect(
+          call(
+            "hotelhub_receipt_control_v2_authorize",
+            { requestId: q.id, expectedVersion: a.version, kind, policyRevision: revision },
+            "owner",
+            tenant,
+          ),
+        ).rejects.toThrow("version_conflict");
+        const retry = await call(
+          "hotelhub_receipt_control_v2_authorize",
+          { requestId: q.id, expectedVersion: held.version, kind, policyRevision: revision },
+          "owner",
+          tenant,
+        );
+        expect(retry.state).toBe("approved_awaiting_n3");
+        expect(retry.version).toBe(Number(held.version) + 1);
+        expect(retry.automation_meta).toEqual(a.automation_meta);
+        expect(retry.approved_at).toEqual(a.approved_at);
+        const history = await db.query<{ count: number }>(
+          "select count(*)::integer as count from hotel_receipt_control_decisions where request_id=$1 and outcome_code='pre_dispatch_retry_authorized'",
+          [q.id],
+        );
+        expect(history.rows[0]!.count).toBe(1);
+        const reserved = await call(
+          "hotelhub_receipt_control_v2_reserve",
+          {
+            requestId: q.id,
+            expectedVersion: retry.version,
+            payloadHash: "retry-payload-hash-00000001",
+            policyRevision: revision,
+          },
+          "owner",
+          tenant,
+        );
+        expect(reserved.dispatchGranted).toBe(true);
+        await expect(
+          call(
+            "hotelhub_receipt_control_v2_authorize",
+            { requestId: q.id, expectedVersion: retry.version, kind, policyRevision: revision },
+            "owner",
+            tenant,
+          ),
+        ).rejects.toThrow("claim_conflict");
+      });
+    }
+    it("policy relaxation cannot directly execute a proposal created under mandatory approval", async () => {
+      const tenant = crypto.randomUUID(),
+        res = crypto.randomUUID(),
+        dep = crypto.randomUUID();
+      await db.query("insert into hotel_tenants values($1)", [tenant]);
+      await db.query(
+        "insert into hotel_reservations(tenant_id,id,status) values($1,$2,'checked_in')",
+        [tenant, res],
+      );
+      await db.query(
+        "insert into hotel_reservation_deposits(tenant_id,id,reservation_id,status) values($1,$2,$3,'posted')",
+        [tenant, dep, res],
+      );
+      const original = receiptSnapshot();
+      const q = await call(
+        "hotelhub_receipt_control_v2_create",
+        {
+          reservationId: res,
+          depositId: dep,
+          clientRequestId: crypto.randomUUID(),
+          fingerprint: "relaxed-policy-proposal-0001",
+          reason: "correction",
+          original,
+          proposal: {
+            kind: "correction",
+            amountCents: 6500,
+            accountId: original.paymentLines[0]!.accountId,
+            contact: original.contact,
+          },
+          comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
+          policyRevision: "0",
+        },
+        "owner",
+        tenant,
+      );
+      await call(
+        "hotelhub_change_policy_set",
+        { expectedRevision: "0", depositApprovalRequired: false, contactApprovalRequired: false },
+        "owner",
+        tenant,
+      );
+      await expect(
+        call(
+          "hotelhub_receipt_control_v2_authorize",
+          {
+            requestId: q.id,
+            expectedVersion: q.version,
+            kind: "direct_policy",
+            policyRevision: "1",
+          },
+          "owner",
+          tenant,
+        ),
+      ).rejects.toThrow("approval_required");
+      const approved = await call(
+        "hotelhub_receipt_control_v2_authorize",
+        {
+          requestId: q.id,
+          expectedVersion: q.version,
+          kind: "manual_approval",
+          policyRevision: "1",
+        },
+        "owner",
+        tenant,
+      );
+      expect(approved.approved_at).not.toBe(null);
     });
     it.skipIf(!nativeUrl)(
       "two native connections grant one receipt and one proof dispatch under real row-lock barriers",

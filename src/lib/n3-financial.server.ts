@@ -20,8 +20,13 @@
 //     ID resolves but docNo disagrees → Mismatch.
 
 import { callN3Path } from "./n3-gateway.server";
+import {
+  captureFinancialJournals,
+  type JournalCaptureReport,
+  type JournalDocument,
+} from "./n3-financial-journals.server";
 
-export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.3";
+export const FINANCIAL_BUNDLE_SCHEMA_VERSION = "5d0.4";
 
 export type FinResource = "ar_receipts" | "cash_sales" | "customer_refunds" | "gl_accounts";
 
@@ -99,6 +104,28 @@ function normStr(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t === "" ? null : t;
+}
+
+function customerIdentity(v: unknown): string | null {
+  if (typeof v === "number") return Number.isSafeInteger(v) && v > 0 ? String(v) : null;
+  return normStr(v);
+}
+
+function customerFacts(row: Record<string, unknown>): { id: string | null; conflict: boolean } {
+  if (row.customerIdentityConflict === true) return { id: null, conflict: true };
+  const values: unknown[] = [];
+  const collect = (object: Record<string, unknown>, keys: string[]) => {
+    for (const key of keys)
+      if (Object.prototype.hasOwnProperty.call(object, key) && object[key] != null)
+        values.push(object[key]);
+  };
+  collect(row, ["CustomerId", "customerId", "DebtorId", "debtorId"]);
+  for (const key of ["Customer", "customer"])
+    if (isPlainObject(row[key])) collect(row[key], ["Id", "id"]);
+  const ids = values.map(customerIdentity);
+  if (ids.some((id) => id === null || id.toUpperCase() !== ids[0]?.toUpperCase()))
+    return { id: null, conflict: true };
+  return { id: ids[0] ?? null, conflict: false };
 }
 
 function eq(a: unknown, b: string): boolean {
@@ -684,7 +711,13 @@ export function validateContract(
     }
 
     case "gl_accounts": {
-      const hasSpecial = hasAnyKey(obs, ["SpecialType", "specialType", "SpecialAccountType"]);
+      const hasSpecial = hasAnyKey(obs, [
+        "SpecialType",
+        "specialType",
+        "SpecialAccountType",
+        "SpecialCode",
+        "specialCode",
+      ]);
       const hasName = hasAnyKey(obs, [
         "Name",
         "name",
@@ -848,6 +881,7 @@ export type NormalizedReceipt = {
   docNo: string | null;
   docCode: string | null;
   customerId: string | null;
+  customerIdentityConflict?: boolean;
   customerCode: string | null;
   totalAmount: number | null;
   knockoffs: ParsedKnockoff[];
@@ -859,6 +893,7 @@ export type NormalizedCashSale = {
   docNo: string | null;
   docCode: string | null;
   customerId: string | null;
+  customerIdentityConflict?: boolean;
   customerCode: string | null;
   netTotalAmount: number | null;
   outstandingAmount: number | null;
@@ -883,6 +918,7 @@ export type NormalizedRefund = {
   docDate: string | null;
   docType: string | null;
   customerId: string | null;
+  customerIdentityConflict?: boolean;
   customerCode: string | null;
   customerName: string | null;
   description: string | null;
@@ -929,6 +965,7 @@ function innerDetailOf(body: unknown): Record<string, unknown> | null {
 export function normalizeReceiptDetail(body: unknown): NormalizedReceipt | null {
   const dto = innerDetailOf(body);
   if (!dto) return null;
+  const customer = customerFacts(dto);
   const src: Record<string, string> = {};
   const id = normStr(pick(dto, ["Id", "id"]));
   if (id) src.id = "Id";
@@ -957,7 +994,8 @@ export function normalizeReceiptDetail(body: unknown): NormalizedReceipt | null 
     id,
     docNo: normStr(dn.value),
     docCode: normStr(dc.value),
-    customerId: normStr(ci.value),
+    customerId: customer.id,
+    ...(customer.conflict ? { customerIdentityConflict: true } : {}),
     customerCode: normStr(cc.value),
     totalAmount: toNumber(total.value),
     knockoffs: extractKnockoffs(dto),
@@ -968,6 +1006,7 @@ export function normalizeReceiptDetail(body: unknown): NormalizedReceipt | null 
 export function normalizeCashSaleDetail(body: unknown): NormalizedCashSale | null {
   const dto = innerDetailOf(body);
   if (!dto) return null;
+  const customer = customerFacts(dto);
   const src: Record<string, string> = {};
   const id = normStr(pick(dto, ["Id", "id"]));
   if (id) src.id = "Id";
@@ -998,7 +1037,8 @@ export function normalizeCashSaleDetail(body: unknown): NormalizedCashSale | nul
     id,
     docNo: normStr(dn.value),
     docCode: normStr(dc.value),
-    customerId: normStr(ci.value),
+    customerId: customer.id,
+    ...(customer.conflict ? { customerIdentityConflict: true } : {}),
     customerCode: normStr(cc.value),
     netTotalAmount: toNumber(nt.value),
     outstandingAmount: toNumber(outs.value),
@@ -1011,6 +1051,7 @@ export function normalizeCashSaleDetail(body: unknown): NormalizedCashSale | nul
 export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
   const dto = innerDetailOf(body);
   if (!dto) return null;
+  const customer = customerFacts(dto);
   const src: Record<string, string> = {};
   const id = normStr(pick(dto, ["Id", "id"]));
   if (id) src.id = "Id";
@@ -1056,12 +1097,11 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
 
   // Customer object (customer.id / customer.code / customer.name)
   const custObj = pickWithField(dto, ["Customer", "customer"]);
-  let customerId = normStr(ci.value);
+  const customerId = customer.id;
   let customerCode = normStr(cc.value);
   let customerName = normStr(cn.value);
   if (isPlainObject(custObj.value)) {
     const c = custObj.value;
-    customerId = customerId ?? normStr(pick(c, ["Id", "id"]));
     customerCode = customerCode ?? normStr(pick(c, ["Code", "code"]));
     customerName = customerName ?? normStr(pick(c, ["Name", "name"]));
     if (custObj.field) src.customer = custObj.field;
@@ -1100,6 +1140,7 @@ export function normalizeRefundDetail(body: unknown): NormalizedRefund | null {
     docDate: normStr(dd.value),
     docType: normStr(dt.value),
     customerId,
+    ...(customer.conflict ? { customerIdentityConflict: true } : {}),
     customerCode,
     customerName,
     description: normStr(desc.value),
@@ -1635,6 +1676,7 @@ export type FinancialBundle = {
   };
   conclusions: Array<{ resource: FinResource; label: MafLabel; note: string | null }>;
   refundLinkState: RefundLinkState;
+  journalCapture: JournalCaptureReport;
   elapsedMs: number;
 };
 
@@ -1705,6 +1747,7 @@ export async function runFinancialVerification(input: {
   tenant: { id?: string | null; code: string | null; name: string | null };
   filters?: NormalizedFilters;
   tenantCustomer?: { code: string | null } | null;
+  includeJournals?: boolean;
 }): Promise<{
   run: FinancialVerificationRun;
   bundle: FinancialBundle;
@@ -1720,6 +1763,13 @@ export async function runFinancialVerification(input: {
     fetchListResource(input.token, "gl_accounts", input.dateFrom, input.dateTo, filters, tc),
   ]);
   const resources = internals.map(publicResource);
+  // A later page/detail auth failure must not be masked by the first list read.
+  for (const r of resources)
+    if (
+      r.endpointAttempts.some((e) => e.httpStatus === 401) ||
+      r.detailFanOut?.evidence.some((e) => e.httpStatus === 401)
+    )
+      r.status = "unauthorized";
 
   const ar = internals.find((r) => r.resource === "ar_receipts");
   const cs = internals.find((r) => r.resource === "cash_sales");
@@ -1748,6 +1798,34 @@ export async function runFinancialVerification(input: {
     label: r.mafLabel,
     note: r.note ?? null,
   }));
+
+  const transactionResources = internals.filter((r) => r.resource !== "gl_accounts");
+  const journalDocuments: JournalDocument[] = transactionResources.flatMap((r) =>
+    r.status !== "success"
+      ? []
+      : r._normalizedDetails.flatMap((detail) => {
+          if (!isPlainObject(detail) || typeof detail.id !== "string") return [];
+          return [
+            {
+              resource: r.resource as JournalDocument["resource"],
+              id: detail.id,
+              docCode: typeof detail.docCode === "string" ? detail.docCode : null,
+            },
+          ];
+        }),
+  );
+  const journalCapture = await captureFinancialJournals(
+    {
+      token: input.token,
+      enabled:
+        input.includeJournals === true && !resources.some((r) => r.status === "unauthorized"),
+      documents: journalDocuments,
+      sourceIncomplete: transactionResources.some(
+        (r) => r.status !== "success" || r.truncated || r.detailFanOut?.normalized !== r.matched,
+      ),
+    },
+    sanitize,
+  );
 
   const tenantPublic = { code: input.tenant.code, name: input.tenant.name };
 
@@ -1789,6 +1867,7 @@ export async function runFinancialVerification(input: {
       refundDetails: rfDetails,
       comparisonRows: refundToOr.length,
     }),
+    journalCapture,
     elapsedMs: run.elapsedMs,
   };
 
@@ -1811,7 +1890,29 @@ export type GlEligibilityDetail = {
 function normalizeSpecialType(v: unknown): string | null {
   const s = normStr(v);
   if (!s) return null;
-  return s.replace(/\s+/g, " ").trim();
+  const normalized = s.replace(/\s+/g, " ").trim();
+  if (["bac", "bank", "bank account"].includes(normalized.toLowerCase())) return "Bank Account";
+  if (["cac", "cash", "cash account", "petty cash"].includes(normalized.toLowerCase()))
+    return "Cash Account";
+  return normalized;
+}
+
+// Conflicting aliases cannot establish eligibility, even if one looks valid.
+function consistentAccountField<T>(
+  row: Record<string, unknown>,
+  keys: string[],
+  normalize: (value: unknown, key: string) => T | null,
+): T | null {
+  const values = keys
+    .filter((k) => Object.prototype.hasOwnProperty.call(row, k))
+    .map((k) => normalize(row[k], k));
+  if (!values.length || values.some((v) => v === null || v !== values[0])) return null;
+  return values[0];
+}
+
+function accountFlag(value: unknown): boolean | null {
+  if (typeof value === "number" && value !== 0 && value !== 1) return null;
+  return toBool(value);
 }
 
 export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
@@ -1829,17 +1930,23 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
   const hasImmutableId = !!rowId(row);
   if (!hasImmutableId) reasons.push("missing_immutable_id");
 
-  const specialRaw = pick(row, ["SpecialType", "specialType", "SpecialAccountType"]);
-  const normalizedSpecialType = normalizeSpecialType(specialRaw);
+  const normalizedSpecialType = consistentAccountField(
+    row,
+    ["SpecialType", "specialType", "SpecialAccountType", "SpecialCode", "specialCode"],
+    normalizeSpecialType,
+  );
 
-  const active = toBool(
-    pick(row, ["Active", "active", "IsActive", "isActive", "Enabled", "enabled"]),
+  const active = consistentAccountField(
+    row,
+    ["Active", "active", "IsActive", "isActive", "Enabled", "enabled"],
+    accountFlag,
   );
   if (active === null) reasons.push("missing_active_flag");
   else if (active === false) reasons.push("account_inactive");
 
-  const posting = toBool(
-    pick(row, [
+  const posting = consistentAccountField(
+    row,
+    [
       "IsPostingAccount",
       "isPostingAccount",
       "Posting",
@@ -1850,7 +1957,13 @@ export function evaluateGlAccount(row: unknown): GlEligibilityDetail {
       "leaf",
       "IsDetail",
       "isDetail",
-    ]),
+      "HasChildren",
+      "hasChildren",
+    ],
+    (value, key) => {
+      const flag = accountFlag(value);
+      return flag === null ? null : key.toLowerCase() === "haschildren" ? !flag : flag;
+    },
   );
   if (posting === null) reasons.push("missing_posting_or_leaf_flag");
   else if (posting === false) reasons.push("account_not_posting");
@@ -1932,9 +2045,23 @@ function extractKnockoffs(row: Record<string, unknown>): ParsedKnockoff[] {
     const docId = normStr(pick(k, ["DocId", "docId", "DocumentId", "documentId"]));
     const docNo = normStr(pick(k, ["DocNo", "docNo", "DocumentNo", "documentNo"]));
     const docCode = normStr(pick(k, ["DocCode", "docCode", "DocumentCode", "documentCode"]));
-    const appliedAmount = toNumber(
-      pick(k, ["AppliedAmount", "appliedAmount", "Amount", "amount", "PaidAmount", "paidAmount"]),
-    );
+    // N3's amount is the target document total, not this matching payment.
+    // Missing or contradictory explicit payment fields stay unavailable.
+    const paymentValues = [
+      "PaymentAmount",
+      "paymentAmount",
+      "AppliedAmount",
+      "appliedAmount",
+      "PaidAmount",
+      "paidAmount",
+    ]
+      .filter((key) => Object.prototype.hasOwnProperty.call(k, key))
+      .map((key) => toNumber(k[key]));
+    const appliedAmount =
+      paymentValues.length &&
+      paymentValues.every((v) => v !== null && v >= 0 && v === paymentValues[0])
+        ? paymentValues[0]
+        : null;
     parsed.push({
       docType,
       docTypeNormalized: docType ? docType.trim().toUpperCase() : null,
@@ -1984,11 +2111,7 @@ function receiptDocNo(rec: ReceiptLike): string | null {
     : normStr(pick(rec as Record<string, unknown>, ["DocNo", "docNo"]));
 }
 function receiptCustomer(rec: ReceiptLike): string | null {
-  return typeof rec.customerId === "string" && rec.customerId
-    ? rec.customerId
-    : normStr(
-        pick(rec as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]),
-      );
+  return customerFacts(rec).id;
 }
 function receiptKnockoffs(rec: ReceiptLike): ParsedKnockoff[] {
   if (
@@ -2015,11 +2138,7 @@ function csDocCode(cs: CashSaleLike): string | null {
     : normStr(pick(cs as Record<string, unknown>, ["DocCode", "docCode"]));
 }
 function csCustomer(cs: CashSaleLike): string | null {
-  return typeof cs.customerId === "string" && cs.customerId
-    ? cs.customerId
-    : normStr(
-        pick(cs as Record<string, unknown>, ["CustomerId", "customerId", "DebtorId", "debtorId"]),
-      );
+  return customerFacts(cs).id;
 }
 
 export function compareReceiptKnockoffs(
@@ -2055,12 +2174,17 @@ export function compareReceiptKnockoffs(
       const sameUuid = k.docId && csid ? k.docId.toUpperCase() === csid.toUpperCase() : null;
       const docNoAgrees =
         k.docNo && csdn ? k.docNo.trim().toUpperCase() === csdn.trim().toUpperCase() : null;
-      const customerMatch = rcust && csc ? rcust.toUpperCase() === csc.toUpperCase() : null;
+      const customerMatch =
+        customerFacts(r).conflict || (cs && customerFacts(cs).conflict)
+          ? false
+          : rcust && csc
+            ? rcust.toUpperCase() === csc.toUpperCase()
+            : null;
 
       let correlation: KnockoffMatch["correlation"];
       let evidenceLabel: KnockoffMatch["evidenceLabel"];
       // ID resolves but docNo disagrees → Mismatch (5d0.3 requirement).
-      if (byId && k.docNo && csdn && docNoAgrees === false) {
+      if (customerMatch === false || (byId && k.docNo && csdn && docNoAgrees === false)) {
         correlation = "mismatch";
         evidenceLabel = "Mismatch";
       } else if (byId) {
@@ -2170,10 +2294,7 @@ export function compareRefundKnockoffs(
     const rfl = rf as Partial<NormalizedRefund> & Record<string, unknown>;
     const rfid = typeof rfl.id === "string" ? rfl.id : rowId(rfl);
     const rfdn = typeof rfl.docNo === "string" ? rfl.docNo : normStr(pick(rfl, ["DocNo", "docNo"]));
-    const rfcust =
-      typeof rfl.customerId === "string"
-        ? rfl.customerId
-        : normStr(pick(rfl, ["CustomerId", "customerId", "DebtorId", "debtorId"]));
+    const rfcust = customerFacts(rfl).id;
     const kos =
       Array.isArray(rfl.knockoffs) &&
       rfl.knockoffs.length &&
@@ -2192,11 +2313,16 @@ export function compareRefundKnockoffs(
       const sameUuid = k.docId && orid ? k.docId.toUpperCase() === orid.toUpperCase() : null;
       const docNoAgrees =
         k.docNo && ordn ? k.docNo.trim().toUpperCase() === ordn.trim().toUpperCase() : null;
-      const customerMatch = rfcust && orcust ? rfcust.toUpperCase() === orcust.toUpperCase() : null;
+      const customerMatch =
+        customerFacts(rfl).conflict || (or && customerFacts(or).conflict)
+          ? false
+          : rfcust && orcust
+            ? rfcust.toUpperCase() === orcust.toUpperCase()
+            : null;
 
       let correlation: RefundKnockoffMatch["correlation"];
       let evidenceLabel: RefundKnockoffMatch["evidenceLabel"];
-      if (byId && k.docNo && ordn && docNoAgrees === false) {
+      if (customerMatch === false || (byId && k.docNo && ordn && docNoAgrees === false)) {
         correlation = "mismatch";
         evidenceLabel = "Mismatch";
       } else if (byId) {
