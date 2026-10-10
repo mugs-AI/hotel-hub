@@ -264,6 +264,7 @@ export async function updateN3Receipt(
   actor: ReceiptAutomationActor,
   prepared: PreparedReceiptUpdate,
   limit: N3ExecutionLimit,
+  onDispatch?: () => void,
 ): Promise<N3Outcome> {
   if (actor.role !== "owner") throw new ReceiptControlError("forbidden");
   if (limit.signal.aborted || limit.deadlineAt <= Date.now())
@@ -285,5 +286,5 @@ export async function updateN3Receipt(
     throw new ReceiptControlError("n3_changed_since_request");
   // The read/write interval still permits an outside race. Both overrides remain false;
   // coordinator readback must prove the result before any effective local update.
-  return postReceiptUpdate(actor.n3Token, prepared.body, limit);
+  return postReceiptUpdate(actor.n3Token, prepared.body, limit, onDispatch);
 }
