@@ -15,7 +15,12 @@ import type { ReceiptAutomationActor } from "./receipt-automation-gates.server";
 import { isUuid } from "./reservations-store.server";
 import { isSafeReferenceNo, type N3ExecutionLimit, type N3Outcome } from "./n3-receipts.server";
 import { successfulEnvelope } from "./deposits-store.server";
-import type { ProofSummary, ProofReport } from "./receipt-update-proof";
+import type {
+  ProofSummary,
+  ProofReport,
+  ProofAttempt,
+  ProofReadback,
+} from "./receipt-update-proof";
 export type ProofPackage = {
   caseId: string;
   tenantKey: string;
@@ -73,6 +78,7 @@ export type ProofDeps = {
     actor: ReceiptAutomationActor,
     prepared: PreparedReceiptUpdate,
     limit: N3ExecutionLimit,
+    onDispatch?: () => void,
   ): Promise<N3Outcome>;
   db: ProofDb;
 };
@@ -248,6 +254,8 @@ async function finish(
   deps: ProofDeps,
   verified: boolean,
   started: number,
+  diagnostics: { attempt?: ProofAttempt; readback?: ProofReadback } = {},
+  persist = true,
 ) {
   const report: ProofReport = {
     ...summary(permit.package),
@@ -256,10 +264,44 @@ async function finish(
     conditionalWrite: "not_proven",
     reservationCount: 1,
     durationMs: Math.max(0, deps.now() - started),
+    attempt: diagnostics.attempt ?? permit.report?.attempt,
+    readback: diagnostics.readback,
   };
   // A local persistence failure leaves the reserved permit held; no financial resend.
-  await deps.db.finish(actor, permit.id, verified ? "verified" : "unknown", report);
+  if (persist) await deps.db.finish(actor, permit.id, verified ? "verified" : "unknown", report);
   return { outcome: report.outcome, safeReport: report };
+}
+function safeFailure(e: unknown): string {
+  const allowed = [
+    "forbidden",
+    "unauthorized",
+    "execution_deadline",
+    "n3_changed_since_request",
+    "n3_evidence_unavailable",
+    "n3_update_unproven",
+    "journal_unproven",
+    "receipt_unproven",
+    "proof_disabled",
+    "proof_store_unavailable",
+    "n3_evidence_mismatch",
+    "n3_evidence_incomplete",
+    "deposit_not_controllable",
+  ];
+  return e instanceof ReceiptControlError && allowed.includes(e.code) ? e.code : "internal_error";
+}
+function envelopeCode(body: unknown): string | null {
+  const code =
+    body && typeof body === "object" && !Array.isArray(body)
+      ? (body as Record<string, unknown>).code
+      : null;
+  return typeof code === "string" && /^\d{4}$/.test(code) ? code : null;
+}
+function readbackReport(snapshot: ReceiptSnapshot, verified: boolean): ProofReadback {
+  return {
+    outcome: verified ? "verified" : "mismatch",
+    observedCents: snapshot.amountCents,
+    reason: verified ? null : "readback_mismatch",
+  };
 }
 export async function runReceiptUpdateProof(
   actor: ReceiptAutomationActor,
@@ -275,6 +317,19 @@ export async function runReceiptUpdateProof(
   const b = budget(pkg.budgetMs, deps, Math.min(pkg.expiresAt, permit.expiresAt)),
     started = deps.now();
   let claimed = false;
+  const attempt: ProofAttempt = {
+    stage: "owner_refresh",
+    dispatch: "not_started",
+    reason: null,
+    httpStatus: null,
+    envelopeCode: null,
+    durationMs: 0,
+  };
+  let readback: ProofReadback | undefined;
+  const complete = (verified: boolean) => {
+    attempt.durationMs = Math.max(0, deps.now() - started);
+    return finish(actor, permit, deps, verified, started, { attempt, readback });
+  };
   try {
     await b.run(() => deps.freshOwner(actor));
     if (await b.run(() => deps.isHotelReceipt(pkg.receiptId))) return fail("proof_hotel_receipt");
@@ -291,30 +346,44 @@ export async function runReceiptUpdateProof(
     if (!claimed) return result((await deps.db.get(actor, id)) ?? permit);
     await b.run(() => deps.freshOwner(actor));
     if (!deps.enabled) return fail("proof_disabled");
-    const out = await b.run(() => deps.send(actor, prepared, b.limit));
+    attempt.stage = "update_preflight";
+    const out = await b.run(() =>
+      deps.send(actor, prepared, b.limit, () => {
+        attempt.dispatch = "attempted";
+        attempt.stage = "update";
+      }),
+    );
+    if (out.kind === "response") {
+      attempt.httpStatus = out.status;
+      attempt.envelopeCode = envelopeCode(out.body);
+    }
     if (
       out.kind !== "response" ||
       out.status < 200 ||
       out.status >= 300 ||
       !successfulEnvelope(out.body)
-    )
-      return await finish(actor, permit, deps, false, started);
-    const readback = await b.run(() => deps.read(actor, pkg, b.limit));
-    await b.run(() => deps.freshOwner(actor));
-    return await finish(
-      actor,
-      permit,
-      deps,
+    ) {
+      attempt.reason = out.kind === "transport_error" ? out.reason : "n3_response_rejected";
+      return await complete(false);
+    }
+    attempt.stage = "readback";
+    const evidence = await b.run(() => deps.read(actor, pkg, b.limit));
+    const verified =
       verifyReceiptControlResult(
         permit.original,
         proposal(permit.original, pkg),
-        readback.snapshot,
-      ) === "verified",
-      started,
-    );
+        evidence.snapshot,
+      ) === "verified";
+    readback = readbackReport(evidence.snapshot, verified);
+    attempt.stage = "owner_readback";
+    await b.run(() => deps.freshOwner(actor));
+    attempt.stage = verified ? "complete" : "readback";
+    attempt.reason = verified ? null : "readback_mismatch";
+    return await complete(verified);
   } catch (e) {
     if (!claimed) throw e;
-    return await finish(actor, permit, deps, false, started);
+    attempt.reason = safeFailure(e);
+    return await complete(false);
   } finally {
     b.close();
   }
@@ -333,22 +402,47 @@ export async function checkReceiptUpdateProof(
       safeReport: null,
     };
   if (p.phase === "verified") return result(p);
+  // A check may overlap the original worker. Observe N3 without replacing that
+  // worker's report or releasing its held reservation.
+  const observationOnly = p.phase === "reserved";
   const b = budget(p.package.budgetMs, deps),
     started = deps.now();
   try {
     await b.run(() => deps.freshOwner(actor));
     const evidence = await b.run(() => deps.read(actor, p.package, b.limit));
     await b.run(() => deps.freshOwner(actor));
-    return await finish(
+    const verified =
+      verifyReceiptControlResult(p.original, proposal(p.original, p.package), evidence.snapshot) ===
+      "verified";
+    const checked = await finish(
       actor,
       p,
       deps,
-      verifyReceiptControlResult(p.original, proposal(p.original, p.package), evidence.snapshot) ===
-        "verified",
+      verified && !observationOnly,
       started,
+      {
+        readback: readbackReport(evidence.snapshot, verified),
+      },
+      !observationOnly,
     );
-  } catch {
-    return await finish(actor, p, deps, false, started);
+    return observationOnly ? { ...checked, phase: "reserved" as const } : checked;
+  } catch (e) {
+    const checked = await finish(
+      actor,
+      p,
+      deps,
+      false,
+      started,
+      {
+        readback: {
+          outcome: "unavailable",
+          observedCents: null,
+          reason: safeFailure(e),
+        },
+      },
+      !observationOnly,
+    );
+    return observationOnly ? { ...checked, phase: "reserved" as const } : checked;
   } finally {
     b.close();
   }

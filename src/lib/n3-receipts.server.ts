@@ -38,6 +38,7 @@ async function n3Request(
   path: string,
   jsonBody?: unknown,
   limit?: N3ExecutionLimit,
+  onDispatch?: () => void,
 ): Promise<N3Outcome> {
   const controller = new AbortController();
   const defaultMs = method === "POST" ? N3_WRITE_TIMEOUT_MS : N3_READ_TIMEOUT_MS;
@@ -49,7 +50,7 @@ async function n3Request(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
   try {
-    const res = await fetch(MAIN_BASE + path, {
+    const request: RequestInit = {
       method,
       headers: {
         authorization: `Bearer ${token}`,
@@ -58,7 +59,9 @@ async function n3Request(
       },
       body: jsonBody === undefined ? undefined : JSON.stringify(jsonBody),
       signal: controller.signal,
-    });
+    };
+    onDispatch?.();
+    const res = await fetch(MAIN_BASE + path, request);
     let text: string;
     if (limit && res.body) {
       const reader = res.body.getReader(),
@@ -223,6 +226,7 @@ export function postReceiptUpdate(
   token: string,
   body: unknown,
   limit: N3ExecutionLimit,
+  onDispatch?: () => void,
 ): Promise<N3Outcome> {
   return n3Request(
     token,
@@ -230,5 +234,6 @@ export function postReceiptUpdate(
     "/api/ARReceipts/Update?confirmedForBankRecon=false&confirmedForKnockOff=false",
     body,
     limit,
+    onDispatch,
   );
 }

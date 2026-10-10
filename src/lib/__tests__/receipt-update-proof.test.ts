@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ReceiptControlError } from "../receipt-controls";
 import {
   prepareReceiptUpdateProof,
   runReceiptUpdateProof,
@@ -328,5 +329,192 @@ describe("Owner receipt Update proof", () => {
     await expect(
       runReceiptUpdateProof({ ...actor, n3UserKey: "other" }, p.permitId, f.deps),
     ).rejects.toThrow();
+  });
+});
+
+describe("safe proof failure diagnostics", () => {
+  it("a check begun during a running Update cannot overwrite its later saved attempt", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    let start!: () => void,
+      releaseRun!: () => void,
+      checkStart!: () => void,
+      releaseCheck!: () => void;
+    const started = new Promise<void>((r) => {
+      start = r;
+    });
+    const runGate = new Promise<void>((r) => {
+      releaseRun = r;
+    });
+    const checking = new Promise<void>((r) => {
+      checkStart = r;
+    });
+    const checkGate = new Promise<void>((r) => {
+      releaseCheck = r;
+    });
+    f.deps.send = async (_a, _p, _l, onDispatch) => {
+      onDispatch?.();
+      start();
+      await runGate;
+      return {
+        kind: "response",
+        status: 409,
+        body: { code: "0051", success: false },
+        durationMs: 1,
+      };
+    };
+    const run = runReceiptUpdateProof(actor, p.permitId, f.deps);
+    await started;
+    const read = f.deps.read;
+    f.deps.read = async (...args) => {
+      checkStart();
+      await checkGate;
+      return read(...args);
+    };
+    let finishes = 0;
+    const finish = f.deps.db.finish;
+    f.deps.db.finish = async (...args) => {
+      finishes++;
+      return finish(...args);
+    };
+    const check = checkReceiptUpdateProof(actor, p.permitId, f.deps);
+    await checking;
+    releaseRun();
+    const result = await run;
+    releaseCheck();
+    const observed = await check;
+    expect(observed.outcome).toBe("needs_review");
+    expect(f.permit().report?.attempt).toEqual(result.safeReport?.attempt);
+    expect(finishes).toBe(1);
+    expect(f.permit().phase).toBe("unknown");
+  });
+  it("retains Update status and a numeric N3 code without response text or payload", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async (_a, _p, _l, onDispatch) => {
+      onDispatch?.();
+      return {
+        kind: "response",
+        status: 409,
+        body: {
+          code: "0051",
+          success: false,
+          message: "SECRET_TOKEN guest@example.com",
+          data: RECEIPT_50_RAW,
+        },
+        durationMs: 3,
+      };
+    };
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt).toMatchObject({
+      stage: "update",
+      reason: "n3_response_rejected",
+      dispatch: "attempted",
+      httpStatus: 409,
+      envelopeCode: "0051",
+    });
+    expect(JSON.stringify(r)).not.toMatch(/SECRET_TOKEN|guest@example|customerName|multiPayments/);
+    await checkReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(f.permit().report?.attempt).toEqual(r.safeReport?.attempt);
+    expect(f.permit().report?.readback).toMatchObject({ outcome: "mismatch", observedCents: 5000 });
+  });
+  it("distinguishes a final source guard failure before the Update call", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async () => {
+      throw new ReceiptControlError("n3_changed_since_request");
+    };
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt).toMatchObject({
+      stage: "update_preflight",
+      dispatch: "not_started",
+      reason: "n3_changed_since_request",
+    });
+    expect(f.sent()).toBe(0);
+  });
+  it("distinguishes a post-claim Owner failure and redacts unknown exception text", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    const claim = f.deps.db.claim;
+    f.deps.db.claim = async (...args) => {
+      const ok = await claim(...args);
+      f.revoke();
+      return ok;
+    };
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt).toMatchObject({
+      stage: "owner_refresh",
+      dispatch: "not_started",
+      reason: "internal_error",
+    });
+    expect(JSON.stringify(r)).not.toContain("revoked");
+  });
+  it("records a transport failure without retrying or echoing an arbitrary envelope code", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async (_a, _p, _l, onDispatch) => {
+      onDispatch?.();
+      return { kind: "transport_error", reason: "network", durationMs: 1 };
+    };
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt).toMatchObject({ dispatch: "attempted", reason: "network" });
+    expect((await runReceiptUpdateProof(actor, p.permitId, f.deps)).safeReport).toEqual(
+      r.safeReport,
+    );
+    expect(f.permit().phase).toBe("unknown");
+  });
+  it("records successful HTTP separately from an unchanged amount readback", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async (_a, _p, _l, onDispatch) => {
+      onDispatch?.();
+      return {
+        kind: "response",
+        status: 200,
+        body: { code: "0000", success: true },
+        durationMs: 1,
+      };
+    };
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt).toMatchObject({
+      stage: "readback",
+      reason: "readback_mismatch",
+      dispatch: "attempted",
+      httpStatus: 200,
+      envelopeCode: "0000",
+    });
+    expect(r.safeReport?.readback).toMatchObject({ outcome: "mismatch", observedCents: 5000 });
+  });
+  it("does not manufacture diagnostics for the earlier held attempt", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async () => ({ kind: "transport_error", reason: "network", durationMs: 1 });
+    await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    delete f.permit().report!.attempt;
+    await checkReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(f.permit().report?.attempt).toBeUndefined();
+    expect(f.permit().report?.readback).toMatchObject({ outcome: "mismatch", observedCents: 5000 });
+  });
+  it("preserves attempt details when a later read-only check cannot capture evidence", async () => {
+    const f = fixture();
+    const p = await f.prepare();
+    f.deps.send = async () => ({
+      kind: "response",
+      status: 400,
+      body: { code: "guest@example.com", success: false },
+      durationMs: 1,
+    });
+    const r = await runReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(r.safeReport?.attempt?.envelopeCode).toBeNull();
+    f.deps.read = async () => {
+      throw new ReceiptControlError("guest@example.com");
+    };
+    const check = await checkReceiptUpdateProof(actor, p.permitId, f.deps);
+    expect(check.safeReport?.attempt).toEqual(r.safeReport?.attempt);
+    expect(check.safeReport?.readback).toMatchObject({
+      outcome: "unavailable",
+      reason: "internal_error",
+    });
+    expect(JSON.stringify(check)).not.toContain("guest@example.com");
   });
 });

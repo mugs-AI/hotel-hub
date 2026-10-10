@@ -17,4 +17,26 @@ export type ProofReport = ProofSummary & {
   conditionalWrite: "not_proven";
   reservationCount: 1;
   durationMs: number;
+  // Optional for reports written before diagnostics were available.
+  attempt?: ProofAttempt;
+  readback?: ProofReadback;
+};
+export type ProofAttempt = {
+  stage:
+    | "owner_refresh"
+    | "update_preflight"
+    | "update"
+    | "readback"
+    | "owner_readback"
+    | "complete";
+  dispatch: "not_started" | "attempted";
+  reason: string | null;
+  httpStatus: number | null;
+  envelopeCode: string | null;
+  durationMs: number;
+};
+export type ProofReadback = {
+  outcome: "verified" | "mismatch" | "unavailable";
+  observedCents: number | null;
+  reason: string | null;
 };
