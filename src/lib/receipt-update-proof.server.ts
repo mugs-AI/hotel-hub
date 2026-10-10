@@ -23,7 +23,7 @@ export type ProofPackage = {
   receiptId: string;
   docCode: string;
   documentDate: string;
-  reference: string;
+  reference: string | null;
   customerId: string;
   customerCode: string;
   accountId: string;
@@ -90,12 +90,16 @@ function owner(a: ReceiptAutomationActor) {
 }
 function validPackage(p: ProofPackage) {
   if (
-    ![p.receiptId, p.customerId, p.accountId].every(isUuid) ||
+    ![p.receiptId, p.accountId].every(isUuid) ||
+    !(
+      isUuid(p.customerId) ||
+      (/^[1-9]\d*$/.test(p.customerId) && Number(p.customerId) <= 2147483647)
+    ) ||
     !p.companyName ||
     !p.caseId ||
     !p.customerCode ||
     !p.accountCode ||
-    !isSafeReferenceNo(p.reference) ||
+    (p.reference !== null && !isSafeReferenceNo(p.reference)) ||
     !/^\d{4}-\d{2}-\d{2}$/.test(p.documentDate) ||
     !/^[a-f0-9]{40}$/.test(p.sourceRef) ||
     !Number.isSafeInteger(p.budgetMs) ||
@@ -106,7 +110,7 @@ function validPackage(p: ProofPackage) {
     ) ||
     p.beforeCents === p.afterCents ||
     p.docCode === "OR2610/001" ||
-    p.reference.includes("BK260920001")
+    p.reference?.includes("BK260920001")
   )
     fail("proof_invalid_package");
 }
@@ -201,7 +205,10 @@ export async function prepareReceiptUpdateProof(
     if (await b.run(() => deps.isHotelReceipt(p.receiptId))) return fail("proof_hotel_receipt");
     const { snapshot, raw } = await b.run(() => deps.read(actor, p, b.limit));
     assertBefore(snapshot, p);
-    const prepared = buildReceiptUpdatePayload(raw, snapshot, proposal(snapshot, p), deps.contract);
+    const prepared = buildReceiptUpdatePayload(raw, snapshot, proposal(snapshot, p), {
+      ...deps.contract,
+      allowNullReferenceForProof: p.reference === null,
+    });
     const permit = await b.run(() =>
       deps.db.create({
         tenantId: actor.tenantId,
@@ -275,12 +282,10 @@ export async function runReceiptUpdateProof(
     assertBefore(snapshot, pkg);
     if (snapshot.sourceFingerprint !== permit.original.sourceFingerprint)
       return fail("n3_changed_since_request");
-    const prepared = buildReceiptUpdatePayload(
-      raw,
-      snapshot,
-      proposal(permit.original, pkg),
-      deps.contract,
-    );
+    const prepared = buildReceiptUpdatePayload(raw, snapshot, proposal(permit.original, pkg), {
+      ...deps.contract,
+      allowNullReferenceForProof: pkg.reference === null,
+    });
     if (prepared.payloadHash !== permit.payloadHash) return fail("proof_payload_changed");
     claimed = await b.run(() => deps.db.claim(actor, id, prepared.payloadHash));
     if (!claimed) return result((await deps.db.get(actor, id)) ?? permit);

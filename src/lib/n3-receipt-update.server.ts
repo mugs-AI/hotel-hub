@@ -14,6 +14,11 @@ import {
   type N3ExecutionLimit,
 } from "./n3-receipts.server";
 import { AR_RECEIPT_UPDATE_FIELDS, AR_RECEIPT_PAYMENT_FIELDS } from "./n3-receipt-update-fields";
+import {
+  assertReceiptCustomerLookup,
+  assertSimpleReceiptHeaderAmounts,
+  buildSingleReceiptDetail,
+} from "./n3-receipt-detail.server";
 import type { ReceiptAutomationActor } from "./receipt-automation-gates.server";
 export type N3UpdateContract = {
   proofId: string;
@@ -21,6 +26,8 @@ export type N3UpdateContract = {
   paymentFields: readonly string[];
   conditionalWrite?: { sourceField: string; requestField: string };
   noWriteRejectionCodes: readonly string[];
+  /** Set only by a designated, server-owned disposable proof package. */
+  allowNullReferenceForProof?: boolean;
 };
 export type PreparedReceiptUpdate = {
   body: unknown;
@@ -93,11 +100,25 @@ export function buildReceiptUpdatePayload(
     String(r.customerId) !== original.customerId ||
     r.currencyCode !== original.currency ||
     r.referenceNo !== original.reference ||
-    !isSafeReferenceNo(r.referenceNo) ||
+    !(
+      isSafeReferenceNo(r.referenceNo) ||
+      (contract.allowNullReferenceForProof === true &&
+        r.referenceNo === null &&
+        original.reference === null)
+    ) ||
     cents(r.totalAmount) !== original.amountCents ||
     cents(r.netTotalAmount) !== original.amountCents
   )
     return fail();
+  const customerCode =
+    original.customerCode ?? (typeof r.customerCode === "string" ? r.customerCode : null);
+  if (
+    original.customerCode &&
+    r.customerCode !== undefined &&
+    r.customerCode !== original.customerCode
+  )
+    return fail();
+  assertReceiptCustomerLookup(r.customer, original.customerId, customerCode);
   if (
     r.isCancelled !== false ||
     r.cancelledDate !== null ||
@@ -132,16 +153,31 @@ export function buildReceiptUpdatePayload(
     "roundingAdjustment",
     "roundingAdjustmentLocal",
     "refundAmountLocal",
+    "totalServiceAmount",
+    "totalServiceAmountLocal",
+    "taxExemptionTotalAmount",
+    "taxExemptionTotalAmountLocal",
+    "amountExemptedFromTax",
+    "amountLocalExemptedFromTax",
+    "rentalLeaseExemptedTaxTotalAmount",
+    "rentalLeaseExemptedTaxTotalAmountLocal",
   ])
     if (key in r && cents(r[key]) !== 0) return fail();
-  if (r.isMultiPayment !== true || !Array.isArray(r.multiPayments) || r.multiPayments.length !== 1)
-    return fail();
-  const line = object(r.multiPayments[0]);
   if (
-    Object.keys(line).some((k) => !contract.paymentFields.includes(k)) ||
-    line.accountId !== original.paymentLines[0]!.accountId ||
-    r.accountId !== line.accountId ||
-    cents(line.amount) !== original.amountCents
+    !Array.isArray(r.multiPayments) ||
+    !(
+      (r.isMultiPayment === true && r.multiPayments.length === 1) ||
+      (r.isMultiPayment === false && r.multiPayments.length === 0)
+    )
+  )
+    return fail();
+  const line = r.isMultiPayment === true ? object(r.multiPayments[0]) : null;
+  if (
+    r.accountId !== original.paymentLines[0]!.accountId ||
+    (line &&
+      (Object.keys(line).some((k) => !contract.paymentFields.includes(k)) ||
+        line.accountId !== r.accountId ||
+        cents(line.amount) !== original.amountCents))
   )
     return fail();
   for (const key of ["customerName", "remark1", "remark2", "remark3", "remark4"] as const)
@@ -156,13 +192,15 @@ export function buildReceiptUpdatePayload(
     netTotalAmount: proposal.amountCents / 100,
     outstandingAmount: proposal.amountCents / 100,
     accountId: proposal.accountId,
-    multiPayments: [
-      {
-        ...structuredClone(line),
-        accountId: proposal.accountId,
-        amount: proposal.amountCents / 100,
-      },
-    ],
+    multiPayments: line
+      ? [
+          {
+            ...structuredClone(line),
+            accountId: proposal.accountId,
+            amount: proposal.amountCents / 100,
+          },
+        ]
+      : [],
     ...(conditional ? { [conditional.requestField]: token } : {}),
   };
   for (const key of ["customerName", "remark1", "remark2", "remark3", "remark4"] as const)
@@ -192,12 +230,26 @@ export function buildReceiptUpdatePayload(
       )
         return fail();
     }
-  if ("amountLocal" in line) {
+  if (line && "amountLocal" in line) {
     if (cents(line.amountLocal) !== original.amountCents) return fail();
     (body.multiPayments[0] as Record<string, unknown>).amountLocal = proposal.amountCents / 100;
   }
   for (const key of ["bankChargesAmount", "bankChargesAmountLocal"])
-    if (key in line && cents(line[key]) !== 0) return fail();
+    if (line && key in line && cents(line[key]) !== 0) return fail();
+  // Single-payment receipts carry their amount in ReceiptDetailDto. Retain
+  // the existing line identity and update its coherent, untaxed MYR amounts.
+  if ("details" in r || !line) {
+    assertSimpleReceiptHeaderAmounts(r, original.amountCents);
+    const updated = buildSingleReceiptDetail(
+      r.details,
+      original.receiptId,
+      original.customerId,
+      original.customerCode ?? (typeof r.customerCode === "string" ? r.customerCode : null),
+      original.amountCents,
+      proposal.amountCents,
+    );
+    (body as Record<string, unknown>).details = [updated];
+  }
   // An account code cannot stay silently attached to a different immutable account.
   if (proposal.accountId.toLowerCase() !== original.paymentLines[0]!.accountId.toLowerCase())
     return fail();

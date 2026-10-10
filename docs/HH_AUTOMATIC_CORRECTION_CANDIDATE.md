@@ -60,3 +60,33 @@ remains in its separate worktree and was not modified by this continuation.
 
 Deferred minor: durationMs reports the latest operation, including a read-only
 recovery. It is not the original attempt duration or hosting-budget evidence.
+
+## Exported single-payment compatibility amendment — 10 October 2026
+
+The source candidate now accepts the documented numeric AR customer identity,
+handles single-payment receipts without converting them to multi-payment, and
+preserves the existing ReceiptDetailDto UUID while changing all supported untaxed
+MYR amount companions. Null references are accepted only by a server-owned
+designated disposable proof package; ordinary HotelHub reference checks remain
+strict. AR journal credits can bind through customerId/customer.code when the
+account lookup is null. Conflicting customer identities fail closed.
+
+Evidence normalization now checks coherent header/detail amounts and retained
+detail identity before a result can be verified. Conflicting customer IDs sharing
+one AR aggregation key cannot overwrite one another. Both initial execution and
+read-only recovery hold inconsistent financial evidence without another POST.
+
+Final source checks: 2,177 tests passed / 38 skipped / zero failures; three fixed
+HTTP-client simulation cases passed, including one same-document update and two
+held readbacks. TypeScript, production build, touched-file lint and product diff
+checks passed. Full lint remains 170 preexisting errors / 37 warnings in unchanged
+legacy verification scripts. The additive migration is unchanged and unapplied;
+this patch needs no additional migration. Earlier native PostgreSQL 18/18 evidence
+belongs to source f2e30b47 and the unchanged SQL candidate.
+
+This is source verification only. The designated disposable OR still needs a
+fresh authenticated before/after/journal readback using the reviewed source,
+installed schema and bounded runtime. Sanitized exports cannot serve as the live
+Update body or establish committed-posting semantics. The server proof package
+list remains empty and production capability remains independently gated. No
+N3 write, operational migration, main merge, publish or deployment was performed.

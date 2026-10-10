@@ -82,6 +82,7 @@ export function defaultReceiptProofDeps(): ProofDeps {
     async read(a, p, limit) {
       let raw: unknown = null;
       const snapshot = await readReceiptControlEvidence(a, p.receiptId, {
+        allowNullReferenceForProof: p.reference === null,
         loadDeposit: async () => ({
           id: p.receiptId,
           reservationId: p.receiptId,
