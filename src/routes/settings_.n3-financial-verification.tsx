@@ -1,8 +1,9 @@
 // Owner-only Financial Verification console.
-// Read-only. Does not persist mappings or write to N3.
+// Read-only inquiry plus a separately gated Owner test-OR Update panel.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
+import { ReceiptUpdateProofPanel } from "@/components/ReceiptUpdateProofPanel";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -73,8 +74,7 @@ export const Route = createFileRoute("/settings_/n3-financial-verification")({
       { title: "N3 Financial Verification — HotelHub" },
       {
         name: "description",
-        content:
-          "Owner-only read-only console that verifies live N3 Cloud AR Receipts, Cash Sales, Customer Refunds and GL Chart of Accounts before enabling payment writes.",
+        content: "Owner-only N3 financial inquiry with a separately gated test receipt edit panel.",
       },
       { property: "og:title", content: "N3 Financial Verification — HotelHub" },
       {
@@ -276,10 +276,14 @@ function Inner() {
       </div>
     );
   }
-  return <Console />;
+  return (
+    <Console
+      identityKey={`${session.data.tenant.tenantId}:${session.data.user.n3UserKey}:${session.data.role}`}
+    />
+  );
 }
 
-function Console() {
+function Console({ identityKey }: { identityKey: string }) {
   const [dateFrom, setDateFrom] = useState<string>(daysAgoKL(6));
   const [dateTo, setDateTo] = useState<string>(todayKL());
   const [docNumber, setDocNumber] = useState("");
@@ -344,11 +348,12 @@ function Console() {
             N3 Financial Verification
           </h1>
           <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-            Read-only
+            Read-only inquiry
           </span>
           <CardInfoPopover label="About N3 Financial Verification">
             Discovers the N3 contracts for Receive Payments, Cash Sales, Customer Refunds and GL
-            accounts. This console does not create, void, match or refund any N3 transaction.
+            accounts. This inquiry does not change N3. The separate test panel below can update only
+            an approved test receipt.
           </CardInfoPopover>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
@@ -451,6 +456,7 @@ function Console() {
         ) : null}
       </section>
 
+      <ReceiptUpdateProofPanel key={identityKey} identityKey={identityKey} />
       {data ? <RunSummary data={data} /> : null}
       {data ? <JournalCaptureCard capture={data.journalCapture} /> : null}
       {data ? <ResourceSections data={data} /> : null}

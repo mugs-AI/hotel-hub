@@ -1,0 +1,53 @@
+name: HotelHub receipt controls PostgreSQL proof
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+permissions:
+  contents: read
+jobs:
+  receipt-postgres:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'review/hh-receipt-diagnostic-20261002'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hh_test
+          POSTGRES_PASSWORD: disposable_test_only
+          POSTGRES_DB: hh_test_receipt_controls
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hh_test -d hh_test_receipt_controls"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      - run: bun install --frozen-lockfile
+      - name: Install external test client only
+        run: npm install --prefix "$RUNNER_TEMP/hh-pg-client" --no-audit --no-fund pg@8.16.3
+      - name: Test disposable native PostgreSQL including real dispatch race
+        env:
+          HH_TEST_PG_URL: postgres://hh_test:disposable_test_only@127.0.0.1:5432/hh_test_receipt_controls
+          HH_TEST_PG_DISPOSABLE: "YES"
+          HH_PG_TEST_MODULE: ${{ runner.temp }}/hh-pg-client/node_modules/pg/lib/index.js
+        run: |
+          set -o pipefail
+          bash scripts/test-hh-change-controls-postgres.sh 2>&1 | tee receipt-postgres.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receipt-postgres-proof-${{ github.event.pull_request.head.sha }}
+          path: receipt-postgres.log
+          if-no-files-found: warn

@@ -30,14 +30,22 @@ export function receiptJournalBoundTo(
   return read?.receiptId === receiptId.toLowerCase() && read.token === token;
 }
 
+export type N3ExecutionLimit = { deadlineAt: number; signal: AbortSignal };
+
 async function n3Request(
   token: string,
   method: "GET" | "POST",
   path: string,
   jsonBody?: unknown,
+  limit?: N3ExecutionLimit,
 ): Promise<N3Outcome> {
   const controller = new AbortController();
-  const timeoutMs = method === "POST" ? N3_WRITE_TIMEOUT_MS : N3_READ_TIMEOUT_MS;
+  const defaultMs = method === "POST" ? N3_WRITE_TIMEOUT_MS : N3_READ_TIMEOUT_MS;
+  if (limit && (limit.signal.aborted || limit.deadlineAt <= Date.now()))
+    return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+  const timeoutMs = limit ? Math.min(defaultMs, limit.deadlineAt - Date.now()) : defaultMs;
+  const onAbort = () => controller.abort();
+  limit?.signal.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
   try {
@@ -51,7 +59,38 @@ async function n3Request(
       body: jsonBody === undefined ? undefined : JSON.stringify(jsonBody),
       signal: controller.signal,
     });
-    const text = await res.text();
+    let text: string;
+    if (limit && res.body) {
+      const reader = res.body.getReader(),
+        chunks: Uint8Array[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const next = await reader.read();
+          if (next.done) break;
+          size += next.value.byteLength;
+          if (size > MAX_RESPONSE_BYTES) {
+            controller.abort();
+            await reader.cancel();
+            return {
+              kind: "transport_error",
+              reason: "too_large",
+              durationMs: Date.now() - started,
+            };
+          }
+          chunks.push(next.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      text = new TextDecoder().decode(bytes);
+    } else text = await res.text();
     if (text.length > MAX_RESPONSE_BYTES) {
       return { kind: "transport_error", reason: "too_large", durationMs: Date.now() - started };
     }
@@ -75,6 +114,7 @@ async function n3Request(
     };
   } finally {
     clearTimeout(timer);
+    limit?.signal.removeEventListener("abort", onAbort);
   }
 }
 
@@ -106,8 +146,8 @@ export type N3ReceiptsClient = {
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
   /** GET-only month discovery (sales-v1 ARReceipts/List docDate filter). */
   listByDocDate?(token: string, q: DocDateListQuery): Promise<N3Outcome>;
-  getById(token: string, id: string): Promise<N3Outcome>;
-  getGLPosting(token: string, id: string): Promise<N3Outcome>;
+  getById(token: string, id: string, limit?: N3ExecutionLimit): Promise<N3Outcome>;
+  getGLPosting(token: string, id: string, limit?: N3ExecutionLimit): Promise<N3Outcome>;
   create(token: string, payload: unknown): Promise<N3Outcome>;
 };
 
@@ -157,16 +197,18 @@ export const n3Receipts: N3ReceiptsClient = {
     const filter = encodeURIComponent(`referenceNo eq '${referenceNo}'`);
     return n3Request(token, "GET", `/api/ARReceipts/List?$top=20&$skip=0&$filter=${filter}`);
   },
-  getById(token, id) {
+  getById(token, id, limit) {
     if (!isRealN3Id(id)) throw new Error("getById: unsafe id");
-    return n3Request(token, "GET", `/api/ARReceipts/${encodeURIComponent(id)}`);
+    return n3Request(token, "GET", `/api/ARReceipts/${encodeURIComponent(id)}`, undefined, limit);
   },
-  async getGLPosting(token, id) {
+  async getGLPosting(token, id, limit) {
     if (!isRealN3Id(id)) throw new Error("getGLPosting: unsafe id");
     const outcome = await n3Request(
       token,
       "GET",
       `/api/ARReceipts/GLPosting?key=${encodeURIComponent(id)}`,
+      undefined,
+      limit,
     );
     receiptJournalReads.set(outcome, { receiptId: id.toLowerCase(), token });
     return outcome;
@@ -175,3 +217,18 @@ export const n3Receipts: N3ReceiptsClient = {
     return n3Request(token, "POST", "/api/ARReceipts/Create", payload);
   },
 };
+
+/** Fixed server-only dormant Update operation. Caller must hold a durable dispatch. */
+export function postReceiptUpdate(
+  token: string,
+  body: unknown,
+  limit: N3ExecutionLimit,
+): Promise<N3Outcome> {
+  return n3Request(
+    token,
+    "POST",
+    "/api/ARReceipts/Update?confirmedForBankRecon=false&confirmedForKnockOff=false",
+    body,
+    limit,
+  );
+}

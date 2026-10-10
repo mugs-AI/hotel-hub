@@ -24,6 +24,7 @@ export async function executeReceiptControlRequest(
   if (actor.role !== "owner") throw new ReceiptControlError("forbidden");
   const row = await deps.db.get(actor.tenantId, requestId);
   if (!row) throw new ReceiptControlError("request_not_found");
+  if (row.generation === 2) throw new ReceiptControlError("automation_unavailable");
   if (row.state !== "approved_awaiting_n3") throw new ReceiptControlError("invalid_transition");
   if (capabilities.directEdit || capabilities.voidReplace)
     // No proven contract is wired; refuse rather than guess an endpoint.
@@ -46,6 +47,7 @@ export async function verifyReceiptControlRequest(
   if (!Number.isInteger(input.expectedVersion)) throw new ReceiptControlError("version_conflict");
   const row = await deps.db.get(actor.tenantId, input.requestId);
   if (!row) throw new ReceiptControlError("request_not_found");
+  if (row.generation === 2) throw new ReceiptControlError("automation_unavailable");
   if (row.state !== "approved_awaiting_n3" && row.state !== "needs_review")
     throw new ReceiptControlError("invalid_transition");
   if (!row.approvedAt)
@@ -120,6 +122,7 @@ export async function recoverReceiptControlRequest(
   if (!Number.isInteger(input.expectedVersion)) throw new ReceiptControlError("version_conflict");
   const row = await deps.db.get(actor.tenantId, input.requestId);
   if (!row) throw new ReceiptControlError("request_not_found");
+  if (row.generation === 2) throw new ReceiptControlError("automation_unavailable");
   if ((row.state !== "applying" && row.state !== "needs_review") || !row.approvedAt)
     throw new ReceiptControlError("invalid_transition");
   const done = await deps.db.recover({

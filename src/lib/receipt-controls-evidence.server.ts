@@ -4,6 +4,11 @@ import { successfulEnvelope, valuesFor } from "./deposits-store.server";
 import { createHash } from "node:crypto";
 import type { N3Outcome, N3ReceiptsClient } from "./n3-receipts.server";
 import { isSafeReferenceNo, receiptJournalBoundTo } from "./n3-receipts.server";
+import {
+  assertReceiptCustomerLookup,
+  assertSimpleReceiptHeaderAmounts,
+  buildSingleReceiptDetail,
+} from "./n3-receipt-detail.server";
 import type { HotelRole } from "./rbac";
 import {
   ReceiptControlError,
@@ -28,7 +33,7 @@ export type ScopedDeposit = {
   /** Immutable customer code saved at posting; binds the AR credit line. */
   n3CustomerCode?: string | null;
   /** Immutable HotelHub reference saved at creation; bound on every read. */
-  n3ReferenceNo: string;
+  n3ReferenceNo: string | null;
   currencyCode: string;
   paymentLines: Array<{ id: string; code: string; name: string; amount: number }>;
 };
@@ -37,6 +42,8 @@ export type EvidenceDeps = {
   loadDeposit(tenantId: string, depositId: string): Promise<ScopedDeposit | null>;
   n3: Pick<N3ReceiptsClient, "getById" | "getGLPosting">;
   now?: () => string;
+  /** Server-owned disposable proof only; never a browser request option. */
+  allowNullReferenceForProof?: boolean;
 };
 
 /**
@@ -119,6 +126,7 @@ type Journal = {
   credits: Map<string, number> | null;
   /** Account code per credited account key (for AR/customer binding). */
   creditCodes: Map<string, string>;
+  creditCustomerIds: Map<string, string>;
   /** Actual row identity; explicit null is never filled from the header. */
   docRefs: Array<{
     docCode: string | null;
@@ -127,6 +135,7 @@ type Journal = {
     missingDocCodeReason: string | null;
     explicitNullDocCode: boolean;
     documentAliasesReadable: boolean;
+    explicitEmptyReference: boolean;
   }>;
   /** Safe reason codes only (no values) explaining why rows were unreadable. */
   reasons: string[];
@@ -135,6 +144,21 @@ type Journal = {
 // Registered only by the orchestrated server read after transport correlation.
 // Pure/unbound parsing remains strict, including callers supplying JSON flags.
 const correlatedJournals = new WeakSet<Journal>();
+const nullReferenceProofJournals = new WeakSet<Journal>();
+
+function resolveCustomer(row: unknown, key: "id" | "code") {
+  const vs = key === "id" ? valuesFor(row, ["customerId"]) : valuesFor(row, ["customerCode"]);
+  for (const customer of valuesFor(row, ["customer"])) vs.push(...valuesFor(customer, [key]));
+  const seen = vs.filter((v) => v !== null).map(str);
+  const validId = (s: string) =>
+    (/^[1-9]\d*$/.test(s) && Number(s) <= 2147483647) ||
+    (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) &&
+      s !== "00000000-0000-0000-0000-000000000000");
+  const conflict = seen.some(
+    (s) => !s || (key === "id" && !validId(s)) || s.toLowerCase() !== seen[0]?.toLowerCase(),
+  );
+  return { value: conflict ? null : (seen[0] ?? null), conflict };
+}
 
 /**
  * One field resolved from every casing alias plus the documented nested
@@ -189,6 +213,7 @@ export function readJournal(o: N3Outcome): Journal {
     debits: null,
     credits: null,
     creditCodes: new Map(),
+    creditCustomerIds: new Map(),
     docRefs: [],
     reasons: [reason],
   });
@@ -206,6 +231,7 @@ export function readJournal(o: N3Outcome): Journal {
   const debits = new Map<string, number>();
   const credits = new Map<string, number>();
   const creditCodes = new Map<string, string>();
+  const creditCustomerIds = new Map<string, string>();
   const docRefs: Journal["docRefs"] = [];
   const norm: string[] = [];
   for (const row of rows) {
@@ -217,6 +243,10 @@ export function readJournal(o: N3Outcome): Journal {
     const c = resolveMoney(row, ["credit", "creditAmount"]);
     const idF = resolveField(row, ["accountId", "glAccountId"], "id");
     const codeF = resolveField(row, ["accountCode", "glAccountCode"], "code");
+    const customerIdF = resolveCustomer(row, "id");
+    const customerCodeF = resolveCustomer(row, "code");
+    if (customerIdF.conflict || customerCodeF.conflict)
+      reasons.add("journal_customer_identity_conflict");
     if (idF.conflict) reasons.add("journal_account_id_conflict");
     if (codeF.conflict) reasons.add("journal_account_code_conflict");
     if (d === "conflict" || c === "conflict") reasons.add("journal_amount_conflict");
@@ -226,7 +256,9 @@ export function readJournal(o: N3Outcome): Journal {
     if (dn < 0 || cn < 0) reasons.add("journal_amount_negative");
     else if (dn > 0 === cn > 0) reasons.add(dn > 0 ? "journal_row_both_sides" : "journal_row_zero");
     const id = idF.value ?? "";
-    const code = codeF.value ?? "";
+    const code = codeF.value ?? customerCodeF.value ?? "";
+    if (cn > 0 && codeF.value && customerCodeF.value && codeF.value !== customerCodeF.value)
+      reasons.add("journal_credit_customer_code_conflict");
     if (dn > 0) {
       // Debits must carry the exact bank/cash account id.
       if (!id) reasons.add("journal_debit_account_id_missing");
@@ -236,15 +268,24 @@ export function readJournal(o: N3Outcome): Journal {
       // The customer credit is bound by account code (as at posting); keyed by
       // id when present, otherwise by code — never guessed.
       if (!code) reasons.add("journal_credit_account_code_missing");
-      const key = id || `code:${code}`;
+      if (!id && customerCodeF.value && !customerIdF.value)
+        reasons.add("journal_credit_customer_id_missing");
+      const key = id || (customerIdF.value ? `customer:${customerIdF.value}` : `code:${code}`);
       const prev = creditCodes.get(key);
       if (prev !== undefined && prev !== code) reasons.add("journal_credit_code_conflict");
       credits.set(key, (credits.get(key) ?? 0) + cn);
       creditCodes.set(key, code);
+      if (customerIdF.value) {
+        const previousCustomer = creditCustomerIds.get(key);
+        if (previousCustomer && previousCustomer !== customerIdF.value)
+          reasons.add("journal_credit_customer_id_conflict");
+        creditCustomerIds.set(key, customerIdF.value);
+      }
     }
     const dc = resolveField(row, ["docCode", "docNo"], null);
     const documentAliases = valuesFor(row, ["docCode", "docNo"]);
     const rf = resolveField(row, ["referenceNo", "reference"], null);
+    const referenceAliases = valuesFor(row, ["referenceNo", "reference"]);
     if (dc.conflict || rf.conflict) reasons.add("journal_doc_ref_conflict");
     docRefs.push({
       docCode: dc.value,
@@ -252,8 +293,11 @@ export function readJournal(o: N3Outcome): Journal {
       missingDocCodeReason: dc.value === null ? missingDocCodeReason(row) : null,
       explicitNullDocCode: documentAliases.length > 0 && documentAliases.every((v) => v === null),
       documentAliasesReadable: documentAliases.every((v) => v === null || str(v) !== null),
+      explicitEmptyReference:
+        referenceAliases.length > 0 &&
+        referenceAliases.every((v) => v === null || (typeof v === "string" && !v.trim())),
     });
-    norm.push(`${id}|${code}|${dn}|${cn}`);
+    norm.push(`${id}|${code}|${dn}|${cn}|${customerIdF.value ?? ""}`);
   }
   norm.sort();
   const bad = reasons.size > 0;
@@ -262,6 +306,7 @@ export function readJournal(o: N3Outcome): Journal {
     debits: bad ? null : debits,
     credits: bad ? null : credits,
     creditCodes,
+    creditCustomerIds,
     docRefs,
     reasons: [...reasons].sort(),
   };
@@ -276,7 +321,13 @@ export function readJournal(o: N3Outcome): Journal {
  */
 export function journalMismatchReasons(
   j: Journal,
-  receipt: { amountCents: number; docCode: string; reference: string; customerCode: string | null },
+  receipt: {
+    amountCents: number;
+    docCode: string;
+    reference: string | null;
+    customerCode: string | null;
+    customerId?: string;
+  },
   paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
 ): string[] {
   if (!j.debits || !j.credits) return j.reasons.length ? j.reasons : ["journal_unreadable"];
@@ -301,6 +352,9 @@ export function journalMismatchReasons(
     if (!receipt.customerCode) out.push("journal_customer_code_not_saved");
     else if (j.creditCodes.get(creditAccount) !== receipt.customerCode)
       out.push("journal_credit_customer_mismatch");
+    const customerId = j.creditCustomerIds.get(creditAccount);
+    if (customerId && customerId.toLowerCase() !== receipt.customerId?.toLowerCase())
+      out.push("journal_credit_customer_id_mismatch");
   }
   const missing = j.docRefs.filter(
     (r) => r.docCode === null && !(r.explicitNullDocCode && correlatedJournals.has(j)),
@@ -313,7 +367,10 @@ export function journalMismatchReasons(
     out.push("journal_row_doc_code_mismatch");
   if (correlatedJournals.has(j) && j.docRefs.some((r) => !r.documentAliasesReadable))
     out.push("journal_row_doc_code_invalid");
-  if (j.docRefs.some((r) => r.reference === null)) out.push("journal_row_reference_missing");
+  if (receipt.reference === null) {
+    if (!nullReferenceProofJournals.has(j) || j.docRefs.some((r) => !r.explicitEmptyReference))
+      out.push("journal_row_reference_missing");
+  } else if (j.docRefs.some((r) => r.reference === null)) out.push("journal_row_reference_missing");
   else if (j.docRefs.some((r) => r.reference !== receipt.reference))
     out.push("journal_row_reference_mismatch");
   return [...new Set(out)];
@@ -321,7 +378,13 @@ export function journalMismatchReasons(
 
 export function journalMatchesReceipt(
   j: Journal,
-  receipt: { amountCents: number; docCode: string; reference: string; customerCode: string | null },
+  receipt: {
+    amountCents: number;
+    docCode: string;
+    reference: string | null;
+    customerCode: string | null;
+    customerId?: string;
+  },
   paymentLines: ReadonlyArray<{ accountId: string; amountCents: number }>,
 ): boolean {
   return journalMismatchReasons(j, receipt, paymentLines).length === 0;
@@ -333,6 +396,8 @@ export function receiptFingerprint(snap: ReceiptSnapshot, journalDigest: string)
     docCode: snap.docCode,
     documentDate: snap.documentDate,
     customerId: snap.customerId.toLowerCase(),
+    customerCode: snap.customerCode ?? null,
+    detailIds: snap.detailIds ?? null,
     currency: snap.currency,
     amountCents: snap.amountCents,
     paymentLines: snap.paymentLines.map((l) => [l.accountId.toLowerCase(), l.amountCents]),
@@ -366,6 +431,7 @@ function canonicalReceipt(value: unknown): string {
 function normalizeReceiptDetail(
   dep: ScopedDeposit,
   detail: N3Outcome,
+  allowNullReferenceForProof = false,
 ): {
   snap: ReceiptSnapshot;
   detailDigest: string;
@@ -385,6 +451,8 @@ function normalizeReceiptDetail(
     id?.toLowerCase() !== dep.n3ReceiptId.toLowerCase() ||
     (dep.n3DocCode !== null && str(pick(r, "docCode")) !== dep.n3DocCode) ||
     str(pick(r, "referenceNo")) !== dep.n3ReferenceNo ||
+    (dep.n3ReferenceNo === null &&
+      (!allowNullReferenceForProof || pick(r, "referenceNo") !== null)) ||
     (docType !== null && docType !== "AROR") ||
     str(pick(r, "customerId"))?.toLowerCase() !== dep.n3CustomerId.toLowerCase() ||
     currency !== dep.currencyCode.toUpperCase()
@@ -461,12 +529,38 @@ function normalizeReceiptDetail(
     remark3: str(pick(r, "remark3")) ?? "",
     remark4: str(pick(r, "remark4")) ?? "",
   };
+  let detailIds: string[] | undefined;
+  try {
+    if (
+      pick(r, "customerCode") !== undefined &&
+      pick(r, "customerCode") !== null &&
+      pick(r, "customerCode") !== dep.n3CustomerCode
+    )
+      throw new ReceiptControlError("n3_evidence_mismatch");
+    assertReceiptCustomerLookup(pick(r, "customer"), dep.n3CustomerId, dep.n3CustomerCode ?? null);
+    if ("details" in r || (allowNullReferenceForProof && pick(r, "isMultiPayment") === false)) {
+      assertSimpleReceiptHeaderAmounts(r as Record<string, unknown>, amountCents);
+      const detail = buildSingleReceiptDetail(
+        pick(r, "details"),
+        id!,
+        dep.n3CustomerId,
+        dep.n3CustomerCode ?? null,
+        amountCents,
+        amountCents,
+      );
+      detailIds = [detail.id as string];
+    }
+  } catch {
+    throw new ReceiptControlError("n3_evidence_mismatch");
+  }
   const snap: ReceiptSnapshot = {
     receiptId: id!,
     docCode,
     documentDate,
     reference: dep.n3ReferenceNo,
     customerId: dep.n3CustomerId,
+    customerCode: dep.n3CustomerCode ?? null,
+    ...(detailIds ? { detailIds } : {}),
     currency: currency!,
     amountCents,
     paymentLines,
@@ -494,18 +588,22 @@ export async function readReceiptControlEvidence(
   const { snap, detailDigest } = normalizeReceiptDetail(
     dep,
     await deps.n3.getById(actor.n3Token, dep.n3ReceiptId),
+    deps.allowNullReferenceForProof,
   );
   const outcome = await deps.n3.getGLPosting(actor.n3Token, dep.n3ReceiptId);
   const journal = readJournal(outcome);
   const strictUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const proofNullReference = deps.allowNullReferenceForProof === true && dep.n3ReferenceNo === null;
   const correlated =
-    journal.docRefs.some((row) => row.docCode === null && row.explicitNullDocCode) &&
+    (proofNullReference ||
+      journal.docRefs.some((row) => row.docCode === null && row.explicitNullDocCode)) &&
     strictUuid.test(dep.n3ReceiptId) &&
     dep.n3ReceiptId !== "00000000-0000-0000-0000-000000000000" &&
     dep.n3DocCode !== null &&
-    isSafeReferenceNo(dep.n3ReferenceNo) &&
+    (isSafeReferenceNo(dep.n3ReferenceNo) || proofNullReference) &&
     receiptJournalBoundTo(outcome, dep.n3ReceiptId, actor.n3Token);
   if (correlated) correlatedJournals.add(journal);
+  if (correlated && proofNullReference) nullReferenceProofJournals.add(journal);
   const journalReasons = journalMismatchReasons(
     journal,
     {
@@ -513,6 +611,7 @@ export async function readReceiptControlEvidence(
       docCode: snap.docCode,
       reference: dep.n3ReferenceNo,
       customerCode: dep.n3CustomerCode ?? null,
+      customerId: dep.n3CustomerId,
     },
     snap.paymentLines,
   );
@@ -523,6 +622,7 @@ export async function readReceiptControlEvidence(
     const confirmed = normalizeReceiptDetail(
       dep,
       await deps.n3.getById(actor.n3Token, dep.n3ReceiptId),
+      deps.allowNullReferenceForProof,
     );
     if (confirmed.detailDigest !== detailDigest)
       throw new ReceiptControlError("n3_evidence_mismatch");
@@ -557,7 +657,10 @@ export function verifyReceiptControlResult(
     evidence.currency !== original.currency ||
     evidence.docCode !== original.docCode ||
     evidence.documentDate !== original.documentDate ||
-    (evidence.reference ?? null) !== (original.reference ?? null)
+    (evidence.reference ?? null) !== (original.reference ?? null) ||
+    (original.customerCode !== undefined && evidence.customerCode !== original.customerCode) ||
+    (original.detailIds !== undefined &&
+      JSON.stringify(evidence.detailIds) !== JSON.stringify(original.detailIds))
   )
     return "mismatch";
   if (proposal.kind === "void") {

@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
+  installed: false,
+  policyError: false,
   allowed: true,
   exists: true,
   rows: [] as Record<string, unknown>[],
   filters: [] as Array<[string, unknown]>,
+}));
+vi.mock("@/lib/hotel-change-controls-store.server", () => ({
+  readChangePolicy: async () => {
+    if (state.policyError) throw new Error("read failed");
+    return state.installed
+      ? { revision: "0", depositApprovalRequired: true, contactApprovalRequired: true }
+      : null;
+  },
 }));
 vi.mock("@/lib/folio-api.server", () => ({
   requireFolioActor: async () =>
@@ -71,6 +81,8 @@ function put(body: unknown, origin = "https://hotel.example") {
 
 describe("folio bill-to route", () => {
   beforeEach(() => {
+    state.installed = false;
+    state.policyError = false;
     state.allowed = true;
     state.exists = true;
     state.rows.length = 0;
@@ -127,5 +139,16 @@ describe("folio bill-to route", () => {
     });
     expect(response.status).toBe(200);
     expect(state.rows[0]).toMatchObject({ ...bill, tenant_id: "tenant-A", reservation_id: id });
+  });
+  it("installed contact controls refuse old flat PUT and failed policy reads cannot save", async () => {
+    const { handleSaveBillTo } = await import("@/routes/api/hotel/reservations.$id.folio.bill-to");
+    const bill = { name: "Guest", company: "", address: "", phone: "", email: "" };
+    state.installed = true;
+    const blocked = await handleSaveBillTo({ request: put(bill), params: { id } });
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toEqual({ error: "version_required" });
+    state.policyError = true;
+    expect((await handleSaveBillTo({ request: put(bill), params: { id } })).status).toBe(500);
+    expect(state.rows).toHaveLength(0);
   });
 });

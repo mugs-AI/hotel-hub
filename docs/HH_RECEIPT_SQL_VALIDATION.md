@@ -135,3 +135,31 @@ PASS 10 concurrent creates, different keys: exactly 1 active request
 PASS 10 concurrent creates, same key+fingerprint: exactly 1 row stored
 ALL PASS
 ```
+
+## 03/10/2026 automatic correction candidate (unapplied)
+
+New migration: `20261003120216_hh_automatic_receipt_controls.sql`.
+Isolated PostgreSQL WASM (PGlite 0.5.8 / PG18.3) functional run: **11 passed,
+1 skipped**. The skipped native two-connection row-lock race is a blocking gap
+before database approval; WASM functional evidence is not native concurrency proof.
+Existing applied migrations are unchanged. No Cloud SQL was applied.
+
+Reproduce functional evidence with an external test-tool installation, without
+changing package or lock files:
+
+```sh
+HH_PGLITE_TEST_MODULE=/absolute/path/to/pglite/dist/index.js node node_modules/vitest/vitest.mjs run src/lib/__tests__/receipt-automation-postgres.test.ts
+```
+
+Native proof requires an empty disposable loopback PostgreSQL database and an
+external `pg` module. The harness refuses remote hosts, non-`hh_test_` databases,
+query options, and missing explicit disposable marker; it does not create/drop a
+database or fall back to Cloud. Ordinary database name rejection verified.
+
+```sh
+HH_TEST_PG_URL=postgres://127.0.0.1/hh_test_controls HH_TEST_PG_DISPOSABLE=YES HH_PG_TEST_MODULE=/absolute/path/to/pg/lib/index.js scripts/test-hh-change-controls-postgres.sh
+```
+
+Native execution is **BLOCKED** here: recovered PostgreSQL initdb refuses root;
+an unprivileged runtime is unavailable (setuid returned EINVAL). Required native
+race has been authored but not executed. No schema-apply readiness claim.

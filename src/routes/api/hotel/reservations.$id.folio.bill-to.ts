@@ -9,13 +9,37 @@ import {
 } from "@/lib/folio-api.server";
 import { logAudit } from "@/lib/audit.server";
 
-export type FolioBillTo = {
-  name: string;
-  company: string;
-  address: string;
-  phone: string;
-  email: string;
-};
+import type { FolioBillTo } from "@/lib/hotel-change-controls";
+export type { FolioBillTo } from "@/lib/hotel-change-controls";
+import { readChangePolicy } from "@/lib/hotel-change-controls-store.server";
+import { ReceiptControlError } from "@/lib/receipt-controls";
+import { readBillTo, saveBillTo } from "@/lib/folio-bill-to-controls.server";
+import type { BillToSaveInput } from "@/lib/hotel-change-controls";
+const controlledActor = (actor: import("@/lib/folio-api.server").FolioActor) => ({
+  tenantId: actor.tenantId,
+  n3UserKey: actor.actorKey,
+  n3Token: actor.n3Token,
+  role: actor.role!,
+});
+function controlledFailure(err: unknown): Response | null {
+  if (!(err instanceof ReceiptControlError)) return null;
+  const status = [
+    "bill_to_changed",
+    "bill_to_locked",
+    "version_required",
+    "version_conflict",
+    "receipt_control_active_exists",
+  ].includes(err.code)
+    ? 409
+    : err.code === "forbidden"
+      ? 403
+      : err.code === "not_found"
+        ? 404
+        : err.code.includes("unavailable")
+          ? 503
+          : 400;
+  return folioDeny(status, err.code);
+}
 
 function guestAddress(
   g: NonNullable<Awaited<ReturnType<typeof getReservationById>>>["guests"][number],
@@ -46,6 +70,11 @@ export async function handleReadBillTo({ params }: { params: { id?: string } }):
     const result = await context("hotel:folio:view", params.id ?? "");
     if ("response" in result) return result.response!;
     const { actor, reservation } = result;
+    if (await readChangePolicy(actor.tenantId))
+      return folioJson({
+        ...(await readBillTo(controlledActor(actor), reservation.id)),
+        controlsInstalled: true,
+      });
     const g = reservation.guests.find((guest) => guest.isPrimary) ?? reservation.guests[0];
     const fallback: FolioBillTo = {
       name: g?.fullName ?? "",
@@ -61,8 +90,10 @@ export async function handleReadBillTo({ params }: { params: { id?: string } }):
       .eq("reservation_id", reservation.id)
       .maybeSingle();
     if (error) throw error;
-    return folioJson({ billTo: data ?? fallback });
+    return folioJson({ billTo: data ?? fallback, controlsInstalled: false });
   } catch (err) {
+    const failure = controlledFailure(err);
+    if (failure) return failure;
     console.error("[folio.bill_to.read] failed", (err as Error).message?.slice(0, 120));
     return folioDeny(500, "bill_to_read_failed");
   }
@@ -87,6 +118,12 @@ export async function handleSaveBillTo({
     if (!body || typeof body !== "object" || Array.isArray(body))
       return folioDeny(400, "invalid_body");
     const raw = body as Record<string, unknown>;
+    if (await readChangePolicy(actor.tenantId)) {
+      if (!("billTo" in raw)) return folioDeny(409, "version_required");
+      return folioJson(
+        await saveBillTo(controlledActor(actor), reservation.id, raw as BillToSaveInput),
+      );
+    }
     const limits: Record<keyof FolioBillTo, number> = {
       name: 160,
       company: 200,
@@ -121,6 +158,8 @@ export async function handleSaveBillTo({
     });
     return folioJson({ billTo });
   } catch (err) {
+    const failure = controlledFailure(err);
+    if (failure) return failure;
     console.error("[folio.bill_to.save] failed", (err as Error).message?.slice(0, 120));
     return folioDeny(500, "bill_to_save_failed");
   }

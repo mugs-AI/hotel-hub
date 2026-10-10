@@ -97,3 +97,25 @@ Extra cost: one detail GET per otherwise valid correlated null-code receipt;
 no new month-discovery read or candidate-limit change. Signed-in live acceptance
 is still pending. Existing date validation checks ISO shape rather than full
 calendar validity; reviewer noted this inherited limitation for separate follow-up.
+
+## 03/10/2026 dormant Update implementation
+
+Review adapter uses only the fixed Update endpoint, both bank reconciliation and
+knock-off overrides false. Production contract returns **null**. Synthetic
+`FIXTURE_ONLY` conditional-write mapping is test evidence, never production proof.
+Missing schema/contract/flag/N3 tenant allowlists/measured execution budget denies
+production automation. No N3 POST has been executed by the coordinator.
+
+Payload builder preserves all allowlisted source fields and refuses unknown or
+conflicting fields, split receipts, absent reconciliation evidence, cancellation,
+matching/refunds and missing conditional token. The current narrow adapter accepts
+same-account amount/contact updates; changing payment account is held until an
+account-ID/code preservation mapping is proven. This is an explicit implementation
+limit, not permission to overwrite an account code. Money-change account eligibility
+is rechecked by orchestration; contact-only keeps the established historical account.
+
+New deadline-aware transport bounds fetch/body reads and byte size; existing deposit
+Create defaults and private journal provenance remain unchanged. Synthetic targeted
+run: 60 tests passed; TypeScript and targeted lint exit 0. Upstream conditional-write
+and accounting semantics, native database concurrency and managed runtime deadline
+remain activation blockers.

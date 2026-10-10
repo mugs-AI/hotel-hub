@@ -21,7 +21,7 @@ import {
   RECEIPT_VERIFY_STALE_SECONDS,
   verifyReceiptControlRequest,
 } from "../receipt-controls-execution.server";
-import { loadReceiptOverlay } from "../effective-receipts.server";
+import { loadReceiptOverlay, receiptReader } from "../effective-receipts.server";
 import { deliverReceiptAlerts } from "../receipt-alert-delivery.server";
 import { statusForReceiptControlError } from "../receipt-controls-http.server";
 import {
@@ -556,6 +556,25 @@ describe("execute + verify (manual mode)", () => {
 });
 
 describe("effective overlay loader", () => {
+  it("loads verified contact from the tenant-scoped stored version", async () => {
+    const contact = { customerName: "Bob", remark1: "", remark2: "", remark3: "", remark4: "" };
+    const selected: string[] = [];
+    const client = {
+      from: () => ({
+        select(columns: string) {
+          selected.push(columns);
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        in: async () => ({ error: null, data: [{ deposit_id: "d1", verified_contact: contact }] }),
+      }),
+    };
+    const rows = await receiptReader(client).versions("t1", ["d1"]);
+    expect(rows?.[0]).toMatchObject({ verifiedContact: contact });
+    expect(selected[0]).toContain("verified_contact");
+  });
   it("is empty when the staged tables are not installed", async () => {
     const o = await loadReceiptOverlay("t1", ["d1"], {
       versions: async () => null,
@@ -752,10 +771,10 @@ describe("UI rendering", () => {
     const html = renderToStaticMarkup(
       createElement(ReceiptRequestCard, { r: { ...dto!, selfApproved: true } }),
     );
-    // Approve is hidden until Review is opened AND the comparison acknowledged.
-    expect(html).not.toMatch(/>Approve</);
+    // Approved compact layout makes the comparison visible before one-click Approve.
+    expect(html).toMatch(/>Approve</);
     expect(html).toContain("Reject");
-    expect(html).toContain("Review");
+    expect(html).not.toMatch(/>Review</);
     expect(html).toContain("audited");
     expect(html).toContain("Notification:");
   });
@@ -906,7 +925,12 @@ describe("frozen42f review fixes", () => {
       "folio",
     ])
       expect(inv).toContain(need);
-    expect(RECEIPT_EFFECT_QUERY_PREFIXES.length).toBe(inv.length);
+    expect(inv).toEqual([
+      ...RECEIPT_EFFECT_QUERY_PREFIXES,
+      "folio-bill-to",
+      "hotel-change-policy",
+      "bill-to-changes",
+    ]);
   });
 
   it("race: claimed prior-approved Needs review cannot be rejected; completion stays fenced", async () => {

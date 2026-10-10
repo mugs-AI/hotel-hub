@@ -1,7 +1,7 @@
 // Request correction / Request void for a posted deposit receipt.
 // Shows original vs requested and the provisional deposit/balance difference.
 // Submitting only records a request; nothing changes in N3 or in totals.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePaymentAccounts, type DepositDTO } from "@/lib/deposits-client";
 import { formatReceiptDelta, formatReceiptMoney } from "@/lib/receipt-controls";
@@ -14,6 +14,7 @@ import {
   journalReasonLabel,
   type ReceiptControlProposalInput,
   useReceiptIdentity,
+  invalidateReceiptEffects,
 } from "@/lib/receipt-controls-client";
 
 const NAVY = "#102A43";
@@ -112,8 +113,10 @@ export function ReceiptControlRequestDialog({
     staleTime: 0,
   });
   const saved = original.data ? contactDraftFromOriginal(original.data.original.contact) : null;
+  const initialized = useRef(false);
   useEffect(() => {
-    if (!original.data) return;
+    if (!original.data || initialized.current) return;
+    initialized.current = true;
     setContact(contactDraftFromOriginal(original.data.original.contact));
     setAccountId((cur) => cur || original.data.original.accountId || "");
   }, [original.data]);
@@ -129,7 +132,7 @@ export function ReceiptControlRequestDialog({
         proposal,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["receipt-controls"] });
+      invalidateReceiptEffects(qc);
       onClose();
     },
     onError: (e) =>
@@ -161,7 +164,7 @@ export function ReceiptControlRequestDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={kind === "void" ? "Request void" : "Request correction"}
+      aria-label={kind === "void" ? "Request void" : "Edit receipt"}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 sm:items-center"
     >
       <div
@@ -169,12 +172,12 @@ export function ReceiptControlRequestDialog({
         className="max-h-[calc(100dvh-2rem)] w-full max-w-xl space-y-3 overflow-y-auto rounded-xl bg-white p-5 text-base shadow-lg"
       >
         <h2 className="text-xl font-semibold" style={{ color: NAVY }}>
-          {kind === "void" ? "Request void" : "Request correction"} —{" "}
-          {deposit.n3DocCode ?? "receipt"}
+          {kind === "void" ? "Request void" : "Edit receipt"} — {deposit.n3DocCode ?? "receipt"}
         </h2>
         <p className="text-base text-muted-foreground">
-          The Owner reviews this request. Totals change only after the change is made in N3 and
-          verified.
+          Approval follows your property settings. N3 changes require Owner authority. Totals change
+          only after the receipt and journal are verified. Local guest-folio billing details use
+          their separate billing contact form.
         </p>
         <table className="w-full text-base">
           <thead>

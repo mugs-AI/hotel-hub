@@ -49,6 +49,9 @@ export type ReceiptSnapshot = {
   docCode: string;
   documentDate: string;
   customerId: string;
+  /** Saved AR code and retained detail IDs when supplied by the complete DTO. */
+  customerCode?: string | null;
+  detailIds?: string[];
   currency: string;
   amountCents: number;
   paymentLines: ReceiptPaymentLine[];

@@ -36,6 +36,7 @@ import { Route as ApiHotelSettingsRouteImport } from './routes/api/hotel/setting
 import { Route as ApiHotelRoomsRouteImport } from './routes/api/hotel/rooms'
 import { Route as ApiHotelReservationsRouteImport } from './routes/api/hotel/reservations'
 import { Route as ApiHotelReservationCalendarRouteImport } from './routes/api/hotel/reservation-calendar'
+import { Route as ApiHotelReceiptUpdateProofRouteImport } from './routes/api/hotel/receipt-update-proof'
 import { Route as ApiHotelReceiptReportsRouteImport } from './routes/api/hotel/receipt-reports'
 import { Route as ApiHotelReceiptControlsRouteImport } from './routes/api/hotel/receipt-controls'
 import { Route as ApiHotelPaymentAccountsRouteImport } from './routes/api/hotel/payment-accounts'
@@ -43,7 +44,10 @@ import { Route as ApiHotelHousekeepingRouteImport } from './routes/api/hotel/hou
 import { Route as ApiHotelFinancialPeriodRouteImport } from './routes/api/hotel/financial-period'
 import { Route as ApiHotelFinancialDashboardRouteImport } from './routes/api/hotel/financial-dashboard'
 import { Route as ApiHotelDeparturesRouteImport } from './routes/api/hotel/departures'
+import { Route as ApiHotelChangeRevisionRouteImport } from './routes/api/hotel/change-revision'
+import { Route as ApiHotelChangeControlsRouteImport } from './routes/api/hotel/change-controls'
 import { Route as ApiHotelBookingSourcesRouteImport } from './routes/api/hotel/booking-sources'
+import { Route as ApiHotelBillToChangesRouteImport } from './routes/api/hotel/bill-to-changes'
 import { Route as ApiHotelAvailabilityRouteImport } from './routes/api/hotel/availability'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLaunchRouteImport } from './routes/api/auth/launch'
@@ -73,8 +77,10 @@ import { Route as ApiHotelReceiptControlsRequestIdVerifyRouteImport } from './ro
 import { Route as ApiHotelReceiptControlsRequestIdRecoverRouteImport } from './routes/api/hotel/receipt-controls.$requestId.recover'
 import { Route as ApiHotelReceiptControlsRequestIdExecuteRouteImport } from './routes/api/hotel/receipt-controls.$requestId.execute'
 import { Route as ApiHotelReceiptControlsRequestIdDecisionRouteImport } from './routes/api/hotel/receipt-controls.$requestId.decision'
+import { Route as ApiHotelReceiptControlsRequestIdCheckResultRouteImport } from './routes/api/hotel/receipt-controls.$requestId.check-result'
 import { Route as ApiHotelHousekeepingRoomsRoomIdRouteImport } from './routes/api/hotel/housekeeping.rooms.$roomId'
 import { Route as ApiHotelChargesCatalogueItemIdRouteImport } from './routes/api/hotel/charges.catalogue.$itemId'
+import { Route as ApiHotelBillToChangesRequestIdDecisionRouteImport } from './routes/api/hotel/bill-to-changes.$requestId.decision'
 import { Route as ApiHotelReservationsIdFolioRefreshRouteImport } from './routes/api/hotel/reservations.$id.folio.refresh'
 import { Route as ApiHotelReservationsIdFolioLinesRouteImport } from './routes/api/hotel/reservations.$id.folio.lines'
 import { Route as ApiHotelReservationsIdFolioBillToRouteImport } from './routes/api/hotel/reservations.$id.folio.bill-to'
@@ -225,6 +231,12 @@ const ApiHotelReservationCalendarRoute =
     path: '/api/hotel/reservation-calendar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHotelReceiptUpdateProofRoute =
+  ApiHotelReceiptUpdateProofRouteImport.update({
+    id: '/api/hotel/receipt-update-proof',
+    path: '/api/hotel/receipt-update-proof',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHotelReceiptReportsRoute = ApiHotelReceiptReportsRouteImport.update({
   id: '/api/hotel/receipt-reports',
   path: '/api/hotel/receipt-reports',
@@ -261,9 +273,24 @@ const ApiHotelDeparturesRoute = ApiHotelDeparturesRouteImport.update({
   path: '/api/hotel/departures',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHotelChangeRevisionRoute = ApiHotelChangeRevisionRouteImport.update({
+  id: '/api/hotel/change-revision',
+  path: '/api/hotel/change-revision',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelChangeControlsRoute = ApiHotelChangeControlsRouteImport.update({
+  id: '/api/hotel/change-controls',
+  path: '/api/hotel/change-controls',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHotelBookingSourcesRoute = ApiHotelBookingSourcesRouteImport.update({
   id: '/api/hotel/booking-sources',
   path: '/api/hotel/booking-sources',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHotelBillToChangesRoute = ApiHotelBillToChangesRouteImport.update({
+  id: '/api/hotel/bill-to-changes',
+  path: '/api/hotel/bill-to-changes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHotelAvailabilityRoute = ApiHotelAvailabilityRouteImport.update({
@@ -428,6 +455,12 @@ const ApiHotelReceiptControlsRequestIdDecisionRoute =
     path: '/$requestId/decision',
     getParentRoute: () => ApiHotelReceiptControlsRoute,
   } as any)
+const ApiHotelReceiptControlsRequestIdCheckResultRoute =
+  ApiHotelReceiptControlsRequestIdCheckResultRouteImport.update({
+    id: '/$requestId/check-result',
+    path: '/$requestId/check-result',
+    getParentRoute: () => ApiHotelReceiptControlsRoute,
+  } as any)
 const ApiHotelHousekeepingRoomsRoomIdRoute =
   ApiHotelHousekeepingRoomsRoomIdRouteImport.update({
     id: '/rooms/$roomId',
@@ -439,6 +472,12 @@ const ApiHotelChargesCatalogueItemIdRoute =
     id: '/$itemId',
     path: '/$itemId',
     getParentRoute: () => ApiHotelChargesCatalogueRoute,
+  } as any)
+const ApiHotelBillToChangesRequestIdDecisionRoute =
+  ApiHotelBillToChangesRequestIdDecisionRouteImport.update({
+    id: '/$requestId/decision',
+    path: '/$requestId/decision',
+    getParentRoute: () => ApiHotelBillToChangesRoute,
   } as any)
 const ApiHotelReservationsIdFolioRefreshRoute =
   ApiHotelReservationsIdFolioRefreshRouteImport.update({
@@ -519,7 +558,10 @@ export interface FileRoutesByFullPath {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -527,6 +569,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
   '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
+  '/api/hotel/receipt-update-proof': typeof ApiHotelReceiptUpdateProofRoute
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -554,8 +597,10 @@ export interface FileRoutesByFullPath {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
+  '/api/hotel/receipt-controls/$requestId/check-result': typeof ApiHotelReceiptControlsRequestIdCheckResultRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
   '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
@@ -597,7 +642,10 @@ export interface FileRoutesByTo {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -605,6 +653,7 @@ export interface FileRoutesByTo {
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
   '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
+  '/api/hotel/receipt-update-proof': typeof ApiHotelReceiptUpdateProofRoute
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -632,8 +681,10 @@ export interface FileRoutesByTo {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
+  '/api/hotel/receipt-controls/$requestId/check-result': typeof ApiHotelReceiptControlsRequestIdCheckResultRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
   '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
@@ -676,7 +727,10 @@ export interface FileRoutesById {
   '/api/auth/launch': typeof ApiAuthLaunchRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/hotel/availability': typeof ApiHotelAvailabilityRoute
+  '/api/hotel/bill-to-changes': typeof ApiHotelBillToChangesRouteWithChildren
   '/api/hotel/booking-sources': typeof ApiHotelBookingSourcesRouteWithChildren
+  '/api/hotel/change-controls': typeof ApiHotelChangeControlsRoute
+  '/api/hotel/change-revision': typeof ApiHotelChangeRevisionRoute
   '/api/hotel/departures': typeof ApiHotelDeparturesRoute
   '/api/hotel/financial-dashboard': typeof ApiHotelFinancialDashboardRoute
   '/api/hotel/financial-period': typeof ApiHotelFinancialPeriodRoute
@@ -684,6 +738,7 @@ export interface FileRoutesById {
   '/api/hotel/payment-accounts': typeof ApiHotelPaymentAccountsRoute
   '/api/hotel/receipt-controls': typeof ApiHotelReceiptControlsRouteWithChildren
   '/api/hotel/receipt-reports': typeof ApiHotelReceiptReportsRouteWithChildren
+  '/api/hotel/receipt-update-proof': typeof ApiHotelReceiptUpdateProofRoute
   '/api/hotel/reservation-calendar': typeof ApiHotelReservationCalendarRoute
   '/api/hotel/reservations': typeof ApiHotelReservationsRouteWithChildren
   '/api/hotel/rooms': typeof ApiHotelRoomsRouteWithChildren
@@ -711,8 +766,10 @@ export interface FileRoutesById {
   '/api/n3/selectors/$kind': typeof ApiN3SelectorsKindRoute
   '/api/n3/stocks/all': typeof ApiN3StocksAllRoute
   '/api/n3/probe/': typeof ApiN3ProbeIndexRoute
+  '/api/hotel/bill-to-changes/$requestId/decision': typeof ApiHotelBillToChangesRequestIdDecisionRoute
   '/api/hotel/charges/catalogue/$itemId': typeof ApiHotelChargesCatalogueItemIdRoute
   '/api/hotel/housekeeping/rooms/$roomId': typeof ApiHotelHousekeepingRoomsRoomIdRoute
+  '/api/hotel/receipt-controls/$requestId/check-result': typeof ApiHotelReceiptControlsRequestIdCheckResultRoute
   '/api/hotel/receipt-controls/$requestId/decision': typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   '/api/hotel/receipt-controls/$requestId/execute': typeof ApiHotelReceiptControlsRequestIdExecuteRoute
   '/api/hotel/receipt-controls/$requestId/recover': typeof ApiHotelReceiptControlsRequestIdRecoverRoute
@@ -756,7 +813,10 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -764,6 +824,7 @@ export interface FileRouteTypes {
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
     | '/api/hotel/receipt-reports'
+    | '/api/hotel/receipt-update-proof'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -791,8 +852,10 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
+    | '/api/hotel/receipt-controls/$requestId/check-result'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
     | '/api/hotel/receipt-controls/$requestId/recover'
@@ -834,7 +897,10 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -842,6 +908,7 @@ export interface FileRouteTypes {
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
     | '/api/hotel/receipt-reports'
+    | '/api/hotel/receipt-update-proof'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -869,8 +936,10 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
+    | '/api/hotel/receipt-controls/$requestId/check-result'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
     | '/api/hotel/receipt-controls/$requestId/recover'
@@ -912,7 +981,10 @@ export interface FileRouteTypes {
     | '/api/auth/launch'
     | '/api/auth/logout'
     | '/api/hotel/availability'
+    | '/api/hotel/bill-to-changes'
     | '/api/hotel/booking-sources'
+    | '/api/hotel/change-controls'
+    | '/api/hotel/change-revision'
     | '/api/hotel/departures'
     | '/api/hotel/financial-dashboard'
     | '/api/hotel/financial-period'
@@ -920,6 +992,7 @@ export interface FileRouteTypes {
     | '/api/hotel/payment-accounts'
     | '/api/hotel/receipt-controls'
     | '/api/hotel/receipt-reports'
+    | '/api/hotel/receipt-update-proof'
     | '/api/hotel/reservation-calendar'
     | '/api/hotel/reservations'
     | '/api/hotel/rooms'
@@ -947,8 +1020,10 @@ export interface FileRouteTypes {
     | '/api/n3/selectors/$kind'
     | '/api/n3/stocks/all'
     | '/api/n3/probe/'
+    | '/api/hotel/bill-to-changes/$requestId/decision'
     | '/api/hotel/charges/catalogue/$itemId'
     | '/api/hotel/housekeeping/rooms/$roomId'
+    | '/api/hotel/receipt-controls/$requestId/check-result'
     | '/api/hotel/receipt-controls/$requestId/decision'
     | '/api/hotel/receipt-controls/$requestId/execute'
     | '/api/hotel/receipt-controls/$requestId/recover'
@@ -991,7 +1066,10 @@ export interface RootRouteChildren {
   ApiAuthLaunchRoute: typeof ApiAuthLaunchRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiHotelAvailabilityRoute: typeof ApiHotelAvailabilityRoute
+  ApiHotelBillToChangesRoute: typeof ApiHotelBillToChangesRouteWithChildren
   ApiHotelBookingSourcesRoute: typeof ApiHotelBookingSourcesRouteWithChildren
+  ApiHotelChangeControlsRoute: typeof ApiHotelChangeControlsRoute
+  ApiHotelChangeRevisionRoute: typeof ApiHotelChangeRevisionRoute
   ApiHotelDeparturesRoute: typeof ApiHotelDeparturesRoute
   ApiHotelFinancialDashboardRoute: typeof ApiHotelFinancialDashboardRoute
   ApiHotelFinancialPeriodRoute: typeof ApiHotelFinancialPeriodRoute
@@ -999,6 +1077,7 @@ export interface RootRouteChildren {
   ApiHotelPaymentAccountsRoute: typeof ApiHotelPaymentAccountsRoute
   ApiHotelReceiptControlsRoute: typeof ApiHotelReceiptControlsRouteWithChildren
   ApiHotelReceiptReportsRoute: typeof ApiHotelReceiptReportsRouteWithChildren
+  ApiHotelReceiptUpdateProofRoute: typeof ApiHotelReceiptUpdateProofRoute
   ApiHotelReservationCalendarRoute: typeof ApiHotelReservationCalendarRoute
   ApiHotelReservationsRoute: typeof ApiHotelReservationsRouteWithChildren
   ApiHotelRoomsRoute: typeof ApiHotelRoomsRouteWithChildren
@@ -1212,6 +1291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel/receipt-update-proof': {
+      id: '/api/hotel/receipt-update-proof'
+      path: '/api/hotel/receipt-update-proof'
+      fullPath: '/api/hotel/receipt-update-proof'
+      preLoaderRoute: typeof ApiHotelReceiptUpdateProofRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/receipt-reports': {
       id: '/api/hotel/receipt-reports'
       path: '/api/hotel/receipt-reports'
@@ -1261,11 +1347,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelDeparturesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hotel/change-revision': {
+      id: '/api/hotel/change-revision'
+      path: '/api/hotel/change-revision'
+      fullPath: '/api/hotel/change-revision'
+      preLoaderRoute: typeof ApiHotelChangeRevisionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/change-controls': {
+      id: '/api/hotel/change-controls'
+      path: '/api/hotel/change-controls'
+      fullPath: '/api/hotel/change-controls'
+      preLoaderRoute: typeof ApiHotelChangeControlsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hotel/booking-sources': {
       id: '/api/hotel/booking-sources'
       path: '/api/hotel/booking-sources'
       fullPath: '/api/hotel/booking-sources'
       preLoaderRoute: typeof ApiHotelBookingSourcesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hotel/bill-to-changes': {
+      id: '/api/hotel/bill-to-changes'
+      path: '/api/hotel/bill-to-changes'
+      fullPath: '/api/hotel/bill-to-changes'
+      preLoaderRoute: typeof ApiHotelBillToChangesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hotel/availability': {
@@ -1471,6 +1578,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReceiptControlsRequestIdDecisionRouteImport
       parentRoute: typeof ApiHotelReceiptControlsRoute
     }
+    '/api/hotel/receipt-controls/$requestId/check-result': {
+      id: '/api/hotel/receipt-controls/$requestId/check-result'
+      path: '/$requestId/check-result'
+      fullPath: '/api/hotel/receipt-controls/$requestId/check-result'
+      preLoaderRoute: typeof ApiHotelReceiptControlsRequestIdCheckResultRouteImport
+      parentRoute: typeof ApiHotelReceiptControlsRoute
+    }
     '/api/hotel/housekeeping/rooms/$roomId': {
       id: '/api/hotel/housekeeping/rooms/$roomId'
       path: '/rooms/$roomId'
@@ -1484,6 +1598,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/hotel/charges/catalogue/$itemId'
       preLoaderRoute: typeof ApiHotelChargesCatalogueItemIdRouteImport
       parentRoute: typeof ApiHotelChargesCatalogueRoute
+    }
+    '/api/hotel/bill-to-changes/$requestId/decision': {
+      id: '/api/hotel/bill-to-changes/$requestId/decision'
+      path: '/$requestId/decision'
+      fullPath: '/api/hotel/bill-to-changes/$requestId/decision'
+      preLoaderRoute: typeof ApiHotelBillToChangesRequestIdDecisionRouteImport
+      parentRoute: typeof ApiHotelBillToChangesRoute
     }
     '/api/hotel/reservations/$id/folio/refresh': {
       id: '/api/hotel/reservations/$id/folio/refresh'
@@ -1558,6 +1679,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ApiHotelBillToChangesRouteChildren {
+  ApiHotelBillToChangesRequestIdDecisionRoute: typeof ApiHotelBillToChangesRequestIdDecisionRoute
+}
+
+const ApiHotelBillToChangesRouteChildren: ApiHotelBillToChangesRouteChildren = {
+  ApiHotelBillToChangesRequestIdDecisionRoute:
+    ApiHotelBillToChangesRequestIdDecisionRoute,
+}
+
+const ApiHotelBillToChangesRouteWithChildren =
+  ApiHotelBillToChangesRoute._addFileChildren(
+    ApiHotelBillToChangesRouteChildren,
+  )
+
 interface ApiHotelBookingSourcesRouteChildren {
   ApiHotelBookingSourcesIdRoute: typeof ApiHotelBookingSourcesIdRoute
 }
@@ -1586,6 +1721,7 @@ const ApiHotelHousekeepingRouteWithChildren =
   ApiHotelHousekeepingRoute._addFileChildren(ApiHotelHousekeepingRouteChildren)
 
 interface ApiHotelReceiptControlsRouteChildren {
+  ApiHotelReceiptControlsRequestIdCheckResultRoute: typeof ApiHotelReceiptControlsRequestIdCheckResultRoute
   ApiHotelReceiptControlsRequestIdDecisionRoute: typeof ApiHotelReceiptControlsRequestIdDecisionRoute
   ApiHotelReceiptControlsRequestIdExecuteRoute: typeof ApiHotelReceiptControlsRequestIdExecuteRoute
   ApiHotelReceiptControlsRequestIdRecoverRoute: typeof ApiHotelReceiptControlsRequestIdRecoverRoute
@@ -1594,6 +1730,8 @@ interface ApiHotelReceiptControlsRouteChildren {
 
 const ApiHotelReceiptControlsRouteChildren: ApiHotelReceiptControlsRouteChildren =
   {
+    ApiHotelReceiptControlsRequestIdCheckResultRoute:
+      ApiHotelReceiptControlsRequestIdCheckResultRoute,
     ApiHotelReceiptControlsRequestIdDecisionRoute:
       ApiHotelReceiptControlsRequestIdDecisionRoute,
     ApiHotelReceiptControlsRequestIdExecuteRoute:
@@ -1826,7 +1964,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLaunchRoute: ApiAuthLaunchRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiHotelAvailabilityRoute: ApiHotelAvailabilityRoute,
+  ApiHotelBillToChangesRoute: ApiHotelBillToChangesRouteWithChildren,
   ApiHotelBookingSourcesRoute: ApiHotelBookingSourcesRouteWithChildren,
+  ApiHotelChangeControlsRoute: ApiHotelChangeControlsRoute,
+  ApiHotelChangeRevisionRoute: ApiHotelChangeRevisionRoute,
   ApiHotelDeparturesRoute: ApiHotelDeparturesRoute,
   ApiHotelFinancialDashboardRoute: ApiHotelFinancialDashboardRoute,
   ApiHotelFinancialPeriodRoute: ApiHotelFinancialPeriodRoute,
@@ -1834,6 +1975,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelPaymentAccountsRoute: ApiHotelPaymentAccountsRoute,
   ApiHotelReceiptControlsRoute: ApiHotelReceiptControlsRouteWithChildren,
   ApiHotelReceiptReportsRoute: ApiHotelReceiptReportsRouteWithChildren,
+  ApiHotelReceiptUpdateProofRoute: ApiHotelReceiptUpdateProofRoute,
   ApiHotelReservationCalendarRoute: ApiHotelReservationCalendarRoute,
   ApiHotelReservationsRoute: ApiHotelReservationsRouteWithChildren,
   ApiHotelRoomsRoute: ApiHotelRoomsRouteWithChildren,

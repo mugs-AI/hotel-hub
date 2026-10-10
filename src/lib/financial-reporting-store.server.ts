@@ -372,7 +372,10 @@ export async function readReceiptEvents(
       const line = lineOf(d);
       const base = {
         bookingReference: refs.get(d.reservationId) ?? "",
-        customerLabel: d.customerLabel,
+        customerLabel:
+          o.confirmed.state === "active" && o.confirmed.verifiedContact
+            ? o.confirmed.verifiedContact.customerName
+            : d.customerLabel,
         currency: d.currency,
         creationAmountCents: d.amountCents,
         savedPaymentName: lineNames(d),
@@ -978,7 +981,13 @@ export function defaultFinancialReportingDeps(): FinancialReportingDeps {
             : String(res.data?.[0]?.[col] ?? "0"),
         );
       }
-      return parts.join("|");
+      const { readChangeRevision, appendChangeRevision } =
+        await import("./hotel-change-revision.server");
+      try {
+        return appendChangeRevision(parts.join("|"), await readChangeRevision(tenantId));
+      } catch {
+        throw new SourceIncomplete("source_incomplete");
+      }
     },
     async listMonthReceipts(actor, range, skip, top, signal) {
       if (signal?.aborted) throw new MonthListError("n3_month_list_unavailable");

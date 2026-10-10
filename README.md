@@ -9,8 +9,26 @@ Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE
 The checkpoint separates current source, database, release and acceptance evidence.
 Read the [change impact map](docs/HH_CHANGE_IMPACT_MAP.md) before changing an
 existing workflow, and the [latest Owner acceptance and Late Checkout diagnosis](docs/evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md).
-The [current checkout followthrough candidate](docs/HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md)
-records the approved correction, tests and pending merge/publication gates.
+The [checkout followthrough candidate](docs/HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md)
+records the approved correction and tests. The [current merge evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md)
+records exact source `734ac40` merged to main and synced to Lovable. The
+[publication evidence](docs/evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md)
+confirms deployment identity and signed-out live smoke; signed-in acceptance remains pending.
+The [latest Verify/edit-options diagnosis](docs/evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md)
+records five live RM65 mismatch results, the missing manual N3 step and the Owner's
+allow/block Settings decision. Its proposed compact Dashboard change is not built.
+The [new automatic-correction intent](docs/evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md)
+supersedes that allow/block interpretation: the Owner requires approval-triggered
+N3 updates and optional direct application, with separate deposit/contact policies.
+The [written automatic-correction design](docs/superpowers/specs/2026-10-03-automatic-receipt-correction-design.md)
+and [Owner-run proof checklist](docs/evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md)
+now specify independent approval switches, one-click execution, direct Owner saves,
+local versus N3 billing targets, durable uncertain outcomes and cross-session refresh.
+Owner approved the written spec. The [implementation plan](docs/superpowers/plans/2026-10-03-automatic-receipt-correction.md)
+now defines task interfaces, meaningful tests, dormant automation, Owner proof tooling
+and separate database/merge/activation/publish gates. Plan review and execution-method
+selection are next; no product implementation has started for this feature.
+Automatic execution is not implemented or activated; API/concurrency proof remains pending.
 Older status sections below are historical and do not establish current release state.
 
 Boutique hotel management, integrated with **N3 AI Cloud Accounting**.
@@ -379,3 +397,6 @@ payment-gateway code are added in Core.
 - Match applicable ORs to the CashMemo. A customer code on
   Non-Post-to-AR Cash Sales does not create the required open
   customer-control item, so it is not valid for this matching workflow.
+
+The dormant same-receipt correction implementation and remaining activation
+checks are recorded in [the review candidate](docs/HH_AUTOMATIC_CORRECTION_CANDIDATE.md).

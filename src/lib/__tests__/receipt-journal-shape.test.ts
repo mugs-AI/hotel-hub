@@ -13,6 +13,7 @@ const receipt = {
   docCode: "OR-T/001",
   reference: "HH-REF-T",
   customerCode: "700-7001",
+  customerId: "12345",
 };
 const lines = [{ accountId: BANK, amountCents: 5000 }];
 const ok = (data: unknown): N3Outcome => ({
@@ -79,7 +80,7 @@ describe("Owner receipt-number presence diagnostics", () => {
 const base = { docCode: "OR-T/001", referenceNo: "HH-REF-T", isCancelled: false };
 const nestedRows = [
   { ...base, account: { id: BANK, code: "700-0310" }, debit: 50, credit: 0 },
-  { ...base, account: { code: "700-7001" }, customerId: "x", debit: 0, credit: 50 },
+  { ...base, account: { code: "700-7001" }, customerId: 12345, debit: 0, credit: 50 },
 ];
 
 describe("receipt journal shape (documented nested account)", () => {

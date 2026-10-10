@@ -29,6 +29,42 @@ export const Route = createFileRoute(
           const { createReceiptControlRequest } =
             await import("@/lib/receipt-controls-store.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
+          const {
+            automaticReceiptCreationReady,
+            createAutomaticReceiptRequest,
+            resolveAutomationActor,
+            defaultReceiptAutomationDeps,
+          } = await import("@/lib/receipt-automation-deps.server");
+          if (
+            (body.proposal as { kind?: unknown } | null)?.kind === "correction" &&
+            (await automaticReceiptCreationReady(actor))
+          ) {
+            const { ReceiptControlError } = await import("@/lib/receipt-controls");
+            if (
+              Object.keys(body).some((k) => !["clientRequestId", "reason", "proposal"].includes(k))
+            )
+              throw new ReceiptControlError("invalid_body");
+            const dto = await createAutomaticReceiptRequest(actor, {
+              reservationId: params.id,
+              depositId: params.depositId,
+              clientRequestId: body.clientRequestId,
+              reason: body.reason,
+              proposal: body.proposal,
+            });
+            if (actor.role === "owner" && dto.canApply && dto.state === "pending") {
+              const { applyReceiptCorrection } =
+                await import("@/lib/receipt-automation-execution.server");
+              return json(
+                await applyReceiptCorrection(
+                  await resolveAutomationActor(actor),
+                  { requestId: dto.id, expectedVersion: dto.version, action: "apply" },
+                  defaultReceiptAutomationDeps(),
+                ),
+                201,
+              );
+            }
+            return json({ request: dto }, 201);
+          }
           const dto = await createReceiptControlRequest(
             actor,
             {

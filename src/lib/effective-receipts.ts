@@ -3,7 +3,7 @@
 // change an amount; approval alone never does. Stored creation records are
 // never mutated.
 import { centsToAmount } from "./folio-money";
-import type { ReceiptPaymentLine } from "./receipt-controls";
+import type { ReceiptPaymentLine, ReceiptContactFields } from "./receipt-controls";
 
 export type ReceiptVersionRow = {
   depositId: string;
@@ -19,6 +19,7 @@ export type ReceiptVersionRow = {
   /** Original receipt id when this version is a replacement document. */
   replacementOf: string | null;
   verifiedAt: string;
+  verifiedContact?: ReceiptContactFields | null;
 };
 
 /**
@@ -36,6 +37,7 @@ export type ReceiptOverlay = {
         paymentLines: ReceiptPaymentLine[];
         verifiedAt: string;
         replacementOf: string | null;
+        verifiedContact?: ReceiptContactFields | null;
       }
     | { state: "voided"; verifiedAt: string }
     /** No verified version yet: the original creation record still applies. */
@@ -90,6 +92,7 @@ export function computeReceiptOverlay(
                 paymentLines: latestReplacement.paymentLines,
                 verifiedAt: latestReplacement.verifiedAt,
                 replacementOf: latestReplacement.replacementOf,
+                verifiedContact: latestReplacement.verifiedContact,
               }
             : {
                 state: "voided",
@@ -107,6 +110,7 @@ export function computeReceiptOverlay(
           paymentLines: latestOwn.paymentLines,
           verifiedAt: latestOwn.verifiedAt,
           replacementOf: null,
+          verifiedContact: latestOwn.verifiedContact,
         },
       });
     }
@@ -136,6 +140,7 @@ export type WithEffective<T> = T & {
   /** Creation-time amount when an effective figure replaced it. */
   originalAmount?: number;
   effectivePaymentLines?: ReceiptPaymentLine[];
+  effectiveContact?: ReceiptContactFields;
 };
 
 /** Return copies of the rows with verified effective values applied. */
@@ -158,6 +163,7 @@ export function applyEffectiveReceipts<T extends OverlayTarget>(
       n3ReceiptId: c.receiptId,
       n3DocCode: c.docCode,
       effectivePaymentLines: c.paymentLines,
+      ...(c.verifiedContact ? { effectiveContact: c.verifiedContact } : {}),
       effectiveState: "active" as const,
     };
   });

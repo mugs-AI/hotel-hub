@@ -9,10 +9,12 @@ import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { N3ReceiptPrintLink } from "@/components/N3ReceiptPrintLink";
 import { ReceiptControlRequestDialog } from "@/components/ReceiptControlRequestDialog";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   listAllReceiptControls,
   receiptControlsKey,
   useReceiptIdentity,
+  normalizeReceiptControl,
 } from "@/lib/receipt-controls-client";
 import { ACTIVE_RECEIPT_CONTROL_STATES, RECEIPT_CONTROL_STATE_LABEL } from "@/lib/receipt-controls";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
@@ -342,7 +344,7 @@ export function DepositsCard({
             const dep = deposits.find((x) => x.id === receiptDialog.depositId);
             return dep ? (
               <ReceiptControlRequestDialog
-                key={identity ?? "none"}
+                key={`${identity ?? "none"}:${reservationId}:${dep.id}:${receiptDialog.kind}`}
                 reservationId={reservationId}
                 deposit={dep}
                 kind={receiptDialog.kind}
@@ -392,34 +394,99 @@ export function DepositsCard({
                 </CardInfoPopover>
                 <N3ReceiptPrintLink status={d.status} receiptId={d.n3ReceiptId} />
                 {(() => {
-                  const open = (receiptRequests.data?.requests ?? []).find(
-                    (r) => r.depositId === d.id && ACTIVE_RECEIPT_CONTROL_STATES.includes(r.state),
-                  );
                   if (d.effectiveState === "voided")
                     return (
                       <span className="text-xs font-semibold" style={{ color: ERR }}>
                         Voided in N3 — not counted
                       </span>
                     );
+                  if (!canRequestReceiptChange || identity === null || d.status !== "posted")
+                    return null;
+                  const open = (receiptRequests.data?.requests ?? []).find(
+                    (r) => r.depositId === d.id && ACTIVE_RECEIPT_CONTROL_STATES.includes(r.state),
+                  );
+                  const checking =
+                    receiptRequests.isPending ||
+                    receiptRequests.isFetching ||
+                    receiptRequests.isError;
+                  const requestNotice = receiptRequests.isError ? (
+                    <span className="w-full text-xs text-muted-foreground">
+                      Could not refresh receipt requests.{" "}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void receiptRequests.refetch()}
+                      >
+                        Retry receipt requests
+                      </button>
+                    </span>
+                  ) : checking ? (
+                    <span className="w-full text-xs text-muted-foreground">
+                      Checking receipt requests…
+                    </span>
+                  ) : null;
                   if (open)
                     return (
-                      <span className="text-xs font-medium" style={{ color: GOLD }}>
-                        Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}
-                      </span>
+                      <>
+                        <button
+                          type="button"
+                          disabled
+                          aria-describedby={`receipt-edit-${d.id}`}
+                          className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+                        >
+                          Edit receipt
+                        </button>
+                        <span className="text-xs font-medium" style={{ color: GOLD }}>
+                          Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}
+                        </span>
+                        {identity.endsWith(":owner") ? (
+                          <Link
+                            to="/"
+                            className="rounded-md border bg-white px-3 py-2 text-sm font-medium"
+                          >
+                            Review on Dashboard
+                          </Link>
+                        ) : null}
+                        <span
+                          id={`receipt-edit-${d.id}`}
+                          className="w-full text-xs text-muted-foreground"
+                        >
+                          {!identity.endsWith(":owner")
+                            ? "Ask the Owner to review this receipt request on Dashboard."
+                            : normalizeReceiptControl(open).automation === null &&
+                                ["needs_review", "approved_awaiting_n3"].includes(open.state)
+                              ? "Owner: check the same receipt in N3, then use Verify N3 change on Dashboard."
+                              : open.state === "applying"
+                                ? "Change in progress. Check its result on Dashboard; do not submit again."
+                                : "Review the existing request on Dashboard before making another edit."}
+                        </span>
+                        {requestNotice}
+                      </>
                     );
-                  if (!canRequestReceiptChange || d.status !== "posted" || receiptRequests.isError)
-                    return null;
+                  if (checking)
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled
+                          className="rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+                        >
+                          Edit receipt
+                        </button>
+                        {requestNotice}
+                      </>
+                    );
                   return (
                     <>
                       <button
                         type="button"
-                        className="text-xs font-medium underline"
+                        className="rounded-md border bg-white px-3 py-2 text-sm font-medium hover:bg-accent"
                         style={{ color: NAVY }}
                         onClick={() =>
                           setReceiptDialog({ depositId: d.id, kind: "correction", identity })
                         }
                       >
-                        Request correction
+                        Edit receipt
                       </button>
                       <button
                         type="button"

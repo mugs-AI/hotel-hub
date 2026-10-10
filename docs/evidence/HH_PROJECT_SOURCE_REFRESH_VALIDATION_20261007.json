@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-07",
+  "review_parent_sha": "f7cd1f3f66776d3c8c2e22722b4d35a7085597ab",
+  "main_and_lovable_sha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+  "checks": [
+    "18 unique active sources with Upload Yes; manifest hashes match",
+    "17 verbatim archived inputs, original decision IDs preserved and common protocol unchanged",
+    "Instructions text under 8000 characters",
+    "Latest billing-first priority in roadmap, decisions, Start Here, summary, Instructions and BEC companion",
+    "SDK/protocol statically read; no vendor binary/source/password published",
+    "Separate role/tenant/accounting/schema/deployment gates retained",
+    "Source ZIP CRC and source/instructions byte parity",
+    "Explicit docs-only Git payload; existing product work excluded"
+  ],
+  "instructions_characters": 7067,
+  "upload_files": 47,
+  "product_tests": "not rerun; documentation-only",
+  "live_acceptance": "No signed-in N3, BEC or physical access-card acceptance in this update",
+  "public_disclosure": "Owner APPROVE follows explicit complete documentation/evidence public-review-branch question; vendor SDK publication excluded",
+  "priority": "N3 billing/receipt matching; safe checkout/room handoff; access cards; BEC; client UAT/cutover"
+}

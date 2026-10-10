@@ -28,8 +28,10 @@ export function statusForReceiptControlError(code: string): number {
     case "forbidden":
       return 403;
     case "deposit_not_found":
+    case "not_found":
     case "request_not_found":
       return 404;
+    case "change_controls_unavailable":
     case "receipt_controls_unavailable":
       return 503;
     case "n3_evidence_unavailable":
@@ -40,6 +42,11 @@ export function statusForReceiptControlError(code: string): number {
       return 500;
     case "receipt_control_key_conflict":
     case "receipt_control_active_exists":
+    case "bill_to_changed":
+    case "bill_to_locked":
+    case "version_required":
+    case "approval_required":
+    case "claim_stale":
     case "version_conflict":
     case "invalid_transition":
     case "claim_conflict":

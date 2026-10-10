@@ -1,0 +1,356 @@
+{
+  "schema_version": 1,
+  "date": "08/10/2026",
+  "timezone": "Asia/Kuala_Lumpur",
+  "upload_to_project_sources": false,
+  "scope": "read-only discovery, local baseline tests, new architectural written spec; no implementation",
+  "repository": "mugs-AI/hotel-hub",
+  "review_base": "1b5a27be2506ff7720bea148793fcacb8f60f76d",
+  "main": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+  "lovable": {
+    "project_id": "d6c78e7b-c2f2-4bee-bf99-c9c47ff29b76",
+    "workspace_id": "JRQygHE7tZl2GgPN8a8N",
+    "latest_commit_sha": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "backend_kind": "Lovable Cloud",
+    "stack": "supabase",
+    "configured_backend_reference": "fkakhdzelilnejyehwfk",
+    "review_is_not_staging": true
+  },
+  "backend_read_only": {
+    "migration_versions": [
+      "20260719153056",
+      "20260720013222",
+      "20260720102055",
+      "20260720135638",
+      "20260720233434",
+      "20260721001110",
+      "20260721001134",
+      "20260721062259",
+      "20260724131751",
+      "20260724161300",
+      "20260731154351",
+      "20260803020026",
+      "20260803020148",
+      "20260805132927",
+      "20260806125127",
+      "20260806125503",
+      "20260807144233",
+      "20260807144327",
+      "20260820093547",
+      "20260821121509",
+      "20260821133017",
+      "20260821133109",
+      "20260824093329",
+      "20260824095539",
+      "20260824101612",
+      "20260824102934",
+      "20260825031037",
+      "20260825032919",
+      "20260825033013",
+      "20260825034507",
+      "20260827162500",
+      "20260916120000",
+      "20260927120000",
+      "20260928235000",
+      "20260929090000",
+      "20260930135429",
+      "20261002053219",
+      "20261002053302"
+    ],
+    "public_hotel_tables": [
+      "hotel_addon_catalogue",
+      "hotel_audit_events",
+      "hotel_booking_sequences",
+      "hotel_booking_sources",
+      "hotel_financial_settings",
+      "hotel_folio_bill_to",
+      "hotel_folio_lines",
+      "hotel_folio_operations",
+      "hotel_folios",
+      "hotel_guests",
+      "hotel_housekeeping_events",
+      "hotel_housekeeping_handoffs",
+      "hotel_mutation_requests",
+      "hotel_receipt_alert_outbox",
+      "hotel_receipt_control_decisions",
+      "hotel_receipt_control_executions",
+      "hotel_receipt_control_requests",
+      "hotel_receipt_versions",
+      "hotel_reservation_deposits",
+      "hotel_reservation_events",
+      "hotel_reservation_guests",
+      "hotel_reservation_operation_requests",
+      "hotel_reservation_rooms",
+      "hotel_reservation_tax_profile",
+      "hotel_reservations",
+      "hotel_room_housekeeping",
+      "hotel_rooms",
+      "hotel_settings",
+      "hotel_tenants",
+      "hotel_tourism_tax_evidence",
+      "hotel_user_directory",
+      "hotel_user_roles"
+    ],
+    "receipt_migrations_applied": true,
+    "automatic_control_migration_applied": false,
+    "checkout_ledger_migration_applied": false,
+    "folio_allowed_status": [
+      "open",
+      "prepared"
+    ],
+    "deposit_columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid"
+      },
+      {
+        "column_name": "tenant_id",
+        "data_type": "uuid"
+      },
+      {
+        "column_name": "reservation_id",
+        "data_type": "uuid"
+      },
+      {
+        "column_name": "amount",
+        "data_type": "numeric"
+      },
+      {
+        "column_name": "currency_code",
+        "data_type": "text"
+      },
+      {
+        "column_name": "idempotency_key",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_reference_no",
+        "data_type": "text"
+      },
+      {
+        "column_name": "status",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_receipt_id",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_doc_code",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_customer_id",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_customer_code",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_customer_name",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_account_id",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_account_code",
+        "data_type": "text"
+      },
+      {
+        "column_name": "n3_account_name",
+        "data_type": "text"
+      },
+      {
+        "column_name": "description",
+        "data_type": "text"
+      },
+      {
+        "column_name": "created_by_n3_user_key",
+        "data_type": "text"
+      },
+      {
+        "column_name": "last_error_code",
+        "data_type": "text"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone"
+      },
+      {
+        "column_name": "payment_lines",
+        "data_type": "jsonb"
+      }
+    ]
+  },
+  "recovery": {
+    "historical_checkout_sha": "a92d9234f8aceaa34c6e4a34976d8956225f3ef4",
+    "github_commit_http_status": 404,
+    "local_object_found": false,
+    "remote_branch_names_examined": 20,
+    "checkout_writer_located": false,
+    "limit": "Branch inventory/current workspace/history inspection, not an exhaustive audit of every historic remote tree."
+  },
+  "local_product_state": {
+    "head": "b4a783f3ba3a90a743905ea65374e36e8f4297a7",
+    "uncommitted_work_preserved": true
+  },
+  "baseline_tests": {
+    "command": "npm test -- src/lib/__tests__/run-5d3-1-checkout-preview.test.ts src/lib/__tests__/hh-golive-01a-authoritative-checkout.test.ts src/lib/__tests__/run-5d3-2-checkout-correction.test.ts",
+    "files_passed": 3,
+    "tests_passed": 115,
+    "failures": 0,
+    "duration_ms": 615,
+    "scope": "Existing dirty local worktree; fixtures/mocked/local read-only checkout tests, not full remote candidate suite or N3 accounting proof."
+  },
+  "attachment_parity": [
+    {
+      "logical_source": "00-MUGS_DIRECTBUILD_PROTOCOL.md",
+      "uploaded_filename": "01-00-MUGS_DIRECTBUILD_PROTOCOL.md",
+      "sha256": "e7f121dffae989c2b0fe5b3441ae498dee5b28d781da6461574d7c2b80d2fd53",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "01-SOURCE_REFRESH_SUMMARY.md",
+      "uploaded_filename": "02-01-SOURCE_REFRESH_SUMMARY.md",
+      "sha256": "fb34023dc80c747d9d5913827c17d9be8425e7adc72e82d1f4539ebd41c1326e",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "02-HOTELHUB_COMPLETION_PLAN.md",
+      "uploaded_filename": "03-02-HOTELHUB_COMPLETION_PLAN.md",
+      "sha256": "2fa2b9204c0856519b64288ad2cdfa13d4221f88324fb51eb3da251c994ffe94",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "03-HOTELHUB_N3_FINANCIAL_POSTING_KNOCKOFF_MASTER_RECORD.md",
+      "uploaded_filename": "04-03-HOTELHUB_N3_FINANCIAL_POSTING_KNOCKOFF_MASTER_RECORD.md",
+      "sha256": "9281211f46dd4aad89769806216cfb2dadc047c926a365af73a5fdb5d8edb5a3",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "04-HOTELHUB_BASE_INDEX.md",
+      "uploaded_filename": "05-04-HOTELHUB_BASE_INDEX.md",
+      "sha256": "eaece74038b71010920f1618929befeb249bc63cddd981f788307164ca5d01ee",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "05-VERIFIED_BASELINE_CURRENT.md",
+      "uploaded_filename": "06-05-VERIFIED_BASELINE_CURRENT.md",
+      "sha256": "1aa3363b059ac9a7572f86a5ded440326a6d563de4f1bdd2642e08748c0b9ace",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "06-HH1.0_PROJECT_SOURCE_REFRESH_REPORT.md",
+      "uploaded_filename": "07-06-HH1.0_PROJECT_SOURCE_REFRESH_REPORT.md",
+      "sha256": "ce920f3721231cf7818f0e70bf485cc3beed5785df559a2fe9ea223a989428e7",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "07-HOTELHUB_INTEGRATION_REGISTRY.md",
+      "uploaded_filename": "08-07-HOTELHUB_INTEGRATION_REGISTRY.md",
+      "sha256": "f259f27cf271da1b6a1f85b16cd12c5c5f1fc9faeb2c3136447009079e624fd7",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "08-HOTELHUB_PRODUCT_DECISIONS.md",
+      "uploaded_filename": "09-08-HOTELHUB_PRODUCT_DECISIONS.md",
+      "sha256": "83314e2fd1b7b5a0500475867641d8a655a007637b101a1e11bf80a48c1633f1",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "09-PROJECT_START_HERE.md",
+      "uploaded_filename": "10-09-PROJECT_START_HERE.md",
+      "sha256": "2732ff1d156100ffb5e3ee2695ce1aae0391b075867bee2b67b2befb4317c3f4",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "10-LOVABLE_GOVERNANCE.md",
+      "uploaded_filename": "11-10-LOVABLE_GOVERNANCE.md",
+      "sha256": "cdeb96975f0aad686f40ded5a61cf52330b619e5e1d178db133b9684bdb907c4",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "11-CROSS_PROJECT_LESSONS_AND_BUG_PREVENTION.md",
+      "uploaded_filename": "12-11-CROSS_PROJECT_LESSONS_AND_BUG_PREVENTION.md",
+      "sha256": "25f8c3cd172f6aa5e29b3417a294f3212ac8789d202d1508b8cee62917c14218",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "HH_BEC_ROOM_LOT_CONTROL.md",
+      "uploaded_filename": "13-HH_BEC_ROOM_LOT_CONTROL.md",
+      "sha256": "eee7e6bf4c149edc2e4f36b53d652cb5fb824d7436deb85edab937a701c6b5a4",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "HH_CHANGE_IMPACT_MAP.md",
+      "uploaded_filename": "14-HH_CHANGE_IMPACT_MAP.md",
+      "sha256": "92b778754f95347dd6890a9ff71a5faa4a82017e17cdc7cb2ee7a38175d47e48",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "HH_DEPOSIT_VERIFICATION_CHECKPOINT.md",
+      "uploaded_filename": "15-HH_DEPOSIT_VERIFICATION_CHECKPOINT.md",
+      "sha256": "06a7fc5c4a587e4a01e5023f51852d9da140f9a4cda9204a620dc997c200da44",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "HH_PAYMENT_METHOD_CONTROLS_CHECKPOINT.md",
+      "uploaded_filename": "16-HH_PAYMENT_METHOD_CONTROLS_CHECKPOINT.md",
+      "sha256": "956dcfbfd49928db0151fe472fad3249d467e0d847d620936f083d4225372db9",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "HH_UI_NAVIGATION_HELP_CHECKPOINT.md",
+      "uploaded_filename": "17-HH_UI_NAVIGATION_HELP_CHECKPOINT.md",
+      "sha256": "4a94e8ccb4369ea63f8b3c017f2b0e9743cacc38a57414dafd09198ad7016795",
+      "canonical_match": true
+    },
+    {
+      "logical_source": "MDB-01_HOTELHUB_ADOPTION.md",
+      "uploaded_filename": "18-MDB-01_HOTELHUB_ADOPTION.md",
+      "sha256": "183a01c618cf9e783f552aae3aaa6f0a8ebff030f30c922606b506e6817122a8",
+      "canonical_match": true
+    }
+  ],
+  "tested_source_hashes": {
+    "src/lib/checkout-preview.server.ts": "c65ef16601d2bed282a15aa8547ceee23afd5f7346fc9a7365851081fe36aa6d",
+    "src/lib/checkout-preview.ts": "81a588a55a294feb63f62498688fa18a10958ee19bb02a80c91d1e5ab87b0de7",
+    "src/lib/checkout-money.ts": "14762da3824c5ac7cb07bea5e576725f73a46b1009b177bcbc69281a8993aa06",
+    "src/lib/folio-store.server.ts": "951efedf87263cfaff45327b25b183a10301d14dde660c0faa7b7d83aea2fac9",
+    "src/lib/deposits-store.server.ts": "860552f759c4344878bc1b135fa53fee612283e0e54ecc89db71e0baf8341a4d",
+    "src/lib/n3-receipts.server.ts": "2a2b20ed7690cb1712be7c747f17c49b434943fe611173f8a5d896670d4cc925",
+    "src/lib/__tests__/run-5d3-1-checkout-preview.test.ts": "dc82fa6b251c9e6ff8f254c194e1092533dae6e62d1c3078db882f317271d99f",
+    "src/lib/__tests__/hh-golive-01a-authoritative-checkout.test.ts": "b264f4fe9b5daab4e2b11900f84e771508454bad75398b57f690077b672a318c",
+    "src/lib/__tests__/run-5d3-2-checkout-correction.test.ts": "17bf6e28d51509a6a194787386cdc465cb786f60f0f0828baa560264cff88282"
+  },
+  "public_contract": {
+    "url": "https://openapi.account.qne.cloud/doc/sales-v1.json",
+    "sha256": "d9375f8fac7af01fe5f6fc8828ab948f433151bf1d48a610df10c00077404143",
+    "bytes": 1081391,
+    "operations_unchanged_vs_20261003": {
+      "/api/CashSales/Create": true,
+      "/api/CashSales/{key}": true,
+      "/api/CashSales/GLPosting": true,
+      "/api/ARReceipts/UpdateCustomerKnockoff": true,
+      "/api/ARReceipts/Create": true,
+      "/api/ARReceipts/{key}": true
+    }
+  },
+  "lanes": {
+    "product_code_changed_by_this_step": false,
+    "database_write": false,
+    "n3_authenticated_financial_operation": false,
+    "function_deployment": false,
+    "public_publish": false,
+    "main_merge": false,
+    "lovable_ai_build_message": false
+  },
+  "next_gate": "Owner review of docs/superpowers/specs/2026-10-08-n3-billing-settlement-design.md; then written implementation plan. Existing DirectBuild execution preference retained."
+}

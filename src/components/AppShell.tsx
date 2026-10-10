@@ -1,3 +1,4 @@
+import { useHotelChangeRevision } from "@/lib/hotel-change-revision-client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useSensitiveReceiptCacheGuard } from "@/lib/receipt-controls-client";
@@ -71,6 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sessionQuery = useSessionMe();
   // Central auth-transition purge of receipt/finance caches (all pages).
   useSensitiveReceiptCacheGuard();
+  useHotelChangeRevision();
   const signOut = useSignOut();
   const [displayWidth, setDisplayWidth] = useDisplayWidth();
   const [menuOpen, setMenuOpen] = useState(false);

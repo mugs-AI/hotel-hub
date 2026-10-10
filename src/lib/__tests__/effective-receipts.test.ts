@@ -80,6 +80,26 @@ describe("computeReceiptOverlay", () => {
 });
 
 describe("applyEffectiveReceipts + shared totals", () => {
+  it("projects only the latest verified contact without mutating the creation record", () => {
+    const original = { ...dep("d1", 50), n3CustomerName: "Alice" };
+    const contact = {
+      customerName: "Bob",
+      remark1: "Company",
+      remark2: "Address",
+      remark3: "Phone",
+      remark4: "Email",
+    };
+    const versions = [
+      v({ versionNo: 1, verifiedContact: { ...contact, customerName: "Old Bob" } }),
+      v({ versionNo: 2, verifiedContact: contact }),
+    ];
+    const rows = applyEffectiveReceipts([original], computeReceiptOverlay(versions, new Set()));
+    expect(rows[0]).toMatchObject({ effectiveContact: contact });
+    expect(original.n3CustomerName).toBe("Alice");
+    expect(
+      applyEffectiveReceipts([original], computeReceiptOverlay([], new Set(["d1"])))[0],
+    ).not.toHaveProperty("effectiveContact");
+  });
   it("RM50 corrected to RM80 counts RM80 once in summary and statement", () => {
     const rows = applyEffectiveReceipts(
       [dep("d1", 50)],

@@ -1,0 +1,448 @@
+{
+  "date": "2026-10-07",
+  "timezone": "Asia/Kuala_Lumpur",
+  "inspection": "read-only",
+  "bec": {
+    "repository": "mugs-AI/bec1.0",
+    "main": "ea3e23f2c81ea78a97605d237b9d49258d180a2f",
+    "tree": "d951bb125a9a591aef53b42ce9991f0062fe2f5e",
+    "lovable_project": "b3b02790-a853-464e-ac45-a054381e59b2",
+    "workspace": "tJObptvCa2MGSCihecnu",
+    "configured_backend_ref": "iinmwukhrcectuanhojg",
+    "backend_ref_evidence": "repository supabase/config.toml; connector target enabled Supabase stack; no separate endpoint-ref attestation",
+    "cloud_db": {
+      "enabled": true,
+      "stack": "supabase"
+    },
+    "migrations": [
+      {
+        "version": "20260827095521"
+      },
+      {
+        "version": "20260827095554"
+      },
+      {
+        "version": "20260827100436"
+      },
+      {
+        "version": "20260827101034"
+      },
+      {
+        "version": "20260827101434"
+      },
+      {
+        "version": "20260830100000"
+      },
+      {
+        "version": "20260910120000"
+      },
+      {
+        "version": "20260911100000"
+      },
+      {
+        "version": "20260922100000"
+      },
+      {
+        "version": "20260923100000"
+      }
+    ],
+    "policies": [
+      {
+        "allowed_modules": [
+          "CORE_FRONT_DESK",
+          "HOUSEKEEPING",
+          "MAINTENANCE",
+          "N3_FINANCE",
+          "REPORTS"
+        ],
+        "auto_trial_enabled": false,
+        "code": "hotelhub",
+        "default_room_limit": null,
+        "is_active": false,
+        "offline_allowance_days": 7,
+        "product_enabled": false,
+        "room_counting_rule": "active_mapped_rooms",
+        "trial_duration_days": 15,
+        "trial_local_user_limit": 3,
+        "user_counting_rule": "all_active_authorized_users",
+        "version": 1
+      },
+      {
+        "allowed_modules": [],
+        "auto_trial_enabled": false,
+        "code": "servicehub",
+        "default_room_limit": null,
+        "is_active": true,
+        "offline_allowance_days": 7,
+        "product_enabled": true,
+        "room_counting_rule": "active_mapped_rooms",
+        "trial_duration_days": 14,
+        "trial_local_user_limit": 3,
+        "user_counting_rule": "all_active_local_users",
+        "version": 1
+      }
+    ],
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "client_id",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "product_id",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "status",
+        "data_type": "USER-DEFINED",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "trial_activated_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "trial_end",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "trial_local_user_limit",
+        "data_type": "integer",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "paid_start_date",
+        "data_type": "date",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "paid_end_date",
+        "data_type": "date",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "grace_end_date",
+        "data_type": "date",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "local_user_limit",
+        "data_type": "integer",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "offline_allowance_days",
+        "data_type": "integer",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "price_myr",
+        "data_type": "numeric",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "currency",
+        "data_type": "text",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "reference_number",
+        "data_type": "text",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "commercial_notes",
+        "data_type": "text",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "override_start_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "override_end_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "override_reason",
+        "data_type": "text",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "override_revoked_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "override_revoked_reason",
+        "data_type": "text",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "created_by",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "updated_by",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "room_limit",
+        "data_type": "integer",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "allowed_modules",
+        "data_type": "ARRAY",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "applied_policy_version_id",
+        "data_type": "uuid",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "applied_policy_version",
+        "data_type": "integer",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "first_joined_at_utc",
+        "data_type": "timestamp with time zone",
+        "table_name": "entitlements"
+      },
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "product_id",
+        "data_type": "uuid",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "code",
+        "data_type": "text",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "name",
+        "data_type": "text",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "sort_order",
+        "data_type": "integer",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "product_modules"
+      },
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "product_id",
+        "data_type": "uuid",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "version",
+        "data_type": "integer",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "effective_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "product_enabled",
+        "data_type": "boolean",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "auto_trial_enabled",
+        "data_type": "boolean",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "trial_duration_days",
+        "data_type": "integer",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "trial_local_user_limit",
+        "data_type": "integer",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "default_room_limit",
+        "data_type": "integer",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "offline_allowance_days",
+        "data_type": "integer",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "allowed_modules",
+        "data_type": "ARRAY",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "room_counting_rule",
+        "data_type": "text",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "user_counting_rule",
+        "data_type": "text",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "reason",
+        "data_type": "text",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "actor_id",
+        "data_type": "uuid",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "actor_email",
+        "data_type": "text",
+        "table_name": "product_policy_versions"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "table_name": "product_policy_versions"
+      }
+    ],
+    "creation_guard": [
+      {
+        "arguments": "p_client_id uuid, p_product_id uuid, p_paid_start_date date, p_paid_end_date date, p_grace_end_date date, p_local_user_limit integer, p_offline_allowance_days integer, p_price_myr numeric, p_reference_number text, p_commercial_notes text",
+        "mentions_servicehub": true,
+        "rejects_other_products": true
+      }
+    ],
+    "rls": [
+      {
+        "relforcerowsecurity": false,
+        "relname": "clients",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "entitlement_audit_events",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "entitlements",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "product_modules",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "product_policy_audit_events",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "product_policy_versions",
+        "relrowsecurity": true
+      },
+      {
+        "relforcerowsecurity": false,
+        "relname": "products",
+        "relrowsecurity": true
+      }
+    ],
+    "entitlement_counts": [
+      {
+        "code": "hotelhub",
+        "entitlement_count": 0
+      },
+      {
+        "code": "servicehub",
+        "entitlement_count": 1
+      }
+    ]
+  },
+  "hotelhub": {
+    "main": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "lovable_latest": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+    "review_before": "f624506875e3352824cbbbe2164fe3cd0227b566",
+    "migrations": [
+      {
+        "version": "20260916120000"
+      },
+      {
+        "version": "20260927120000"
+      },
+      {
+        "version": "20260928235000"
+      },
+      {
+        "version": "20260929090000"
+      },
+      {
+        "version": "20260930135429"
+      },
+      {
+        "version": "20261002053219"
+      },
+      {
+        "version": "20261002053302"
+      }
+    ],
+    "licensing_and_approval_table_scan": [
+      {
+        "table_name": "hotel_receipt_control_requests"
+      },
+      {
+        "table_name": "hotel_receipt_versions"
+      }
+    ]
+  },
+  "limits": [
+    "RLS enabled is metadata, not signed-in operator/tenant acceptance or a complete security audit.",
+    "No BEC signed-in UI acceptance, credentials, shared secret, server integration, licence activation or financial transaction performed.",
+    "Accessible conversation summaries supplement supplied attachments; not all project conversations could be enumerated/read."
+  ]
+}

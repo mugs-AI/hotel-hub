@@ -1,10 +1,67 @@
 # HotelHub DirectBuild recovery checkpoint
 
-Current review candidate: `HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md` records the
-Owner-approved Late Checkout/receipt guidance build, dependent refreshes,
-1937 passing tests and independent review. Not merged or published. The receipt
-still awaits manual N3 completion and verification; the latest read-only SQL is
-recorded in that candidate. `HH_CHANGE_IMPACT_MAP.md` is the stable source companion.
+Current execution handover (03/10/2026): **INCOMPLETE — NOT RELEASE-READY**.
+Owner approved the nine-task plan and native execution, with one independent
+whole-branch review after implementation. Latest committed product source is
+`b4a783f3ba3a90a743905ea65374e36e8f4297a7` on the existing review branch.
+Read [current candidate](HH_AUTOMATIC_CORRECTION_CANDIDATE.md) and
+[execution evidence](evidence/HH_AUTOMATIC_CORRECTION_EXECUTION_20261003.md).
+The execution runtime went offline during uncommitted Task 7 work; recover actual
+state before changing it. Tasks 8–9 and native/browser/N3 proof remain pending.
+Continue the already-approved development without another method/design approval.
+Main/Lovable still `734ac40`; new migration absent; production Update OFF.
+No Cloud/N3 write, merge, runtime deployment or public publish occurred.
+
+
+Historical planning handover: Owner approved the written automatic-correction spec
+at review commit `c41808f093331089d46477677ba7e4bcf7d1faf3`.
+`superpowers/plans/2026-10-03-automatic-receipt-correction.md` now defines nine
+implementation/validation tasks. `evidence/HH_AUTOMATIC_CORRECTION_PLAN_HANDOVER_20261003.md`
+records fresh Git/Lovable/Cloud schema reads, plan self-review and next gate.
+No product code, database/N3 write, merge or public release in this planning turn.
+That planning gate was subsequently approved: native execution with independent
+whole-branch review. The current execution handover above supersedes its next step. Automatic Update remains disabled until proven.
+
+Historical design handover: Owner approved the conceptual automatic-correction design.
+`superpowers/specs/2026-10-03-automatic-receipt-correction-design.md` is now written
+for review, with `evidence/HH_AUTOMATIC_CORRECTION_OWNER_PROOF_20261003.md` and
+`evidence/HH_AUTOMATIC_CORRECTION_DESIGN_HANDOVER_20261003.md`. Defaults are deposit
+approval ON and contact approval OFF; OFF means authorized direct application,
+not an editing prohibition. Direct N3 execution remains Owner-only. Local bill-to
+and N3 receipt contact are distinct targets governed by the same contact policy.
+No implementation, DB/N3 write, feature activation, merge or public release in
+this design turn. Next permitted stage is Owner review of the written spec; after
+approval, write the implementation plan. Old manual requests must not auto-run.
+
+Newest requirement: `evidence/HH_AUTOMATIC_CORRECTION_INTENT_20261003.md` supersedes
+the previous allow/block option design. Owner wants one-click approval with automatic
+N3 Update/readback, or authorized direct application without approval, and independent
+deposit/contact controls. This is not yet implemented or activated; architectural
+design and Owner-run sandbox API proof precede activation. Existing RM65 remains
+an unresolved manual request and must not be automatically replayed.
+
+Latest continuation: `evidence/HH_RECEIPT_VERIFY_AND_EDIT_OPTIONS_DIAGNOSIS_20261003.md`
+records Owner rejection of RM60, new RM65 request and five recorded N3 mismatch
+results. Owner confirmed no manual N3 change before Verify. New request is Needs
+review, with no effective corrected version. Compact approval, visible feedback
+and allow/block editing switches are proposed, not built. Billing defaults OFF,
+existing deposit corrections ON; DB/apply/release gates remain separate.
+
+Latest release: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_PUBLICATION_20261003.md` records
+Owner-approved publication of exact source `734ac405c82e653a7098ce0ef22d51586382bd9d`,
+deployment `3480110d-0dd7-4ad1-8ad7-b3843ab39be5`, matched by live HTTP and signed-out
+browser smoke. Signed-in Late Checkout and completed manual N3 correction/Verify
+acceptance remain pending. Read-only SQL confirms posted MYR50, manual request
+approved_awaiting_n3 and zero executions/verified versions. No DB or N3 writes.
+
+Latest code merge: `evidence/HH_CHECKOUT_FOLLOWTHROUGH_MERGE_20261003.md` records
+Owner-approved exact source `734ac405c82e653a7098ce0ef22d51586382bd9d` merged to
+main and synced to Lovable, with a fresh 1937 passing tests / 20 skipped. Its
+pending publication state is superseded by the release record above. The frozen build/review evidence is
+`HH_CHECKOUT_FOLLOWTHROUGH_CANDIDATE.md`. The receipt still awaits manual N3
+completion and verification; the latest read-only SQL is recorded in that
+candidate. The Owner-uploaded `HH_CHANGE_IMPACT_MAP.md` was compared byte-for-byte
+with the repository and matches. Merge evidence is not a Project Source upload.
 
 Latest continuation: `evidence/HH_OWNER_RECEIPT_AND_LATE_CHECKOUT_20261003.md`
 records Owner-observed request creation and approval, confirmed by scoped SQL.
