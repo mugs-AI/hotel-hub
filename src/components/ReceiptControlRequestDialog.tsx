@@ -164,7 +164,7 @@ export function ReceiptControlRequestDialog({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={kind === "void" ? "Request void" : "Request correction"}
+      aria-label={kind === "void" ? "Request void" : "Edit receipt"}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4 sm:items-center"
     >
       <div
@@ -172,8 +172,7 @@ export function ReceiptControlRequestDialog({
         className="max-h-[calc(100dvh-2rem)] w-full max-w-xl space-y-3 overflow-y-auto rounded-xl bg-white p-5 text-base shadow-lg"
       >
         <h2 className="text-xl font-semibold" style={{ color: NAVY }}>
-          {kind === "void" ? "Request void" : "Request correction"} —{" "}
-          {deposit.n3DocCode ?? "receipt"}
+          {kind === "void" ? "Request void" : "Edit receipt"} — {deposit.n3DocCode ?? "receipt"}
         </h2>
         <p className="text-base text-muted-foreground">
           Approval follows your property settings. N3 changes require Owner authority. Totals change

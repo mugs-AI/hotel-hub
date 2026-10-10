@@ -2,6 +2,39 @@
 
 Upload to Project Sources: No. This is repository release evidence.
 
+## Latest checkpoint — 10/10/2026, 20:59 Malaysia
+
+Migration20261003120216 was explicitly approved, applied once to the existing
+HotelHub Lovable Cloud database, and independently read back. Exact approved SQL
+hash matched recorded history; five RLS tables,21 service-only functions, legacy
+generation fences, columns/indexes/guards and defaults were inspected. Prior
+requests, deposits, billing contacts, decisions and migration history were
+preserved. Installing this schema neither executes an N3 update nor enables
+runtime editing.
+
+The existing receipt action and dialog now say **Edit receipt**. A known open
+request retains its state, disabled Edit and Owner Dashboard review link. Front
+Desk is directed to the Owner; a manual Needs review request refers to checking
+the same N3 receipt and Verify N3 change. Initial loading, background refresh and
+read failures hold new requests. Cached open-request guidance remains visible
+after a failed refresh, with Retry; the known voided warning remains visible
+independently of edit permissions and request-list availability.
+
+Fresh bounded review found no Critical and three Important; all three were
+reproduced by five failing regressions and fixed in one pass. Final full Vitest:
+2192passed/38skipped/zero failures. TypeScript noEmit, production build and
+touched-file lint passed (nine existing fast-refresh warnings). The receipt Edit
+tests use rendered fixture data, not live N3 or signed-in/mobile acceptance.
+Actual navigation/mobile layout remains an acceptance item.
+
+Main/public release remains separate. Proof packages are still empty and runtime
+configuration and hosting deadline measurement remain pending. The Lovable
+connector has no runtime-setting setter; the cloud browser now works but presents
+a sign-in/access wall for the existing project. No new N3 write or additional
+migration occurred. Owner targets:20/10/2026 delivery/training/UAT;01/11/2026 use.
+
+## Earlier source-only checkpoint, before the approved schema application
+
 The existing review branch implements same-document receipt amount/contact Update,
 durable one-dispatch claims, verified amount/contact projections, approval Settings,
 separate local bill-to changes and cross-session refresh. The Owner test panel uses
