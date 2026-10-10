@@ -92,6 +92,84 @@ describe.skipIf(!wasmModule && !nativeUrl)(
     afterAll(async () => {
       await db?.close();
     });
+    it("proof permits restrict grants and claim only one dispatch", async () => {
+      const data = {
+        receiptId: "99999999-9999-4999-8999-999999999999",
+        tenantKey: "TEST",
+        packageHash: "a".repeat(64),
+        payloadHash: "b".repeat(64),
+        expiresAt: Date.now() + 60000,
+        package: { tenantKey: "TEST" },
+        original: receiptSnapshot(),
+      };
+      const p = await call("hotelhub_receipt_proof_prepare", data);
+      expect(p.phase).toBe("prepared");
+      await db.exec("SET ROLE authenticated");
+      await expect(db.query("select * from hotel_receipt_update_proof_permits")).rejects.toThrow(
+        "permission denied",
+      );
+      await expect(
+        call("hotelhub_receipt_proof_claim", { id: p.id, payloadHash: data.payloadHash }),
+      ).rejects.toThrow("permission denied");
+      await db.exec("RESET ROLE");
+      await expect(
+        call("hotelhub_receipt_proof_claim", { id: p.id, payloadHash: "c".repeat(64) }),
+      ).rejects.toThrow();
+      expect(
+        await call("hotelhub_receipt_proof_claim", { id: p.id, payloadHash: data.payloadHash }),
+      ).toEqual({ dispatchGranted: true });
+      expect(
+        await call("hotelhub_receipt_proof_claim", { id: p.id, payloadHash: data.payloadHash }),
+      ).toEqual({ dispatchGranted: false });
+      await call("hotelhub_receipt_proof_finish", {
+        id: p.id,
+        phase: "unknown",
+        report: { outcome: "needs_review" },
+      });
+      expect(
+        await call("hotelhub_receipt_proof_claim", { id: p.id, payloadHash: data.payloadHash }),
+      ).toEqual({ dispatchGranted: false });
+      await expect(
+        call("hotelhub_receipt_proof_prepare", { ...data, packageHash: "d".repeat(64) }),
+      ).rejects.toThrow();
+      await expect(
+        call("hotelhub_receipt_proof_finish", { id: p.id, phase: "prepared" }),
+      ).rejects.toThrow();
+      await expect(
+        db.query("delete from hotel_receipt_update_proof_permits where id=$1", [p.id]),
+      ).rejects.toThrow();
+    });
+    it("proof permits deny other tenants/roles and expiry", async () => {
+      const data = {
+        receiptId: "88888888-8888-4888-8888-888888888888",
+        tenantKey: "TEST",
+        packageHash: "e".repeat(64),
+        payloadHash: "f".repeat(64),
+        expiresAt: Date.now() - 1,
+        package: {},
+        original: receiptSnapshot(),
+      };
+      await expect(call("hotelhub_receipt_proof_prepare", data)).rejects.toThrow();
+      await expect(
+        call(
+          "hotelhub_receipt_proof_prepare",
+          { ...data, expiresAt: Date.now() + 60000 },
+          "front_desk",
+        ),
+      ).rejects.toThrow("forbidden");
+      const p = await call("hotelhub_receipt_proof_prepare", {
+        ...data,
+        expiresAt: Date.now() + 60000,
+      });
+      await expect(
+        call(
+          "hotelhub_receipt_proof_claim",
+          { id: p.id, payloadHash: data.payloadHash },
+          "owner",
+          "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ),
+      ).rejects.toThrow();
+    });
     it("creates immutable generation-2 proposals with policy defaults and blocks a second active request", async () => {
       const row = await create();
       expect(row.generation).toBe(2);
@@ -499,7 +577,7 @@ describe.skipIf(!wasmModule && !nativeUrl)(
       expect(decision.from_state).toBe("needs_review");
     });
     it.skipIf(!nativeUrl)(
-      "two native connections grant exactly one dispatch under a real row-lock barrier",
+      "two native connections grant one receipt and one proof dispatch under real row-lock barriers",
       async () => {
         const mod = await import(/* @vite-ignore */ nativeModule!);
         const Client = mod.Client ?? mod.default.Client;
@@ -598,6 +676,48 @@ describe.skipIf(!wasmModule && !nativeUrl)(
               )
             ).rows[0]!.count,
           ).toBe(1);
+          const proof = await call(
+            "hotelhub_receipt_proof_prepare",
+            {
+              receiptId: crypto.randomUUID(),
+              packageHash: "1".repeat(64),
+              payloadHash: "2".repeat(64),
+              expiresAt: Date.now() + 60000,
+              package: { tenantKey: "TEST" },
+              original,
+            },
+            "owner",
+            tenant,
+          );
+          const proofQuery =
+            "select public.hotelhub_receipt_proof_claim($1::uuid,$2::text,$3::text,$4::jsonb) as result";
+          const proofValues = [
+            tenant,
+            "owner-1",
+            "owner",
+            JSON.stringify({ id: proof.id, payloadHash: "2".repeat(64) }),
+          ];
+          await left.query("BEGIN");
+          const proofGranted = await left.query(proofQuery, proofValues);
+          const proofWaiting = right.query(proofQuery, proofValues);
+          let proofLocked = false;
+          const proofDeadline = Date.now() + 5000;
+          while (Date.now() < proofDeadline) {
+            const activity = await db.query<{ wait_event_type: string }>(
+              "select wait_event_type from pg_stat_activity where pid=$1",
+              [pid],
+            );
+            if (activity.rows[0]?.wait_event_type === "Lock") {
+              proofLocked = true;
+              break;
+            }
+            await new Promise<void>((resolve) => setImmediate(resolve));
+          }
+          await left.query("COMMIT");
+          const proofDenied = await proofWaiting;
+          expect(proofLocked).toBe(true);
+          expect(proofGranted.rows[0].result.dispatchGranted).toBe(true);
+          expect(proofDenied.rows[0].result.dispatchGranted).toBe(false);
         } finally {
           await left.query("ROLLBACK");
           await left.end();

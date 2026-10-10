@@ -346,3 +346,67 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
 $$;
 REVOKE ALL ON FUNCTION public.hotelhub_change_revision_read(uuid),public.hotelhub_change_policy_read(uuid),public.hotelhub_bill_to_read(uuid,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.hotelhub_change_revision_read(uuid),public.hotelhub_change_policy_read(uuid),public.hotelhub_bill_to_read(uuid,uuid) TO service_role;
+
+-- Dormant Owner proof ledger. Exact test packages are server-owned, never browser payloads.
+CREATE TABLE public.hotel_receipt_update_proof_permits (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ tenant_id uuid NOT NULL REFERENCES public.hotel_tenants(id), owner_key text NOT NULL,
+ receipt_id uuid NOT NULL, package_hash text NOT NULL CHECK(package_hash ~ '^[a-f0-9]{64}$'),
+ payload_hash text NOT NULL CHECK(payload_hash ~ '^[a-f0-9]{64}$'),
+ expires_at timestamptz NOT NULL, binding jsonb NOT NULL,
+ phase text NOT NULL DEFAULT 'prepared' CHECK(phase IN ('prepared','reserved','unknown','verified')),
+ report jsonb, created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(tenant_id,receipt_id,package_hash)
+);
+CREATE UNIQUE INDEX hotel_receipt_proof_active ON public.hotel_receipt_update_proof_permits(receipt_id) WHERE phase <> 'verified';
+ALTER TABLE public.hotel_receipt_update_proof_permits ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.hotel_receipt_update_proof_permits FROM PUBLIC,anon,authenticated;
+GRANT SELECT,INSERT,UPDATE ON public.hotel_receipt_update_proof_permits TO service_role;
+CREATE FUNCTION public.hotelhub_receipt_proof_prepare(p_tenant_id uuid,p_actor text,p_role text,p_data jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v public.hotel_receipt_update_proof_permits; deadline timestamptz;
+BEGIN
+ IF p_role IS DISTINCT FROM 'owner' OR coalesce(p_actor,'')='' THEN RAISE EXCEPTION 'forbidden'; END IF;
+ deadline:=to_timestamp((p_data->>'expiresAt')::double precision/1000);
+ IF deadline IS NULL OR deadline<=clock_timestamp() THEN RAISE EXCEPTION 'proof_expired'; END IF;
+ IF EXISTS(SELECT 1 FROM public.hotel_reservation_deposits WHERE lower(n3_receipt_id::text)=lower(p_data->>'receiptId')) THEN RAISE EXCEPTION 'proof_hotel_receipt'; END IF;
+ INSERT INTO public.hotel_receipt_update_proof_permits(tenant_id,owner_key,receipt_id,package_hash,payload_hash,expires_at,binding)
+ VALUES(p_tenant_id,p_actor,(p_data->>'receiptId')::uuid,p_data->>'packageHash',p_data->>'payloadHash',deadline,p_data)
+ ON CONFLICT(tenant_id,receipt_id,package_hash) DO NOTHING RETURNING * INTO v;
+ IF v.id IS NULL THEN SELECT * INTO v FROM public.hotel_receipt_update_proof_permits WHERE tenant_id=p_tenant_id AND receipt_id=(p_data->>'receiptId')::uuid AND package_hash=p_data->>'packageHash'; END IF;
+ IF v.owner_key IS DISTINCT FROM p_actor OR v.payload_hash IS DISTINCT FROM p_data->>'payloadHash' THEN RAISE EXCEPTION 'proof_conflict'; END IF;
+ RETURN to_jsonb(v);
+END $$;
+CREATE FUNCTION public.hotelhub_receipt_proof_claim(p_tenant_id uuid,p_actor text,p_role text,p_data jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v public.hotel_receipt_update_proof_permits;
+BEGIN
+ IF p_role IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'forbidden'; END IF;
+ SELECT * INTO v FROM public.hotel_receipt_update_proof_permits WHERE id=(p_data->>'id')::uuid AND tenant_id=p_tenant_id AND owner_key=p_actor FOR UPDATE;
+ IF v.id IS NULL OR v.payload_hash IS DISTINCT FROM p_data->>'payloadHash' THEN RAISE EXCEPTION 'proof_conflict'; END IF;
+ IF v.phase<>'prepared' THEN RETURN jsonb_build_object('dispatchGranted',false); END IF;
+ IF v.expires_at<=clock_timestamp() THEN RAISE EXCEPTION 'proof_expired'; END IF;
+ IF EXISTS(SELECT 1 FROM public.hotel_reservation_deposits WHERE lower(n3_receipt_id::text)=v.receipt_id::text) THEN RAISE EXCEPTION 'proof_hotel_receipt'; END IF;
+ UPDATE public.hotel_receipt_update_proof_permits SET phase='reserved' WHERE id=v.id;
+ RETURN jsonb_build_object('dispatchGranted',true);
+END $$;
+CREATE FUNCTION public.hotelhub_receipt_proof_finish(p_tenant_id uuid,p_actor text,p_role text,p_data jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v public.hotel_receipt_update_proof_permits;
+BEGIN
+ IF p_role IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'forbidden'; END IF;
+ SELECT * INTO v FROM public.hotel_receipt_update_proof_permits WHERE id=(p_data->>'id')::uuid AND tenant_id=p_tenant_id AND owner_key=p_actor FOR UPDATE;
+ IF v.id IS NULL OR v.phase='prepared' OR coalesce(p_data->>'phase','') NOT IN ('unknown','verified') THEN RAISE EXCEPTION 'proof_conflict'; END IF;
+ IF v.phase='verified' THEN RETURN to_jsonb(v); END IF;
+ UPDATE public.hotel_receipt_update_proof_permits SET phase=p_data->>'phase',report=p_data->'report' WHERE id=v.id RETURNING * INTO v;
+ RETURN to_jsonb(v);
+END $$;
+CREATE FUNCTION public.hotelhub_receipt_proof_guard()
+RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
+BEGIN
+ IF TG_OP='DELETE' OR (to_jsonb(NEW)-ARRAY['phase','report']) IS DISTINCT FROM (to_jsonb(OLD)-ARRAY['phase','report']) OR OLD.phase='verified' OR NEW.phase='prepared' THEN RAISE EXCEPTION 'receipt_control_immutable'; END IF;
+ RETURN NEW;
+END $$;
+CREATE TRIGGER hotel_receipt_proof_guard BEFORE UPDATE OR DELETE ON public.hotel_receipt_update_proof_permits FOR EACH ROW EXECUTE FUNCTION public.hotelhub_receipt_proof_guard();
+REVOKE ALL ON FUNCTION public.hotelhub_receipt_proof_prepare(uuid,text,text,jsonb),public.hotelhub_receipt_proof_claim(uuid,text,text,jsonb),public.hotelhub_receipt_proof_finish(uuid,text,text,jsonb),public.hotelhub_receipt_proof_guard() FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.hotelhub_receipt_proof_prepare(uuid,text,text,jsonb),public.hotelhub_receipt_proof_claim(uuid,text,text,jsonb),public.hotelhub_receipt_proof_finish(uuid,text,text,jsonb),public.hotelhub_receipt_proof_guard() TO service_role;
