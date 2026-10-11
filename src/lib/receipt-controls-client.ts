@@ -291,7 +291,11 @@ export function createReceiptControl(
   depositId: string,
   body: { clientRequestId: string; reason: string; proposal: ReceiptControlProposalInput },
 ) {
-  return call<{ request: ReceiptControlRequestDTO }>(
+  return call<{
+    request: ReceiptControlRequestDTO & Partial<ReceiptAutomationDTO>;
+    outcome?: ReceiptApplyResult["outcome"];
+    code?: string;
+  }>(
     `/api/hotel/reservations/${encodeURIComponent(reservationId)}/deposits/${encodeURIComponent(depositId)}/receipt-requests`,
     { method: "POST", body: JSON.stringify(body) },
   );
