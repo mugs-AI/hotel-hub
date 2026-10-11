@@ -145,6 +145,9 @@ type Journal = {
 // Pure/unbound parsing remains strict, including callers supplying JSON flags.
 const correlatedJournals = new WeakSet<Journal>();
 const nullReferenceProofJournals = new WeakSet<Journal>();
+// Authority stays server-private and is lost on JSON serialization. A detail-ID
+// replacement can only use the exact, unmodified result of a stable N3 read.
+const stableSingleReceiptReads = new WeakMap<ReceiptSnapshot, string>();
 
 function resolveCustomer(row: unknown, key: "id" | "code") {
   const vs = key === "id" ? valuesFor(row, ["customerId"]) : valuesFor(row, ["customerCode"]);
@@ -435,6 +438,7 @@ function normalizeReceiptDetail(
 ): {
   snap: ReceiptSnapshot;
   detailDigest: string;
+  simpleReplacementCandidate: boolean;
 } {
   if (dep.status !== "posted" || !dep.n3ReceiptId || !dep.n3CustomerId)
     throw new ReceiptControlError("deposit_not_controllable");
@@ -572,7 +576,41 @@ function normalizeReceiptDetail(
     sourceFingerprint: "",
     verifiedAt: "",
   };
-  return { snap, detailDigest: canonicalReceipt(r) };
+  const simpleReplacementCandidate =
+    docType === "AROR" &&
+    currency === "MYR" &&
+    pick(pick(r, "currency"), "code") === "MYR" &&
+    pick(pick(r, "currency"), "local") === true &&
+    pick(r, "currencyRate") === 1 &&
+    pick(r, "isMultiPayment") === false &&
+    Array.isArray(multi) &&
+    multi.length === 0 &&
+    detailIds?.length === 1 &&
+    cancelled === false &&
+    pick(r, "isBouncedCheque") === false &&
+    pick(r, "isPostDatedCheque") === false &&
+    pick(r, "isReconciled") !== true &&
+    pick(r, "isTaxInclusive") === false &&
+    pick(r, "isTaxInclusiveOnly") === false &&
+    [
+      "totalAmount",
+      "totalAmountLocal",
+      "netTotalAmount",
+      "netTotalAmountLocal",
+      "outstandingAmount",
+      "outstandingAmountLocal",
+    ].every((k) => cents(pick(r, k)) === amountCents) &&
+    [
+      "refundAmount",
+      "refundAmountLocal",
+      "bankChargesAmount",
+      "bankChargesAmountLocal",
+      "taxTotalAmount",
+      "taxTotalAmountLocal",
+      "wTaxTotalAmount",
+      "wTaxTotalAmountLocal",
+    ].every((k) => cents(pick(r, k)) === 0);
+  return { snap, detailDigest: canonicalReceipt(r), simpleReplacementCandidate };
 }
 
 /** Read and normalize one deposit's current N3 receipt. GET-only. */
@@ -585,7 +623,7 @@ export async function readReceiptControlEvidence(
   if (!dep) throw new ReceiptControlError("deposit_not_found");
   if (dep.status !== "posted" || !dep.n3ReceiptId || !dep.n3CustomerId)
     throw new ReceiptControlError("deposit_not_controllable");
-  const { snap, detailDigest } = normalizeReceiptDetail(
+  const { snap, detailDigest, simpleReplacementCandidate } = normalizeReceiptDetail(
     dep,
     await deps.n3.getById(actor.n3Token, dep.n3ReceiptId),
     deps.allowNullReferenceForProof,
@@ -615,8 +653,10 @@ export async function readReceiptControlEvidence(
     },
     snap.paymentLines,
   );
+  const replacementRead =
+    simpleReplacementCandidate && receiptJournalBoundTo(outcome, dep.n3ReceiptId, actor.n3Token);
   let digest = journal.digest;
-  if (correlated && journalReasons.length === 0) {
+  if ((correlated || replacementRead) && journalReasons.length === 0) {
     // Detail -> fixed journal GET -> detail. Never return accepted evidence if
     // identity, allocations, contact or any receipt payload changed in between.
     const confirmed = normalizeReceiptDetail(
@@ -637,6 +677,13 @@ export async function readReceiptControlEvidence(
   snap.verifiedAt = (deps.now ?? (() => new Date().toISOString()))();
   snap.sourceFingerprint = receiptFingerprint(snap, digest);
   if (journalReasons.length) snap.journalDiagnostics = journalReasons;
+  if (
+    replacementRead &&
+    snap.journalExact &&
+    snap.documentState === "active" &&
+    snap.matchingState === "unmatched"
+  )
+    stableSingleReceiptReads.set(snap, canonicalReceipt(snap));
   return snap;
 }
 
@@ -660,7 +707,14 @@ export function verifyReceiptControlResult(
     (evidence.reference ?? null) !== (original.reference ?? null) ||
     (original.customerCode !== undefined && evidence.customerCode !== original.customerCode) ||
     (original.detailIds !== undefined &&
-      JSON.stringify(evidence.detailIds) !== JSON.stringify(original.detailIds))
+      JSON.stringify(evidence.detailIds) !== JSON.stringify(original.detailIds) &&
+      !(
+        proposal.kind === "correction" &&
+        original.currency === "MYR" &&
+        original.detailIds.length === 1 &&
+        evidence.detailIds?.length === 1 &&
+        stableSingleReceiptReads.get(evidence) === canonicalReceipt(evidence)
+      ))
   )
     return "mismatch";
   if (proposal.kind === "void") {

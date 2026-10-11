@@ -300,11 +300,79 @@ describe("exported single-payment receipt compatibility", () => {
       ).toBe(false);
     },
   );
-  it("does not verify a replacement detail ID on the same receipt", async () => {
+  it("verifies a replacement detail ID only from stable fixed-client financial evidence", async () => {
     const before = await evidence();
     const input = raw();
     input.details[0]!.id = "66666666-6666-4666-8666-666666666666";
     const after = await evidence(journal(), true, {}, { details: input.details });
+    expect(verifyReceiptControlResult(before, { ...proposal(), amountCents: 5000 }, after)).toBe(
+      "verified",
+    );
+    expect(
+      verifyReceiptControlResult(
+        before,
+        { ...proposal(), amountCents: 5000 },
+        structuredClone(after),
+      ),
+    ).toBe("mismatch");
+    after.sourceFingerprint = "changed after the server read";
+    expect(verifyReceiptControlResult(before, { ...proposal(), amountCents: 5000 }, after)).toBe(
+      "mismatch",
+    );
+  });
+  it.each([
+    { isBouncedCheque: true },
+    { isPostDatedCheque: true },
+    { currencyRate: 2 },
+    { docType: null },
+    { refundAmountLocal: undefined },
+    { outstandingAmountLocal: undefined },
+    { multiPayments: [{ amount: 50 }] },
+    { multiPayments: null },
+    { multiPayments: undefined },
+    { taxTotalAmount: undefined, taxTotalAmountLocal: undefined },
+    { isTaxInclusive: true },
+    { currency: { code: "USD", local: false } },
+    { isReconciled: true },
+  ])(
+    "does not grant replacement-detail proof to an incomplete or exceptional receipt %j",
+    async (patch) => {
+      const before = await evidence();
+      const input = raw();
+      input.details[0]!.id = "66666666-6666-4666-8666-666666666666";
+      let after;
+      try {
+        after = await evidence(journal(), true, {}, { ...patch, details: input.details });
+      } catch (e) {
+        expect((e as Error).message).toBe("n3_evidence_mismatch");
+        return;
+      }
+      expect(verifyReceiptControlResult(before, { ...proposal(), amountCents: 5000 }, after)).toBe(
+        "mismatch",
+      );
+    },
+  );
+  it("rejects another detail-ID replacement during the closing read", async () => {
+    const input = raw();
+    input.details[0]!.id = "66666666-6666-4666-8666-666666666666";
+    await expect(evidence(journal(), true, { details: input.details })).rejects.toThrow(
+      "n3_evidence_mismatch",
+    );
+  });
+  it("does not grant replacement-detail proof to an unbound journal response", async () => {
+    const before = await evidence();
+    const input = raw();
+    input.details[0]!.id = "66666666-6666-4666-8666-666666666666";
+    await evidence(journal(), true, {}, { details: input.details });
+    const after = await readReceiptControlEvidence(actor, "d", {
+      loadDeposit: async () => deposit(),
+      n3: {
+        ...n3Receipts,
+        getGLPosting: async (token, id) =>
+          structuredClone(await n3Receipts.getGLPosting(token, id)),
+      },
+      allowNullReferenceForProof: true,
+    });
     expect(verifyReceiptControlResult(before, { ...proposal(), amountCents: 5000 }, after)).toBe(
       "mismatch",
     );
