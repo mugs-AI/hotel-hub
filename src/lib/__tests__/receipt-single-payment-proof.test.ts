@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import rawFixture from "./fixtures/receipt-single-payment-shape.json";
-import { productionUpdateContract, updateN3Receipt } from "../n3-receipt-update.server";
+import {
+  buildReceiptUpdatePayload,
+  productionUpdateContract,
+  updateN3Receipt,
+} from "../n3-receipt-update.server";
 import { readReceiptControlEvidence } from "../receipt-controls-evidence.server";
 import { n3Receipts } from "../n3-receipts.server";
 import {
@@ -138,10 +142,52 @@ function fixture(corrupt: "none" | "detail-amount" | "detail-id") {
       },
     },
   };
-  return { deps, pkg, posts: () => posts, remote: () => remote };
+  return {
+    deps,
+    pkg,
+    posts: () => posts,
+    remote: () => remote,
+    simulatePersistedHeldReceipt() {
+      // JSON roundtrip models the durable historical original loaded from DB.
+      permit = JSON.parse(JSON.stringify({ ...permit!, phase: "unknown", report: null }));
+      remote = buildReceiptUpdatePayload(
+        remote,
+        permit!.original,
+        {
+          kind: "correction",
+          amountCents: pkg.afterCents,
+          accountId: pkg.accountId,
+          contact: permit!.original.contact,
+        },
+        { ...productionUpdateContract(), allowNullReferenceForProof: true },
+      ).body as typeof remote;
+      remote.details[0]!.id = "66666666-6666-4666-8666-666666666666";
+    },
+  };
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("single-payment proof through the fixed N3 client", () => {
+  it("recovers a persisted unknown permit through fresh reads without any POST", async () => {
+    const f = fixture("none");
+    const prepared = await prepareReceiptUpdateProof(
+      actor,
+      {
+        caseId: f.pkg.caseId,
+        receiptId: f.pkg.receiptId,
+        approvedPackageHash: proofPackageHash(f.pkg),
+      },
+      f.deps,
+    );
+    f.simulatePersistedHeldReceipt();
+    const checked = await checkReceiptUpdateProof(actor, prepared.permitId, f.deps);
+    expect(checked.outcome).toBe("verified");
+    expect(checked.safeReport).toMatchObject({
+      outcome: "verified",
+      journalVerified: true,
+      readback: { observedCents: 6500, reason: null },
+    });
+    expect(f.posts()).toBe(0);
+  });
   it.each(["none", "detail-amount", "detail-id"] as const)(
     "updates the same receipt once and verifies or holds %s",
     async (corrupt) => {
@@ -155,7 +201,7 @@ describe("single-payment proof through the fixed N3 client", () => {
         },
         f.deps,
       );
-      const expected = corrupt === "none" ? "verified" : "needs_review";
+      const expected = corrupt === "detail-amount" ? "needs_review" : "verified";
       expect((await runReceiptUpdateProof(actor, prepared.permitId, f.deps)).outcome).toBe(
         expected,
       );
@@ -163,9 +209,9 @@ describe("single-payment proof through the fixed N3 client", () => {
       expect(checked.outcome).toBe(expected);
       if (corrupt === "detail-id") {
         expect(checked.safeReport).toMatchObject({
-          outcome: "needs_review",
-          journalVerified: false,
-          readback: { observedCents: 6500, reason: "receipt_detail_id_changed" },
+          outcome: "verified",
+          journalVerified: true,
+          readback: { observedCents: 6500, reason: null },
         });
       }
       expect((await runReceiptUpdateProof(actor, prepared.permitId, f.deps)).outcome).toBe(

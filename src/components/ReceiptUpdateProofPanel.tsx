@@ -306,6 +306,7 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
           <ReceiptProofDiagnostics report={report} />
           <Button
             variant="outline"
+            disabled={busy}
             onClick={() => {
               const url = URL.createObjectURL(
                 new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }),

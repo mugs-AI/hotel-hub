@@ -157,3 +157,54 @@ it("recovers an expired held test in a new tab without Prepare or Update", async
   await click("Check N3 result");
   expect(writes).toEqual([]);
 });
+
+it("prevents exporting the historical report while a fresh Check is still running", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const old = { ...sample, outcome: "needs_review", journalVerified: false };
+  vi.stubGlobal("fetch", async (url: string) => {
+    if (url.includes("action=check")) {
+      await gate;
+      return Response.json({
+        outcome: "needs_review",
+        safeReport: {
+          ...old,
+          readback: {
+            outcome: "mismatch",
+            observedCents: 6500,
+            reason: "receipt_detail_id_changed",
+          },
+        },
+      });
+    }
+    return Response.json(
+      url.includes("permitId")
+        ? {
+            permitId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            phase: "unknown",
+            summary: sample,
+            safeReport: old,
+          }
+        : { cases: [], held: [] },
+    );
+  });
+  sessionStorage.setItem("hh-receipt-proof:t:owner:owner", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  await mount();
+  await click("Check N3 result");
+  const download = Array.from(div.querySelectorAll("button")).find(
+    (b) => b.textContent === "Download result",
+  )!;
+  try {
+    expect(download.disabled).toBe(true);
+  } finally {
+    await act(async () => {
+      release();
+      await pause();
+    });
+  }
+  expect(download.disabled).toBe(false);
+  expect(div.textContent).toContain("RM65.00");
+  expect(writes).toEqual([]);
+});
