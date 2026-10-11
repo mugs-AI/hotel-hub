@@ -90,6 +90,14 @@ it("defaults to disabled with no configured cases", async () => {
   expect((div.querySelector("button") as HTMLButtonElement).disabled).toBe(true);
   expect(writes).toEqual([]);
 });
+it("distinguishes follow-up cases by their exact amounts in the selector", async () => {
+  cases = [{ ...sample, caseId: "decrease", beforeCents: 6500, afterCents: 5000 }, sample];
+  await mount();
+  const options = Array.from(div.querySelectorAll("select option")).map((o) => o.textContent);
+  expect(options).toContain("Test company · OR-TEST/001 · RM65.00 → RM50.00");
+  expect(options).toContain("Test company · OR-TEST/001 · RM50.00 → RM65.00");
+  expect(writes).toEqual([]);
+});
 it("shows exact comparison and prevents double dispatch after a lost response", async () => {
   await mount();
   const select = div.querySelector("select")!;

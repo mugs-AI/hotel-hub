@@ -232,7 +232,8 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
           <option value="">Select test case</option>
           {cases.map((c) => (
             <option key={c.caseId} value={c.caseId}>
-              {c.companyName} · {c.docCode}
+              {c.companyName} · {c.docCode} · RM{(c.beforeCents / 100).toFixed(2)} → RM
+              {(c.afterCents / 100).toFixed(2)}
             </option>
           ))}
         </select>

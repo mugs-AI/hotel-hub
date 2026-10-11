@@ -1,0 +1,22 @@
+{
+  "caseId": "OR2610-002-50-to-65-20261010",
+  "companyName": "9AC-0D9-2F1 · MUGS AI LAB TEST SDN. BHD.",
+  "receiptId": "3a0d118c-de6d-40bd-3bc2-08df269c5e9f",
+  "docCode": "OR2610/002",
+  "documentDate": "2026-10-10",
+  "beforeCents": 5000,
+  "afterCents": 6500,
+  "packageHash": "58c0992b6dfec07684d1a470b13ad634045360d91fa3a160c4b747697172ea61",
+  "sourceReference": "b7e8736e9dfb8a8f83a0b29db29086e3ada01f2a",
+  "expiresAt": 1791646200000,
+  "outcome": "verified",
+  "journalVerified": true,
+  "conditionalWrite": "not_proven",
+  "reservationCount": 1,
+  "durationMs": 149,
+  "readback": {
+    "outcome": "verified",
+    "observedCents": 6500,
+    "reason": null
+  }
+}
