@@ -1,6 +1,7 @@
 // Request correction / Request void for a posted deposit receipt.
 // Shows original vs requested and the provisional deposit/balance difference.
-// Submitting only records a request; nothing changes in N3 or in totals.
+// A submission can request approval or execute an authorized Owner direct save.
+// Only the server's independently verified result changes effective totals.
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePaymentAccounts, type DepositDTO } from "@/lib/deposits-client";
@@ -93,8 +94,11 @@ export function ReceiptControlRequestDialog({
 }) {
   const qc = useQueryClient();
   const identity = useReceiptIdentity();
+  const dialogIdentity = useRef(identity);
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const sameIdentity = identity !== null && identity === dialogIdentity.current;
   const accounts = usePaymentAccounts(kind === "correction");
-  const originalCents = Math.round(deposit.amount * 100);
   const [reason, setReason] = useState("");
   const [amount, setAmount] = useState(deposit.amount.toFixed(2));
   const [accountId, setAccountId] = useState("");
@@ -108,21 +112,30 @@ export function ReceiptControlRequestDialog({
   const original = useQuery({
     queryKey: ["receipt-controls", identity ?? "none", "original", reservationId, deposit.id],
     queryFn: () => getReceiptOriginal(reservationId, deposit.id),
-    enabled: identity !== null,
+    enabled: sameIdentity,
     retry: false,
     staleTime: 0,
   });
-  const saved = original.data ? contactDraftFromOriginal(original.data.original.contact) : null;
-  const initialized = useRef(false);
+  const [baseline, setBaseline] = useState<ReceiptOriginalDTO | null>(null);
+  // Same-identity cached data may be shown during refresh, but never authorizes sending.
+  const displayedOriginal = baseline ?? original.data?.original;
+  const saved = displayedOriginal ? contactDraftFromOriginal(displayedOriginal.contact) : null;
+  const originalCents = displayedOriginal?.amountCents ?? Math.round(deposit.amount * 100);
+  const currency = displayedOriginal?.currency ?? deposit.currency;
+  const freshReadReady =
+    original.isFetchedAfterMount && original.fetchStatus === "idle" && !original.isError;
   useEffect(() => {
-    if (!original.data || initialized.current) return;
-    initialized.current = true;
+    if (!sameIdentity || !original.data || !freshReadReady || baseline) return;
+    setBaseline(original.data.original);
+    setAmount((original.data.original.amountCents / 100).toFixed(2));
     setContact(contactDraftFromOriginal(original.data.original.contact));
     setAccountId((cur) => cur || original.data.original.accountId || "");
-  }, [original.data]);
+  }, [sameIdentity, original.data, freshReadReady, baseline]);
   // Stable identity for this dialog attempt; retries replay the same request.
   const [clientRequestId] = useState(newKey);
   const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const submitting = useRef(false);
   const submit = useMutation({
     mutationKey: ["receipt-controls", identity ?? "none", "request", deposit.id],
     mutationFn: (proposal: ReceiptControlProposalInput) =>
@@ -131,35 +144,70 @@ export function ReceiptControlRequestDialog({
         reason: reason.trim(),
         proposal,
       }),
-    onSuccess: () => {
+    onSuccess: (v) => {
+      if (currentIdentity.current !== dialogIdentity.current) return;
+      const state = v.request.state;
+      setResult(
+        state === "applied"
+          ? "N3 change verified. HotelHub totals will refresh from the confirmed result."
+          : v.outcome || state === "needs_review" || state === "applying"
+            ? `${v.code ? receiptControlMessage(v.code) : "The N3 result needs review."} Original totals remain effective. Open the Owner Dashboard to review this existing request; do not resend the change.`
+            : state === "approved_awaiting_n3"
+              ? "Request saved. Open the Owner Dashboard, complete the same receipt change in N3, then use Verify N3 change."
+              : "Request saved. Open the Owner Dashboard for approval and the next step. Totals remain unchanged until N3 verification.",
+      );
       invalidateReceiptEffects(qc);
-      onClose();
     },
-    onError: (e) =>
-      setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : "")),
+    onError: (e) => {
+      if (currentIdentity.current !== dialogIdentity.current) return;
+      if (
+        !(e instanceof ReceiptControlClientError) ||
+        ["request_failed", "n3_update_unknown", "existing_attempt_check_result"].includes(e.code)
+      ) {
+        setResult(
+          "The submission result is not confirmed. Open the Owner Dashboard to check the existing request and its N3 result; do not resend the change.",
+        );
+        invalidateReceiptEffects(qc);
+        return;
+      }
+      submitting.current = false;
+      setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
+    },
   });
   const parsed = kind === "correction" ? parseAmountInput(amount) : null;
   const requestedCents = parsed === null ? null : Math.round(parsed * 100);
   const lines = provisionalDeltaLines(
     originalCents,
     kind === "void" ? null : (requestedCents ?? originalCents),
-    deposit.currency,
+    currency,
   );
-  const journalBlocked = original.data?.original.journal?.exact === false;
-  const journalReasons = original.data?.original.journal?.reasons ?? [];
+  const evidenceChanged =
+    baseline !== null &&
+    original.data !== undefined &&
+    JSON.stringify(baseline) !== JSON.stringify(original.data.original);
+  const evidenceReady = sameIdentity && baseline !== null && freshReadReady && !evidenceChanged;
+  const journalBlocked = displayedOriginal?.journal?.exact === false;
+  const journalReasons = displayedOriginal?.journal?.reasons ?? [];
+  const formLocked = submit.isPending || result !== "";
   const reasonOk = reason.trim().length > 0 && reason.trim().length <= 500;
   const onSubmit = () => {
+    if (submitting.current || formLocked || !evidenceReady || journalBlocked) return;
     setError("");
     if (!reasonOk) return setError(receiptControlMessage("invalid_reason"));
-    if (kind === "void") return submit.mutate({ kind: "void" });
+    if (kind === "void") {
+      submitting.current = true;
+      return submit.mutate({ kind: "void" });
+    }
     if (parsed === null) return setError(receiptControlMessage("invalid_amount"));
     if (!saved) return setError(receiptControlMessage("n3_evidence_unavailable"));
     if (!accountId) return setError(receiptControlMessage("invalid_account"));
+    submitting.current = true;
     submit.mutate(
       buildCorrectionProposal({ amount: parsed, accountId, editContact, draft: contact, saved }),
     );
   };
 
+  if (!sameIdentity) return null;
   return (
     <div
       role="dialog"
@@ -190,12 +238,14 @@ export function ReceiptControlRequestDialog({
           <tbody>
             <tr>
               <td>Amount</td>
-              <td>{formatReceiptMoney(originalCents, deposit.currency)}</td>
+              <td>
+                {displayedOriginal ? formatReceiptMoney(originalCents, currency) : "Loading N3…"}
+              </td>
               <td>
                 {kind === "void"
                   ? "Void"
                   : requestedCents
-                    ? formatReceiptMoney(requestedCents, deposit.currency)
+                    ? formatReceiptMoney(requestedCents, currency)
                     : "—"}
               </td>
             </tr>
@@ -228,6 +278,7 @@ export function ReceiptControlRequestDialog({
               <input
                 className="mt-1 w-full rounded border px-2 py-1"
                 inputMode="decimal"
+                disabled={formLocked || !evidenceReady}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
@@ -237,6 +288,7 @@ export function ReceiptControlRequestDialog({
               <select
                 className="mt-1 w-full rounded border px-2 py-1"
                 value={accountId}
+                disabled={formLocked || !evidenceReady}
                 onChange={(e) => setAccountId(e.target.value)}
               >
                 <option value="">Choose account…</option>
@@ -256,8 +308,13 @@ export function ReceiptControlRequestDialog({
                 ))}
               </select>
             </label>
-            {original.isPending ? (
+            {original.isPending || original.isFetching ? (
               <p className="text-muted-foreground">Loading saved receipt details from N3…</p>
+            ) : null}
+            {original.fetchStatus === "paused" ? (
+              <p role="status" className="text-muted-foreground">
+                Waiting for connection. A fresh N3 receipt read is required before sending.
+              </p>
             ) : null}
             {original.isError ? (
               <p role="alert" className="text-red-700">
@@ -271,7 +328,7 @@ export function ReceiptControlRequestDialog({
               <input
                 type="checkbox"
                 checked={editContact}
-                disabled={!saved}
+                disabled={formLocked || !evidenceReady}
                 onChange={(e) => {
                   setEditContact(e.target.checked);
                   if (!e.target.checked && saved) setContact(saved);
@@ -286,6 +343,7 @@ export function ReceiptControlRequestDialog({
                   <input
                     className="mt-1 w-full rounded border px-2 py-1"
                     value={contact[k]}
+                    disabled={formLocked || !evidenceReady}
                     onChange={(e) => setContact({ ...contact, [k]: e.target.value })}
                   />
                 </label>
@@ -301,10 +359,17 @@ export function ReceiptControlRequestDialog({
           <textarea
             className="mt-1 w-full rounded border px-2 py-1"
             maxLength={500}
+            disabled={formLocked}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
         </label>
+        {evidenceChanged && !result ? (
+          <p role="alert" className="text-base text-red-700">
+            N3 receipt details changed while this form was open. Close and reopen Edit receipt to
+            review the fresh original before sending.
+          </p>
+        ) : null}
         {journalBlocked ? (
           <div
             role="alert"
@@ -329,20 +394,23 @@ export function ReceiptControlRequestDialog({
             {error}
           </p>
         ) : null}
+        {result ? (
+          <p role="status" className="rounded-md bg-slate-50 p-2 text-base">
+            {result}
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2">
           <button type="button" className="rounded border px-3 py-1.5 text-base" onClick={onClose}>
-            Cancel
+            {result ? "Done" : "Cancel"}
           </button>
           <button
             type="button"
             className="rounded px-3 py-1.5 text-base font-semibold text-white"
             style={{ backgroundColor: NAVY }}
-            disabled={
-              submit.isPending || !reasonOk || (kind === "correction" && !saved) || journalBlocked
-            }
+            disabled={formLocked || !reasonOk || !evidenceReady || journalBlocked}
             onClick={onSubmit}
           >
-            {submit.isPending ? "Sending…" : "Send request"}
+            {submit.isPending ? "Sending…" : kind === "correction" ? "Save change" : "Send request"}
           </button>
         </div>
       </div>

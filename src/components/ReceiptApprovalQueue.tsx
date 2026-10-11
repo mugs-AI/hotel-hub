@@ -1,5 +1,5 @@
 // Owner Dashboard queue: Review / Approve / Reject / Verify receipt requests.
-// Approval never changes totals; the manual N3 change plus Verify does.
+// Authorized automatic approval can apply and verify N3; legacy requests stay manual.
 import { useEffect, useRef, useState } from "react";
 import { useSessionMe } from "@/lib/session-client";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -179,13 +179,16 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
     setError("");
     invalidateReceiptEffects(qc);
   };
-  const fail = (e: unknown) =>
+  const fail = (e: unknown) => {
+    if (currentIdentity.current !== identity) return;
     setError(receiptControlMessage(e instanceof ReceiptControlClientError ? e.code : ""));
+  };
   const decide = useMutation({
     mutationKey: ["receipt-controls", identity ?? "none", "decide"],
     mutationFn: (v: { r: ReceiptControlRequestDTO; decision: "approve" | "reject" }) =>
       decideReceiptControl(v.r.id, { decision: v.decision, expectedVersion: v.r.version }),
     onSuccess: (v) => {
+      if (currentIdentity.current !== identity) return;
       setResult(
         v.request.outcomeMessage ??
           (v.request.state === "applied" ? "N3 change verified." : "Decision recorded."),

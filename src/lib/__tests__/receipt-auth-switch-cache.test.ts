@@ -82,7 +82,7 @@ describe("receipt/finance cache namespace on auth switch (no Owner dashboard mou
     expect(html).toContain("This receipt’s N3 journal could not be verified. Sending is blocked.");
     expect(html).toContain("N3 returned an empty receipt-number field on a journal line");
     expect(html).not.toContain("The request was not created");
-    expect(html).toMatch(/disabled=""[^>]*>Send request/);
+    expect(html).toMatch(/disabled=""[^>]*>Save change/);
   });
   it("the same identity sees its own saved original", () => {
     expect(render(seeded())).toContain(SECRET);
