@@ -20,6 +20,7 @@ import type {
   ProofReport,
   ProofAttempt,
   ProofReadback,
+  HeldProofSummary,
 } from "./receipt-update-proof";
 export type ProofPackage = {
   caseId: string;
@@ -52,6 +53,7 @@ export type ProofPermit = {
   report: ProofReport | null;
 };
 export type ProofDb = {
+  listHeld(actor: ReceiptAutomationActor): Promise<ProofPermit[]>;
   create(row: Omit<ProofPermit, "id" | "phase" | "report">): Promise<ProofPermit>;
   get(actor: ReceiptAutomationActor, id: string): Promise<ProofPermit | null>;
   claim(actor: ReceiptAutomationActor, id: string, payloadHash: string): Promise<boolean>;
@@ -189,6 +191,34 @@ export function receiptProofCases(actor: ReceiptAutomationActor, deps: ProofDeps
         .map(summary)
     : [];
 }
+// Discovery ignores activation/expiry: it can only recover a durable held record.
+// Recheck identity even if a store implementation accidentally returns extra rows.
+export async function receiptHeldProofs(
+  actor: ReceiptAutomationActor,
+  deps: ProofDeps,
+): Promise<HeldProofSummary[]> {
+  owner(actor);
+  await deps.freshOwner(actor);
+  const rows = await deps.db.listHeld(actor);
+  await deps.freshOwner(actor);
+  return rows.flatMap((p): HeldProofSummary[] => {
+    if (
+      !isUuid(p.id) ||
+      p.tenantId !== actor.tenantId ||
+      p.ownerKey !== actor.n3UserKey ||
+      p.package.tenantKey !== actor.n3TenantKey ||
+      (p.phase !== "reserved" && p.phase !== "unknown")
+    )
+      return [];
+    try {
+      validPackage(p.package);
+      if (p.packageHash !== proofPackageHash(p.package)) return [];
+      return [{ permitId: p.id, phase: p.phase, summary: summary(p.package) }];
+    } catch {
+      return [];
+    }
+  });
+}
 export async function prepareReceiptUpdateProof(
   actor: ReceiptAutomationActor,
   input: { caseId: string; receiptId: string; approvedPackageHash: string },
@@ -296,11 +326,18 @@ function envelopeCode(body: unknown): string | null {
       : null;
   return typeof code === "string" && /^\d{4}$/.test(code) ? code : null;
 }
-function readbackReport(snapshot: ReceiptSnapshot, verified: boolean): ProofReadback {
+function readbackReport(
+  snapshot: ReceiptSnapshot,
+  verified: boolean,
+  original: ReceiptSnapshot,
+): ProofReadback {
+  const detailIdsChanged =
+    original.detailIds !== undefined &&
+    JSON.stringify(snapshot.detailIds) !== JSON.stringify(original.detailIds);
   return {
     outcome: verified ? "verified" : "mismatch",
     observedCents: snapshot.amountCents,
-    reason: verified ? null : "readback_mismatch",
+    reason: verified ? null : detailIdsChanged ? "receipt_detail_id_changed" : "readback_mismatch",
   };
 }
 export async function runReceiptUpdateProof(
@@ -374,7 +411,7 @@ export async function runReceiptUpdateProof(
         proposal(permit.original, pkg),
         evidence.snapshot,
       ) === "verified";
-    readback = readbackReport(evidence.snapshot, verified);
+    readback = readbackReport(evidence.snapshot, verified, permit.original);
     attempt.stage = "owner_readback";
     await b.run(() => deps.freshOwner(actor));
     attempt.stage = verified ? "complete" : "readback";
@@ -421,7 +458,7 @@ export async function checkReceiptUpdateProof(
       verified && !observationOnly,
       started,
       {
-        readback: readbackReport(evidence.snapshot, verified),
+        readback: readbackReport(evidence.snapshot, verified, p.original),
       },
       !observationOnly,
     );
