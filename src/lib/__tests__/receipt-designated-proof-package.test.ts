@@ -13,26 +13,33 @@ const actor = {
   n3Token: "offline-token",
   role: "owner" as const,
 };
-const beforeExpiry = Date.parse("2026-10-10T21:30:00+08:00");
+const beforeExpiry = Date.parse("2026-10-11T11:30:00+08:00");
 afterEach(() => vi.unstubAllEnvs());
 
 describe("designated OR2610/002 proof package", () => {
-  it("offers only the designated immutable RM50 to RM65 case when explicitly enabled", () => {
+  it("offers only the two designated same-OR follow-up cases when explicitly enabled", () => {
     vi.stubEnv("HOTELHUB_RECEIPT_PROOF_ENABLED", "true");
     const deps = defaultReceiptProofDeps();
     deps.now = () => beforeExpiry;
     const cases = receiptProofCases(actor, deps);
-    expect(cases).toHaveLength(1);
+    expect(cases).toHaveLength(2);
     expect(cases[0]).toMatchObject({
-      caseId: "OR2610-002-50-to-65-20261010",
+      caseId: "OR2610-002-65-to-50-20261011",
       companyName: "9AC-0D9-2F1 · MUGS AI LAB TEST SDN. BHD.",
       receiptId: "3a0d118c-de6d-40bd-3bc2-08df269c5e9f",
       docCode: "OR2610/002",
       documentDate: "2026-10-10",
+      beforeCents: 6500,
+      afterCents: 5000,
+      expiresAt: Date.parse("2026-10-11T20:00:00+08:00"),
+      sourceReference: "b5b168d323dbba002a2967dadf80a70c75a7c710",
+    });
+    expect(cases[1]).toMatchObject({
+      caseId: "OR2610-002-50-to-65-20261011",
+      receiptId: cases[0]!.receiptId,
+      docCode: "OR2610/002",
       beforeCents: 5000,
       afterCents: 6500,
-      expiresAt: Date.parse("2026-10-10T23:30:00+08:00"),
-      sourceReference: "b7e8736e9dfb8a8f83a0b29db29086e3ada01f2a",
     });
     expect(deps.packages[0]).toMatchObject({
       tenantKey: actor.n3TenantKey,
@@ -68,7 +75,7 @@ describe("designated OR2610/002 proof package", () => {
   it("expires at the exact cutoff without automatic renewal", () => {
     vi.stubEnv("HOTELHUB_RECEIPT_PROOF_ENABLED", "true");
     const deps = defaultReceiptProofDeps();
-    deps.now = () => Date.parse("2026-10-10T23:30:00+08:00");
+    deps.now = () => Date.parse("2026-10-11T20:00:00+08:00");
     expect(receiptProofCases(actor, deps)).toEqual([]);
   });
 
@@ -83,7 +90,7 @@ describe("designated OR2610/002 proof package", () => {
       prepareReceiptUpdateProof(
         actor,
         {
-          caseId: "OR2610-002-50-to-65-20261010",
+          caseId: "OR2610-002-65-to-50-20261011",
           receiptId: "8a39169c-2ddd-450c-8b58-bd155bfda8a5",
           approvedPackageHash: deps.packages[0]
             ? proofPackageHash(deps.packages[0])
