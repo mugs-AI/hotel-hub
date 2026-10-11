@@ -10,6 +10,7 @@ import {
   runReceiptUpdateProof,
   checkReceiptUpdateProof,
   receiptProofCases,
+  receiptHeldProofs,
   readReceiptUpdateProofPermit,
 } from "@/lib/receipt-update-proof.server";
 export const Route = createFileRoute("/api/hotel/receipt-update-proof")({
@@ -25,7 +26,11 @@ export const Route = createFileRoute("/api/hotel/receipt-update-proof")({
               ? new URL(request.url).searchParams.get("action") === "check"
                 ? await checkReceiptUpdateProof(actor, permitId, deps)
                 : await readReceiptUpdateProofPermit(actor, permitId, deps)
-              : { cases: receiptProofCases(actor, deps), enabled: deps.enabled },
+              : {
+                  cases: receiptProofCases(actor, deps),
+                  held: await receiptHeldProofs(actor, deps),
+                  enabled: deps.enabled,
+                },
           );
         }),
       POST: ({ request }) =>

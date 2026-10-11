@@ -72,6 +72,7 @@ function fixture() {
       };
     },
     db: {
+      listHeld: async () => (permit ? [permit] : []),
       create: async (row) => {
         permit = {
           ...row,

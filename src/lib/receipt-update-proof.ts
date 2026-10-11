@@ -40,3 +40,9 @@ export type ProofReadback = {
   observedCents: number | null;
   reason: string | null;
 };
+
+export type HeldProofSummary = {
+  permitId: string;
+  phase: "reserved" | "unknown";
+  summary: ProofSummary;
+};

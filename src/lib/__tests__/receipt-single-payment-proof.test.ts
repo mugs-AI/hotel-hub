@@ -119,6 +119,7 @@ function fixture(corrupt: "none" | "detail-amount" | "detail-id") {
     },
     send: updateN3Receipt,
     db: {
+      listHeld: async () => (permit ? [permit] : []),
       create: async (row) =>
         (permit = {
           ...row,
@@ -158,9 +159,15 @@ describe("single-payment proof through the fixed N3 client", () => {
       expect((await runReceiptUpdateProof(actor, prepared.permitId, f.deps)).outcome).toBe(
         expected,
       );
-      expect((await checkReceiptUpdateProof(actor, prepared.permitId, f.deps)).outcome).toBe(
-        expected,
-      );
+      const checked = await checkReceiptUpdateProof(actor, prepared.permitId, f.deps);
+      expect(checked.outcome).toBe(expected);
+      if (corrupt === "detail-id") {
+        expect(checked.safeReport).toMatchObject({
+          outcome: "needs_review",
+          journalVerified: false,
+          readback: { observedCents: 6500, reason: "receipt_detail_id_changed" },
+        });
+      }
       expect((await runReceiptUpdateProof(actor, prepared.permitId, f.deps)).outcome).toBe(
         expected,
       );

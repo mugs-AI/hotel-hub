@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
-import type { ProofSummary, ProofReport } from "@/lib/receipt-update-proof";
+import type { ProofSummary, ProofReport, HeldProofSummary } from "@/lib/receipt-update-proof";
 import { formatMyDate } from "@/lib/malaysia-date";
 export function ReceiptProofDiagnostics({ report }: { report: ProofReport }) {
   return (
@@ -33,6 +33,12 @@ export function ReceiptProofDiagnostics({ report }: { report: ProofReport }) {
           . Result: {report.readback.reason ?? report.readback.outcome}.
         </p>
       ) : null}
+      {report.readback?.reason === "receipt_detail_id_changed" ? (
+        <p>
+          The receipt detail ID changed. The amount above is what N3 returned, but the existing test
+          still needs review. Do not run Update again.
+        </p>
+      ) : null}
       {report.outcome === "needs_review" ? <p>Use Check N3 result; do not resend.</p> : null}
     </div>
   );
@@ -41,6 +47,7 @@ const API = "/api/hotel/receipt-update-proof";
 export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }) {
   const [cases, setCases] = useState<ProofSummary[]>([]),
     [selected, setSelected] = useState<ProofSummary | null>(null);
+  const [held, setHeld] = useState<HeldProofSummary[]>([]);
   const [permit, setPermit] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [sent, setSent] = useState(false);
@@ -80,7 +87,10 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
         return r.json();
       })
       .then((b) => {
-        if (alive.current) setCases(b.cases ?? []);
+        if (alive.current) {
+          setCases(b.cases ?? []);
+          setHeld(b.held ?? []);
+        }
       })
       .catch(() => {
         if (alive.current) setError("Reopen HotelHub from N3 if your session has expired.");
@@ -89,6 +99,42 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
       alive.current = false;
     };
   }, [storageKey]);
+  async function recover(item: HeldProofSummary) {
+    if (lock.current) return;
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch(`${API}?permitId=${encodeURIComponent(item.permitId)}`, {
+        credentials: "same-origin",
+      });
+      if (!r.ok) throw Error("Unavailable");
+      const b = await r.json();
+      // Recovery never opens a Prepare/Run path, including an unexpected response.
+      if (
+        b.permitId !== item.permitId ||
+        !b.summary ||
+        (b.phase !== "reserved" && b.phase !== "unknown")
+      )
+        throw Error("Unavailable");
+      if (!alive.current) return;
+      setPermit(b.permitId);
+      setSelected(b.summary);
+      setSent(true);
+      setReport(b.safeReport ?? null);
+      try {
+        sessionStorage.setItem(storageKey, b.permitId);
+      } catch {
+        /* recovery remains available without browser storage */
+      }
+    } catch {
+      if (alive.current)
+        setError("Recovery unavailable. Reopen HotelHub from N3 and use the same Owner account.");
+    } finally {
+      lock.current = false;
+      if (alive.current) setBusy(false);
+    }
+  }
   async function act(action: "prepare" | "run" | "check") {
     if (lock.current) return;
     lock.current = true;
@@ -155,8 +201,26 @@ export function ReceiptUpdateProofPanel({ identityKey }: { identityKey: string }
       </p>
       {!cases.length && !permit ? (
         <p className="text-sm text-muted-foreground">
-          Disabled — no approved test receipt is configured.
+          New tests disabled — no active approved test package.
         </p>
+      ) : null}
+      {held.length > 0 && !permit ? (
+        <div className="space-y-2 text-sm">
+          <p>
+            Recover an existing held test. This only loads its saved result; it does not send an
+            Update.
+          </p>
+          {held.map((item) => (
+            <div key={item.permitId} className="flex flex-wrap items-center gap-2">
+              <span>
+                {item.summary.companyName} · {item.summary.docCode} · Needs review
+              </span>
+              <Button variant="outline" disabled={busy} onClick={() => recover(item)}>
+                Recover {item.summary.docCode}
+              </Button>
+            </div>
+          ))}
+        </div>
       ) : null}
       {cases.length && !permit ? (
         <select

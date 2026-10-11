@@ -47,3 +47,18 @@ it("shows a failed Update response separately from an actual RM50 readback", () 
   expect(html).toContain("RM50.00");
   expect(html).toContain("do not resend");
 });
+
+it("explains changed detail identity without declaring a correct amount verified", () => {
+  const html = renderToStaticMarkup(
+    createElement(ReceiptProofDiagnostics, {
+      report: {
+        ...report,
+        readback: { outcome: "mismatch", observedCents: 6500, reason: "receipt_detail_id_changed" },
+      },
+    }),
+  );
+  expect(html).toContain("RM65.00");
+  expect(html).toContain("receipt detail ID changed");
+  expect(html).toContain("needs review");
+  expect(html).not.toContain("Same OR amount and journal verified");
+});

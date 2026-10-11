@@ -202,6 +202,7 @@ describe("exported single-payment receipt compatibility", () => {
         throw Error("Prepare must never write");
       },
       db: {
+        listHeld: async () => [],
         create: async (row) => ({
           ...row,
           id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",

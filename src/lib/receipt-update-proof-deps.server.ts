@@ -48,6 +48,18 @@ async function rpc(a: ReceiptAutomationActor, name: string, data: unknown) {
   return r.data;
 }
 const db: ProofDb = {
+  async listHeld(a) {
+    const r = await (await changeAdmin())
+      .from("hotel_receipt_update_proof_permits")
+      .select("*")
+      .eq("tenant_id", a.tenantId)
+      .eq("owner_key", a.n3UserKey)
+      .in("phase", ["reserved", "unknown"])
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (r.error) throw new ReceiptControlError("proof_store_unavailable");
+    return (r.data ?? []).map(map);
+  },
   async create(row) {
     return map(
       await rpc(

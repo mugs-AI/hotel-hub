@@ -29,13 +29,14 @@ const sample = {
   sourceReference: "a".repeat(40),
   expiresAt: Date.now() + 60000,
 };
-let cases: unknown[], lost: boolean;
+let cases: unknown[], held: unknown[], lost: boolean;
 let phase: string;
 const pause = () => new Promise((r) => setTimeout(r, 10));
 beforeEach(() => {
   phase = "unknown";
   writes = [];
   cases = [sample];
+  held = [];
   lost = false;
   sessionStorage.clear();
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
@@ -50,12 +51,13 @@ beforeEach(() => {
     return Response.json(
       url.includes("permitId")
         ? {
+            permitId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
             phase,
             summary: sample,
             outcome: phase === "verified" ? "verified" : "needs_review",
             safeReport: phase === "verified" ? { ...sample, outcome: "verified" } : null,
           }
-        : { cases, enabled: cases.length > 0 },
+        : { cases, held, enabled: cases.length > 0 },
     );
   });
   div = document.createElement("div");
@@ -84,7 +86,7 @@ async function click(label: string) {
 it("defaults to disabled with no configured cases", async () => {
   cases = [];
   await mount();
-  expect(div.textContent).toContain("Disabled");
+  expect(div.textContent).toContain("New tests disabled");
   expect((div.querySelector("button") as HTMLButtonElement).disabled).toBe(true);
   expect(writes).toEqual([]);
 });
@@ -131,5 +133,27 @@ it("permits a new test only after verified terminal recovery", async () => {
   await click("Next approved test");
   expect(div.querySelector("select")).not.toBeNull();
   expect(sessionStorage.getItem("hh-receipt-proof:t:owner:owner")).toBeNull();
+  expect(writes).toEqual([]);
+});
+
+it("recovers an expired held test in a new tab without Prepare or Update", async () => {
+  cases = [];
+  held = [
+    {
+      permitId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      phase: "unknown",
+      summary: { ...sample, expiresAt: 1 },
+    },
+  ];
+  await mount();
+  await click("Recover OR-TEST/001");
+  expect(div.textContent).toContain("Check N3 result");
+  expect(div.textContent).not.toContain("Update this test OR once");
+  expect(div.textContent).not.toContain("Prepare test");
+  expect(sessionStorage.getItem("hh-receipt-proof:t:owner:owner")).toBe(
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  );
+  expect(writes).toEqual([]);
+  await click("Check N3 result");
   expect(writes).toEqual([]);
 });
