@@ -142,7 +142,19 @@ function parseIntent(value: unknown, scope: SettlementScope): StoredIntent {
       });
     }
   }
-  return value as StoredIntent;
+  const intent = value as StoredIntent;
+  persistedIntents.set(intent, billingPayloadDigest(intent));
+  return intent;
+}
+const persistedIntents = new WeakMap<StoredIntent, string>();
+// A copied browser DTO or mutated service result cannot supply owned identities.
+export function persistedIntentBoundTo(intent: StoredIntent, scope: SettlementScope): boolean {
+  return Boolean(
+    intent &&
+    intent.tenantId === scope.tenantId &&
+    intent.reservationId === scope.reservationId &&
+    persistedIntents.get(intent) === billingPayloadDigest(intent),
+  );
 }
 const persistedDispatches = new WeakMap<
   StoredDispatch,

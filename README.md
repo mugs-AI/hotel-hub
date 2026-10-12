@@ -2,7 +2,7 @@
 
 ## Current delivery and recovery record
 
-Latest source-only continuation: [12/10 durable source/guest bill ownership](docs/HH_SOURCE_BILLING_LEG_CHECKPOINT_20261012.md). This is a partial unreleased candidate; read its explicit runtime and plan holds before resuming. Older status statements below are historical.
+Latest source-only continuation: [12/10 accountant evidence and durable cases](docs/HH_ACCOUNTANT_FOUNDATION_CHECKPOINT_20261012.md). This is a partial unreleased candidate; read its explicit runtime and plan holds before resuming. Older status statements below are historical.
 
 Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE.md),
 [MUGS DirectBuild Protocol](docs/00-MUGS_DIRECTBUILD_PROTOCOL.md),
@@ -77,7 +77,6 @@ Future work (not built):
 - maintenance workflow (WP2);
 - refunds and later accounting;
 - dashboard & reports.
-
 
 Test counts are environment-dependent: some suites skip when live N3 or
 database credentials are unavailable. Run `bun run test` locally for the

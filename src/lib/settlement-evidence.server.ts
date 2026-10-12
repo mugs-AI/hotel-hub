@@ -916,6 +916,22 @@ export function verifiedReceiptActorMatches(
 ): boolean {
   return bound(receipts.get(r), s, a);
 }
+export function verifiedBillReadAt(
+  b: VerifiedBill,
+  s: SettlementSnapshot,
+  a: SettlementActor,
+): number | null {
+  const meta = bills.get(b);
+  return bound(meta, s, a) ? meta!.verifiedAt : null;
+}
+export function verifiedReceiptReadAt(
+  r: VerifiedReceiptBefore,
+  s: SettlementSnapshot,
+  a: SettlementActor,
+): number | null {
+  const meta = receipts.get(r);
+  return bound(meta, s, a) ? meta!.verifiedAt : null;
+}
 export function verifiedEvidencePair(
   b: VerifiedBill,
   r: VerifiedReceiptBefore,
