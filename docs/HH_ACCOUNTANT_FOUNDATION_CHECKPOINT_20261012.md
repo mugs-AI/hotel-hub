@@ -64,3 +64,7 @@ Remaining approved tasks: bounded saved-document checker/401/deadline handling; 
 This source candidate cannot resolve the original OR2610/001 exception or activate ordinary receipt editing. OR2610/002 proof is not repeated; BK260924001/OR2610/003 remains its separate dormant ordinary-workflow fixture.
 
 Candidate SHA is the commit containing this checkpoint; resolve actual local and remote refs/tree at handover. Review push, main merge, operational migration/runtime, N3 acceptance/activation and public release remain separate lanes. No fresh approval is needed to continue the already approved remaining code scope.
+
+## Native verification addendum — 12/10/2026, Malaysia
+
+The review-branch source upload completed at43bd2b3a6283a88c68c5b6f8635d3b6f51efcc97, exact tree2831a37c5506ba881377eff37a9d0ed729d44608, matching localf23beae. GitHub run38202969784/job114660187231 passed13native17.6 single-session and6independent-backend scenarios; actual logs were read. See [native evidence](evidence/HH_ACCOUNTANT_NATIVE_SQL_EVIDENCE_20261012.md). This supersedes the prepared-runner/native-pending statements above for this scoped delta. Later documentation-only checkpoints preserve the tested product source. No operational Lovable migration, N3 operation, main merge or publication occurred. Task2/checker, Task4/close, Task5/report and the broader source-billing integrations remain pending; do not call the entire plan complete.
