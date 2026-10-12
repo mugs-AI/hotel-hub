@@ -38,5 +38,5 @@ Files: ReceiptControlRequestDialog.tsx, new deposit notification module/componen
 
 ### Task 3: Review checkpoint
 - [x] Review all changes, authority and migration ordering; independent review and one regression fix pass.
-- [ ] Save exact local checkpoint and remote review tree; verify clean tracked status and remote identity.
+- [x] Save exact local checkpoint and remote review tree; verify clean tracked status and remote identity.
 - [x] Record source-only results and unapplied schema/runtime/publication/real N3/two-session acceptance requirements.

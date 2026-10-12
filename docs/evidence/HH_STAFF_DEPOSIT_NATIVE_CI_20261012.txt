@@ -1,0 +1,14 @@
+Run: https://github.com/mugs-AI/hotel-hub/actions/runs/38224522888
+Commit: c3f15520b0174455d9f05593d3091e3035c257c0
+Job: 114728637956; completed/success
+Synthetic disposable PostgreSQL only; no operational backend.
+
+2026-10-12T08:36:09.7991255Z bash scripts/test-hh-change-controls-postgres.sh 2>&1 | tee receipt-postgres.log
+2026-10-12T08:36:09.8058939Z   HH_TEST_PG_URL: ***127.0.0.1:5432/hh_test_receipt_controls
+2026-10-12T08:36:09.8059329Z   HH_TEST_PG_DISPOSABLE: YES
+2026-10-12T08:36:09.8059772Z   HH_PG_TEST_MODULE: /home/runner/work/_temp/hh-pg-client/node_modules/pg/lib/index.js
+2026-10-12T08:36:10.7756190Z  Test Files  1 passed (1)
+2026-10-12T08:36:10.7757781Z       Tests  21 passed (21)
+2026-10-12T08:36:13.5402135Z  2026-10-12 08:35:58.088 UTC [1] LOG:  starting PostgreSQL 17.6 (Debian 17.6-2.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-10-12T08:36:13.5488462Z  waiting for server to start....2026-10-12 08:35:57.780 UTC [48] LOG:  starting PostgreSQL 17.6 (Debian 17.6-2.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+
