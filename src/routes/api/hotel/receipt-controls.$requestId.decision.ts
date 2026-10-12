@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/hotel/receipt-controls/$requestId/dec
                 Number(body.expectedVersion) < 1
               )
                 throw new ReceiptControlError("invalid_body");
-              await deps.freshOwner(resolved);
+              await deps.freshActor(resolved);
               const policy = await deps.policy(actor.tenantId);
               if (!policy) throw new ReceiptControlError("change_controls_unavailable");
               const row = await deps.db.authorize(

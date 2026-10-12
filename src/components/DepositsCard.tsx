@@ -1,5 +1,6 @@
+import { ReceiptCorrectionRecovery, LegacyReceiptRecovery } from "./ReceiptCorrectionRecovery";
 // Reservation deposit panel.
-// Owner + Front Desk read the ledger; only the Owner may post to N3.
+// Owner + Front Desk read the ledger; authorised staff use their own N3 deposit rights.
 // The client request id is minted ONCE when the Owner opens the confirmation
 // flow so a safe HTTP retry cannot create a second N3 document.
 import { useEffect, useRef, useState } from "react";
@@ -182,15 +183,25 @@ export function DepositsCard({
   // Recover only this exact browser intent from the authoritative ledger.
   // Amount/account similarity is not evidence that an uncertain post completed.
   useEffect(() => {
-    if (attempt?.phase !== "unknown") return;
+    if (q.isError || attempt?.phase !== "unknown") return;
     const result = q.data?.deposits.find((d) => d.clientRequestId === attempt.clientRequestId);
     if (result?.status !== "posted" && result?.status !== "failed") return;
     setLines([{ accountId: "", amount: "" }]);
     setAttempt(null);
     setFormError("");
-  }, [attempt, q.data, setAttempt, setLines]);
+  }, [attempt, q.data, q.isError, setAttempt, setLines]);
 
   if (!canView) return null;
+  if (q.isError)
+    return (
+      <div role="alert" className="rounded-md border border-amber-200 p-3 text-sm">
+        Deposit values could not be refreshed. Confirmed amounts are hidden until a fresh read
+        succeeds.
+        <button type="button" className="ml-2 underline" onClick={() => void q.refetch()}>
+          Refresh deposit
+        </button>
+      </div>
+    );
   const deposits = q.data?.deposits ?? [];
   const gateOpen = q.data?.capability.canCreate === true;
   const canSplit = q.data?.capability.canSplit === true;
@@ -318,9 +329,9 @@ export function DepositsCard({
           </h2>
           <CardInfoPopover label="About deposits">
             Deposits are advance payments recorded through N3. After an approved N3 tenant is
-            enabled by the HotelHub administrator, an Owner can add one after saving a Confirmed
-            booking, including while the guest is Checked in. It remains unapplied until a Cash Memo
-            is posted and matched. Unconfirmed N3 results are always shown for checking.
+            enabled by the HotelHub administrator, authorised staff can add one after saving a
+            Confirmed booking, including while the guest is Checked in. It remains unapplied until a
+            Cash Memo is posted and matched. Unconfirmed N3 results are always shown for checking.
           </CardInfoPopover>
         </div>
         <span className="text-sm" style={{ color: NAVY }}>
@@ -425,6 +436,35 @@ export function DepositsCard({
                       Checking receipt requests…
                     </span>
                   ) : null;
+                  if (open && normalizeReceiptControl(open).automation !== null)
+                    return (
+                      <ReceiptCorrectionRecovery
+                        key={`${identity}:${open.id}`}
+                        request={normalizeReceiptControl(open)}
+                      />
+                    );
+                  if (open && identity.endsWith(":owner"))
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          disabled
+                          className="rounded-md border px-3 py-2 text-sm"
+                        >
+                          Edit receipt
+                        </button>
+                        <span className="text-xs">
+                          Request: {RECEIPT_CONTROL_STATE_LABEL[open.state]}
+                        </span>
+                        {!checking ? (
+                          <LegacyReceiptRecovery
+                            key={`${identity}:${open.id}`}
+                            request={normalizeReceiptControl(open)}
+                          />
+                        ) : null}
+                        {requestNotice}
+                      </>
+                    );
                   if (open)
                     return (
                       <>
@@ -551,20 +591,9 @@ export function DepositsCard({
         </ul>
       )}
 
-      {q.isError ? (
-        <div className="mt-3 text-sm" role="alert">
-          <p style={{ color: ERR }}>Could not load deposits. Retry before adding a deposit.</p>
-          <button
-            type="button"
-            className="mt-2 rounded-md border bg-white px-3 py-2"
-            onClick={() => void q.refetch()}
-          >
-            Retry deposits
-          </button>
-        </div>
-      ) : q.isPending ? null : !canCreate ? (
+      {q.isPending ? null : !canCreate ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Only the Owner can add a deposit. You can view recorded deposits here.
+          Your HotelHub role does not allow deposit entry. You can view recorded deposits here.
         </p>
       ) : (
         <div className="mt-3 border-t pt-3">

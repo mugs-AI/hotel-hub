@@ -45,9 +45,10 @@ export function ChangeControlOptions({
         ))}
       </div>
       <p className="mt-3 text-sm text-slate-600">
-        Admin means Owner. With deposit approval off, an Owner can apply the change directly;
-        front-desk N3 changes still need an Owner to apply. Billing contact approval controls both
-        local folio details and selected receipt contact changes.
+        Admin means Owner. Approval ON requires an Owner decision. Approval OFF lets authorised
+        Owner or Front Desk staff apply the correction in the reservation using their own N3 update
+        rights. Billing contact approval controls both local folio details and selected receipt
+        contact changes.
       </p>
       {!available ? (
         <p role="status" className="mt-2 text-sm text-amber-900">

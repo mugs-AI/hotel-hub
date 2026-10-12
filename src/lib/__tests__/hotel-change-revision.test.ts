@@ -8,7 +8,7 @@ import { appendChangeRevision } from "../hotel-change-revision.server";
 import { QueryClient } from "@tanstack/react-query";
 import { purgeSensitiveReceiptData } from "../receipt-controls-client";
 describe("cross-session revision metadata", () => {
-  it("front desk revision refresh excludes Owner and foreign-identity financial queries", () => {
+  it("front desk revision refresh excludes Owner and foreign-identity financial queries", async () => {
     const qc = new QueryClient();
     const staff = "t:staff:front_desk",
       owner = "t:owner:owner";
@@ -23,7 +23,7 @@ describe("cross-session revision metadata", () => {
       ["financial-reporting", owner],
     ];
     for (const key of keys) qc.setQueryData(key, { saved: true });
-    invalidateRevisionEffects(qc, staff);
+    await invalidateRevisionEffects(qc, staff);
     expect(keys.map((key) => qc.getQueryState(key)?.isInvalidated)).toEqual([
       true,
       false,
@@ -35,7 +35,7 @@ describe("cross-session revision metadata", () => {
       false,
     ]);
   });
-  it("Owner revision refresh invalidates own queues once without refreshing a foreign Owner", () => {
+  it("Owner revision refresh invalidates own queues once without refreshing a foreign Owner", async () => {
     const qc = new QueryClient();
     const keys = [
       ["financial-reporting", "t:a:owner"],
@@ -47,6 +47,7 @@ describe("cross-session revision metadata", () => {
     const observer = createRevisionObserver((identity) => invalidateRevisionEffects(qc, identity));
     observer.observe("t:a:owner", "1");
     observer.observe("t:a:owner", "2");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(keys.map((key) => qc.getQueryState(key)?.isInvalidated)).toEqual([
       true,
       false,

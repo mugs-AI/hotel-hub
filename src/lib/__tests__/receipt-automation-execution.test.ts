@@ -146,7 +146,7 @@ function fixture(
     enabled: () => !options.disabled,
     budgetMs: 1000,
     now: Date.now,
-    freshOwner: async () => {
+    freshActor: async () => {
       freshChecks++;
       if (options.revoked && freshChecks > 1) throw new ReceiptControlError("forbidden");
     },
@@ -290,5 +290,78 @@ describe("one-dispatch correction pipeline", () => {
       f.deps,
     );
     expect(f.get().sent).toBe(0);
+  });
+});
+
+const staff = { ...actor, n3UserKey: "staff", role: "front_desk" as const };
+describe("N3-authorised staff receipt correction", () => {
+  it("applies approval OFF once using the staff actor and token", async () => {
+    const f = fixture({ direct: true });
+    const send = vi.spyOn(f.deps, "send");
+    const result = await applyReceiptCorrection(
+      staff,
+      { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+      f.deps,
+    );
+    expect(result.outcome).toBe("applied");
+    expect(send.mock.calls[0]?.[0]).toEqual(staff);
+    expect(f.get()).toMatchObject({ sent: 1, effective: 6500, versions: 1 });
+  });
+  it("cannot bypass approval ON with Apply", async () => {
+    const f = fixture();
+    await expect(
+      applyReceiptCorrection(
+        staff,
+        { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ code: "approval_required" });
+    expect(f.get().sent).toBe(0);
+  });
+  it("cannot apply or read recovery for another requester", async () => {
+    const f = fixture({ direct: true });
+    const alien = { ...staff, n3UserKey: "other-staff" };
+    await expect(
+      applyReceiptCorrection(
+        alien,
+        { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+        f.deps,
+      ),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(checkReceiptCorrectionResult(alien, f.get().row.id, f.deps)).rejects.toMatchObject(
+      { code: "forbidden" },
+    );
+    expect(f.get().sent).toBe(0);
+  });
+  it("revocation before dispatch never sends the Update", async () => {
+    const f = fixture({ direct: true, revoked: true });
+    const result = await applyReceiptCorrection(
+      staff,
+      { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+      f.deps,
+    );
+    expect(result.outcome).not.toBe("applied");
+    expect(f.get().sent).toBe(0);
+  });
+  it("unknown staff result recovers with reads only and never resends", async () => {
+    const f = fixture({ direct: true, timeout: true });
+    expect(
+      (
+        await applyReceiptCorrection(
+          staff,
+          { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+          f.deps,
+        )
+      ).outcome,
+    ).toBe("needs_review");
+    await applyReceiptCorrection(
+      staff,
+      { requestId: f.get().row.id, expectedVersion: 1, action: "apply" },
+      f.deps,
+    );
+    expect((await checkReceiptCorrectionResult(staff, f.get().row.id, f.deps)).outcome).toBe(
+      "applied",
+    );
+    expect(f.get()).toMatchObject({ sent: 1, effective: 6500, versions: 1 });
   });
 });

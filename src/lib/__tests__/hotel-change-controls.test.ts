@@ -18,16 +18,12 @@ describe("independent approval controls", () => {
       for (const role of ["owner", "front_desk"] as const) {
         it(`${role} amount routing for deposit=${depositApprovalRequired} contact=${contactApprovalRequired}`, () => {
           expect(routeChange(role, "n3_receipt", { deposit: true, contact: false }, p)).toBe(
-            depositApprovalRequired ? "approval" : role === "owner" ? "direct" : "owner_execution",
+            depositApprovalRequired ? "approval" : "direct",
           );
         });
         it(`${role} combined changes obey either approval requirement ${depositApprovalRequired}/${contactApprovalRequired}`, () => {
           expect(routeChange(role, "n3_receipt", { deposit: true, contact: true }, p)).toBe(
-            depositApprovalRequired || contactApprovalRequired
-              ? "approval"
-              : role === "owner"
-                ? "direct"
-                : "owner_execution",
+            depositApprovalRequired || contactApprovalRequired ? "approval" : "direct",
           );
         });
         it(`${role} contact routing does not inherit deposit policy ${depositApprovalRequired}/${contactApprovalRequired}`, () => {
@@ -35,7 +31,7 @@ describe("independent approval controls", () => {
             contactApprovalRequired ? "approval" : "direct",
           );
           expect(routeChange(role, "n3_receipt", { deposit: false, contact: true }, p)).toBe(
-            contactApprovalRequired ? "approval" : role === "owner" ? "direct" : "owner_execution",
+            contactApprovalRequired ? "approval" : "direct",
           );
         });
       }

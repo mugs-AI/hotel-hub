@@ -1,5 +1,12 @@
+import type { DepositNoticePacket } from "./deposit-notifications";
+import {
+  depositNoticeObserver,
+  announceDepositEvents,
+  dismissForeignDepositNotices,
+  announceDepositRefreshFailure,
+} from "./deposit-notifications-client";
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { SESSION_QUERY_KEY } from "./session-client";
 import {
   RECEIPT_EFFECT_QUERY_PREFIXES,
@@ -37,14 +44,22 @@ export function createRevisionObserver(onChange: (identity: string) => void) {
 }
 export function invalidateRevisionEffects(
   qc: {
-    invalidateQueries: (filter: {
+    cancelQueries?: (filter: {
       queryKey: readonly unknown[];
       predicate?: (query: { queryKey: readonly unknown[] }) => boolean;
-    }) => unknown;
+    }) => Promise<unknown>;
+    invalidateQueries: (
+      filter: {
+        queryKey: readonly unknown[];
+        predicate?: (query: { queryKey: readonly unknown[] }) => boolean;
+      },
+      options?: { throwOnError: boolean; cancelRefetch: boolean },
+    ) => unknown;
   },
   identity: string,
 ) {
   const owner = identity.endsWith(":owner");
+  const refreshes: unknown[] = [];
   for (const prefix of [
     ...RECEIPT_EFFECT_QUERY_PREFIXES,
     "folio-bill-to",
@@ -59,7 +74,7 @@ export function invalidateRevisionEffects(
       "hotel-change-policy",
       "bill-to-changes",
     ].includes(prefix);
-    void qc.invalidateQueries({
+    const filter = {
       queryKey: [prefix],
       ...(scoped
         ? {
@@ -68,8 +83,30 @@ export function invalidateRevisionEffects(
               (prefix !== "receipt-controls" || owner || q.queryKey[2] !== "queue"),
           }
         : {}),
-    });
+    };
+    refreshes.push(
+      (async () => {
+        // Even an initial read without cached data must not satisfy a post-commit refresh.
+        if (qc.cancelQueries) await qc.cancelQueries(filter);
+        return qc.invalidateQueries(filter, { throwOnError: true, cancelRefetch: true });
+      })(),
+    );
   }
+  return Promise.all(refreshes);
+}
+const readerRefreshes = new WeakMap<object, { key: string; promise: Promise<unknown> }>();
+function refreshReaders(qc: QueryClient, identity: string, revision: string) {
+  const key = `${identity}:${revision}`;
+  const current = readerRefreshes.get(qc);
+  if (current?.key === key) return current.promise;
+  const promise = invalidateRevisionEffects(qc, identity);
+  readerRefreshes.set(qc, { key, promise });
+  return promise;
+}
+function hideFailedReaders(qc: QueryClient) {
+  for (const prefix of RECEIPT_EFFECT_QUERY_PREFIXES)
+    for (const query of qc.getQueryCache().findAll({ queryKey: [prefix] }))
+      if (query.state.status === "error") query.setState({ data: undefined });
 }
 class RevisionReadError extends Error {
   constructor(public status: number) {
@@ -79,6 +116,13 @@ class RevisionReadError extends Error {
 export function useHotelChangeRevision(): void {
   const identity = useReceiptIdentity(),
     qc = useQueryClient();
+  const notices = depositNoticeObserver(qc);
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  useEffect(() => {
+    notices.observe(identity, null);
+    dismissForeignDepositNotices(identity);
+  }, [identity, notices]);
   const [visible, setVisible] = useState(
     () => typeof document !== "undefined" && document.visibilityState === "visible",
   );
@@ -88,23 +132,32 @@ export function useHotelChangeRevision(): void {
     document.addEventListener("visibilitychange", change);
     return () => document.removeEventListener("visibilitychange", change);
   }, []);
-  const observer = useRef(createRevisionObserver((scope) => invalidateRevisionEffects(qc, scope)));
+  const observer = useRef(createRevisionObserver(() => {}));
   const query = useQuery({
     queryKey: ["hotel-change-revision", identity ?? "none"],
     queryFn: async () => {
-      const response = await fetch("/api/hotel/change-revision", {
+      const after = notices.cursor(identity);
+      const url =
+        after === null
+          ? "/api/hotel/change-revision"
+          : `/api/hotel/change-revision?after=${encodeURIComponent(after)}`;
+      const response = await fetch(url, {
         credentials: "same-origin",
         headers: { accept: "application/json" },
         cache: "no-store",
       });
       if (!response.ok) throw new RevisionReadError(response.status);
-      const data = (await response.json()) as { available: boolean; revision: string | null };
+      const data = (await response.json()) as {
+        available: boolean;
+        revision: string | null;
+        notification?: DepositNoticePacket | null;
+      };
       if (
         data.available &&
         (typeof data.revision !== "string" || !/^(0|[1-9]\d*)$/.test(data.revision))
       )
         throw new RevisionReadError(502);
-      return data;
+      return { ...data, identity };
     },
     enabled: revisionPollInterval(identity, visible, true) !== false && blocked !== identity,
     refetchInterval: (q) =>
@@ -120,17 +173,42 @@ export function useHotelChangeRevision(): void {
     retry: false,
   });
   useEffect(() => {
-    observer.current.observe(identity, query.isError ? null : (query.data?.revision ?? null));
-  }, [identity, query.data?.revision, query.isError]);
+    const changed = observer.current.observe(
+      identity,
+      query.isError ? null : (query.data?.revision ?? null),
+    );
+    if (!identity) {
+      notices.observe(null, null);
+      return;
+    }
+    if (query.isError || query.data?.identity !== identity || !query.data.available) return;
+    const events = notices.observe(
+      identity,
+      query.data.notification ??
+        (query.data.revision ? { cursor: query.data.revision, events: [] } : null),
+    );
+    if (!changed && !events.length) return;
+    void refreshReaders(qc, identity, query.data.revision!)
+      .then(() => {
+        if (currentIdentity.current === identity) announceDepositEvents(identity, events);
+      })
+      .catch(() => {
+        if (currentIdentity.current !== identity) return;
+        hideFailedReaders(qc);
+        announceDepositRefreshFailure(identity, events);
+      });
+  }, [identity, query.data, query.isError, notices, qc]);
   useEffect(() => {
     if (
       query.error instanceof RevisionReadError &&
       [401, 403].includes(query.error.status) &&
       identity
     ) {
+      notices.observe(null, null);
+      dismissForeignDepositNotices(null);
       setBlocked(identity);
       purgeSensitiveReceiptData(qc, null);
       void qc.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
     }
-  }, [query.error, identity, qc]);
+  }, [query.error, identity, qc, notices]);
 }

@@ -7,7 +7,12 @@ export const Route = createFileRoute("/api/hotel/change-revision")({
       GET: ({ request }) =>
         withReceiptActor(request, "hotel:receipt_controls:request", false, async (actor) => {
           const revision = await readChangeRevision(actor.tenantId);
-          return json({ available: revision !== null, revision });
+          const { readDepositNotices } = await import("@/lib/deposit-notifications.server");
+          const notification =
+            revision === null
+              ? null
+              : await readDepositNotices(actor, new URL(request.url).searchParams.get("after"));
+          return json({ available: revision !== null, revision, notification });
         }),
     },
   },

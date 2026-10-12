@@ -150,10 +150,10 @@ describe("receipt edit action and existing-request recovery", () => {
     const html = render({ requests: [request("needs_review")] });
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Edit receipt<\/button>/);
     expect(html).toContain("Needs review");
-    expect(html).toContain("same receipt in N3");
-    expect(html).toContain("Verify N3 change");
-    expect(html).toContain('href="/"');
-    expect(html).toContain("Review on Dashboard");
+    expect(html).toContain("manual request");
+    expect(html).toContain("Check old request result");
+    expect(html).not.toContain('href="/"');
+    expect(html).not.toContain("Review on Dashboard");
     expect(html).not.toContain("Request void");
     expect(html).toContain("RM 50.00");
     expect(html).not.toContain("RM 65.00");
@@ -170,7 +170,7 @@ describe("receipt edit action and existing-request recovery", () => {
     (state) => {
       const html = render({ requests: [request(state)] });
       expect(html).toMatch(/disabled=""[^>]*>Edit receipt/);
-      expect(html).toContain("Review on Dashboard");
+      expect(html).not.toContain("Review on Dashboard");
       expect(html).not.toContain("Request void");
     },
   );
@@ -195,8 +195,8 @@ describe("receipt edit action and existing-request recovery", () => {
   it("keeps the known open request and recovery route visible after a failed refresh", () => {
     const html = render({ requests: [request("needs_review")], error: true });
     expect(html).toContain("Needs review");
-    expect(html).toContain("same receipt in N3");
-    expect(html).toContain("Review on Dashboard");
+    expect(html).not.toContain("Check old request result");
+    expect(html).not.toContain("Review on Dashboard");
     expect(html).toContain("Could not refresh receipt requests");
     expect(html).toContain("Retry receipt requests");
     expect(html).toMatch(/disabled=""[^>]*>Edit receipt/);

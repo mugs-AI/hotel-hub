@@ -1,3 +1,4 @@
+import { ReceiptControlError } from "../receipt-controls";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildReceiptUpdatePayload,
@@ -290,4 +291,47 @@ it("documented Update reads once then posts the preserved same receipt once", as
   expect(result.kind).toBe("response");
   expect(methods).toEqual(["GET", "POST"]);
   expect(dispatched).toHaveBeenCalledTimes(1);
+});
+
+it("uses Front Desk own bearer for same receipt Update and retains N3 permission denial", async () => {
+  const raw = documentedRaw();
+  const p = buildReceiptUpdatePayload(raw, RECEIPT_50, PROPOSAL_65, productionUpdateContract()!);
+  const methods: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      methods.push(init?.method || "GET");
+      const auth = new Headers(init?.headers).get("authorization");
+      expect(auth).toBe(`Bearer ${actor.n3Token}`);
+      return init?.method === "POST"
+        ? Response.json({ success: false, code: "DENIED" }, { status: 403 })
+        : Response.json({ success: true, code: "0000", data: raw });
+    }),
+  );
+  expect(
+    await updateN3Receipt({ ...actor, role: "front_desk" }, p, {
+      deadlineAt: Date.now() + 1000,
+      signal: new AbortController().signal,
+    }),
+  ).toMatchObject({ kind: "response", status: 403 });
+  expect(methods).toEqual(["GET", "POST"]);
+});
+
+it("revocation during the final source read prevents the financial POST", async () => {
+  const raw = documentedRaw();
+  const p = buildReceiptUpdatePayload(raw, RECEIPT_50, PROPOSAL_65, productionUpdateContract()!);
+  const fetch = vi.fn(async () => Response.json({ success: true, code: "0000", data: raw }));
+  vi.stubGlobal("fetch", fetch);
+  await expect(
+    updateN3Receipt(
+      actor,
+      p,
+      { deadlineAt: Date.now() + 1000, signal: new AbortController().signal },
+      undefined,
+      async () => {
+        throw new ReceiptControlError("forbidden");
+      },
+    ),
+  ).rejects.toThrow("forbidden");
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

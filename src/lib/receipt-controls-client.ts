@@ -26,6 +26,10 @@ export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   receipt_contact_too_long: "A contact line is longer than 100 characters. Shorten it.",
   receipt_controls_unavailable: "Receipt corrections are not switched on yet.",
   n3_evidence_unavailable: "N3 could not be reached. Try again.",
+  n3_permission_denied:
+    "N3 denied your receipt update rights. Ask the admin to grant access, then check this saved result in HH. Do not resend the correction.",
+  approval_required:
+    "This correction requires Owner approval. The confirmed amount remains unchanged.",
   forbidden: "You do not have permission for this.",
   unauthorized: "Your N3 session expired. Relaunch HotelHub from N3.",
   automation_unavailable: "Automatic N3 correction is awaiting verified activation.",
@@ -128,6 +132,10 @@ export const SENSITIVE_RECEIPT_PREFIXES = [
 ] as const;
 
 type PurgeableClient = {
+  cancelQueries?: (f: {
+    queryKey: readonly unknown[];
+    predicate: (q: { queryKey: readonly unknown[] }) => boolean;
+  }) => unknown;
   removeQueries: (f: {
     queryKey: readonly unknown[];
     predicate: (q: { queryKey: readonly unknown[] }) => boolean;
@@ -145,11 +153,15 @@ type PurgeableClient = {
  * applies even when the Owner dashboard is not mounted.
  */
 export function purgeSensitiveReceiptData(qc: PurgeableClient, identity: string | null) {
-  for (const prefix of SENSITIVE_RECEIPT_PREFIXES)
-    qc.removeQueries({
+  for (const prefix of SENSITIVE_RECEIPT_PREFIXES) {
+    const filter = {
       queryKey: [prefix],
-      predicate: (q) => identity === null || q.queryKey[1] !== identity,
-    });
+      predicate: (q: { queryKey: readonly unknown[] }) =>
+        identity === null || q.queryKey[1] !== identity,
+    };
+    void qc.cancelQueries?.(filter);
+    qc.removeQueries(filter);
+  }
   const mc = qc.getMutationCache?.();
   if (!mc) return;
   for (const m of mc.getAll()) {

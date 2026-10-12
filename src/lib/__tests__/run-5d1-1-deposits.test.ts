@@ -776,7 +776,7 @@ describe("5D1.1 RBAC", () => {
   });
   it("Front desk may view but never create", () => {
     expect(hasPermission("front_desk", "hotel:deposits:view")).toBe(true);
-    expect(hasPermission("front_desk", "hotel:deposits:create")).toBe(false);
+    expect(hasPermission("front_desk", "hotel:deposits:create")).toBe(true);
   });
   it("Housekeeper has neither permission", () => {
     expect(hasPermission("housekeeper", "hotel:deposits:view")).toBe(false);
@@ -1661,4 +1661,43 @@ it("refuses a discovery identity with contradictory aliases", () => {
       postingExpectation,
     ),
   ).toEqual({ conflict: true });
+});
+
+it("role loss at the deposit dispatch fence sends no create and retains a failed intent", async () => {
+  const { client, calls } = makeN3();
+  const input = baseInput(crypto.randomUUID());
+  await expect(
+    createDeposit(input, {
+      n3: client,
+      env: ENV,
+      beforeDispatch: async () => {
+        throw new Error("revoked");
+      },
+    }),
+  ).rejects.toMatchObject({ code: "deposit_authority_changed" });
+  expect(calls.create).toBe(0);
+  const row = tables.hotel_reservation_deposits.find(
+    (r) => r.idempotency_key === input.clientRequestId,
+  );
+  expect(row?.status).toBe("failed");
+});
+
+it("authority loss after Create retains same receipt unknown and never replays a POST", async () => {
+  const f = receiptReadbackN3();
+  const input = baseInput(crypto.randomUUID());
+  const out = await createDeposit(input, {
+    n3: f.client,
+    env: ENV,
+    beforeProjection: async () => {
+      throw new Error("revoked");
+    },
+  });
+  expect(out.deposit).toMatchObject({
+    status: "unknown",
+    n3ReceiptId: RECEIPT_ID,
+    n3DocCode: "OR-100",
+    lastErrorCode: "deposit_authority_changed",
+  });
+  await createDeposit(input, { n3: f.client, env: ENV });
+  expect(f.calls.create).toBe(1);
 });

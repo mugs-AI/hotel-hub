@@ -55,6 +55,7 @@ export function isDepositWriteEnabled(
 // ---------------------------------------------------------------- validation
 
 export const DEPOSIT_ERROR_CODES = new Set([
+  "deposit_authority_changed",
   "invalid_amount",
   "receipt_contact_unavailable",
   "receipt_contact_too_long",
@@ -639,7 +640,7 @@ type ReceiptPostingExpectation = {
   amount: number;
   currencyId: string | null;
   currencyCode: string;
-  paymentLines: VerifiedPaymentLine[];
+  paymentLines: Array<Pick<VerifiedPaymentLine, "id" | "code" | "amount">>;
 };
 
 type PostingReadback =
@@ -1176,6 +1177,8 @@ export type CreateDepositInput = {
 };
 
 export type DepositDeps = {
+  beforeDispatch?: () => Promise<void>;
+  beforeProjection?: () => Promise<void>;
   n3?: N3ReceiptsClient;
   env?: Record<string, string | undefined>;
 };
@@ -1215,6 +1218,8 @@ export async function createDeposit(
   // never issues a second N3 create call.
   const existing = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
   if (existing) {
+    if (existing.reservationId !== input.reservationId)
+      throw new DepositError("reference_conflict");
     if (
       existing.amount !== amount ||
       JSON.stringify(existing.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==
@@ -1295,6 +1300,7 @@ export async function createDeposit(
     // Lost the race with a concurrent duplicate: return that row, no POST.
     const raced = await findByIdempotencyKey(input.tenantId, input.clientRequestId);
     if (raced) {
+      if (raced.reservationId !== input.reservationId) throw new DepositError("reference_conflict");
       if (
         raced.amount !== amount ||
         JSON.stringify(raced.paymentLines.map((l) => ({ accountId: l.id, amount: l.amount }))) !==
@@ -1419,6 +1425,17 @@ export async function createDeposit(
       if (checked.unauthorized) throw new DepositError("unauthorized");
       return { deposit, reused: false };
     }
+    try {
+      await deps.beforeProjection?.();
+    } catch {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdictPre.identity.n3ReceiptId,
+        n3_doc_code: verdictPre.identity.n3DocCode,
+        last_error_code: "deposit_authority_changed",
+      });
+      return { deposit, reused: false };
+    }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "posted",
       n3_receipt_id: verdictPre.identity.n3ReceiptId,
@@ -1451,6 +1468,15 @@ export async function createDeposit(
     contact,
   });
 
+  try {
+    await deps.beforeDispatch?.();
+  } catch {
+    await updateDeposit(input.tenantId, deposit.id, {
+      status: "failed",
+      last_error_code: "deposit_authority_changed",
+    });
+    throw new DepositError("deposit_authority_changed");
+  }
   const created = await n3.create(input.n3Token, payload);
   const verdict = classifyCreateOutcome(created, expected);
 
@@ -1474,6 +1500,17 @@ export async function createDeposit(
         detail: { depositId: deposit.id, reservationId: input.reservationId, code: checked.code },
       });
       if (checked.unauthorized) throw new DepositError("unauthorized");
+      return { deposit, reused: false };
+    }
+    try {
+      await deps.beforeProjection?.();
+    } catch {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdict.identity.n3ReceiptId,
+        n3_doc_code: verdict.identity.n3DocCode,
+        last_error_code: "deposit_authority_changed",
+      });
       return { deposit, reused: false };
     }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
