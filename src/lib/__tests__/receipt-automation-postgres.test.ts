@@ -88,9 +88,150 @@ describe.skipIf(!wasmModule && !nativeUrl)(
         sql("supabase/migrations/20261002053302_002c40fe-30f8-462c-a989-2c37291223c3.sql"),
       );
       await db.exec(sql("supabase/migrations/20261003120216_hh_automatic_receipt_controls.sql"));
+      await db.exec(sql("supabase/migrations/20261012075339_hh_staff_receipt_authority.sql"));
     }, 20000);
     afterAll(async () => {
       await db?.close();
+    });
+    it("staff directly authorises/reserves/settles only own policy-OFF correction", async () => {
+      await db.exec("BEGIN");
+      try {
+        await call("hotelhub_change_policy_set", {
+          expectedRevision: "0",
+          depositApprovalRequired: false,
+          contactApprovalRequired: false,
+        });
+        const q = await create("1");
+        const direct = await call(
+          "hotelhub_receipt_control_v2_authorize",
+          {
+            requestId: q.id,
+            expectedVersion: q.version,
+            kind: "direct_policy",
+            policyRevision: "1",
+          },
+          "front_desk",
+        );
+        const data = {
+          requestId: q.id,
+          expectedVersion: direct.version,
+          payloadHash: "staff-payload-hash-00000001",
+          policyRevision: "1",
+        };
+        const granted = await call("hotelhub_receipt_control_v2_reserve", data, "front_desk");
+        expect(granted.dispatchGranted).toBe(true);
+        const current = (
+          await db.query<{ version: number }>(
+            "select version from hotel_receipt_control_requests where id=$1",
+            [q.id],
+          )
+        ).rows[0]!;
+        const a = granted.attempt as { id: string; claimed_version: number };
+        const original = receiptSnapshot();
+        const done = await call(
+          "hotelhub_receipt_control_v2_settle",
+          {
+            requestId: q.id,
+            expectedVersion: current.version,
+            attemptId: a.id,
+            claimedVersion: a.claimed_version,
+            result: {
+              kind: "verified",
+              version: {
+                state: "active",
+                receiptId: original.receiptId,
+                docCode: original.docCode,
+                documentDate: original.documentDate,
+                currency: original.currency,
+                amountCents: 6500,
+                paymentLines: original.paymentLines.map((l) => ({ ...l, amountCents: 6500 })),
+                replacementOf: null,
+                fingerprint: "staff-proof",
+              },
+              contact: original.contact,
+            },
+          },
+          "front_desk",
+        );
+        expect(done.state).toBe("applied");
+        const own = (
+          await db.query<{
+            result: {
+              cursor: string;
+              events: Array<{ requestId: string; beforeCents: number; afterCents: number }>;
+            };
+          }>(
+            "select public.hotelhub_receipt_applied_events_read($1,'owner-1','front_desk','0') as result",
+            [T],
+          )
+        ).rows[0]!.result;
+        expect(own.events).toHaveLength(1);
+        expect(own.events[0]).toMatchObject({
+          requestId: q.id,
+          beforeCents: 5000,
+          afterCents: 6500,
+        });
+        const baseline = (
+          await db.query<{ result: { events: unknown[] } }>(
+            "select public.hotelhub_receipt_applied_events_read($1,'owner-1','front_desk',NULL) as result",
+            [T],
+          )
+        ).rows[0]!.result;
+        expect(baseline.events).toEqual([]);
+        const alien = (
+          await db.query<{ result: { events: unknown[] } }>(
+            "select public.hotelhub_receipt_applied_events_read($1,'other-staff','front_desk','0') as result",
+            [T],
+          )
+        ).rows[0]!.result;
+        expect(alien.events).toEqual([]);
+        await call(
+          "hotelhub_receipt_control_v2_settle",
+          {
+            requestId: q.id,
+            expectedVersion: done.version,
+            attemptId: a.id,
+            claimedVersion: a.claimed_version,
+            result: { kind: "unknown", code: "replay" },
+          },
+          "front_desk",
+        );
+        expect(
+          (
+            await db.query<{ count: number }>(
+              "select count(*)::int as count from hotel_receipt_applied_events",
+            )
+          ).rows[0]!.count,
+        ).toBe(1);
+        await expect(
+          db.query(
+            "select public.hotelhub_receipt_control_v2_reserve($1,'alien','front_desk',$2)",
+            [T, JSON.stringify(data)],
+          ),
+        ).rejects.toThrow("forbidden");
+      } finally {
+        await db.exec("ROLLBACK");
+      }
+    });
+    it("staff cannot approve even own request while approval is ON", async () => {
+      await db.exec("BEGIN");
+      try {
+        const q = await create();
+        await expect(
+          call(
+            "hotelhub_receipt_control_v2_authorize",
+            {
+              requestId: q.id,
+              expectedVersion: q.version,
+              kind: "manual_approval",
+              policyRevision: "0",
+            },
+            "front_desk",
+          ),
+        ).rejects.toThrow("forbidden");
+      } finally {
+        await db.exec("ROLLBACK");
+      }
     });
     it("proof permits restrict grants and claim only one dispatch", async () => {
       const data = {
@@ -773,9 +914,9 @@ describe.skipIf(!wasmModule && !nativeUrl)(
       );
       expect(approved.approved_at).not.toBe(null);
     });
-    it.skipIf(!nativeUrl)(
-      "two native connections grant one receipt and one proof dispatch under real row-lock barriers",
-      async () => {
+    it.skipIf(!nativeUrl).each(["owner", "front_desk"] as const)(
+      "two native connections grant one %s receipt dispatch under real row-lock barriers",
+      async (dispatchRole) => {
         const mod = await import(/* @vite-ignore */ nativeModule!);
         const Client = mod.Client ?? mod.default.Client;
         const left = new Client({ connectionString: nativeUrl });
@@ -796,6 +937,18 @@ describe.skipIf(!wasmModule && !nativeUrl)(
             deposit,
             reservation,
           ]);
+          const policyRevision = dispatchRole === "front_desk" ? "1" : "0";
+          if (dispatchRole === "front_desk")
+            await call(
+              "hotelhub_change_policy_set",
+              {
+                expectedRevision: "0",
+                depositApprovalRequired: false,
+                contactApprovalRequired: false,
+              },
+              "owner",
+              tenant,
+            );
           const original = receiptSnapshot();
           const row = await call(
             "hotelhub_receipt_control_v2_create",
@@ -813,7 +966,7 @@ describe.skipIf(!wasmModule && !nativeUrl)(
                 contact: original.contact,
               },
               comparison: { fields: [], depositDeltaCents: 1500, balanceDeltaCents: -1500 },
-              policyRevision: "0",
+              policyRevision,
             },
             "owner",
             tenant,
@@ -823,10 +976,10 @@ describe.skipIf(!wasmModule && !nativeUrl)(
             {
               requestId: row.id,
               expectedVersion: row.version,
-              kind: "manual_approval",
-              policyRevision: "0",
+              kind: dispatchRole === "owner" ? "manual_approval" : "direct_policy",
+              policyRevision,
             },
-            "owner",
+            dispatchRole,
             tenant,
           );
           const query =
@@ -834,12 +987,12 @@ describe.skipIf(!wasmModule && !nativeUrl)(
           const values = [
             tenant,
             "owner-1",
-            "owner",
+            dispatchRole,
             JSON.stringify({
               requestId: row.id,
               expectedVersion: authorized.version,
               payloadHash: "race-payload-fingerprint",
-              policyRevision: "0",
+              policyRevision,
             }),
           ];
           await left.query("BEGIN");
@@ -873,6 +1026,7 @@ describe.skipIf(!wasmModule && !nativeUrl)(
               )
             ).rows[0]!.count,
           ).toBe(1);
+          if (dispatchRole === "front_desk") return;
           const proof = await call(
             "hotelhub_receipt_proof_prepare",
             {

@@ -24,6 +24,8 @@ import {
 import {
   automationBudgetMs,
   canAutoUpdate,
+  canCreateScopedReceiptUat,
+  canExecuteScopedReceiptUat,
   type ReceiptAutomationActor,
 } from "./receipt-automation-gates.server";
 import {
@@ -38,6 +40,7 @@ import {
 import type { ReceiptAutomationDeps } from "./receipt-automation-execution.server";
 import { isUuid } from "./reservations-store.server";
 export const requireFreshReceiptOwner = requireFreshChangeOwner;
+import { requireFreshReceiptActor } from "./receipt-staff-authority.server";
 export async function resolveAutomationActor(
   actor: ReceiptControlActor,
 ): Promise<ReceiptAutomationActor> {
@@ -60,14 +63,11 @@ export async function toAutomationDTO(
     return { ...dto, automation: null, canApply: false, canCheckResult: false };
   const owner = actor.role === "owner",
     unsettled = ["pending", "needs_review", "approved_awaiting_n3"].includes(row.state);
+  const resolved = await resolveAutomationActor(actor),
+    contract = productionUpdateContract();
   const enabled =
-    productionUpdateContract() !== null &&
-    canAutoUpdate(
-      await resolveAutomationActor(actor),
-      true,
-      productionUpdateContract(),
-      process.env,
-    );
+    canAutoUpdate(resolved, true, contract, process.env) ||
+    canExecuteScopedReceiptUat(resolved, true, contract, process.env, row);
   const currentPolicy = await readChangePolicy(actor.tenantId);
   if (!currentPolicy) throw new ReceiptControlError("change_controls_unavailable");
   const requiresApproval =
@@ -80,11 +80,19 @@ export async function toAutomationDTO(
     ...dto,
     automation: row.automation,
     canApprove: owner && enabled && unsettled && !row.attempt && requiresApproval,
-    canApply: owner && enabled && unsettled && !row.attempt && !requiresApproval,
+    canApply:
+      (owner || (actor.role === "front_desk" && row.requestedBy === actor.n3UserKey)) &&
+      enabled &&
+      unsettled &&
+      !row.attempt &&
+      !requiresApproval,
     canReject: owner && unsettled && (!row.attempt || row.attempt.phase === "rejected"),
     canVerify: false,
     canRecover: false,
-    canCheckResult: owner && !!row.attempt && ["reserved", "unknown"].includes(row.attempt.phase),
+    canCheckResult:
+      (owner || (actor.role === "front_desk" && row.requestedBy === actor.n3UserKey)) &&
+      !!row.attempt &&
+      ["reserved", "unknown"].includes(row.attempt.phase),
     outcomeMessage:
       row.state === "applied"
         ? "N3 receipt and journal verified. The corrected amount is effective."
@@ -120,10 +128,12 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
   return {
     db: supabaseReceiptAutomationDb(),
     policy: readChangePolicy,
-    enabled: (actor) => canAutoUpdate(actor, true, contract, process.env),
+    enabled: (actor, row) =>
+      canAutoUpdate(actor, true, contract, process.env) ||
+      canExecuteScopedReceiptUat(actor, true, contract, process.env, row),
     budgetMs: automationBudgetMs(process.env),
     now: Date.now,
-    freshOwner: requireFreshReceiptOwner,
+    freshActor: requireFreshReceiptActor,
     async prepare(actor, row, limit) {
       if (!contract) throw new ReceiptControlError("automation_unavailable");
       const { evidence, raw } = await boundedEvidence(actor, row.depositId, limit);
@@ -146,7 +156,24 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
         throw new ReceiptControlError("account_not_allowed");
       return buildReceiptUpdatePayload(raw, row.original, row.proposal, contract);
     },
-    send: updateN3Receipt,
+    send: (actor, prepared, limit, authorization) =>
+      updateN3Receipt(actor, prepared, limit, undefined, async () => {
+        await requireFreshReceiptActor(actor);
+        const policy = await readChangePolicy(actor.tenantId);
+        if (!policy || policy.revision !== authorization.policyRevision)
+          throw new ReceiptControlError("version_conflict");
+        const current = await supabaseReceiptAutomationDb().get(
+          actor.tenantId,
+          authorization.row.id,
+        );
+        if (
+          !current ||
+          current.version !== authorization.row.version ||
+          current.attempt?.id !== authorization.row.attempt?.id ||
+          current.state !== "applying"
+        )
+          throw new ReceiptControlError("claim_stale");
+      }),
     readResult: async (actor, row, limit) =>
       (await boundedEvidence(actor, row.depositId, limit)).evidence,
     noWriteRejected(out: N3Outcome) {
@@ -167,16 +194,20 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
     dto: (actor, row) => toAutomationDTO(actor, row, base),
   };
 }
-export async function createAutomaticReceiptRequest(
+type ReceiptRequestInput = {
+  reservationId: unknown;
+  depositId: unknown;
+  clientRequestId: unknown;
+  reason: unknown;
+  proposal: unknown;
+};
+/** Replay is routed by saved generation before current activation/new-request
+ * eligibility. It validates against the saved original and never reads N3 or
+ * creates/upgrades/dispatches a request. */
+export async function findReceiptRequestReplay(
   actor: ReceiptControlActor,
-  input: {
-    reservationId: unknown;
-    depositId: unknown;
-    clientRequestId: unknown;
-    reason: unknown;
-    proposal: unknown;
-  },
-): Promise<ReceiptAutomationDTO> {
+  input: ReceiptRequestInput,
+): Promise<ReceiptAutomationDTO | null> {
   if (!["owner", "front_desk"].includes(actor.role)) throw new ReceiptControlError("forbidden");
   if (!isUuid(input.reservationId) || !isUuid(input.depositId) || !isUuid(input.clientRequestId))
     throw new ReceiptControlError("invalid_id");
@@ -187,24 +218,36 @@ export async function createAutomaticReceiptRequest(
     .eq("client_request_id", input.clientRequestId)
     .maybeSingle();
   if (found.error) throw new ReceiptControlError("receipt_control_store_failed");
-  if (found.data) {
-    const old = await supabaseReceiptAutomationDb().get(actor.tenantId, found.data.id);
-    if (
-      !old ||
-      old.generation !== 2 ||
-      old.requestedBy !== actor.n3UserKey ||
-      old.reservationId !== input.reservationId ||
-      old.depositId !== input.depositId ||
-      old.fingerprint !==
-        requestFingerprint(
-          input.depositId,
-          validateReason(input.reason),
-          validateReceiptControlProposal(input.proposal, old.original),
-        )
-    )
+  if (!found.data) return null;
+  const old = await supabaseReceiptAutomationDb().get(actor.tenantId, found.data.id);
+  if (
+    !old ||
+    old.requestedBy !== actor.n3UserKey ||
+    old.reservationId !== input.reservationId ||
+    old.depositId !== input.depositId ||
+    old.fingerprint !==
+      requestFingerprint(
+        input.depositId,
+        validateReason(input.reason),
+        validateReceiptControlProposal(input.proposal, old.original),
+      )
+  )
+    throw new ReceiptControlError("receipt_control_key_conflict");
+  return toAutomationDTO(actor, old);
+}
+export async function createAutomaticReceiptRequest(
+  actor: ReceiptControlActor,
+  input: ReceiptRequestInput,
+): Promise<ReceiptAutomationDTO> {
+  const replay = await findReceiptRequestReplay(actor, input);
+  if (replay) {
+    if (replay.automation?.generation !== 2)
       throw new ReceiptControlError("receipt_control_key_conflict");
-    return toAutomationDTO(actor, old);
+    return replay;
   }
+  // findReceiptRequestReplay validated IDs, but narrow them for persistence.
+  if (!isUuid(input.reservationId) || !isUuid(input.depositId) || !isUuid(input.clientRequestId))
+    throw new ReceiptControlError("invalid_id");
   const base = defaultReceiptControlDeps(),
     policy = await readChangePolicy(actor.tenantId);
   if (!policy) throw new ReceiptControlError("change_controls_unavailable");
@@ -213,6 +256,24 @@ export async function createAutomaticReceiptRequest(
   const reason = validateReason(input.reason),
     proposal = validateReceiptControlProposal(input.proposal, original);
   if (proposal.kind !== "correction") throw new ReceiptControlError("automation_unavailable");
+  // With the normal writer OFF, even request creation must match the exact UAT
+  // amount-only case. This check precedes persistence, so a wrong draft cannot
+  // lock the fixture as an unusable pending automatic request.
+  const resolved = await resolveAutomationActor(actor),
+    creationActor = { ...resolved, role: "owner" as const },
+    contract = productionUpdateContract();
+  if (
+    !canAutoUpdate(resolved, true, contract, process.env) &&
+    !canExecuteScopedReceiptUat(creationActor, true, contract, process.env, {
+      generation: 2,
+      tenantId: actor.tenantId,
+      reservationId: input.reservationId,
+      depositId: input.depositId,
+      original,
+      proposal,
+    })
+  )
+    throw new ReceiptControlError("automation_unavailable");
   if (
     requiresAccountEligibility(original, proposal) &&
     !(await base.resolveAccount(actor, proposal.accountId, original.paymentLines[0]!.accountId))
@@ -235,11 +296,29 @@ export async function createAutomaticReceiptRequest(
   return toAutomationDTO(actor, row, base);
 }
 
-export async function automaticReceiptCreationReady(actor: ReceiptControlActor): Promise<boolean> {
-  if (!productionUpdateContract()) return false;
+export async function automaticReceiptCreationReady(
+  actor: ReceiptControlActor,
+  selection?: { reservationId: unknown; depositId: unknown },
+): Promise<boolean> {
+  if (!["owner", "front_desk"].includes(actor.role) || !productionUpdateContract()) return false;
   const resolved = await resolveAutomationActor(actor);
+  if ((await readChangePolicy(actor.tenantId)) === null) return false;
+  const creationActor = { ...resolved, role: "owner" as const },
+    contract = productionUpdateContract();
+  if (canAutoUpdate(resolved, true, contract, process.env)) return true;
+  if (
+    !selection ||
+    process.env.HOTELHUB_RECEIPT_SCOPED_UAT_ENABLED !== "true" ||
+    !isUuid(selection.reservationId) ||
+    !isUuid(selection.depositId)
+  )
+    return false;
+  const deposit = await loadDeposit(actor.tenantId, selection.depositId);
   return (
-    (await readChangePolicy(actor.tenantId)) !== null &&
-    canAutoUpdate({ ...resolved, role: "owner" }, true, productionUpdateContract(), process.env)
+    !!deposit &&
+    canCreateScopedReceiptUat(creationActor, true, contract, process.env, {
+      reservationId: selection.reservationId,
+      deposit,
+    })
   );
 }

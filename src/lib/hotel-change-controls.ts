@@ -74,7 +74,7 @@ export function classifyReceiptChanges(
 
 export function routeChange(
   role: HotelRole,
-  target: ChangeTarget,
+  _target: ChangeTarget,
   categories: ChangeCategories,
   policy: ChangePolicy,
 ): ChangeRoute {
@@ -85,5 +85,5 @@ export function routeChange(
     (categories.contact && policy.contactApprovalRequired)
   )
     return "approval";
-  return target === "n3_receipt" && role !== "owner" ? "owner_execution" : "direct";
+  return "direct";
 }

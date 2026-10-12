@@ -72,3 +72,20 @@ it("fails closed when current approval policy cannot be read", async () => {
   state.unavailable = true;
   await expect(toAutomationDTO(actor, row())).rejects.toThrow("policy unavailable");
 });
+
+it("offers direct apply and recovery only for the signed-in staff requester", async () => {
+  state.policy.depositApprovalRequired = false;
+  const staff = { ...actor, role: "front_desk" as const };
+  const own = { ...row(), requestedBy: "u" };
+  expect(await toAutomationDTO(staff, own)).toMatchObject({ canApply: true, canApprove: false });
+  expect(await toAutomationDTO(staff, { ...own, requestedBy: "other" })).toMatchObject({
+    canApply: false,
+    canCheckResult: false,
+  });
+  expect(
+    await toAutomationDTO(staff, {
+      ...own,
+      attempt: { id: "a", phase: "unknown", claimedVersion: 3, payloadHash: "h" },
+    }),
+  ).toMatchObject({ canApply: false, canCheckResult: true });
+});

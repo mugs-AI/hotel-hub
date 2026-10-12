@@ -1,3 +1,4 @@
+import { DepositSoundControl } from "@/components/DepositSoundControl";
 import { useHotelChangeRevision } from "@/lib/hotel-change-revision-client";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
@@ -259,6 +260,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               {tools}
             </nav>
             <div className="flex min-w-0 items-center gap-2">
+              <DepositSoundControl />
               <SessionBadge
                 session={session}
                 onSignOut={() => signOut.mutate()}

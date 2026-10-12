@@ -36,9 +36,9 @@ describe("deposit controls reflect server authority", () => {
     vi.stubEnv("HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED", "true");
     expect(await capability()).toEqual({ canCreate: true, canSplit: true });
   });
-  it("never advertises a financial write to Front Desk", async () => {
+  it("offers gated deposit creation to Front Desk using own N3 rights", async () => {
     state.role = "front_desk";
     vi.stubEnv("HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED", "true");
-    expect(await capability()).toEqual({ canCreate: false, canSplit: false });
+    expect(await capability()).toEqual({ canCreate: true, canSplit: true });
   });
 });
