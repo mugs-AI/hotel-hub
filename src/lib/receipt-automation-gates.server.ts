@@ -17,7 +17,7 @@ export function canAutoUpdate(
   env: Record<string, string | undefined>,
 ): boolean {
   return (
-    actor.role === "owner" &&
+    ["owner", "front_desk"].includes(actor.role) &&
     schemaReady &&
     contract !== null &&
     contract.proofId !== "FIXTURE_ONLY" &&

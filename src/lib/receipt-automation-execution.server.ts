@@ -18,7 +18,7 @@ export type ReceiptAutomationDeps = {
   enabled: (actor: ReceiptAutomationActor, row: AutomationRequestRow) => boolean;
   budgetMs: number | null;
   now: () => number;
-  freshOwner: (actor: ReceiptAutomationActor) => Promise<void>;
+  freshActor: (actor: ReceiptAutomationActor) => Promise<void>;
   prepare: (
     actor: ReceiptAutomationActor,
     row: AutomationRequestRow,
@@ -28,6 +28,7 @@ export type ReceiptAutomationDeps = {
     actor: ReceiptAutomationActor,
     prepared: PreparedReceiptUpdate,
     limit: N3ExecutionLimit,
+    authorization: { row: AutomationRequestRow; policyRevision: string },
   ) => Promise<N3Outcome>;
   readResult: (
     actor: ReceiptAutomationActor,
@@ -37,14 +38,17 @@ export type ReceiptAutomationDeps = {
   noWriteRejected: (outcome: N3Outcome) => boolean;
   dto: (actor: ReceiptAutomationActor, row: AutomationRequestRow) => Promise<ReceiptAutomationDTO>;
 };
-function owner(actor: ReceiptAutomationActor) {
-  if (actor.role !== "owner" || !actor.n3TenantKey) throw new ReceiptControlError("forbidden");
+function staffActor(actor: ReceiptAutomationActor) {
+  if (!["owner", "front_desk"].includes(actor.role) || !actor.n3TenantKey)
+    throw new ReceiptControlError("forbidden");
 }
 async function get(actor: ReceiptAutomationActor, id: string, deps: ReceiptAutomationDeps) {
-  owner(actor);
+  staffActor(actor);
   if (!isUuid(id)) throw new ReceiptControlError("invalid_id");
   const r = await deps.db.get(actor.tenantId, id);
   if (!r) throw new ReceiptControlError("request_not_found");
+  if (actor.role === "front_desk" && r.requestedBy !== actor.n3UserKey)
+    throw new ReceiptControlError("forbidden");
   if (r.generation !== 2 || !r.automation || r.kind !== "correction")
     throw new ReceiptControlError("automation_unavailable");
   return r;
@@ -128,7 +132,7 @@ async function reconcile(
   const evidence = await b.run(() => deps.readResult(actor, row, b.limit));
   if (verifyReceiptControlResult(row.original, row.proposal, evidence) !== "verified")
     return hold(actor, row, deps, "n3_result_unproven");
-  await b.run(() => deps.freshOwner(actor));
+  await b.run(() => deps.freshActor(actor));
   const result: AutomationSettlement = {
     kind: "verified",
     version: {
@@ -168,6 +172,15 @@ export async function applyReceiptCorrection(
     !["approve", "apply"].includes(input.action)
   )
     throw new ReceiptControlError("invalid_body");
+  if (input.action === "approve" && actor.role !== "owner")
+    throw new ReceiptControlError("forbidden");
+  if (
+    input.action === "apply" &&
+    row.automation &&
+    ((row.automation.categories.deposit && row.automation.policy.depositApprovalRequired) ||
+      (row.automation.categories.contact && row.automation.policy.contactApprovalRequired))
+  )
+    throw new ReceiptControlError("approval_required");
   // Replay never reserves or sends again, even after a lost successful response.
   if (row.state === "applied") return response(actor, row, deps, "verified");
   if (row.attempt) return response(actor, row, deps, "existing_attempt_check_result");
@@ -175,9 +188,18 @@ export async function applyReceiptCorrection(
   if (row.version !== input.expectedVersion) throw new ReceiptControlError("version_conflict");
   const b = budget(deps);
   try {
-    await b.run(() => deps.freshOwner(actor));
+    await b.run(() => deps.freshActor(actor));
     const policy = await b.run(() => deps.policy(actor.tenantId));
     if (!policy) throw new ReceiptControlError("change_controls_unavailable");
+    if (
+      input.action === "apply" &&
+      row.automation &&
+      ((row.automation.categories.deposit &&
+        (policy.depositApprovalRequired || row.automation.policy.depositApprovalRequired)) ||
+        (row.automation.categories.contact &&
+          (policy.contactApprovalRequired || row.automation.policy.contactApprovalRequired)))
+    )
+      throw new ReceiptControlError("approval_required");
     row = await b.run(() =>
       deps.db.authorize(
         actor,
@@ -188,7 +210,7 @@ export async function applyReceiptCorrection(
       ),
     );
     const prepared = await b.run(() => deps.prepare(actor, row, b.limit));
-    await b.run(() => deps.freshOwner(actor));
+    await b.run(() => deps.freshActor(actor));
     // SQL locks and rechecks the current policy revision and real approval here.
     const latest = await b.run(() => deps.policy(actor.tenantId));
     if (!latest) throw new ReceiptControlError("change_controls_unavailable");
@@ -198,9 +220,11 @@ export async function applyReceiptCorrection(
     row = (await deps.db.get(actor.tenantId, row.id)) ?? { ...row, attempt: reserved.attempt };
     if (!reserved.dispatchGranted)
       return response(actor, row, deps, "existing_attempt_check_result");
-    await b.run(() => deps.freshOwner(actor));
+    await b.run(() => deps.freshActor(actor));
     if (!deps.enabled(actor, row)) throw new ReceiptControlError("automation_unavailable");
-    const out = await b.run(() => deps.send(actor, prepared, b.limit));
+    const out = await b.run(() =>
+      deps.send(actor, prepared, b.limit, { row, policyRevision: latest.revision }),
+    );
     if (
       out.kind !== "response" ||
       out.status < 200 ||
@@ -218,7 +242,14 @@ export async function applyReceiptCorrection(
         );
         return response(actor, row, deps, "n3_rejected_no_write");
       }
-      return hold(actor, row, deps, "n3_update_unknown");
+      return hold(
+        actor,
+        row,
+        deps,
+        out.kind === "response" && out.status === 403
+          ? "n3_permission_denied"
+          : "n3_update_unknown",
+      );
     }
     return await reconcile(actor, row, deps, b);
   } catch (err) {
@@ -235,7 +266,7 @@ export async function checkReceiptCorrectionResult(
   const row = await get(actor, id, deps);
   const b = budget(deps);
   try {
-    await b.run(() => deps.freshOwner(actor));
+    await b.run(() => deps.freshActor(actor));
     return await reconcile(actor, row, deps, b);
   } catch (err) {
     return hold(actor, row, deps, safeCode(err));

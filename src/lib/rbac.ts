@@ -61,12 +61,12 @@ const MATRIX: Record<Permission, ReadonlySet<HotelRole>> = {
   // enforced separately on the server.
   "hotel:reservations:edit": new Set(["owner", "front_desk"]),
   // Front desk may READ the deposit ledger (operational awareness) but must
-  // never post an AR Receive Payment: financial writes to N3 are Owner-only.
+  // use their own server-held N3 receipt permissions for deposit create/correction.
   "hotel:deposits:view": new Set(["owner", "front_desk"]),
-  "hotel:deposits:create": new Set(["owner"]),
+  "hotel:deposits:create": new Set(["owner", "front_desk"]),
   "hotel:receipt_controls:request": new Set(["owner", "front_desk"]),
   "hotel:receipt_controls:approve": new Set(["owner"]),
-  "hotel:receipt_controls:execute": new Set(["owner"]),
+  "hotel:receipt_controls:execute": new Set(["owner", "front_desk"]),
   "hotel:financial_reports:view": new Set(["owner"]),
 
   // Front-desk reservation operations. Requesting is a front-desk duty;

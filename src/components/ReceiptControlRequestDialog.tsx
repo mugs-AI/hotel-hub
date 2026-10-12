@@ -1,3 +1,5 @@
+import { ReceiptCorrectionRecovery } from "./ReceiptCorrectionRecovery";
+import type { ReceiptAutomationDTO } from "@/lib/receipt-automation";
 // Request correction / Request void for a posted deposit receipt.
 // Shows original vs requested and the provisional deposit/balance difference.
 // A submission can request approval or execute an authorized Owner direct save.
@@ -8,6 +10,7 @@ import { usePaymentAccounts, type DepositDTO } from "@/lib/deposits-client";
 import { formatReceiptDelta, formatReceiptMoney } from "@/lib/receipt-controls";
 import {
   createReceiptControl,
+  normalizeReceiptControl,
   getReceiptOriginal,
   type ReceiptOriginalDTO,
   ReceiptControlClientError,
@@ -135,6 +138,7 @@ export function ReceiptControlRequestDialog({
   const [clientRequestId] = useState(newKey);
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
+  const [savedRequest, setSavedRequest] = useState<ReceiptAutomationDTO | null>(null);
   const submitting = useRef(false);
   const submit = useMutation({
     mutationKey: ["receipt-controls", identity ?? "none", "request", deposit.id],
@@ -146,12 +150,13 @@ export function ReceiptControlRequestDialog({
       }),
     onSuccess: (v) => {
       if (currentIdentity.current !== dialogIdentity.current) return;
+      setSavedRequest(normalizeReceiptControl(v.request));
       const state = v.request.state;
       setResult(
         state === "applied"
           ? "N3 change verified. HotelHub totals will refresh from the confirmed result."
           : v.outcome || state === "needs_review" || state === "applying"
-            ? `${v.code ? receiptControlMessage(v.code) : "The N3 result needs review."} Original totals remain effective. Open the Owner Dashboard to review this existing request; do not resend the change.`
+            ? `${v.code ? receiptControlMessage(v.code) : "The N3 result needs review."} Original totals remain effective. Check the saved result here in the reservation; do not resend the change.`
             : state === "approved_awaiting_n3"
               ? "Request saved. Open the Owner Dashboard, complete the same receipt change in N3, then use Verify N3 change."
               : "Request saved. Open the Owner Dashboard for approval and the next step. Totals remain unchanged until N3 verification.",
@@ -165,7 +170,7 @@ export function ReceiptControlRequestDialog({
         ["request_failed", "n3_update_unknown", "existing_attempt_check_result"].includes(e.code)
       ) {
         setResult(
-          "The submission result is not confirmed. Open the Owner Dashboard to check the existing request and its N3 result; do not resend the change.",
+          "The submission result is not confirmed. Close this dialog to check the saved request in the reservation; do not resend the change.",
         );
         invalidateReceiptEffects(qc);
         return;
@@ -223,9 +228,9 @@ export function ReceiptControlRequestDialog({
           {kind === "void" ? "Request void" : "Edit receipt"} — {deposit.n3DocCode ?? "receipt"}
         </h2>
         <p className="text-base text-muted-foreground">
-          Approval follows your property settings. N3 changes require Owner authority. Totals change
-          only after the receipt and journal are verified. Local guest-folio billing details use
-          their separate billing contact form.
+          Approval follows your property settings. N3 must authorise your receipt update rights.
+          Totals change only after the receipt and journal are verified. Local guest-folio billing
+          details use their separate billing contact form.
         </p>
         <table className="w-full text-base">
           <thead>
@@ -399,6 +404,18 @@ export function ReceiptControlRequestDialog({
             {result}
           </p>
         ) : null}
+        {savedRequest?.automation ? (
+          <ReceiptCorrectionRecovery
+            request={savedRequest}
+            onResult={(request) => {
+              setSavedRequest(request);
+              if (request.state === "applied")
+                setResult(
+                  "Deposit correction completed. N3 verified. Confirmed totals are refreshing.",
+                );
+            }}
+          />
+        ) : null}
         <div className="flex justify-end gap-2">
           <button type="button" className="rounded border px-3 py-1.5 text-base" onClick={onClose}>
             {result ? "Done" : "Cancel"}
@@ -410,7 +427,11 @@ export function ReceiptControlRequestDialog({
             disabled={formLocked || !reasonOk || !evidenceReady || journalBlocked}
             onClick={onSubmit}
           >
-            {submit.isPending ? "Sending…" : kind === "correction" ? "Save change" : "Send request"}
+            {submit.isPending
+              ? "Applying / saving…"
+              : kind === "correction"
+                ? "Save change"
+                : "Send request"}
           </button>
         </div>
       </div>

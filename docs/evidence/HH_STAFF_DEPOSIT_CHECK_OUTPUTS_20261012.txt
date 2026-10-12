@@ -1,0 +1,505 @@
+== staff-red.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+ ❯ src/lib/__tests__/receipt-automation-capabilities.test.ts (5 tests | 1 failed) 11ms
+   × offers direct apply and recovery only for the signed-in staff requester 6ms
+ ❯ src/lib/__tests__/receipt-automation-execution.test.ts (13 tests | 4 failed) 26ms
+     × applies approval OFF once using the staff actor and token 4ms
+     × cannot bypass approval ON with Apply 5ms
+     × revocation before dispatch never sends the Update 0ms
+     × unknown staff result recovers with reads only and never resends 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/receipt-automation-capabilities.test.ts > offers direct apply and recovery only for the signed-in staff requester
+AssertionError: expected { automation: { …(6) }, …(7) } to match object { canApply: true, canApprove: false }
+(12 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "canApply": true,
++   "canApply": false,
+    "canApprove": false,
+  }
+
+ ❯ src/lib/__tests__/receipt-automation-capabilities.test.ts:80:45
+     78|   const staff = { ...actor, role: "front_desk" as const };
+     79|   const own = { ...row(), requestedBy: "u" };
+     80|   expect(await toAutomationDTO(staff, own)).toMatchObject({ canApply: …
+       |                                             ^
+     81|   expect(await toAutomationDTO(staff, { ...own, requestedBy: "other" }…
+     82|   expect(await toAutomationDTO(staff, { ...own, attempt: { id: "a", ph…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/lib/__tests__/receipt-automation-execution.test.ts > N3-authorised staff receipt correction > applies approval OFF once using the staff actor and token
+ReceiptControlError: forbidden
+ ❯ owner src/lib/receipt-automation-execution.server.ts:41:59
+     39| };
+     40| function owner(actor: ReceiptAutomationActor) {
+     41|   if (actor.role !== "owner" || !actor.n3TenantKey) throw new ReceiptC…
+       |                                                           ^
+     42| }
+     43| async function get(actor: ReceiptAutomationActor, id: string, deps: Re…
+ ❯ get src/lib/receipt-automation-execution.server.ts:44:3
+ ❯ applyReceiptCorrection src/lib/receipt-automation-execution.server.ts:164:19
+ ❯ src/lib/__tests__/receipt-automation-execution.test.ts:301:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/lib/__tests__/receipt-automation-execution.test.ts > N3-authorised staff receipt correction > cannot bypass approval ON with Apply
+AssertionError: expected ReceiptControlError: forbidden { …(1) } to match object { code: 'approval_required' }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+- {
+-   "code": "approval_required",
++ ReceiptControlError {
++   "code": "forbidden",
+  }
+
+ ❯ src/lib/__tests__/receipt-automation-execution.test.ts:308:123
+    306|   it("cannot bypass approval ON with Apply", async () => {
+    307|     const f = fixture();
+    308|     await expect(applyReceiptCorrection(staff, { requestId: f.get().ro…
+       |                                                                                                                           ^
+    309|     expect(f.get().sent).toBe(0);
+    310|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/lib/__tests__/receipt-automation-execution.test.ts > N3-authorised staff receipt correction > revocation before dispatch never sends the Update
+ReceiptControlError: forbidden
+ ❯ owner src/lib/receipt-automation-execution.server.ts:41:59
+     39| };
+     40| function owner(actor: ReceiptAutomationActor) {
+     41|   if (actor.role !== "owner" || !actor.n3TenantKey) throw new ReceiptC…
+       |                                                           ^
+     42| }
+     43| async function get(actor: ReceiptAutomationActor, id: string, deps: Re…
+ ❯ get src/lib/receipt-automation-execution.server.ts:44:3
+ ❯ applyReceiptCorrection src/lib/receipt-automation-execution.server.ts:164:19
+ ❯ src/lib/__tests__/receipt-automation-execution.test.ts:320:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/lib/__tests__/receipt-automation-execution.test.ts > N3-authorised staff receipt correction > unknown staff result recovers with reads only and never resends
+ReceiptControlError: forbidden
+ ❯ owner src/lib/receipt-automation-execution.server.ts:41:59
+     39| };
+     40| function owner(actor: ReceiptAutomationActor) {
+     41|   if (actor.role !== "owner" || !actor.n3TenantKey) throw new ReceiptC…
+       |                                                           ^
+     42| }
+     43| async function get(actor: ReceiptAutomationActor, id: string, deps: Re…
+ ❯ get src/lib/receipt-automation-execution.server.ts:44:3
+ ❯ applyReceiptCorrection src/lib/receipt-automation-execution.server.ts:164:19
+ ❯ src/lib/__tests__/receipt-automation-execution.test.ts:326:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 13 passed (18)
+   Start at  16:48:33
+   Duration  734ms (transform 934ms, setup 0ms, import 1.10s, tests 36ms, environment 0ms)
+
+
+
+== dispatch-fence-red.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+ ❯ src/lib/__tests__/n3-receipt-update.test.ts (32 tests | 1 failed) 34ms
+   × revocation during the final source read prevents the financial POST 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/n3-receipt-update.test.ts > revocation during the final source read prevents the financial POST
+AssertionError: promise resolved "{ kind: 'response', status: 200, …(2) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "body": {
++     "code": "0000",
++     "data": {
++       "accountId": "33333333-3333-4333-8333-333333333333",
++       "bankChargesAmount": 0,
++       "cancelledDate": null,
++       "currencyCode": "MYR",
++       "currencyId": 1,
++       "currencyRate": 1,
++       "customerId": "22222222-2222-4222-8222-222222222222",
++       "customerName": "Test Guest",
++       "description": "Preserve this",
++       "docCode": "OR-TEST/001",
++       "docDate": "2026-10-01T00:00:00",
++       "docType": "AROR",
++       "id": "11111111-1111-4111-8111-111111111111",
++       "isCancelled": false,
++       "isMultiPayment": true,
++       "knockoff": [],
++       "multiPayments": [
++         {
++           "accountId": "33333333-3333-4333-8333-333333333333",
++           "amount": 50,
++           "amountLocal": 50,
++           "description": "Preserve payment memo",
++           "id": 7,
++           "receiptId": "11111111-1111-4111-8111-111111111111",
++         },
++       ],
++       "netTotalAmount": 50,
++       "netTotalAmountLocal": 50,
++       "outstandingAmount": 50,
++       "outstandingAmountLocal": 50,
++       "referenceNo": "HH-0123456789abcdef01234567",
++       "refundAmount": 0,
++       "remark1": "1 Test Street",
++       "remark2": "",
++       "remark3": "0100000000",
++       "remark4": "guest@example.test",
++       "subtotalAmount": 50,
++       "subtotalAmountLocal": 50,
++       "taxExclusiveTotalAmount": 50,
++       "taxExclusiveTotalAmountLocal": 50,
++       "taxTotalAmount": 0,
++       "totalAmount": 50,
++       "totalAmountLocal": 50,
++       "updatedAt": 1770000000000,
++     },
++     "success": true,
++   },
++   "durationMs": 0,
++   "kind": "response",
++   "status": 200,
+  }
+
+ ❯ src/lib/__tests__/n3-receipt-update.test.ts:317:4
+    315|   await expect(updateN3Receipt(actor, p, { deadlineAt: Date.now()+1000…
+    316|     async () => { throw new ReceiptControlError("forbidden"); }
+    317|   )).rejects.toThrow("forbidden");
+       |    ^
+    318|   expect(fetch).toHaveBeenCalledTimes(1);
+    319| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 31 passed (32)
+   Start at  17:01:51
+   Duration  429ms (transform 201ms, setup 0ms, import 270ms, tests 34ms, environment 0ms)
+
+
+
+== create-fence-red.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+ ❯ src/lib/__tests__/run-5d1-1-deposits.test.ts (110 tests | 1 failed) 116ms
+   × role loss at the deposit dispatch fence sends no create and retains a failed intent 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/run-5d1-1-deposits.test.ts > role loss at the deposit dispatch fence sends no create and retains a failed intent
+AssertionError: promise resolved "{ deposit: { …(19) }, reused: false }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "deposit": {
++     "amount": 100,
++     "clientRequestId": "a4fba807-2388-44d4-b4db-d670907bc286",
++     "createdAt": "2026-01-01T00:00:00Z",
++     "createdByN3UserKey": "user-1",
++     "currencyCode": "MYR",
++     "description": "HOTELHUB DEPOSIT BK-0001",
++     "id": "5b389234-954f-457c-99d8-63aeacb4df4c",
++     "lastErrorCode": "n3_timeout",
++     "n3AccountCode": "700-0310",
++     "n3AccountName": "Maybank Current",
++     "n3CustomerCode": "WALKIN",
++     "n3CustomerName": "THX SDN BHD, KENNY WONG",
++     "n3DocCode": null,
++     "n3ReceiptId": null,
++     "n3ReferenceNo": "HH-5b389234954f457c99d863ae",
++     "paymentLines": [
++       {
++         "amount": 100,
++         "code": "700-0310",
++         "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
++         "kind": "bank",
++         "name": "Maybank Current",
++       },
++     ],
++     "reservationId": "11111111-1111-4111-8111-111111111111",
++     "status": "unknown",
++     "updatedAt": "2026-01-01T00:00:00Z",
++   },
++   "reused": false,
+  }
+
+ ❯ src/lib/__tests__/run-5d1-1-deposits.test.ts:1739:123
+    1737|   const { client, calls } = makeN3();
+    1738|   const input = baseInput(crypto.randomUUID());
+    1739|   await expect(createDeposit(input, { n3: client, env: ENV, beforeDisp…
+       |                                                                                                                           ^
+    1740|   expect(calls.create).toBe(0);
+    1741|   const row = tables.hotel_reservation_deposits.find(r => r.idempotenc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 109 passed (110)
+   Start at  17:02:20
+   Duration  476ms (transform 188ms, setup 0ms, import 216ms, tests 116ms, environment 0ms)
+
+
+
+== review-fences-red.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+ ❯ src/lib/__tests__/run-5d1-1-deposits.test.ts (111 tests | 1 failed) 151ms
+   × authority loss after Create retains same receipt unknown and never replays a POST 9ms
+ ❯ src/lib/__tests__/receipt-normal-route-transport.test.ts (28 tests | 1 failed) 178ms
+     × policy tightening during final fresh authority validation prevents Update 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/receipt-normal-route-transport.test.ts > ordinary receipt HTTP routes through normal fixed transport > policy tightening during final fresh authority validation prevents Update
+AssertionError: expected 'applied' to be 'needs_review' // Object.is equality
+
+Expected: "needs_review"
+Received: "applied"
+
+ ❯ src/lib/__tests__/receipt-normal-route-transport.test.ts:424:43
+    422|     state.beforeFinalValidation = () => { state.policy = { ...state.po…
+    423|     const result = await call(CreateRoute, createBody());
+    424|     expect((await result.json()).outcome).toBe("needs_review");
+       |                                           ^
+    425|     expect(f.posts()).toHaveLength(0);
+    426|     expect(f.projection()).toEqual({ effectiveCents: 5000, projections…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/lib/__tests__/run-5d1-1-deposits.test.ts > authority loss after Create retains same receipt unknown and never replays a POST
+AssertionError: expected { …(19) } to match object { status: 'unknown', …(3) }
+(15 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "lastErrorCode": "deposit_authority_changed",
++   "lastErrorCode": null,
+    "n3DocCode": "OR-100",
+    "n3ReceiptId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+-   "status": "unknown",
++   "status": "posted",
+  }
+
+ ❯ src/lib/__tests__/run-5d1-1-deposits.test.ts:1759:23
+    1757|   const input = baseInput(crypto.randomUUID());
+    1758|   const out = await createDeposit(input, { n3: f.client, env: ENV, bef…
+    1759|   expect(out.deposit).toMatchObject({ status: "unknown", n3ReceiptId: …
+       |                       ^
+    1760|   await createDeposit(input, { n3: f.client, env: ENV });
+    1761|   expect(f.calls.create).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 137 passed (139)
+   Start at  17:11:38
+   Duration  956ms (transform 782ms, setup 0ms, import 1.04s, tests 329ms, environment 0ms)
+
+
+
+== review-notices-red.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+ ❯ src/lib/__tests__/deposit-notifications-mounted.test.ts (5 tests | 3 failed) 845ms
+     × dismisses already visible receipt money when identity changes 118ms
+     × failed reader refresh hides stale money and produces no success or chime replay 112ms
+     × A to failed B to A baselines the intervening historical event 136ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/lib/__tests__/deposit-notifications-mounted.test.ts > mounted verified deposit feedback > dismisses already visible receipt money when identity changes
+AssertionError: expected "vi.fn()" to be called with arguments: [ Array(1) ]
+
+Number of calls: 0
+
+ ❯ src/lib/__tests__/deposit-notifications-mounted.test.ts:138:28
+    136|     currentSession = { ...session, user: { n3UserKey: "other" } };
+    137|     await act(async () => { qc.setQueryData(SESSION_QUERY_KEY, current…
+    138|     expect(notice.dismiss).toHaveBeenCalledWith(id);
+       |                            ^
+    139|   });
+    140|   it("failed reader refresh hides stale money and produces no success …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/lib/__tests__/deposit-notifications-mounted.test.ts > mounted verified deposit feedback > failed reader refresh hides stale money and produces no success or chime replay
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      "Deposit correction completed. N3 verified.",
+      Object {
+        "description": "BK-TEST · OR-TEST: RM70.00 → RM60.00",
+        "duration": 8000,
+        "id": "deposit:t:staff:front_desk:saved-request",
+        "position": "bottom-right",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/lib/__tests__/deposit-notifications-mounted.test.ts:144:32
+    142|     await act(async () => { await qc.invalidateQueries({ queryKey: ["h…
+    143|     await act(settle);
+    144|     expect(notice.success).not.toHaveBeenCalled();
+       |                                ^
+    145|     expect(container.textContent).not.toContain("70");
+    146|     failFolio = false;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/lib/__tests__/deposit-notifications-mounted.test.ts > mounted verified deposit feedback > A to failed B to A baselines the intervening historical event
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+
+Received:
+
+  1st vi.fn() call:
+
+    Array [
+      "Deposit correction completed. N3 verified.",
+      Object {
+        "description": "BK-TEST · OR-TEST: RM70.00 → RM60.00",
+        "duration": 8000,
+        "id": "deposit:t:staff:front_desk:saved-request",
+        "position": "bottom-right",
+      },
+    ]
+
+
+Number of calls: 1
+
+ ❯ src/lib/__tests__/deposit-notifications-mounted.test.ts:158:32
+    156|     await act(async () => { qc.setQueryData(SESSION_QUERY_KEY, current…
+    157|     await act(async () => { await qc.invalidateQueries({ queryKey: ["h…
+    158|     expect(notice.success).not.toHaveBeenCalled();
+       |                                ^
+    159|   });
+    160|   it("session loss stops success feedback and clears sensitive money",…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 2 passed (5)
+   Start at  17:12:02
+   Duration  1.11s (transform 99ms, setup 0ms, import 143ms, tests 845ms, environment 0ms)
+
+
+
+== review-green.log ==
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  3 passed (3)
+      Tests  144 passed (144)
+   Start at  17:13:23
+   Duration  1.32s (transform 588ms, setup 0ms, import 878ms, tests 1.30s, environment 0ms)
+
+
+
+== staff-reviewed-tests.log ==
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  192 passed | 3 skipped (195)
+      Tests  2818 passed | 22 skipped (2840)
+   Start at  17:17:12
+   Duration  18.13s (transform 11.99s, setup 0ms, import 54.31s, tests 18.39s, environment 23ms)
+
+
+
+== staff-reviewed-types.log ==
+
+
+== staff-reviewed-lint.log ==
+
+/workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction/src/components/AppShell.tsx
+  17:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction/src/components/DepositsCard.tsx
+   46:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   56:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   71:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+   89:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  101:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction/src/components/ReceiptControlRequestDialog.tsx
+  27:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  39:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  49:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  63:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 10 problems (0 errors, 10 warnings)
+
+
+
+== staff-reviewed-build.log ==
+.output/server/_libs/react-day-picker.mjs                                    138.12 kB │ gzip:  26.57 kB
+.output/server/_ssr/settings-BVhrzlPl.mjs                                    152.78 kB │ gzip:  29.64 kB
+.output/server/_libs/supabase__auth-js.mjs                                   302.55 kB │ gzip:  60.35 kB
+.output/server/_ssr/router-BUkkYktb.mjs                                      561.45 kB │ gzip: 125.79 kB
+.output/server/_libs/@tanstack/react-router+[...].mjs                        657.02 kB │ gzip: 137.88 kB
+
+✓ built in 1.39s
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+[nitro] ℹ Adding Nitro fallback to _headers to handle all unmatched routes.
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt

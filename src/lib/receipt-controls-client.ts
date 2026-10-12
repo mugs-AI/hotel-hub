@@ -27,6 +27,10 @@ export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
   receipt_contact_too_long: "A contact line is longer than 100 characters. Shorten it.",
   receipt_controls_unavailable: "Receipt corrections are not switched on yet.",
   n3_evidence_unavailable: "N3 could not be reached. Try again.",
+  n3_permission_denied:
+    "N3 denied your receipt update rights. Ask the admin to grant access, then check this saved result in HH. Do not resend the correction.",
+  approval_required:
+    "This correction requires Owner approval. The confirmed amount remains unchanged.",
   forbidden: "You do not have permission for this.",
   unauthorized: "Your N3 session expired. Relaunch HotelHub from N3.",
   automation_unavailable: "Automatic N3 correction is awaiting verified activation.",

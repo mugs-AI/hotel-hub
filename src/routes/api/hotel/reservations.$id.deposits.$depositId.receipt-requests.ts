@@ -63,7 +63,7 @@ export const Route = createFileRoute(
               reason: body.reason,
               proposal: body.proposal,
             });
-            if (actor.role === "owner" && dto.canApply && dto.state === "pending") {
+            if (dto.canApply && dto.state === "pending") {
               const { applyReceiptCorrection } =
                 await import("@/lib/receipt-automation-execution.server");
               return json(

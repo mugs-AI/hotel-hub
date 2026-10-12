@@ -52,6 +52,7 @@ export function statusForDepositError(code: string): number {
       return 409;
     case "unauthorized":
       return 401;
+    case "deposit_authority_changed":
     case "deposit_writes_disabled":
     case "room_advance_disabled":
       return 403;
@@ -191,16 +192,30 @@ export async function handleDepositCreate({
   }
 
   try {
-    const { deposit } = await createDeposit({
+    const { requireFreshReceiptActor } = await import("@/lib/receipt-staff-authority.server");
+    const actor = {
       tenantId: ctx.session.tenantId!,
       n3TenantKey: ctx.session.n3TenantKey,
-      reservationId: id,
-      actorN3UserKey: ctx.session.n3UserKey,
+      n3UserKey: ctx.session.n3UserKey,
       n3Token: ctx.session.n3Token,
-      amount: body.amount as number,
-      paymentLines: body.paymentLines as Array<{ accountId: string; amount: number }>,
-      clientRequestId: String(body.clientRequestId ?? ""),
-    });
+      role: ctx.role!,
+    };
+    const { deposit } = await createDeposit(
+      {
+        tenantId: ctx.session.tenantId!,
+        n3TenantKey: ctx.session.n3TenantKey,
+        reservationId: id,
+        actorN3UserKey: ctx.session.n3UserKey,
+        n3Token: ctx.session.n3Token,
+        amount: body.amount as number,
+        paymentLines: body.paymentLines as Array<{ accountId: string; amount: number }>,
+        clientRequestId: String(body.clientRequestId ?? ""),
+      },
+      {
+        beforeDispatch: () => requireFreshReceiptActor(actor),
+        beforeProjection: () => requireFreshReceiptActor(actor),
+      },
+    );
     return Response.json(
       { deposit: toDepositDTO(deposit, await depositActorLabels(ctx.session.tenantId!, deposit)) },
       { status: 200, headers: { "cache-control": "no-store" } },

@@ -40,6 +40,7 @@ import {
 import type { ReceiptAutomationDeps } from "./receipt-automation-execution.server";
 import { isUuid } from "./reservations-store.server";
 export const requireFreshReceiptOwner = requireFreshChangeOwner;
+import { requireFreshReceiptActor } from "./receipt-staff-authority.server";
 export async function resolveAutomationActor(
   actor: ReceiptControlActor,
 ): Promise<ReceiptAutomationActor> {
@@ -79,11 +80,19 @@ export async function toAutomationDTO(
     ...dto,
     automation: row.automation,
     canApprove: owner && enabled && unsettled && !row.attempt && requiresApproval,
-    canApply: owner && enabled && unsettled && !row.attempt && !requiresApproval,
+    canApply:
+      (owner || (actor.role === "front_desk" && row.requestedBy === actor.n3UserKey)) &&
+      enabled &&
+      unsettled &&
+      !row.attempt &&
+      !requiresApproval,
     canReject: owner && unsettled && (!row.attempt || row.attempt.phase === "rejected"),
     canVerify: false,
     canRecover: false,
-    canCheckResult: owner && !!row.attempt && ["reserved", "unknown"].includes(row.attempt.phase),
+    canCheckResult:
+      (owner || (actor.role === "front_desk" && row.requestedBy === actor.n3UserKey)) &&
+      !!row.attempt &&
+      ["reserved", "unknown"].includes(row.attempt.phase),
     outcomeMessage:
       row.state === "applied"
         ? "N3 receipt and journal verified. The corrected amount is effective."
@@ -124,7 +133,7 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
       canExecuteScopedReceiptUat(actor, true, contract, process.env, row),
     budgetMs: automationBudgetMs(process.env),
     now: Date.now,
-    freshOwner: requireFreshReceiptOwner,
+    freshActor: requireFreshReceiptActor,
     async prepare(actor, row, limit) {
       if (!contract) throw new ReceiptControlError("automation_unavailable");
       const { evidence, raw } = await boundedEvidence(actor, row.depositId, limit);
@@ -147,7 +156,24 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
         throw new ReceiptControlError("account_not_allowed");
       return buildReceiptUpdatePayload(raw, row.original, row.proposal, contract);
     },
-    send: updateN3Receipt,
+    send: (actor, prepared, limit, authorization) =>
+      updateN3Receipt(actor, prepared, limit, undefined, async () => {
+        await requireFreshReceiptActor(actor);
+        const policy = await readChangePolicy(actor.tenantId);
+        if (!policy || policy.revision !== authorization.policyRevision)
+          throw new ReceiptControlError("version_conflict");
+        const current = await supabaseReceiptAutomationDb().get(
+          actor.tenantId,
+          authorization.row.id,
+        );
+        if (
+          !current ||
+          current.version !== authorization.row.version ||
+          current.attempt?.id !== authorization.row.attempt?.id ||
+          current.state !== "applying"
+        )
+          throw new ReceiptControlError("claim_stale");
+      }),
     readResult: async (actor, row, limit) =>
       (await boundedEvidence(actor, row.depositId, limit)).evidence,
     noWriteRejected(out: N3Outcome) {
@@ -237,7 +263,7 @@ export async function createAutomaticReceiptRequest(
     creationActor = { ...resolved, role: "owner" as const },
     contract = productionUpdateContract();
   if (
-    !canAutoUpdate(creationActor, true, contract, process.env) &&
+    !canAutoUpdate(resolved, true, contract, process.env) &&
     !canExecuteScopedReceiptUat(creationActor, true, contract, process.env, {
       generation: 2,
       tenantId: actor.tenantId,
@@ -274,12 +300,12 @@ export async function automaticReceiptCreationReady(
   actor: ReceiptControlActor,
   selection?: { reservationId: unknown; depositId: unknown },
 ): Promise<boolean> {
-  if (!productionUpdateContract()) return false;
+  if (!["owner", "front_desk"].includes(actor.role) || !productionUpdateContract()) return false;
   const resolved = await resolveAutomationActor(actor);
   if ((await readChangePolicy(actor.tenantId)) === null) return false;
   const creationActor = { ...resolved, role: "owner" as const },
     contract = productionUpdateContract();
-  if (canAutoUpdate(creationActor, true, contract, process.env)) return true;
+  if (canAutoUpdate(resolved, true, contract, process.env)) return true;
   if (
     !selection ||
     process.env.HOTELHUB_RECEIPT_SCOPED_UAT_ENABLED !== "true" ||

@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   policy: null as ChangePolicy | null,
   manualCreates: 0,
   afterReserve: null as (() => void) | null,
+  beforeFinalValidation: null as (() => void) | null,
+  freshCount: 0,
 }));
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
@@ -43,6 +45,14 @@ vi.mock("../session-context.server", () => ({
       reason: "forbidden",
     },
   }),
+}));
+vi.mock("../receipt-staff-authority.server", () => ({
+  requireFreshReceiptActor: async (actor: { role: HotelRole; tenantId: string }) => {
+    state.freshCount++;
+    if (state.freshCount === 4) state.beforeFinalValidation?.();
+    if (actor.role !== state.role || actor.tenantId !== state.tenantId)
+      throw new ReceiptControlError("forbidden");
+  },
 }));
 vi.mock("../audit.server", () => ({ logAudit: async () => {} }));
 vi.mock("../receipt-alert-delivery.server", () => ({
@@ -105,10 +115,10 @@ async function call(route: unknown, body: unknown, origin = "https://offline.inv
     params: { id: reservationId, depositId, requestId },
   });
 }
-const createBody = () => ({
+const createBody = (amount = 65) => ({
   clientRequestId,
   reason: "Disposable offline normal workflow acceptance",
-  proposal: { kind: "correction", amount: 65, accountId: rawFixture.accountId },
+  proposal: { kind: "correction", amount, accountId: rawFixture.accountId },
 });
 function fixture(
   options: {
@@ -137,6 +147,8 @@ function fixture(
     remote.details[0]!.receiptId = scope.receiptId;
     remote.details[0]!.customerId = Number(scope.customerId);
     remote.details[0]!.customer.id = Number(scope.customerId);
+  }
+  if (options.scoped || options.amount !== undefined) {
     // Preserve the captured shape while setting every existing RM50 amount to
     // the selected synthetic starting amount; zero tax/charge fields stay zero.
     const setAmounts = (o: Record<string, unknown>) => {
@@ -362,6 +374,8 @@ beforeEach(() => {
   state.row = null;
   state.manualCreates = 0;
   state.afterReserve = null;
+  state.beforeFinalValidation = null;
+  state.freshCount = 0;
   vi.stubEnv("HOTELHUB_RECEIPT_SCOPED_UAT_ENABLED", "false");
   vi.stubEnv("HOTELHUB_RECEIPT_CONTROL_DIRECT_EDIT", "true");
   vi.stubEnv("HOTELHUB_RECEIPT_EXECUTION_BUDGET_MS", "10000");
@@ -375,6 +389,44 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe("ordinary receipt HTTP routes through normal fixed transport", () => {
+  it.each([
+    { before: 70, after: 60, approval: true },
+    { before: 50, after: 51, approval: false },
+  ])(
+    "same-document source acceptance for $before → $after approval=$approval",
+    async ({ before, after, approval }) => {
+      const f = fixture({ approval, amount: before });
+      state.role = "front_desk";
+      const created = await call(CreateRoute, createBody(after));
+      expect(created.status).toBe(201);
+      if (approval) {
+        expect((await created.json()).request.state).toBe("pending");
+        expect(f.posts()).toHaveLength(0);
+        state.role = "owner";
+        expect(
+          (await (await call(DecisionRoute, { expectedVersion: 1, decision: "approve" })).json())
+            .outcome,
+        ).toBe("applied");
+      } else expect((await created.json()).outcome).toBe("applied");
+      expect(f.posts()).toHaveLength(1);
+      expect(f.posts()[0]!.body).toMatchObject({
+        id: rawFixture.id,
+        docCode: rawFixture.docCode,
+        totalAmount: after,
+      });
+      expect(f.projection()).toEqual({ effectiveCents: after * 100, projections: 1 });
+    },
+  );
+  it("policy tightening during final fresh authority validation prevents Update", async () => {
+    const f = fixture();
+    state.beforeFinalValidation = () => {
+      state.policy = { ...state.policy!, revision: "1", depositApprovalRequired: true };
+    };
+    const result = await call(CreateRoute, createBody());
+    expect((await result.json()).outcome).toBe("needs_review");
+    expect(f.posts()).toHaveLength(0);
+    expect(f.projection()).toEqual({ effectiveCents: 5000, projections: 0 });
+  });
   it("Owner policy-OFF Save change updates and independently verifies the SAME OR once", async () => {
     const f = fixture();
     const res = await call(CreateRoute, createBody());
@@ -421,18 +473,19 @@ describe("ordinary receipt HTTP routes through normal fixed transport", () => {
       expect(state.row!.approvedAt).not.toBeNull();
     },
   );
-  it("Front Desk policy-OFF still cannot execute a financial correction", async () => {
+  it("Front Desk policy-OFF Save executes same OR without Owner handoff", async () => {
     const f = fixture();
     state.role = "front_desk";
     const created = await call(CreateRoute, createBody());
     expect((await created.json()).request).toMatchObject({
-      state: "pending",
+      state: "applied",
       canApply: false,
       canApprove: false,
     });
+    expect(f.projection()).toEqual({ effectiveCents: 6500, projections: 1 });
     const denied = await call(DecisionRoute, { expectedVersion: 1, decision: "approve" });
     expect(denied.status).toBe(403);
-    expect(f.posts()).toHaveLength(0);
+    expect(f.posts()).toHaveLength(1);
   });
   it("lost Update reply is held; repeated approval cannot resend and Check uses GET only", async () => {
     const f = fixture({ approval: true, mode: "lost" });

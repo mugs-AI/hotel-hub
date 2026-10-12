@@ -209,6 +209,8 @@ export function depositErrorMessage(code: string | null | undefined): string {
       return paymentAccountErrorMessage(code);
     case "payment_method_hidden":
       return "This payment method is hidden in Settings. Choose a shown method. Nothing was posted.";
+    case "deposit_authority_changed":
+      return "Your session or role changed. Relaunch HH from N3, then check this saved deposit. Do not enter the payment again.";
     case "deposit_writes_disabled":
       return "Deposit posting is not enabled for this property yet.";
     case "walk_in_customer_not_mapped":

@@ -60,6 +60,7 @@ export function isDepositWriteEnabled(
 // ---------------------------------------------------------------- validation
 
 export const DEPOSIT_ERROR_CODES = new Set([
+  "deposit_authority_changed",
   ...SETTLEMENT_LOCK_CODES,
   "invalid_amount",
   "receipt_contact_unavailable",
@@ -1185,6 +1186,8 @@ export type CreateDepositInput = {
 };
 
 export type DepositDeps = {
+  beforeDispatch?: () => Promise<void>;
+  beforeProjection?: () => Promise<void>;
   n3?: N3ReceiptsClient;
   env?: Record<string, string | undefined>;
 };
@@ -1441,6 +1444,17 @@ export async function createDeposit(
       if (checked.unauthorized) throw new DepositError("unauthorized");
       return { deposit, reused: false };
     }
+    try {
+      await deps.beforeProjection?.();
+    } catch {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdictPre.identity.n3ReceiptId,
+        n3_doc_code: verdictPre.identity.n3DocCode,
+        last_error_code: "deposit_authority_changed",
+      });
+      return { deposit, reused: false };
+    }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
       status: "posted",
       n3_receipt_id: verdictPre.identity.n3ReceiptId,
@@ -1473,6 +1487,15 @@ export async function createDeposit(
     contact,
   });
 
+  try {
+    await deps.beforeDispatch?.();
+  } catch {
+    await updateDeposit(input.tenantId, deposit.id, {
+      status: "failed",
+      last_error_code: "deposit_authority_changed",
+    });
+    throw new DepositError("deposit_authority_changed");
+  }
   const created = await n3.create(input.n3Token, payload);
   const verdict = classifyCreateOutcome(created, expected);
 
@@ -1496,6 +1519,17 @@ export async function createDeposit(
         detail: { depositId: deposit.id, reservationId: input.reservationId, code: checked.code },
       });
       if (checked.unauthorized) throw new DepositError("unauthorized");
+      return { deposit, reused: false };
+    }
+    try {
+      await deps.beforeProjection?.();
+    } catch {
+      deposit = await updateDeposit(input.tenantId, deposit.id, {
+        status: "unknown",
+        n3_receipt_id: verdict.identity.n3ReceiptId,
+        n3_doc_code: verdict.identity.n3DocCode,
+        last_error_code: "deposit_authority_changed",
+      });
       return { deposit, reused: false };
     }
     deposit = await updateDeposit(input.tenantId, deposit.id, {
