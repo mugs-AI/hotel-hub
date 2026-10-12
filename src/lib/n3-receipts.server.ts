@@ -145,7 +145,7 @@ export function isRealN3Id(v: unknown): v is string {
 export type N3ReceiptsClient = {
   getNew(token: string): Promise<N3Outcome>;
   listPaymentAccounts(token: string, skip: number): Promise<N3Outcome>;
-  getAccountById(token: string, id: string): Promise<N3Outcome>;
+  getAccountById(token: string, id: string, limit?: N3ExecutionLimit): Promise<N3Outcome>;
   listByReference(token: string, referenceNo: string): Promise<N3Outcome>;
   /** GET-only month discovery (sales-v1 ARReceipts/List docDate filter). */
   listByDocDate?(token: string, q: DocDateListQuery): Promise<N3Outcome>;
@@ -188,9 +188,9 @@ export const n3Receipts: N3ReceiptsClient = {
       throw new Error("unsafe account page");
     return n3Request(token, "GET", `/api/AccountCodes/Leaf/Query?$top=100&$skip=${skip}`);
   },
-  getAccountById(token, id) {
+  getAccountById(token, id, limit) {
     if (!isRealN3Id(id)) throw new Error("getAccountById: unsafe id");
-    return n3Request(token, "GET", `/api/AccountCodes/${encodeURIComponent(id)}`);
+    return n3Request(token, "GET", `/api/AccountCodes/${encodeURIComponent(id)}`, undefined, limit);
   },
   listByReference(token, referenceNo) {
     // Server-owned, validated, encoded query. Never browser input.

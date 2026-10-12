@@ -18,6 +18,7 @@ import {
 import { n3Receipts, type N3ExecutionLimit, type N3Outcome } from "./n3-receipts.server";
 import {
   buildReceiptUpdatePayload,
+  resolveReceiptUpdateAccount,
   productionUpdateContract,
   updateN3Receipt,
 } from "./n3-receipt-update.server";
@@ -154,7 +155,14 @@ export function defaultReceiptAutomationDeps(): ReceiptAutomationDeps {
         ))
       )
         throw new ReceiptControlError("account_not_allowed");
-      return buildReceiptUpdatePayload(raw, row.original, row.proposal, contract);
+      const account = await resolveReceiptUpdateAccount(
+        actor,
+        raw,
+        row.original,
+        row.proposal,
+        limit,
+      );
+      return buildReceiptUpdatePayload(raw, row.original, row.proposal, contract, account);
     },
     send: (actor, prepared, limit, authorization) =>
       updateN3Receipt(actor, prepared, limit, undefined, async () => {

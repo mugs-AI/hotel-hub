@@ -20,6 +20,7 @@ import {
   buildSingleReceiptDetail,
 } from "./n3-receipt-detail.server";
 import type { ReceiptAutomationActor } from "./receipt-automation-gates.server";
+import { parseDepositAccount, type VerifiedDepositAccount } from "./deposits-store.server";
 export type N3UpdateContract = {
   proofId: string;
   receiptFields: readonly string[];
@@ -79,6 +80,7 @@ export function buildReceiptUpdatePayload(
   original: ReceiptSnapshot,
   proposal: ReceiptControlProposal,
   contract: N3UpdateContract,
+  targetAccount?: VerifiedDepositAccount,
 ): PreparedReceiptUpdate {
   assertReceiptControllable(original);
   if (
@@ -251,14 +253,56 @@ export function buildReceiptUpdatePayload(
     (body as Record<string, unknown>).details = [updated];
   }
   // An account code cannot stay silently attached to a different immutable account.
-  if (proposal.accountId.toLowerCase() !== original.paymentLines[0]!.accountId.toLowerCase())
-    return fail();
+  if (proposal.accountId.toLowerCase() !== original.paymentLines[0]!.accountId.toLowerCase()) {
+    if (
+      !targetAccount ||
+      targetAccount.id.toLowerCase() !== proposal.accountId.toLowerCase() ||
+      !targetAccount.code ||
+      !targetAccount.name
+    )
+      return fail();
+    const lookup = {
+      id: targetAccount.id,
+      code: targetAccount.code,
+      name: targetAccount.name,
+      isActive: true,
+    };
+    if ("accountCode" in r) (body as Record<string, unknown>).accountCode = targetAccount.code;
+    if ("accountName" in r) (body as Record<string, unknown>).accountName = targetAccount.name;
+    if ("account" in r) (body as Record<string, unknown>).account = lookup;
+    if (line) {
+      const payment = body.multiPayments[0] as Record<string, unknown>;
+      if ("accountCode" in line) payment.accountCode = targetAccount.code;
+      if ("account" in line) payment.account = lookup;
+    }
+  }
   return {
     body,
     payloadHash: digest(body),
     sourceReceiptId: original.receiptId,
     sourceHash: digest(r),
   };
+}
+export async function resolveReceiptUpdateAccount(
+  actor: ReceiptAutomationActor,
+  raw: unknown,
+  original: ReceiptSnapshot,
+  proposal: ReceiptControlProposal,
+  limit: N3ExecutionLimit,
+): Promise<VerifiedDepositAccount | undefined> {
+  if (
+    proposal.kind !== "correction" ||
+    proposal.accountId.toLowerCase() === original.paymentLines[0]?.accountId.toLowerCase()
+  )
+    return undefined;
+  const currencyId = object(raw).currencyId;
+  if (!Number.isSafeInteger(currencyId) || Number(currencyId) <= 0)
+    throw new ReceiptControlError("account_not_allowed");
+  const out = await n3Receipts.getAccountById(actor.n3Token, proposal.accountId, limit);
+  if (out.kind === "response" && out.status === 401) throw new ReceiptControlError("unauthorized");
+  const account = parseDepositAccount(out, proposal.accountId, String(currencyId));
+  if (!account) throw new ReceiptControlError("account_not_allowed");
+  return account;
 }
 export async function updateN3Receipt(
   actor: ReceiptAutomationActor,
