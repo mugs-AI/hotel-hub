@@ -325,6 +325,22 @@ function fixture(
     }
     expect(method).toBe("GET");
     traffic.push({ method, path: parsed.pathname });
+    if (parsed.pathname === "/api/AccountCodes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+      return Response.json({
+        success: true,
+        code: "0000",
+        data: {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          code: "CASH-T",
+          name: "Cash",
+          accountType: { typeCode: "BCA" },
+          specialCode: "CAC",
+          isActive: true,
+          hasChildren: false,
+          currencyId: remote.currencyId,
+        },
+      });
+
     expect([`/api/ARReceipts/${remote.id}`, "/api/ARReceipts/GLPosting"]).toContain(
       parsed.pathname,
     );
@@ -419,6 +435,25 @@ describe("ordinary receipt HTTP routes through normal fixed transport", () => {
       expect(f.projection()).toEqual({ effectiveCents: after * 100, projections: 1 });
     },
   );
+
+  it("approval-OFF saves single-payment33→30 and changed cash account in one verified Update", async () => {
+    const f = fixture({ approval: false, amount: 33 });
+    const body = createBody(30);
+    body.proposal.accountId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const result = await call(CreateRoute, body);
+    expect(await result.json()).toMatchObject({ outcome: "applied" });
+    expect(f.posts()).toHaveLength(1);
+    expect(f.posts()[0]!.body).toMatchObject({
+      id: rawFixture.id,
+      docCode: rawFixture.docCode,
+      accountId: body.proposal.accountId,
+      totalAmount: 30,
+      accountCode: "CASH-T",
+      details: [{ accountId: rawFixture.details[0]!.accountId, amount: 30 }],
+    });
+    expect(f.projection()).toEqual({ effectiveCents: 3000, projections: 1 });
+    expect(state.manualCreates).toBe(0);
+  });
   it("policy tightening during final fresh authority validation prevents Update", async () => {
     const f = fixture();
     state.beforeFinalValidation = () => {

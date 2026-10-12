@@ -27,6 +27,22 @@ import type { ReceiptAutomationDTO } from "@/lib/receipt-automation";
 import { formatMyTimestamp } from "@/lib/malaysia-date";
 import { ReceiptAlertStatus } from "@/components/ReceiptAlertStatus";
 
+export function needsDashboardReceiptAction(r: {
+  automation?: {
+    authorizationKind?: string | null;
+    policy: { depositApprovalRequired: boolean; contactApprovalRequired: boolean };
+  } | null;
+  canApprove?: boolean;
+}) {
+  return (
+    !r.automation ||
+    r.canApprove === true ||
+    r.automation.authorizationKind !== "direct_policy" ||
+    r.automation.policy.depositApprovalRequired ||
+    r.automation.policy.contactApprovalRequired
+  );
+}
+
 export function ReceiptRequestCard({
   r: raw,
   busy,
@@ -231,8 +247,9 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
   });
   if (!enabled || !identity?.endsWith(":owner")) return null;
   const code = q.error instanceof ReceiptControlClientError ? q.error.code : null;
-  const rows = q.isError ? [] : (q.data?.pages.flatMap((p) => p.requests) ?? []);
-  const total = q.data?.pages.at(-1)?.total ?? 0;
+  const rows = q.isError
+    ? []
+    : (q.data?.pages.flatMap((p) => p.requests).filter(needsDashboardReceiptAction) ?? []);
   return (
     <section
       aria-label="Receipt requests"
@@ -275,9 +292,7 @@ export function ReceiptApprovalQueue({ enabled }: { enabled: boolean }) {
         ))}
       </ul>
       {rows.length > 0 ? (
-        <p className="mt-2 text-xs text-amber-900">
-          Showing {rows.length} of {total} open requests
-        </p>
+        <p className="mt-2 text-xs text-amber-900">Showing {rows.length} Dashboard requests</p>
       ) : null}
       {q.hasNextPage ? (
         <button

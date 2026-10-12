@@ -2,10 +2,11 @@ import { ReceiptControlError } from "../receipt-controls";
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildReceiptUpdatePayload,
+  resolveReceiptUpdateAccount,
   productionUpdateContract,
   updateN3Receipt,
 } from "../n3-receipt-update.server";
-import { postReceiptUpdate } from "../n3-receipts.server";
+import { n3Receipts, postReceiptUpdate } from "../n3-receipts.server";
 it("does not mark a fetch attempt when request serialization fails", async () => {
   const fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);
@@ -334,4 +335,130 @@ it("revocation during the final source read prevents the financial POST", async 
     ),
   ).rejects.toThrow("forbidden");
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+const cashTarget = {
+  id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  code: "CASH-T",
+  name: "Cash",
+  kind: "cash" as const,
+};
+it("changes payment account and amount without retaining old bank metadata", () => {
+  const raw = {
+    ...RECEIPT_50_RAW,
+    accountCode: "BANK-T",
+    accountName: "Bank",
+    account: { id: RECEIPT_50_RAW.accountId, code: "BANK-T", bankAccountNo: "old-bank" },
+    multiPayments: [
+      {
+        ...RECEIPT_50_RAW.multiPayments[0],
+        account: { id: RECEIPT_50_RAW.accountId, code: "BANK-T" },
+      },
+    ],
+  };
+  const contract = {
+    ...UPDATE_CONTRACT_TEST_ONLY,
+    receiptFields: Object.keys(raw),
+    paymentFields: [...UPDATE_CONTRACT_TEST_ONLY.paymentFields, "account"],
+  };
+  const prepared = buildReceiptUpdatePayload(
+    raw,
+    RECEIPT_50,
+    { ...PROPOSAL_65, amountCents: 3000, accountId: cashTarget.id },
+    contract,
+    cashTarget,
+  );
+  expect(prepared.body).toMatchObject({
+    id: raw.id,
+    docCode: raw.docCode,
+    accountId: cashTarget.id,
+    accountCode: "CASH-T",
+    accountName: "Cash",
+    totalAmount: 30,
+    account: { id: cashTarget.id, code: "CASH-T" },
+    multiPayments: [
+      {
+        id: raw.multiPayments[0].id,
+        accountId: cashTarget.id,
+        accountCode: "CASH-T",
+        amount: 30,
+        account: { id: cashTarget.id },
+      },
+    ],
+  });
+  expect(JSON.stringify(prepared.body)).not.toContain("old-bank");
+  expect(raw.accountId).toBe(RECEIPT_50_RAW.accountId);
+});
+it("refuses account changes without an exact server-verified target", () => {
+  const proposal = { ...PROPOSAL_65, accountId: cashTarget.id };
+  expect(() =>
+    buildReceiptUpdatePayload(RECEIPT_50_RAW, RECEIPT_50, proposal, UPDATE_CONTRACT_TEST_ONLY),
+  ).toThrow();
+  expect(() =>
+    buildReceiptUpdatePayload(RECEIPT_50_RAW, RECEIPT_50, proposal, UPDATE_CONTRACT_TEST_ONLY, {
+      ...cashTarget,
+      id: RECEIPT_50_RAW.accountId,
+    }),
+  ).toThrow();
+});
+
+it("resolves a changed account from current tenant master data with the execution limit", async () => {
+  const limit = { deadlineAt: Date.now() + 1000, signal: new AbortController().signal };
+  const read = vi.spyOn(n3Receipts, "getAccountById").mockResolvedValue({
+    kind: "response",
+    status: 200,
+    durationMs: 0,
+    body: {
+      code: "0000",
+      success: true,
+      data: {
+        id: cashTarget.id,
+        code: cashTarget.code,
+        name: cashTarget.name,
+        accountType: { typeCode: "BCA" },
+        specialCode: "CAC",
+        isActive: true,
+        hasChildren: false,
+        currencyId: 1,
+      },
+    },
+  });
+  const target = await resolveReceiptUpdateAccount(
+    actor,
+    { currencyId: 1 },
+    RECEIPT_50,
+    { ...PROPOSAL_65, accountId: cashTarget.id },
+    limit,
+  );
+  expect(target).toEqual(cashTarget);
+  expect(read).toHaveBeenCalledWith(actor.n3Token, cashTarget.id, limit);
+  read.mockResolvedValue({
+    kind: "response",
+    status: 200,
+    durationMs: 0,
+    body: {
+      code: "0000",
+      success: true,
+      data: {
+        id: cashTarget.id,
+        code: "CASH-T",
+        name: "Cash",
+        accountType: { typeCode: "BCA" },
+        specialCode: "CAC",
+        isActive: false,
+        hasChildren: false,
+        currencyId: 1,
+      },
+    },
+  });
+  await expect(
+    resolveReceiptUpdateAccount(
+      actor,
+      { currencyId: 1 },
+      RECEIPT_50,
+      { ...PROPOSAL_65, accountId: cashTarget.id },
+      limit,
+    ),
+  ).rejects.toThrow("account_not_allowed");
+  read.mockRestore();
 });
