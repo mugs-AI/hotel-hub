@@ -1,3 +1,5 @@
+import { SECURITY_ERRORS } from "./security-cash";
+import { settlementLockMessage } from "./settlement-lock";
 // Browser-side reservation-operation queries/mutations. Same-origin,
 // cookie-authenticated, no direct Supabase or N3 access.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -127,6 +129,9 @@ export function operationStateLabel(s: string): string {
 }
 
 export function operationErrorMessage(code: string, operationType?: string): string {
+  if (SECURITY_ERRORS[code]) return SECURITY_ERRORS[code];
+  const lock = settlementLockMessage(code);
+  if (lock) return lock;
   switch (code) {
     case "late_checkout_out_of_range":
       return "Late Checkout must be on the booking's departure day. Use Extend Stay for another day.";

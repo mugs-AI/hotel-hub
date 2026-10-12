@@ -1,3 +1,4 @@
+import { SecurityCashCard } from "@/components/SecurityCashCard";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
@@ -420,6 +421,7 @@ function Detail({
         </div>
       </section>
 
+      <SecurityCashCard reservationId={data.id} rooms={data.rooms} owner={role === "owner"} />
       <DepositsCard
         key={data.id}
         reservationId={data.id}

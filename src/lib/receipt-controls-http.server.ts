@@ -23,6 +23,9 @@ export function sameOrigin(request: Request): boolean {
 
 export function statusForReceiptControlError(code: string): number {
   switch (code) {
+    case "settlement_locked":
+    case "settlement_busy":
+      return 409;
     case "unauthorized":
       return 401;
     case "forbidden":

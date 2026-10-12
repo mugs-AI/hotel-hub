@@ -1,3 +1,4 @@
+import { settlementLockCode } from "./settlement-lock";
 // HH-GOLIVE-01A — server-only, tenant-isolated persistence and orchestration
 // for the authoritative folio, the Owner add-on catalogue, the property
 // financial settings and the reservation tax profile.
@@ -117,6 +118,8 @@ export function folioErrorStatus(code: string): number {
     return 404;
   }
   if (
+    code === "settlement_locked" ||
+    code === "settlement_busy" ||
     code === "display_name_exists" ||
     code === "already_reversed" ||
     code === "idempotency_conflict" ||
@@ -130,8 +133,12 @@ export function folioErrorStatus(code: string): number {
   return 400;
 }
 
+function folioDbError(error: DbError, fallback: string): FolioError {
+  const lock = settlementLockCode(error);
+  return new FolioError(lock ?? fallback, lock ? 409 : 500);
+}
 function fail(res: { error: DbError }, code: string): void {
-  if (res.error) throw new FolioError(code, 500);
+  if (res.error) throw folioDbError(res.error, code);
 }
 
 function isDuplicate(error: DbError): boolean {
@@ -647,14 +654,14 @@ export async function setGuestTaxClass(
     .eq("reservation_id", input.reservationId)
     .select("guest_tax_class, evidence_note, updated_at")
     .maybeSingle();
-  if (updated.error) throw new FolioError("tax_profile_write_failed", 500);
+  if (updated.error) throw folioDbError(updated.error, "tax_profile_write_failed");
   if (!updated.data) {
     const inserted = await db
       .from<TaxProfileRow>("hotel_reservation_tax_profile")
       .insert({ tenant_id: input.tenantId, reservation_id: input.reservationId, ...row })
       .select("guest_tax_class, evidence_note, updated_at")
       .single();
-    if (inserted.error) throw new FolioError("tax_profile_write_failed", 500);
+    if (inserted.error) throw folioDbError(inserted.error, "tax_profile_write_failed");
   }
   return {
     guestTaxClass: input.guestTaxClass,
@@ -772,7 +779,7 @@ export async function addTourismTaxEvidence(
     p_actor_n3_user_key: input.actorKey,
     p_request_fingerprint: fingerprint,
   });
-  if (res.error) throw new FolioError("tourism_tax_evidence_write_failed", 500);
+  if (res.error) throw folioDbError(res.error, "tourism_tax_evidence_write_failed");
   const payload = res.data as { ok?: boolean; code?: string; evidenceId?: string | null } | null;
   if (!payload || typeof payload !== "object" || payload.ok !== true) {
     const code =
@@ -849,7 +856,7 @@ export async function ensureFolio(
       .eq("reservation_id", reservationId)
       .maybeSingle();
     if (replay.data) return replay.data;
-    throw new FolioError("folio_write_failed", 500);
+    throw folioDbError(inserted.error, "folio_write_failed");
   }
   return inserted.data;
 }
@@ -965,7 +972,7 @@ async function recordFolioOperation(
   });
   // A concurrent identical claim is not an error: the unique index is the
   // authority and the stored result is the same line.
-  if (res.error && !isDuplicate(res.error)) throw new FolioError("folio_write_failed", 500);
+  if (res.error && !isDuplicate(res.error)) throw folioDbError(res.error, "folio_write_failed");
 }
 
 /** Read one line, proving tenant + folio + line in a single query. */
@@ -1212,7 +1219,7 @@ export async function syncRoomNights(
     };
   });
   const res = await db.from<LineRow>("hotel_folio_lines").insert(payload).select(LINE_COLS);
-  if (res.error && !isDuplicate(res.error)) throw new FolioError("folio_write_failed", 500);
+  if (res.error && !isDuplicate(res.error)) throw folioDbError(res.error, "folio_write_failed");
   return { inserted: res.data?.length ?? 0, unmappedRoomLabels };
 }
 
@@ -1432,7 +1439,7 @@ async function atomicAddLine(
 /** Shared decoding of the `{ ok, code, lineId }` envelope returned by the
  *  transactional folio functions. */
 function unwrapLineResult(res: { data?: unknown; error?: DbError }): string {
-  if (res.error) throw new FolioError("folio_write_failed", 500);
+  if (res.error) throw folioDbError(res.error, "folio_write_failed");
   const payload = res.data as { ok?: boolean; code?: string; lineId?: string | null } | null;
   if (!payload || typeof payload !== "object" || payload.ok !== true) {
     const code = typeof payload?.code === "string" ? payload.code : "folio_write_failed";
@@ -1675,7 +1682,7 @@ export async function reverseFolioLine(
     p_actor_n3_user_key: input.actorKey,
     p_request_fingerprint: fingerprint,
   });
-  if (res.error) throw new FolioError("folio_write_failed", 500);
+  if (res.error) throw folioDbError(res.error, "folio_write_failed");
   const payload = res.data as { ok?: boolean; code?: string; lineId?: string | null } | null;
   if (!payload || typeof payload !== "object" || payload.ok !== true) {
     const code = typeof payload?.code === "string" ? payload.code : "folio_write_failed";

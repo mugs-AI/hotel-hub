@@ -1,3 +1,4 @@
+import { SETTLEMENT_LOCK_CODES } from "./settlement-lock";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Server-only reservations store. All operations run under the service-role
 // client and require an explicit tenantId supplied by the trusted server
@@ -92,6 +93,7 @@ export type CreateReservationResult = {
 };
 
 export const RESERVATION_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_stay_dates",
   "arrival_date_in_past",
   "invalid_booking_source",
@@ -719,6 +721,7 @@ export async function getReservationById(
 // See migration hotelhub_update_reservation for the SQL contract.
 // ---------------------------------------------------------------------------
 export const RESERVATION_UPDATE_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "tenant_required",
   "creator_required",
   "invalid_stay_dates",
@@ -805,6 +808,7 @@ export async function updateReservationAtomic(
 // supplied by the browser.
 // ---------------------------------------------------------------------------
 export const RESERVATION_FULL_UPDATE_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_request",
   "unauthorized",
   "idempotency_conflict",

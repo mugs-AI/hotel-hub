@@ -1,6 +1,7 @@
 // POST /api/hotel/reservations/:id/deposits/:depositId/receipt-requests
 // Owner or Front Desk: request a correction or void of a posted receipt.
-// Reads N3 (GET-only) to snapshot the original; never writes to N3.
+// Reads N3 to snapshot the original. Authorized Owner direct-save can execute
+// the gated normal Update pipeline; Front Desk creation never writes to N3.
 import { createFileRoute } from "@tanstack/react-router";
 import { json, readJson, withReceiptActor } from "@/lib/receipt-controls-http.server";
 
@@ -26,24 +27,35 @@ export const Route = createFileRoute(
       POST: ({ request, params }) =>
         withReceiptActor(request, "hotel:receipt_controls:request", true, async (actor) => {
           const body = await readJson(request);
+          const { ReceiptControlError } = await import("@/lib/receipt-controls");
+          if (Object.keys(body).some((k) => !["clientRequestId", "reason", "proposal"].includes(k)))
+            throw new ReceiptControlError("invalid_body");
           const { createReceiptControlRequest } =
             await import("@/lib/receipt-controls-store.server");
           const { defaultReceiptControlDeps } = await import("@/lib/receipt-controls-deps.server");
           const {
+            findReceiptRequestReplay,
             automaticReceiptCreationReady,
             createAutomaticReceiptRequest,
             resolveAutomationActor,
             defaultReceiptAutomationDeps,
           } = await import("@/lib/receipt-automation-deps.server");
+          const input = {
+            reservationId: params.id,
+            depositId: params.depositId,
+            clientRequestId: body.clientRequestId,
+            reason: body.reason,
+            proposal: body.proposal,
+          };
+          const replay = await findReceiptRequestReplay(actor, input);
+          if (replay) return json({ request: replay }, 201);
           if (
             (body.proposal as { kind?: unknown } | null)?.kind === "correction" &&
-            (await automaticReceiptCreationReady(actor))
+            (await automaticReceiptCreationReady(actor, {
+              reservationId: params.id,
+              depositId: params.depositId,
+            }))
           ) {
-            const { ReceiptControlError } = await import("@/lib/receipt-controls");
-            if (
-              Object.keys(body).some((k) => !["clientRequestId", "reason", "proposal"].includes(k))
-            )
-              throw new ReceiptControlError("invalid_body");
             const dto = await createAutomaticReceiptRequest(actor, {
               reservationId: params.id,
               depositId: params.depositId,
@@ -64,6 +76,11 @@ export const Route = createFileRoute(
               );
             }
             return json({ request: dto }, 201);
+          }
+          const { scopedReceiptUatSelected } =
+            await import("@/lib/receipt-automation-gates.server");
+          if (scopedReceiptUatSelected(actor, params.depositId, process.env)) {
+            throw new ReceiptControlError("automation_unavailable");
           }
           const dto = await createReceiptControlRequest(
             actor,

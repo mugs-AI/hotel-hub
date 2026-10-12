@@ -15,7 +15,7 @@ import { isUuid } from "./reservations-store.server";
 export type ReceiptAutomationDeps = {
   db: ReceiptAutomationDb;
   policy: (tenant: string) => Promise<ChangePolicy | null>;
-  enabled: (actor: ReceiptAutomationActor) => boolean;
+  enabled: (actor: ReceiptAutomationActor, row: AutomationRequestRow) => boolean;
   budgetMs: number | null;
   now: () => number;
   freshOwner: (actor: ReceiptAutomationActor) => Promise<void>;
@@ -171,7 +171,7 @@ export async function applyReceiptCorrection(
   // Replay never reserves or sends again, even after a lost successful response.
   if (row.state === "applied") return response(actor, row, deps, "verified");
   if (row.attempt) return response(actor, row, deps, "existing_attempt_check_result");
-  if (!deps.enabled(actor)) throw new ReceiptControlError("automation_unavailable");
+  if (!deps.enabled(actor, row)) throw new ReceiptControlError("automation_unavailable");
   if (row.version !== input.expectedVersion) throw new ReceiptControlError("version_conflict");
   const b = budget(deps);
   try {
@@ -199,7 +199,7 @@ export async function applyReceiptCorrection(
     if (!reserved.dispatchGranted)
       return response(actor, row, deps, "existing_attempt_check_result");
     await b.run(() => deps.freshOwner(actor));
-    if (!deps.enabled(actor)) throw new ReceiptControlError("automation_unavailable");
+    if (!deps.enabled(actor, row)) throw new ReceiptControlError("automation_unavailable");
     const out = await b.run(() => deps.send(actor, prepared, b.limit));
     if (
       out.kind !== "response" ||

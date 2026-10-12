@@ -2,6 +2,8 @@
 
 ## Current delivery and recovery record
 
+Latest source-only continuation: [12/10 source billing prerequisites](docs/HH_SOURCE_BILLING_PREREQUISITES_CHECKPOINT_20261012.md). This is a partial unreleased candidate; read its explicit runtime and plan holds before resuming. Older status statements below are historical.
+
 Before development, read [DirectBuild governance](docs/HH_DIRECTBUILD_GOVERNANCE.md),
 [MUGS DirectBuild Protocol](docs/00-MUGS_DIRECTBUILD_PROTOCOL.md),
 [HotelHub adoption](docs/MDB-01_HOTELHUB_ADOPTION.md), and the

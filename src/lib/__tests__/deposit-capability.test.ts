@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-const state = vi.hoisted(() => ({ role: "owner" }));
+const state = vi.hoisted(() => ({ role: "owner", enabled: true }));
+vi.mock("@/lib/deposit-module-policy.server", () => ({
+  readDepositModulePolicy: async () => ({
+    policy: { roomAdvanceEnabled: state.enabled, securityDepositEnabled: false, version: "0" },
+    available: true,
+    securityReady: false,
+  }),
+}));
 vi.mock("@/lib/session-context.server", () => ({
   requirePermission: async () => ({
     ctx: { role: state.role, session: { tenantId: "fixture", n3TenantKey: "sandbox" } },
@@ -18,6 +25,7 @@ const { handleDepositsList } = await import("@/routes/api/hotel/reservations.$id
 afterEach(() => {
   vi.unstubAllEnvs();
   state.role = "owner";
+  state.enabled = true;
 });
 async function capability() {
   vi.stubEnv("HOTELHUB_N3_DEPOSIT_WRITES_ENABLED", "true");
@@ -28,6 +36,10 @@ async function capability() {
   return (await result.json()).capability;
 }
 describe("deposit controls reflect server authority", () => {
+  it("a disabled advance module hides creation even when N3 writes are allowed", async () => {
+    state.enabled = false;
+    expect(await capability()).toEqual({ canCreate: false, canSplit: false });
+  });
   it("exposes single-account capability without offering an unverified split", async () => {
     vi.stubEnv("HOTELHUB_N3_MULTI_PAYMENT_WRITES_ENABLED", "false");
     expect(await capability()).toEqual({ canCreate: true, canSplit: false });

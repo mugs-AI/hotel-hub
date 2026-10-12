@@ -1,3 +1,4 @@
+import { settlementLockMessage } from "./settlement-lock";
 // Browser-side folio queries/mutations. Same-origin, cookie-authenticated,
 // no direct database or N3 access. The browser NEVER computes a money value:
 // it sends quantities/ids and renders whatever the server returns.
@@ -276,6 +277,8 @@ export function useSaveChargeSettings() {
 /** Plain-language wording for every folio error code the API can return. */
 export function folioErrorMessage(err: unknown, fallback = "Something went wrong."): string {
   const code = err instanceof FolioApiError ? err.code : "";
+  const lock = settlementLockMessage(code);
+  if (lock) return lock;
   const map: Record<string, string> = {
     unauthenticated: "Your session has ended. Relaunch HotelHub from N3.",
     forbidden: "Your HotelHub role does not allow this action.",
