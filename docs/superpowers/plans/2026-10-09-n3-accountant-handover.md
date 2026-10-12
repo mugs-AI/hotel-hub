@@ -68,16 +68,16 @@ expect(alienReceiptResult.kind).toBe('contradiction');
 
 **Interfaces:** `checkSavedDocuments(actor:SettlementActor,intentId:string,deps:SavedCheckDeps):Promise<SavedDocumentCheck>` returns `status:'confirmed'|'waiting'|'needs_review'|'unauthorized'`, `checks`, safe `operation/attempt/document references`, `checkedAt`, `observations`. `SavedCheckDeps` supplies owned-intent loader, fixed GET readers, accepted evidence validators, `deadline`, `now`, abort signal and injectable wait. No POST/create/repair methods. `recoveryMessage(code:string,phase:'before_dispatch'|'after_dispatch',refs:SafeDocumentRefs):string` maps the spec's12 categories and unknown vendor errors.
 
-- [ ] Write failing tests `empty_empty_present_uses_three_observations`, `three_empty_results_wait_without_post`, `401_aborts_remaining_calls`, `shared_deadline_bounds_all_document_reads`, `wrong_scope_rejected_before_network`, `browser_url_or_unowned_id_ignored`, `unknown_code_safe_fallback`. Assert waits exactly `[1000,2000]`, zero financial writes, navigation abort stops waits, partial/auth failure hides stale confirmed totals.
+- [x] Write failing tests `empty_empty_present_uses_three_observations`, `three_empty_results_wait_without_post`, `401_aborts_remaining_calls`, `shared_deadline_bounds_all_document_reads`, `wrong_scope_rejected_before_network`, `browser_url_or_unowned_id_ignored`, `unknown_code_safe_fallback`. Assert waits exactly `[1000,2000]`, zero financial writes, navigation abort stops waits, partial/auth failure hides stale confirmed totals.
 
 ```ts
 expect(waits).toEqual([1000, 2000]);
 expect(result.observations).toBe(3);
 expect(after401Reads).toHaveLength(0);
 ```
-- [ ] Run `npm test -- src/lib/__tests__/saved-documents-check.test.ts`; expect RED.
-- [ ] Implement GET-only runner and existing Owner authentication/allowlist route. POST to the same-origin checker endpoint starts a read-only operation; it does not mutate cases. Label observed balance separately from persistence proof. UI uses "Check saved documents" and "Waiting for verification"; preserve existing database states and attempts.
-- [ ] Run task tests plus existing verification/API tests. Render the checker with simulated401, empty GL and a wrong-booking result. Require actionable same-document recovery text and no auto financial retry. Commit task files.
+- [x] Run `npm test -- src/lib/__tests__/saved-documents-check.test.ts`; expect RED.
+- [x] Implement GET-only runner and existing Owner authentication/allowlist route. POST to the same-origin checker endpoint starts a read-only operation; it does not mutate cases. Label observed balance separately from persistence proof. UI uses "Check saved documents" and "Waiting for verification"; preserve existing database states and attempts.
+- [x] Run task tests plus existing verification/API tests. Render the checker with simulated401, empty GL and a wrong-booking result. Require actionable same-document recovery text and no auto financial retry. Commit task files.
 
 ### Task 3: Durable cases, explicit events and historical statements
 

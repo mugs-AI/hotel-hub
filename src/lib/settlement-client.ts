@@ -38,6 +38,49 @@ async function request(
   if (!r.ok) throw new SettlementApiError(r.status, value?.error || "settlement_unavailable");
   return value;
 }
+export async function fetchSavedDocumentSelection(
+  id: string,
+  signal?: AbortSignal,
+): Promise<import("./saved-documents-check").SavedDocumentSelection> {
+  const r = await fetch(`/api/hotel/reservations/${encodeURIComponent(id)}/saved-documents-check`, {
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+  });
+  const value = await r.json().catch(() => null);
+  if (!r.ok) throw new SettlementApiError(r.status, value?.error || "saved_check_unavailable");
+  if (
+    value?.reservationId !== id ||
+    typeof value?.tenantId !== "string" ||
+    (value?.intentId !== null && typeof value?.intentId !== "string") ||
+    typeof value?.currency !== "string"
+  )
+    throw new SettlementApiError(503, "saved_check_scope_mismatch");
+  return value;
+}
+export async function checkSavedDocumentsClient(
+  id: string,
+  intentId: string,
+  signal?: AbortSignal,
+): Promise<import("./saved-documents-check").SavedDocumentCheck> {
+  const r = await fetch(`/api/hotel/reservations/${encodeURIComponent(id)}/saved-documents-check`, {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    signal,
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify({ intentId }),
+  });
+  const value = await r.json().catch(() => null);
+  if (!r.ok) throw new SettlementApiError(r.status, value?.error || "saved_check_unavailable");
+  if (
+    value?.reservationId !== id ||
+    value?.intentId !== intentId ||
+    !["confirmed", "waiting", "needs_review"].includes(value?.status)
+  )
+    throw new SettlementApiError(503, "saved_check_scope_mismatch");
+  return value;
+}
 export const fetchSettlement = (id: string, signal?: AbortSignal) =>
   request(id, "", undefined, signal);
 export const submitSettlementStep = (id: string, input: SettlementStepInput) =>

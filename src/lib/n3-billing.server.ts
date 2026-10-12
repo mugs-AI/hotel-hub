@@ -24,17 +24,26 @@ export type BalanceReceiptInput = {
   docDate: string;
   contact: ReceiptContactFields;
 };
+export type BillingReadLimit = {
+  deadlineAt: number;
+  signal: AbortSignal;
+  budget: { remainingBytes: number };
+};
 export interface N3BillingClient {
   readPaymentAccount(actor: SettlementActor, id: string): Promise<N3Outcome>;
-  readReceipt(actor: SettlementActor, id: string): Promise<N3Outcome>;
-  readReceiptJournal(actor: SettlementActor, id: string): Promise<N3Outcome>;
+  readReceipt(actor: SettlementActor, id: string, limit?: BillingReadLimit): Promise<N3Outcome>;
+  readReceiptJournal(
+    actor: SettlementActor,
+    id: string,
+    limit?: BillingReadLimit,
+  ): Promise<N3Outcome>;
   createBill(
     actor: SettlementActor,
     claim: DispatchClaim,
     snapshot: SettlementSnapshot,
   ): Promise<N3Outcome>;
-  readBill(actor: SettlementActor, id: string): Promise<N3Outcome>;
-  readBillJournal(actor: SettlementActor, id: string): Promise<N3Outcome>;
+  readBill(actor: SettlementActor, id: string, limit?: BillingReadLimit): Promise<N3Outcome>;
+  readBillJournal(actor: SettlementActor, id: string, limit?: BillingReadLimit): Promise<N3Outcome>;
   writeAllocation(
     actor: SettlementActor,
     claim: DispatchClaim,
@@ -294,9 +303,19 @@ async function request(
   path: string,
   payload?: unknown,
   binding?: { id: string; operation: Binding["operation"] },
+  limit?: BillingReadLimit,
 ): Promise<N3Outcome> {
   const started = Date.now(),
     controller = new AbortController();
+  if (limit && (limit.signal.aborted || limit.deadlineAt <= started))
+    return { kind: "transport_error", reason: "timeout", durationMs: 0 };
+  if (limit && limit.budget.remainingBytes <= 0)
+    return { kind: "transport_error", reason: "too_large", durationMs: 0 };
+  const onAbort = () => {
+    controller.abort();
+    void reader?.cancel().catch(() => {});
+  };
+  limit?.signal.addEventListener("abort", onAbort, { once: true });
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const duration = () => Math.max(0, Date.now() - started);
@@ -309,7 +328,10 @@ async function request(
         controller.abort();
         void reader?.cancel().catch(() => {});
       },
-      payload === undefined ? 20_000 : 30_000,
+      Math.min(
+        payload === undefined ? 20_000 : 30_000,
+        limit ? limit.deadlineAt - started : Infinity,
+      ),
     );
   });
   const work = async (): Promise<N3Outcome> => {
@@ -328,7 +350,11 @@ async function request(
       return freeze({ kind: "response", status: 401, body: null, durationMs: duration() });
     }
     const length = response.headers.get("content-length");
-    if (length && /^\d+$/.test(length) && Number(length) > BYTE_CAP) {
+    if (
+      length &&
+      /^\d+$/.test(length) &&
+      Number(length) > Math.min(BYTE_CAP, limit?.budget.remainingBytes ?? BYTE_CAP)
+    ) {
       controller.abort();
       void response.body?.cancel().catch(() => {});
       throw tooLarge;
@@ -341,11 +367,12 @@ async function request(
         const part = await reader.read();
         if (part.done) break;
         total += part.value.byteLength;
-        if (total > BYTE_CAP) {
+        if (total > BYTE_CAP || (limit && part.value.byteLength > limit.budget.remainingBytes)) {
           controller.abort();
           void reader.cancel().catch(() => {});
           throw tooLarge;
         }
+        if (limit) limit.budget.remainingBytes -= part.value.byteLength;
         chunks.push(part.value);
       }
     }
@@ -369,6 +396,7 @@ async function request(
       body,
       durationMs: duration(),
     });
+    if (limit?.signal.aborted || (limit && Date.now() >= limit.deadlineAt)) throw timedOut;
     if (valid && binding)
       reads.set(out, {
         ...binding,
@@ -391,6 +419,7 @@ async function request(
     });
   } finally {
     clearTimeout(timer);
+    limit?.signal.removeEventListener("abort", onAbort);
   }
 }
 export function billingReceiptBoundTo(o: N3Outcome, a: SettlementActor, id: string): boolean {
@@ -419,18 +448,30 @@ export const n3BillingClient: N3BillingClient = {
       operation: "payment_account",
     });
   },
-  async readReceipt(actor, id) {
+  async readReceipt(actor, id, limit) {
     actorAccess(actor);
     requireInput(uuid(id));
-    return request(actor, "/api/ARReceipts/" + id, undefined, { id, operation: "receipt_detail" });
+    return request(
+      actor,
+      "/api/ARReceipts/" + id,
+      undefined,
+      { id, operation: "receipt_detail" },
+      limit,
+    );
   },
-  async readReceiptJournal(actor, id) {
+  async readReceiptJournal(actor, id, limit) {
     actorAccess(actor);
     requireInput(uuid(id));
-    return request(actor, "/api/ARReceipts/GLPosting?key=" + id, undefined, {
-      id,
-      operation: "receipt_journal",
-    });
+    return request(
+      actor,
+      "/api/ARReceipts/GLPosting?key=" + id,
+      undefined,
+      {
+        id,
+        operation: "receipt_journal",
+      },
+      limit,
+    );
   },
   async createBill(actor, c, s) {
     actorAccess(actor, true);
@@ -441,18 +482,24 @@ export const n3BillingClient: N3BillingClient = {
     verifyClaim(c, "bill", p);
     return request(actor, "/api/CashSales/Create", p);
   },
-  async readBill(actor, id) {
+  async readBill(actor, id, limit) {
     actorAccess(actor);
     requireInput(uuid(id));
-    return request(actor, "/api/CashSales/" + id, undefined, { id, operation: "detail" });
+    return request(actor, "/api/CashSales/" + id, undefined, { id, operation: "detail" }, limit);
   },
-  async readBillJournal(actor, id) {
+  async readBillJournal(actor, id, limit) {
     actorAccess(actor);
     requireInput(uuid(id));
-    return request(actor, "/api/CashSales/GLPosting?key=" + id, undefined, {
-      id,
-      operation: "journal",
-    });
+    return request(
+      actor,
+      "/api/CashSales/GLPosting?key=" + id,
+      undefined,
+      {
+        id,
+        operation: "journal",
+      },
+      limit,
+    );
   },
   async writeAllocation(actor, c, rows) {
     actorAccess(actor, true);

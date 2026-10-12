@@ -71,6 +71,7 @@ import { Route as ApiHotelReservationsIdTimelineRouteImport } from './routes/api
 import { Route as ApiHotelReservationsIdTaxProfileRouteImport } from './routes/api/hotel/reservations.$id.tax-profile'
 import { Route as ApiHotelReservationsIdSettlementRouteImport } from './routes/api/hotel/reservations.$id.settlement'
 import { Route as ApiHotelReservationsIdSecurityCashRouteImport } from './routes/api/hotel/reservations.$id.security-cash'
+import { Route as ApiHotelReservationsIdSavedDocumentsCheckRouteImport } from './routes/api/hotel/reservations.$id.saved-documents-check'
 import { Route as ApiHotelReservationsIdOperationsRouteImport } from './routes/api/hotel/reservations.$id.operations'
 import { Route as ApiHotelReservationsIdGuestAssignmentsRouteImport } from './routes/api/hotel/reservations.$id.guest-assignments'
 import { Route as ApiHotelReservationsIdFolioRouteImport } from './routes/api/hotel/reservations.$id.folio'
@@ -423,6 +424,12 @@ const ApiHotelReservationsIdSecurityCashRoute =
     path: '/security-cash',
     getParentRoute: () => ApiHotelReservationsIdRoute,
   } as any)
+const ApiHotelReservationsIdSavedDocumentsCheckRoute =
+  ApiHotelReservationsIdSavedDocumentsCheckRouteImport.update({
+    id: '/saved-documents-check',
+    path: '/saved-documents-check',
+    getParentRoute: () => ApiHotelReservationsIdRoute,
+  } as any)
 const ApiHotelReservationsIdOperationsRoute =
   ApiHotelReservationsIdOperationsRouteImport.update({
     id: '/operations',
@@ -653,6 +660,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRouteWithChildren
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
+  '/api/hotel/reservations/$id/saved-documents-check': typeof ApiHotelReservationsIdSavedDocumentsCheckRoute
   '/api/hotel/reservations/$id/security-cash': typeof ApiHotelReservationsIdSecurityCashRoute
   '/api/hotel/reservations/$id/settlement': typeof ApiHotelReservationsIdSettlementRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
@@ -743,6 +751,7 @@ export interface FileRoutesByTo {
   '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRouteWithChildren
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
+  '/api/hotel/reservations/$id/saved-documents-check': typeof ApiHotelReservationsIdSavedDocumentsCheckRoute
   '/api/hotel/reservations/$id/security-cash': typeof ApiHotelReservationsIdSecurityCashRoute
   '/api/hotel/reservations/$id/settlement': typeof ApiHotelReservationsIdSettlementRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
@@ -834,6 +843,7 @@ export interface FileRoutesById {
   '/api/hotel/reservations/$id/folio': typeof ApiHotelReservationsIdFolioRouteWithChildren
   '/api/hotel/reservations/$id/guest-assignments': typeof ApiHotelReservationsIdGuestAssignmentsRoute
   '/api/hotel/reservations/$id/operations': typeof ApiHotelReservationsIdOperationsRouteWithChildren
+  '/api/hotel/reservations/$id/saved-documents-check': typeof ApiHotelReservationsIdSavedDocumentsCheckRoute
   '/api/hotel/reservations/$id/security-cash': typeof ApiHotelReservationsIdSecurityCashRoute
   '/api/hotel/reservations/$id/settlement': typeof ApiHotelReservationsIdSettlementRouteWithChildren
   '/api/hotel/reservations/$id/tax-profile': typeof ApiHotelReservationsIdTaxProfileRoute
@@ -926,6 +936,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
+    | '/api/hotel/reservations/$id/saved-documents-check'
     | '/api/hotel/reservations/$id/security-cash'
     | '/api/hotel/reservations/$id/settlement'
     | '/api/hotel/reservations/$id/tax-profile'
@@ -1016,6 +1027,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
+    | '/api/hotel/reservations/$id/saved-documents-check'
     | '/api/hotel/reservations/$id/security-cash'
     | '/api/hotel/reservations/$id/settlement'
     | '/api/hotel/reservations/$id/tax-profile'
@@ -1106,6 +1118,7 @@ export interface FileRouteTypes {
     | '/api/hotel/reservations/$id/folio'
     | '/api/hotel/reservations/$id/guest-assignments'
     | '/api/hotel/reservations/$id/operations'
+    | '/api/hotel/reservations/$id/saved-documents-check'
     | '/api/hotel/reservations/$id/security-cash'
     | '/api/hotel/reservations/$id/settlement'
     | '/api/hotel/reservations/$id/tax-profile'
@@ -1614,6 +1627,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHotelReservationsIdSecurityCashRouteImport
       parentRoute: typeof ApiHotelReservationsIdRoute
     }
+    '/api/hotel/reservations/$id/saved-documents-check': {
+      id: '/api/hotel/reservations/$id/saved-documents-check'
+      path: '/saved-documents-check'
+      fullPath: '/api/hotel/reservations/$id/saved-documents-check'
+      preLoaderRoute: typeof ApiHotelReservationsIdSavedDocumentsCheckRouteImport
+      parentRoute: typeof ApiHotelReservationsIdRoute
+    }
     '/api/hotel/reservations/$id/operations': {
       id: '/api/hotel/reservations/$id/operations'
       path: '/operations'
@@ -1996,6 +2016,7 @@ interface ApiHotelReservationsIdRouteChildren {
   ApiHotelReservationsIdFolioRoute: typeof ApiHotelReservationsIdFolioRouteWithChildren
   ApiHotelReservationsIdGuestAssignmentsRoute: typeof ApiHotelReservationsIdGuestAssignmentsRoute
   ApiHotelReservationsIdOperationsRoute: typeof ApiHotelReservationsIdOperationsRouteWithChildren
+  ApiHotelReservationsIdSavedDocumentsCheckRoute: typeof ApiHotelReservationsIdSavedDocumentsCheckRoute
   ApiHotelReservationsIdSecurityCashRoute: typeof ApiHotelReservationsIdSecurityCashRoute
   ApiHotelReservationsIdSettlementRoute: typeof ApiHotelReservationsIdSettlementRouteWithChildren
   ApiHotelReservationsIdTaxProfileRoute: typeof ApiHotelReservationsIdTaxProfileRoute
@@ -2015,6 +2036,8 @@ const ApiHotelReservationsIdRouteChildren: ApiHotelReservationsIdRouteChildren =
       ApiHotelReservationsIdGuestAssignmentsRoute,
     ApiHotelReservationsIdOperationsRoute:
       ApiHotelReservationsIdOperationsRouteWithChildren,
+    ApiHotelReservationsIdSavedDocumentsCheckRoute:
+      ApiHotelReservationsIdSavedDocumentsCheckRoute,
     ApiHotelReservationsIdSecurityCashRoute:
       ApiHotelReservationsIdSecurityCashRoute,
     ApiHotelReservationsIdSettlementRoute:
