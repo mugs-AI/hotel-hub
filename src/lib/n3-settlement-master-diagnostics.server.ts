@@ -80,6 +80,10 @@ export function validateMasterCapture(input: MasterCaptureInput): void {
 const graphKeys = new Set([
   "data",
   "customer",
+  "controlaccount",
+  "accountpreset",
+  "cashsalesaccount",
+  "postingaccount",
   "currency",
   "stock",
   "uom",
@@ -112,6 +116,9 @@ const graphKeys = new Set([
 const idKeys = new Set([
   "id",
   "customerid",
+  "controlaccountid",
+  "accountpresetid",
+  "postingaccountid",
   "currencyid",
   "stockid",
   "uomid",
@@ -153,6 +160,8 @@ const codeKeys = new Set([
 const numberKeys = new Set([
   "rate",
   "currencyrate",
+  "defaultsalesrate",
+  "defaultpurchaserate",
   "salesprice",
   "listprice",
   "purchaseprice",
@@ -176,6 +185,8 @@ const booleanKeys = new Set([
   "istaxable",
   "isoutputtax",
   "isbaseuom",
+  "isbase",
+  "local",
   "isdefault",
   "isbankaccount",
   "iscashaccount",
@@ -206,7 +217,7 @@ function sample(
     if (value.includes(actor.n3Token) || value.includes(actor.tenantId)) return "[redacted_string]";
     if (safePath && idKeys.has(field) && (isN3Guid(value) || /^[0-9]{1,40}$/.test(value)))
       return value;
-    if (safePath && codeKeys.has(field) && /^[a-z0-9][a-z0-9._ /-]{0,99}$/i.test(value))
+    if (safePath && codeKeys.has(field) && /^[a-z0-9][a-z0-9._ /%-]{0,99}$/i.test(value))
       return value;
     if (safePath && dateKeys.has(field) && /^\d{4}-\d\d-\d\d(?:T[0-9:.+-]+Z?)?$/.test(value))
       return value;
@@ -236,7 +247,16 @@ function sample(
         ]),
     );
   if (typeof value === "number")
-    return safePath && (idKeys.has(field) || numberKeys.has(field)) && Number.isFinite(value)
+    return safePath &&
+      (idKeys.has(field) ||
+        numberKeys.has(field) ||
+        (field === "status" &&
+          path.length === 1 &&
+          path[0] === "data" &&
+          Number.isInteger(value) &&
+          value >= 0 &&
+          value <= 255)) &&
+      Number.isFinite(value)
       ? value
       : "[redacted_number]";
   if (typeof value === "boolean")
