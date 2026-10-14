@@ -1,3 +1,4 @@
+import { BillingMasterCapturePanel } from "@/components/BillingMasterCapturePanel";
 // Owner-only Financial Verification console.
 // Read-only inquiry plus a separately gated Owner test-OR Update panel.
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -362,6 +363,8 @@ function Console({ identityKey }: { identityKey: string }) {
           </Link>
         </p>
       </header>
+
+      <BillingMasterCapturePanel />
 
       <section
         className="rounded-xl border bg-white p-5 shadow-sm"

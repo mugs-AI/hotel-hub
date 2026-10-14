@@ -28,6 +28,7 @@ import { Route as ReservationsIdEditRouteImport } from './routes/reservations.$i
 import { Route as ReservationsIdCheckoutRouteImport } from './routes/reservations.$id_.checkout'
 import { Route as ApiSessionMeRouteImport } from './routes/api/session/me'
 import { Route as ApiN3StocksRouteImport } from './routes/api/n3/stocks'
+import { Route as ApiN3SettlementMasterCaptureRouteImport } from './routes/api/n3/settlement-master-capture'
 import { Route as ApiN3FinancialVerificationRouteImport } from './routes/api/n3/financial-verification'
 import { Route as ApiN3CustomersRouteImport } from './routes/api/n3/customers'
 import { Route as ApiHotelWalkInCustomerRouteImport } from './routes/api/hotel/walk-in-customer'
@@ -189,6 +190,12 @@ const ApiN3StocksRoute = ApiN3StocksRouteImport.update({
   path: '/api/n3/stocks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiN3SettlementMasterCaptureRoute =
+  ApiN3SettlementMasterCaptureRouteImport.update({
+    id: '/api/n3/settlement-master-capture',
+    path: '/api/n3/settlement-master-capture',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiN3FinancialVerificationRoute =
   ApiN3FinancialVerificationRouteImport.update({
     id: '/api/n3/financial-verification',
@@ -578,6 +585,7 @@ export interface FileRoutesByFullPath {
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
+  '/api/n3/settlement-master-capture': typeof ApiN3SettlementMasterCaptureRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
@@ -662,6 +670,7 @@ export interface FileRoutesByTo {
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
+  '/api/n3/settlement-master-capture': typeof ApiN3SettlementMasterCaptureRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id/checkout': typeof ReservationsIdCheckoutRoute
@@ -747,6 +756,7 @@ export interface FileRoutesById {
   '/api/hotel/walk-in-customer': typeof ApiHotelWalkInCustomerRoute
   '/api/n3/customers': typeof ApiN3CustomersRouteWithChildren
   '/api/n3/financial-verification': typeof ApiN3FinancialVerificationRoute
+  '/api/n3/settlement-master-capture': typeof ApiN3SettlementMasterCaptureRoute
   '/api/n3/stocks': typeof ApiN3StocksRouteWithChildren
   '/api/session/me': typeof ApiSessionMeRoute
   '/reservations/$id_/checkout': typeof ReservationsIdCheckoutRoute
@@ -833,6 +843,7 @@ export interface FileRouteTypes {
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
+    | '/api/n3/settlement-master-capture'
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/reservations/$id/checkout'
@@ -917,6 +928,7 @@ export interface FileRouteTypes {
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
+    | '/api/n3/settlement-master-capture'
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/reservations/$id/checkout'
@@ -1001,6 +1013,7 @@ export interface FileRouteTypes {
     | '/api/hotel/walk-in-customer'
     | '/api/n3/customers'
     | '/api/n3/financial-verification'
+    | '/api/n3/settlement-master-capture'
     | '/api/n3/stocks'
     | '/api/session/me'
     | '/reservations/$id_/checkout'
@@ -1086,6 +1099,7 @@ export interface RootRouteChildren {
   ApiHotelWalkInCustomerRoute: typeof ApiHotelWalkInCustomerRoute
   ApiN3CustomersRoute: typeof ApiN3CustomersRouteWithChildren
   ApiN3FinancialVerificationRoute: typeof ApiN3FinancialVerificationRoute
+  ApiN3SettlementMasterCaptureRoute: typeof ApiN3SettlementMasterCaptureRoute
   ApiN3StocksRoute: typeof ApiN3StocksRouteWithChildren
   ApiSessionMeRoute: typeof ApiSessionMeRoute
   ReservationsIdCheckoutRoute: typeof ReservationsIdCheckoutRoute
@@ -1233,6 +1247,13 @@ declare module '@tanstack/react-router' {
       path: '/api/n3/stocks'
       fullPath: '/api/n3/stocks'
       preLoaderRoute: typeof ApiN3StocksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/n3/settlement-master-capture': {
+      id: '/api/n3/settlement-master-capture'
+      path: '/api/n3/settlement-master-capture'
+      fullPath: '/api/n3/settlement-master-capture'
+      preLoaderRoute: typeof ApiN3SettlementMasterCaptureRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/n3/financial-verification': {
@@ -1984,6 +2005,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHotelWalkInCustomerRoute: ApiHotelWalkInCustomerRoute,
   ApiN3CustomersRoute: ApiN3CustomersRouteWithChildren,
   ApiN3FinancialVerificationRoute: ApiN3FinancialVerificationRoute,
+  ApiN3SettlementMasterCaptureRoute: ApiN3SettlementMasterCaptureRoute,
   ApiN3StocksRoute: ApiN3StocksRouteWithChildren,
   ApiSessionMeRoute: ApiSessionMeRoute,
   ReservationsIdCheckoutRoute: ReservationsIdCheckoutRoute,
