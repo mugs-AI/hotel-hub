@@ -179,3 +179,70 @@ describe("bounded Owner master GET diagnostics", () => {
       expect(JSON.stringify(result)).not.toContain(privateValue);
   });
 });
+
+describe("observed accounting graph capture", () => {
+  it("retains non-personal account graphs, numeric status, currency rates and tax code punctuation", async () => {
+    const account = {
+      id: "11111111-1111-4111-8111-111111111111",
+      code: "400-001",
+      isActive: true,
+      name: "private-name",
+      bankAccountNo: "private-bank",
+    };
+    const raw = {
+      code: "0000",
+      data: {
+        id: 71,
+        status: 2,
+        controlAccountId: account.id,
+        controlAccount: account,
+        accountPresetId: 9,
+        accountPreset: { id: 9, cashSalesAccount: account },
+        postingAccountId: account.id,
+        postingAccount: account,
+        code: "SST8%",
+        currency: { id: 1, code: "MYR", local: true, defaultSalesRate: 1 },
+        uoms: [{ id: 201, isBase: true, stockId: 101, rate: 1, isActive: true }],
+        phone: 60123456789,
+        profile: { status: 2, controlAccount: account },
+        notes: "private-notes",
+      },
+    };
+    const result = await captureSettlementMasters(
+      actor,
+      { masters: [{ kind: "customer", id: 71 }] },
+      { fetcher: async () => Response.json(raw) },
+    );
+    expect(result.evidence[0].sample).toMatchObject({
+      data: {
+        status: 2,
+        controlAccountId: account.id,
+        controlAccount: { id: account.id, isActive: true },
+        accountPresetId: 9,
+        accountPreset: { id: 9, cashSalesAccount: { id: account.id, isActive: true } },
+        postingAccountId: account.id,
+        postingAccount: { id: account.id },
+        code: "SST8%",
+        currency: { local: true, defaultSalesRate: 1 },
+        uoms: [{ isBase: true }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /private-name|private-bank|private-notes|60123456789/,
+    );
+    expect(result.evidence[0].sample).toMatchObject({
+      data: {
+        profile: { status: "[redacted_number]", controlAccount: { id: "[redacted_string]" } },
+      },
+    });
+    expect(result.contractAccepted).toBe(false);
+  });
+  it.each([-1, 1.5, 999])("does not retain invalid numeric status %s", async (status) => {
+    const result = await captureSettlementMasters(
+      actor,
+      { masters: [{ kind: "customer", id: 71 }] },
+      { fetcher: async () => Response.json({ code: "0000", data: { id: 71, status } }) },
+    );
+    expect(result.evidence[0].sample).toMatchObject({ data: { status: "[redacted_number]" } });
+  });
+});
