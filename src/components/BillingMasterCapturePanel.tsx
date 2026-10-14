@@ -16,6 +16,16 @@ const kinds: Array<{ kind: MasterKind; label: string }> = [
   { kind: "tax", label: "Tax code IDs" },
   { kind: "account", label: "Posting account IDs" },
 ];
+const failureMessages: Record<string, string> = {
+  transport_error: "Request failed before an HTTP response was recorded",
+  request_timeout: "Request timed out",
+  batch_deadline: "Not attempted: batch time limit reached",
+  response_limit: "Response size limit reached",
+  redirect_refused: "Redirect refused; credentials were not forwarded",
+  http_error: "N3 returned an unsuccessful HTTP status",
+  body_unavailable: "Response body unavailable",
+  invalid_response: "Response could not be verified as an N3 master record",
+};
 export function BillingMasterCapturePanel() {
   const me = useSessionMe();
   if (!me.data?.authenticated || me.data.role !== "owner") return null;
@@ -322,12 +332,35 @@ function Panel() {
       ) : null}
       {report ? (
         <div className="mt-3 text-sm" role="status">
-          <p className="font-semibold">Captured responses require review</p>
+          <p className="font-semibold">
+            {report.status === "partial" && !report.evidence.some((e) => e.status === "captured")
+              ? "No N3 responses captured"
+              : "Captured responses require review"}
+          </p>
           <p>
             {report.evidence.filter((e) => e.status === "captured").length} of{" "}
             {report.evidence.length} requested responses captured. Billing contract acceptance is
             still pending.
           </p>
+          {report.evidence.some((e) => e.status === "unavailable") ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer">Capture failure details</summary>
+              <ul className="mt-2 space-y-1">
+                {report.evidence
+                  .filter((e) => e.status === "unavailable")
+                  .map((e) => (
+                    <li key={`${e.kind}:${e.id}`}>
+                      {kinds.find((k) => k.kind === e.kind)?.label.replace(" IDs", "")} {e.id}:{" "}
+                      {typeof e.failureReason === "string" &&
+                      Object.hasOwn(failureMessages, e.failureReason)
+                        ? failureMessages[e.failureReason]
+                        : "Failure reason not recorded; ask Admin to review the capture"}
+                      {typeof e.httpStatus === "number" ? ` (HTTP ${e.httpStatus})` : ""}.
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          ) : null}
           <button type="button" className="mt-2 rounded-md border px-3 py-2" onClick={download}>
             Download billing master evidence
           </button>

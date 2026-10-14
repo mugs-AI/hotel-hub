@@ -7,6 +7,15 @@ export type MasterCaptureActor = {
 };
 export type MasterKind = "customer" | "currency" | "stock" | "uom" | "tax" | "account";
 export type MasterCaptureInput = { masters: Array<{ kind: MasterKind; id: number | string }> };
+export type MasterCaptureFailure =
+  | "transport_error"
+  | "request_timeout"
+  | "batch_deadline"
+  | "response_limit"
+  | "redirect_refused"
+  | "http_error"
+  | "body_unavailable"
+  | "invalid_response";
 export type MasterCapture = {
   schemaVersion: "hh-master-capture-v1";
   status: "captured" | "partial" | "unauthorized";
@@ -22,6 +31,10 @@ export type MasterCapture = {
     responseHash: string | null;
     sample: unknown;
     sampleTruncated: boolean;
+    // Optional for compatibility with earlier exports; new captures always set these.
+    attempted?: boolean;
+    durationMs?: number;
+    failureReason?: MasterCaptureFailure | null;
   }>;
 };
 import { createHash } from "node:crypto";
@@ -273,22 +286,39 @@ export async function captureSettlementMasters(
       responseHash: null,
       sample: null,
       sampleTruncated: false,
+      attempted: false,
+      durationMs: 0,
+      failureReason: null,
     };
     report.evidence.push(item);
     if (now() >= deadline || bytes <= 0) {
+      item.failureReason = now() >= deadline ? "batch_deadline" : "response_limit";
       report.status = "partial";
       continue;
     }
     const controller = new AbortController();
+    const started = now();
+    let timedOut = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const work = async () => {
+        item.attempted = true;
         const response = await fetcher("https://openapi.account.qne.cloud" + endpoint, {
           method: "GET",
-          redirect: "error",
+          // workerd rejects redirect:error before dispatch. Manual prevents
+          // forwarding Authorization; every returned 3xx is refused below.
+          redirect: "manual",
           headers: { authorization: "Bearer " + boundActor.n3Token, accept: "application/json" },
           signal: controller.signal,
         });
+        if (controller.signal.aborted) {
+          try {
+            void response.body?.cancel().catch(() => {});
+          } catch {
+            /* cleanup only */
+          }
+          controller.signal.throwIfAborted();
+        }
         item.httpStatus = response.status;
         if (response.status === 401) {
           item.status = "unauthorized";
@@ -302,26 +332,42 @@ export async function captureSettlementMasters(
           return;
         }
         if (!response.ok) {
-          await response.body?.cancel();
+          item.failureReason =
+            response.status >= 300 && response.status < 400 ? "redirect_refused" : "http_error";
+          try {
+            void response.body?.cancel().catch(() => {});
+          } catch {
+            /* cleanup only */
+          }
           return;
         }
         const declared = response.headers.get("content-length");
         if (declared !== null && Number(declared) > bytes) {
-          await response.body?.cancel();
           bytes = 0;
+          item.failureReason = "response_limit";
+          try {
+            void response.body?.cancel().catch(() => {});
+          } catch {
+            /* cleanup only */
+          }
           return;
         }
         const reader = response.body?.getReader();
-        if (!reader) return;
+        if (!reader) {
+          item.failureReason = "body_unavailable";
+          return;
+        }
         const decoder = new TextDecoder("utf-8", { fatal: true });
         let text = "";
         try {
           while (true) {
             const chunk = await reader.read();
+            controller.signal.throwIfAborted();
             if (chunk.done) break;
             bytes -= chunk.value.byteLength;
             if (bytes < 0) {
-              await reader.cancel();
+              item.failureReason = "response_limit";
+              void reader.cancel().catch(() => {});
               return;
             }
             text += decoder.decode(chunk.value, { stream: true });
@@ -331,9 +377,12 @@ export async function captureSettlementMasters(
           reader.releaseLock();
         }
         const body = parseN3LosslessJson(text);
-        if (!obj(body) || body.code !== "0000" || !obj(body.data)) return;
-        item.responseHash = createHash("sha256").update(text).digest("hex");
         controller.signal.throwIfAborted();
+        if (!obj(body) || body.code !== "0000" || !obj(body.data)) {
+          item.failureReason = "invalid_response";
+          return;
+        }
+        item.responseHash = createHash("sha256").update(text).digest("hex");
         item.sample = sample(body, boundActor);
         item.sampleTruncated = truncated(body);
         item.status = "captured";
@@ -343,6 +392,7 @@ export async function captureSettlementMasters(
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => {
+              timedOut = true;
               controller.abort();
               reject(Error("deadline"));
             },
@@ -352,11 +402,17 @@ export async function captureSettlementMasters(
       ]);
     } catch {
       item.status = item.httpStatus === 401 ? "unauthorized" : "unavailable";
+      item.failureReason = timedOut
+        ? "request_timeout"
+        : item.httpStatus === null
+          ? "transport_error"
+          : "invalid_response";
       item.responseHash = null;
       item.sample = null;
     } finally {
       if (timer) clearTimeout(timer);
       controller.abort();
+      item.durationMs = Math.max(0, now() - started);
     }
     if (item.status === "unauthorized") {
       report.status = "unauthorized";
