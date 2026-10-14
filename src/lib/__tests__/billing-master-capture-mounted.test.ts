@@ -188,6 +188,77 @@ describe.skipIf(!domPackage)("Owner billing master capture panel", () => {
     expect(posts).toHaveLength(0);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("valid");
   });
+  it("shows zero captures as a failed capture with safe per-entry reasons", async () => {
+    captureReplies.push(
+      Response.json({
+        report: {
+          schemaVersion: "hh-master-capture-v1",
+          status: "partial",
+          contractAccepted: false,
+          capturedAt: "2026-10-14T01:00:00Z",
+          evidence: [
+            {
+              kind: "stock",
+              id: 101,
+              status: "unavailable",
+              httpStatus: null,
+              attempted: true,
+              durationMs: 5000,
+              failureReason: "request_timeout",
+            },
+            {
+              kind: "stock",
+              id: 102,
+              status: "unavailable",
+              httpStatus: null,
+              attempted: false,
+              durationMs: 0,
+              failureReason: "batch_deadline",
+            },
+            {
+              kind: "stock",
+              id: 103,
+              status: "unavailable",
+              httpStatus: null,
+              failureReason: "private-upstream-error",
+            },
+          ],
+        },
+      }),
+    );
+    await show(ids[0]);
+    await enter("stock", "101,102,103");
+    await click("Capture current billing masters");
+    await settle();
+    expect(container.textContent).toContain("No N3 responses captured");
+    expect(container.textContent).toContain("Request timed out");
+    expect(container.textContent).toContain("Not attempted: batch time limit reached");
+    expect(container.textContent).not.toContain("private-upstream-error");
+    expect(container.textContent).not.toContain("Captured responses require review");
+    expect(posts).toHaveLength(1);
+  });
+  it.each([
+    { failureReason: { toString: null, valueOf: null } },
+    { failureReason: ["transport_error"] },
+  ])("shows a safe fallback for malformed diagnostic values %j", async ({ failureReason }) => {
+    captureReplies.push(
+      Response.json({
+        report: {
+          schemaVersion: "hh-master-capture-v1",
+          status: "partial",
+          contractAccepted: false,
+          capturedAt: "2026-10-14T01:00:00Z",
+          evidence: [{ kind: "stock", id: 101, status: "unavailable", failureReason }],
+        },
+      }),
+    );
+    await show(ids[0]);
+    await enter("stock", "101");
+    await click("Capture current billing masters");
+    await settle();
+    expect(container.textContent).toContain("Failure reason not recorded");
+    expect(container.textContent).toContain("Download billing master evidence");
+  });
   it("clears inputs and captured data when the authenticated identity changes", async () => {
     await show(ids[0]);
     await enter("customer", "71");
