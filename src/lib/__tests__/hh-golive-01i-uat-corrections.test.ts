@@ -21,6 +21,7 @@ describe("HH-GOLIVE-01I property-time check-in action", () => {
   const base = {
     status: "confirmed",
     arrivalDate: "2026-09-24",
+    departureDate: "2026-09-26",
     standardCheckInTime: "15:00",
     timezone: "Asia/Kuala_Lumpur",
   };
@@ -53,8 +54,8 @@ describe("HH-GOLIVE-01I property-time check-in action", () => {
   });
 
   it("serves the action from the detail API and renders only the matching button", () => {
-    expect(detailRouteSource).toContain("checkInActionFor({");
-    expect(detailRouteSource).toContain("checkInAction }");
+    expect(detailRouteSource).toContain("checkInWindowFor({");
+    expect(detailRouteSource).toContain("checkInAction, checkInBlockedReason }");
     expect(actionsSource).toContain('checkInAction === "early_check_in"');
     expect(actionsSource).toContain('checkInAction === "check_in"');
   });

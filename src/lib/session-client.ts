@@ -45,7 +45,15 @@ export function useSignOut() {
         "folio-bill-to",
         "bill-to-changes",
         "hotel-change-revision",
+        "deposit-module-policy",
+        "security-cash",
+        "settlement",
+        "source-policy",
+        "source-payer",
+        "source-attribution",
+        "source-billing",
       ]) {
+        void qc.cancelQueries({ queryKey: [prefix] });
         qc.removeQueries({ queryKey: [prefix] });
         for (const m of qc.getMutationCache().getAll())
           if (m.options.mutationKey?.[0] === prefix) qc.getMutationCache().remove(m);

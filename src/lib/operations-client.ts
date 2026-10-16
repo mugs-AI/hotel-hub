@@ -1,3 +1,5 @@
+import { SECURITY_ERRORS } from "./security-cash";
+import { settlementLockMessage } from "./settlement-lock";
 // Browser-side reservation-operation queries/mutations. Same-origin,
 // cookie-authenticated, no direct Supabase or N3 access.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -127,6 +129,9 @@ export function operationStateLabel(s: string): string {
 }
 
 export function operationErrorMessage(code: string, operationType?: string): string {
+  if (SECURITY_ERRORS[code]) return SECURITY_ERRORS[code];
+  const lock = settlementLockMessage(code);
+  if (lock) return lock;
   switch (code) {
     case "late_checkout_out_of_range":
       return "Late Checkout must be on the booking's departure day. Use Extend Stay for another day.";
@@ -144,6 +149,10 @@ export function operationErrorMessage(code: string, operationType?: string): str
       return "The reservation changed while you were working. Reload and try again.";
     case "early_check_in_required":
       return "It is before the standard check-in time — request an early check-in instead.";
+    case "stay_dates_expired":
+      return "Stay dates have expired. Update the booking dates and check room availability before check-in.";
+    case "rate_change_disabled":
+      return "Change rate is disabled in Settings. Ask the Owner if this stay needs a rate correction.";
     case "early_check_in_not_required":
       return "Standard check-in time has arrived. Reload the reservation and use Check in.";
     case "property_timezone_invalid":
@@ -245,25 +254,39 @@ function useInvalidateReservation(reservationId: string) {
   };
 }
 
-export function useCheckIn(reservationId: string) {
+type FlowCallbacks<T> = {
+  onMutate?: (id: string) => void;
+  onSuccess?: (id: string, result: T) => void;
+  onError?: (id: string, error: unknown) => void;
+};
+type CheckInResult = {
+  status: string;
+  checkedInAt: string | null;
+  updatedAt: string;
+  folioWarning: "folio_needs_preparation" | null;
+};
+type OperationResult = { requestId: string; state: OperationState };
+export function useCheckIn(reservationId: string, callbacks: FlowCallbacks<CheckInResult> = {}) {
   const invalidate = useInvalidateReservation(reservationId);
   return useMutation({
     mutationFn: (input: { expectedUpdatedAt: string | null; clientRequestId: string }) =>
-      opFetch<{
-        status: string;
-        checkedInAt: string | null;
-        updatedAt: string;
-        /** Check-in succeeded, but the folio snapshot did not. */
-        folioWarning: "folio_needs_preparation" | null;
-      }>(`/api/hotel/reservations/${reservationId}/check-in`, {
+      opFetch<CheckInResult>(`/api/hotel/reservations/${reservationId}/check-in`, {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: invalidate,
+    onMutate: (input) => callbacks.onMutate?.(input.clientRequestId),
+    onSuccess: (result, input) => {
+      invalidate();
+      callbacks.onSuccess?.(input.clientRequestId, result);
+    },
+    onError: (error, input) => callbacks.onError?.(input.clientRequestId, error),
   });
 }
 
-export function useRequestOperation(reservationId: string) {
+export function useRequestOperation(
+  reservationId: string,
+  callbacks: FlowCallbacks<OperationResult> = {},
+) {
   const invalidate = useInvalidateReservation(reservationId);
   return useMutation({
     mutationFn: (input: {
@@ -275,11 +298,19 @@ export function useRequestOperation(reservationId: string) {
         `/api/hotel/reservations/${reservationId}/operations`,
         { method: "POST", body: JSON.stringify(input) },
       ),
-    onSuccess: invalidate,
+    onMutate: (input) => callbacks.onMutate?.(input.clientRequestId),
+    onSuccess: (result, input) => {
+      invalidate();
+      callbacks.onSuccess?.(input.clientRequestId, result);
+    },
+    onError: (error, input) => callbacks.onError?.(input.clientRequestId, error),
   });
 }
 
-export function useDecideOperation(reservationId: string) {
+export function useDecideOperation(
+  reservationId: string,
+  callbacks: FlowCallbacks<OperationResult> = {},
+) {
   const invalidate = useInvalidateReservation(reservationId);
   return useMutation({
     mutationFn: (input: {
@@ -299,7 +330,12 @@ export function useDecideOperation(reservationId: string) {
           }),
         },
       ),
-    onSuccess: invalidate,
+    onMutate: (input) => callbacks.onMutate?.(input.clientRequestId),
+    onSuccess: (result, input) => {
+      invalidate();
+      callbacks.onSuccess?.(input.clientRequestId, result);
+    },
+    onError: (error, input) => callbacks.onError?.(input.clientRequestId, error),
   });
 }
 

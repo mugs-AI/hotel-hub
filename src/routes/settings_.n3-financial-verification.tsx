@@ -4,6 +4,7 @@ import { BillingMasterCapturePanel } from "@/components/BillingMasterCapturePane
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
+import { SavedDocumentsCheckPanel } from "@/components/SavedDocumentsCheckPanel";
 import { ReceiptUpdateProofPanel } from "@/components/ReceiptUpdateProofPanel";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
@@ -258,7 +259,7 @@ function FinancialVerificationPage() {
 
 function Inner() {
   const session = useSessionMe();
-  if (session.isLoading || !session.data) return null;
+  if (session.isLoading || session.isError || !session.data) return null;
   if (session.data.authenticated === false) return null;
   if (!hasPermission(session.data.role, "n3:financial_verify")) {
     return (
@@ -459,6 +460,7 @@ function Console({ identityKey }: { identityKey: string }) {
         ) : null}
       </section>
 
+      <SavedDocumentsCheckPanel key={`saved:${identityKey}`} identityKey={identityKey} />
       <ReceiptUpdateProofPanel key={identityKey} identityKey={identityKey} />
       {data ? <RunSummary data={data} /> : null}
       {data ? <JournalCaptureCard capture={data.journalCapture} /> : null}

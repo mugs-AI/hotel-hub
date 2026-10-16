@@ -77,8 +77,6 @@ export const Route = createFileRoute(
             }
             return json({ request: dto }, 201);
           }
-          if ((body.proposal as { kind?: unknown } | null)?.kind === "correction")
-            throw new ReceiptControlError("automation_unavailable");
           const { scopedReceiptUatSelected } =
             await import("@/lib/receipt-automation-gates.server");
           if (scopedReceiptUatSelected(actor, params.depositId, process.env)) {

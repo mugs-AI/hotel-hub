@@ -1,7 +1,7 @@
 // Reservation operations UI: contextual check-in / request actions, the
 // Pending Approvals ledger and the reservation Timeline.
 // Server enforces every permission; this is only a usability layer.
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import {
   directActionLabel,
@@ -33,6 +33,8 @@ import { CONDITION_LABELS, type HousekeepingCondition } from "@/lib/housekeeping
 import { useSessionMe } from "@/lib/session-client";
 import { MalaysianDateInput } from "@/components/malaysia-date-input";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
+import { useWorkspaceDraft } from "@/lib/workspace-context";
+import { useOperationControls } from "@/lib/operation-controls-client";
 
 // Semantic action-button colours. Colour is never the only signal — every
 // button also keeps an explicit text label and meets contrast requirements.
@@ -72,6 +74,18 @@ function errText(err: unknown, operationType?: string): string {
   return reference && /^(operation_request_failed|request_failed)$/.test(code)
     ? `${message} Support reference: ${reference}.`
     : message;
+}
+
+function savedOperationError(error: unknown): { code: string; reference?: string } {
+  const row =
+    error && typeof error === "object" ? (error as { code?: unknown; reference?: unknown }) : {};
+  return {
+    code:
+      typeof row.code === "string" && /^[a-z_]{1,80}$/.test(row.code) ? row.code : "request_failed",
+    ...(typeof row.reference === "string" && /^[a-zA-Z0-9-]{1,80}$/.test(row.reference)
+      ? { reference: row.reference }
+      : {}),
+  };
 }
 
 /** Safe-only readiness blocker codes that can surface on a pending decision. */
@@ -261,6 +275,7 @@ export function ReservationActionsCard({
   checkedInAt,
   departureDate,
   checkInAction,
+  checkInBlockedReason,
   canCheckIn,
   canRequest,
   rooms,
@@ -271,12 +286,29 @@ export function ReservationActionsCard({
   checkedInAt: string | null;
   departureDate: string;
   checkInAction: "early_check_in" | "check_in" | null;
+  checkInBlockedReason?: string | null;
   canCheckIn: boolean;
   canRequest: boolean;
   rooms: ActionRoom[];
 }) {
-  const checkIn = useCheckIn(reservationId);
-  const request = useRequestOperation(reservationId);
+  const checkIn = useCheckIn(reservationId, {
+    onMutate: startFlow,
+    onSuccess: (id, result) => {
+      if (result.folioWarning === "folio_needs_preparation")
+        toast.warning(
+          "Checked in. The guest folio was not prepared — open the folio and choose Prepare before checkout.",
+        );
+      finishFlow(id);
+    },
+    onError: failFlow,
+  });
+  const request = useRequestOperation(reservationId, {
+    onMutate: startFlow,
+    onSuccess: finishFlow,
+    onError: failFlow,
+  });
+  const controls = useOperationControls(canRequest);
+  const canChangeRate = controls.isSuccess && controls.data.rateChangeEnabled;
   // SME approval policy. The server is authoritative; this only makes the
   // buttons tell the truth about what pressing them will do.
   const session = useSessionMe();
@@ -289,12 +321,49 @@ export function ReservationActionsCard({
   );
   // Stable per-flow identity: minted when a flow opens, cleared on cancel or
   // a completed server result, so a safe HTTP retry cannot duplicate work.
-  const [flow, setFlow] = useState<{ kind: "check_in" | OperationType; id: string } | null>(null);
-  const [detail, setDetail] = useState("");
-  const [reason, setReason] = useState("");
-  const [reservationRoomId, setReservationRoomId] = useState("");
-  const [targetRoomId, setTargetRoomId] = useState("");
-  const [newRate, setNewRate] = useState("");
+  const initialDraft = {
+    flow: null as { kind: "check_in" | OperationType; id: string } | null,
+    detail: "",
+    reason: "",
+    reservationRoomId: "",
+    targetRoomId: "",
+    newRate: "",
+    pending: false,
+    error: null as ReturnType<typeof savedOperationError> | null,
+  };
+  const [draft, setDraft] = useWorkspaceDraft(
+    "reservation-action",
+    initialDraft,
+    (value) => value.flow !== null,
+    `reservation:${reservationId.toLowerCase()}`,
+    (value) =>
+      value.pending
+        ? "An action is still applying. Wait for its saved result before closing this tab."
+        : null,
+  );
+  const { flow, detail, reason, reservationRoomId, targetRoomId, newRate } = draft;
+  const working = draft.pending || checkIn.isPending || request.isPending;
+  function startFlow(id: string) {
+    setDraft((value) => (value.flow?.id === id ? { ...value, pending: true, error: null } : value));
+  }
+  function finishFlow(id: string) {
+    setDraft((value) => (value.flow?.id === id ? initialDraft : value));
+  }
+  function failFlow(id: string, error: unknown) {
+    setDraft((value) =>
+      value.flow?.id === id
+        ? { ...value, pending: false, error: savedOperationError(error) }
+        : value,
+    );
+  }
+  const setFlow = (flow: typeof draft.flow) => setDraft((value) => ({ ...value, flow }));
+  const setDetail = (detail: string) => setDraft((value) => ({ ...value, detail }));
+  const setReason = (reason: string) => setDraft((value) => ({ ...value, reason }));
+  const setReservationRoomId = (reservationRoomId: string) =>
+    setDraft((value) => ({ ...value, reservationRoomId }));
+  const setTargetRoomId = (targetRoomId: string) =>
+    setDraft((value) => ({ ...value, targetRoomId }));
+  const setNewRate = (newRate: string) => setDraft((value) => ({ ...value, newRate }));
   const propertyRooms = usePropertyRooms(flow?.kind === "room_change");
   const hkBoard = useHousekeepingBoard(flow?.kind === "room_change");
   const currentReservationRoom = rooms.find((r) => r.id === reservationRoomId) ?? null;
@@ -311,23 +380,21 @@ export function ReservationActionsCard({
   const available = REQUESTABLE.filter(
     (r) =>
       r.statuses.includes(status) &&
+      (r.type !== "rate_change" || canChangeRate) &&
       (r.type !== "early_check_in" || checkInAction === "early_check_in"),
   );
   const showCheckIn = canCheckIn && status === "confirmed" && checkInAction === "check_in";
 
   const close = () => {
-    setFlow(null);
-    setDetail("");
-    setReason("");
-    setReservationRoomId("");
-    setTargetRoomId("");
-    setNewRate("");
+    if (working) return;
+    setDraft(initialDraft);
     checkIn.reset();
     request.reset();
   };
 
   const submitRequest = (type: OperationType) => {
-    if (!flow) return;
+    if (!flow || working) return;
+    if (type === "rate_change" && !canChangeRate) return;
     const checkoutLocal =
       type === "late_checkout" ? lateCheckoutLocal(departureDate, detail) : null;
     if (type === "late_checkout" && !checkoutLocal) return;
@@ -350,10 +417,7 @@ export function ReservationActionsCard({
                   reason: reason.trim(),
                 }
               : { reason: reason || undefined };
-    request.mutate(
-      { operationType: type, payload, clientRequestId: flow.id },
-      { onSuccess: close },
-    );
+    request.mutate({ operationType: type, payload, clientRequestId: flow.id });
   };
 
   return (
@@ -376,6 +440,11 @@ export function ReservationActionsCard({
         </p>
       ) : (
         <div className="mt-3 space-y-3">
+          {status === "confirmed" && checkInBlockedReason ? (
+            <p role="status" className="text-sm text-amber-900">
+              {operationErrorMessage(checkInBlockedReason)}
+            </p>
+          ) : null}
           {showCheckIn || checkedInAt ? (
             checkedInAt ? (
               <p className="text-sm text-muted-foreground">
@@ -384,40 +453,27 @@ export function ReservationActionsCard({
             ) : flow?.kind === "check_in" ? (
               <div className="rounded-md border p-3 text-sm" style={{ borderColor: `${NAVY}22` }}>
                 <p style={{ color: NAVY }}>Confirm standard check-in for this reservation?</p>
-                {checkIn.error ? (
+                {checkIn.error || draft.error ? (
                   <p className="mt-1 text-xs" style={{ color: ERR }}>
-                    {errText(checkIn.error)}
+                    {errText(checkIn.error ?? draft.error)}
                   </p>
                 ) : null}
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
-                    disabled={checkIn.isPending}
+                    disabled={working}
                     onClick={() =>
-                      checkIn.mutate(
-                        { expectedUpdatedAt: updatedAt, clientRequestId: flow.id },
-                        {
-                          onSuccess: (res) => {
-                            // Check-in stands. The folio simply needs an
-                            // explicit preparation before checkout.
-                            if (res.folioWarning === "folio_needs_preparation") {
-                              toast.warning(
-                                "Checked in. The guest folio was not prepared — open the folio and choose Prepare before checkout.",
-                              );
-                            }
-                            close();
-                          },
-                        },
-                      )
+                      checkIn.mutate({ expectedUpdatedAt: updatedAt, clientRequestId: flow.id })
                     }
                     className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
                     style={{ backgroundColor: ACTION_COLORS.checkIn }}
                   >
-                    {checkIn.isPending ? "Checking in…" : "Confirm check-in"}
+                    {working ? "Checking in…" : "Confirm check-in"}
                   </button>
                   <button
                     type="button"
                     onClick={close}
+                    disabled={working}
                     className="rounded-md border border-input px-3 py-1.5 text-xs"
                   >
                     Cancel
@@ -444,6 +500,7 @@ export function ReservationActionsCard({
                     key={r.type}
                     type="button"
                     title={r.help}
+                    disabled={working}
                     onClick={() => {
                       setFlow({ kind: r.type, id: crypto.randomUUID() });
                       setDetail("");
@@ -626,27 +683,35 @@ export function ReservationActionsCard({
                       />
                     </label>
                   ) : null}
-                  {request.error ? (
+                  {request.error || draft.error ? (
                     <p className="mt-1 text-xs" style={{ color: ERR }}>
-                      {errText(request.error, flow.kind)}
+                      {errText(request.error ?? draft.error, flow.kind)}
+                    </p>
+                  ) : null}
+                  {flow.kind === "rate_change" && !canChangeRate ? (
+                    <p role="status" className="mt-2 text-xs text-amber-900">
+                      Change rate is disabled or its setting could not be checked. Cancel this
+                      action or refresh the reservation.
                     </p>
                   ) : null}
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
                       disabled={
-                        request.isPending ||
+                        working ||
+                        (flow.kind === "rate_change" && !canChangeRate) ||
                         (flow.kind === "late_checkout" && !lateCheckoutLocal(departureDate, detail))
                       }
                       onClick={() => submitRequest(flow.kind as OperationType)}
                       className="rounded-md px-3 py-1.5 text-xs font-medium text-white"
                       style={{ backgroundColor: REQUEST_COLOR[flow.kind as OperationType] }}
                     >
-                      {exceptionSubmitLabel(approvalMode, request.isPending)}
+                      {exceptionSubmitLabel(approvalMode, working)}
                     </button>
                     <button
                       type="button"
                       onClick={close}
+                      disabled={working}
                       className="rounded-md border border-input px-3 py-1.5 text-xs"
                     >
                       Cancel
@@ -721,18 +786,60 @@ export function PendingApprovalsCard({
   canApprove: boolean;
 }) {
   const q = useReservationOperations(reservationId, canView);
-  const decide = useDecideOperation(reservationId);
+  const decide = useDecideOperation(reservationId, {
+    onMutate: startDecision,
+    onSuccess: finishDecision,
+    onError: failDecision,
+  });
+  const controls = useOperationControls(canView);
+  const canChangeRate = controls.isSuccess && controls.data.rateChangeEnabled;
   const propertyRooms = usePropertyRooms(canView);
   const hkBoard = useHousekeepingBoard(canView);
-  const [confirm, setConfirm] = useState<{
-    request: OperationRequestDTO;
-    decision: "approve" | "reject";
-    id: string;
-  } | null>(null);
-  const [note, setNote] = useState("");
+  const [draft, setDraft] = useWorkspaceDraft(
+    "operation-decision",
+    {
+      confirm: null as {
+        request: OperationRequestDTO;
+        decision: "approve" | "reject";
+        id: string;
+      } | null,
+      note: "",
+      pending: false,
+      error: null as ReturnType<typeof savedOperationError> | null,
+    },
+    (value) => value.confirm !== null,
+    `reservation:${reservationId.toLowerCase()}`,
+    (value) =>
+      value.pending
+        ? "A decision is still applying. Wait for its saved result before closing this tab."
+        : null,
+  );
+  const { confirm, note } = draft;
+  const working = draft.pending || decide.isPending;
+  function startDecision(id: string) {
+    setDraft((value) =>
+      value.confirm?.id === id ? { ...value, pending: true, error: null } : value,
+    );
+  }
+  function finishDecision(id: string) {
+    setDraft((value) =>
+      value.confirm?.id === id ? { confirm: null, note: "", pending: false, error: null } : value,
+    );
+  }
+  function failDecision(id: string, error: unknown) {
+    setDraft((value) =>
+      value.confirm?.id === id
+        ? { ...value, pending: false, error: savedOperationError(error) }
+        : value,
+    );
+  }
+  const setConfirm = (confirm: typeof draft.confirm) =>
+    setDraft((value) => ({ ...value, confirm }));
+  const setNote = (note: string) => setDraft((value) => ({ ...value, note }));
+  const decisionError = decide.error ?? draft.error;
   const decideCode =
-    decide.error && typeof decide.error === "object" && "code" in decide.error
-      ? String((decide.error as { code: string }).code)
+    decisionError && typeof decisionError === "object" && "code" in decisionError
+      ? String((decisionError as { code: string }).code)
       : "";
 
   if (!canView) return null;
@@ -741,8 +848,8 @@ export function PendingApprovalsCard({
   const history = requests.filter((r) => r.state !== "pending");
 
   const close = () => {
-    setConfirm(null);
-    setNote("");
+    if (working) return;
+    setDraft({ confirm: null, note: "", pending: false, error: null });
     decide.reset();
   };
 
@@ -812,12 +919,12 @@ export function PendingApprovalsCard({
                       onChange={(e) => setNote(e.target.value)}
                       className="mt-2 w-full rounded-md border border-input px-2 py-1"
                     />
-                    {decide.error ? (
+                    {decisionError ? (
                       <p
                         className="mt-1"
                         style={{ color: isReadinessBlockerCode(decideCode) ? GOLD : ERR }}
                       >
-                        {errText(decide.error, r.operationType)}
+                        {errText(decisionError, r.operationType)}
                         {isReadinessBlockerCode(decideCode)
                           ? " This request stays pending until the room is ready."
                           : ""}
@@ -826,17 +933,19 @@ export function PendingApprovalsCard({
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
-                        disabled={decide.isPending}
+                        disabled={
+                          working ||
+                          (confirm.decision === "approve" &&
+                            r.operationType === "rate_change" &&
+                            !canChangeRate)
+                        }
                         onClick={() =>
-                          decide.mutate(
-                            {
-                              requestId: r.id,
-                              decision: confirm.decision,
-                              note: note.trim() || null,
-                              clientRequestId: confirm.id,
-                            },
-                            { onSuccess: close },
-                          )
+                          decide.mutate({
+                            requestId: r.id,
+                            decision: confirm.decision,
+                            note: note.trim() || null,
+                            clientRequestId: confirm.id,
+                          })
                         }
                         className="rounded-md px-3 py-1 font-medium text-white"
                         style={{
@@ -846,11 +955,12 @@ export function PendingApprovalsCard({
                               : ACTION_COLORS.reject,
                         }}
                       >
-                        {decide.isPending ? "Saving…" : "Confirm"}
+                        {working ? "Saving…" : "Confirm"}
                       </button>
                       <button
                         type="button"
                         onClick={close}
+                        disabled={working}
                         className="rounded-md border border-input px-3 py-1"
                       >
                         Cancel
@@ -864,6 +974,7 @@ export function PendingApprovalsCard({
                       onClick={() =>
                         setConfirm({ request: r, decision: "approve", id: crypto.randomUUID() })
                       }
+                      disabled={working}
                       className="rounded-md px-3 py-1 font-medium text-white"
                       style={{ backgroundColor: ACTION_COLORS.approve }}
                     >
@@ -874,6 +985,7 @@ export function PendingApprovalsCard({
                       onClick={() =>
                         setConfirm({ request: r, decision: "reject", id: crypto.randomUUID() })
                       }
+                      disabled={working}
                       className="rounded-md border border-input px-3 py-1"
                       style={{
                         color: ACTION_COLORS.reject,

@@ -24,7 +24,9 @@ export function WorkspaceHeader({
           </span>
         ) : null}
         <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
-        <CardInfoPopover label={`About ${title}`}>{help}</CardInfoPopover>
+        <CardInfoPopover label={`About ${title}`} tone="on-dark">
+          {help}
+        </CardInfoPopover>
         {children}
       </div>
       {actions}

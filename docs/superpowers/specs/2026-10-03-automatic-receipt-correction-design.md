@@ -5,6 +5,16 @@ Status: WRITTEN SPEC FOR OWNER REVIEW. Concept approved; implementation plan,
 product implementation, sandbox financial transactions and activation not approved
 by this document. Current automatic edit capability remains disabled.
 
+## 12/10/2026 staff-permission amendment
+
+The Owner has clarified that N3-authorised Front Desk staff must enter deposits
+and, when approval is OFF, correct the same receipt entirely inside HH without
+an Owner-execution handoff. Approval ON retains one Owner action followed by
+verified-result notification/chime at Front Desk. Read
+[the written amendment](../../project-sources/HH_DEPOSIT_WORKFLOW_AND_N3_PERMISSIONS_20261012.md).
+It supersedes conflicting Owner-only intended-role rules below. Those earlier
+rules remain historical implementation context; no live activation is claimed.
+
 ## 1. Intended result and authority
 
 The Owner wants an approval system that actually applies the approved correction:

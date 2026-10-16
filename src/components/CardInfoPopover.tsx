@@ -3,14 +3,22 @@ import { Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** Compact, click-to-open help used beside reservation-card titles. */
-export function CardInfoPopover({ label, children }: { label: string; children: ReactNode }) {
+export function CardInfoPopover({
+  label,
+  children,
+  tone = "default",
+}: {
+  label: string;
+  children: ReactNode;
+  tone?: "default" | "on-dark";
+}) {
   return (
     <Popover>
       <PopoverTrigger
         type="button"
         aria-label={label}
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-input bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        style={{ color: "#0F9D8A" }}
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        style={{ color: tone === "on-dark" ? "#FFFFFF" : "#0F9D8A" }}
       >
         <Info className="h-3 w-3" aria-hidden />
       </PopoverTrigger>

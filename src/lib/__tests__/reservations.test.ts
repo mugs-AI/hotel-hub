@@ -288,9 +288,66 @@ describe("POST /api/hotel/reservations", () => {
   const post = (body: unknown) =>
     new Request("http://x.test/api/hotel/reservations", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "sec-fetch-site": "same-origin" },
       body: JSON.stringify(body),
     });
+
+  it("passes only reviewed initial payer assertions with the trusted Front Desk role to the atomic wrapper", async () => {
+    await seedAuthenticated("front_desk");
+    const sourceId = "11111111-1111-4111-8111-111111111111";
+    supabaseEnqueue("hotel_booking_sources", {
+      data: {
+        id: sourceId,
+        tenant_id: "tenant-uuid-1",
+        source_code: "walk_in",
+        display_name: "Walk-in",
+        is_active: true,
+        sort_order: 1,
+      },
+      error: null,
+    });
+    let captured: unknown[] = [];
+    setRpcHandler(async (args) => {
+      captured = args;
+      return {
+        data: [{ out_reservation_id: "new-booking", out_booking_reference: "BK270720001" }],
+        error: null,
+      };
+    });
+    const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
+    const initialPayer = { sourceId, policyVersion: "2", collectionMode: "guest" };
+    const res = await handleCreateReservation({ request: post({ ...validBody(), initialPayer }) });
+    expect(res.status).toBe(201);
+    expect(captured[0]).toBe("hh_source_reservation_create");
+    expect(captured[1]).toMatchObject({
+      p_role: "front_desk",
+      p_source_id: sourceId,
+      p_policy_version: "2",
+      p_collection_mode: "guest",
+      p_tenant_id: "tenant-uuid-1",
+    });
+  });
+  it("rejects cross-site initial payer creation before the store", async () => {
+    await seedAuthenticated("front_desk");
+    const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
+    const request = post({
+      ...validBody(),
+      initialPayer: { sourceId: ROOM_UUID_1, policyVersion: "1", collectionMode: "guest" },
+    });
+    request.headers.set("origin", "https://other.test");
+    expect((await handleCreateReservation({ request })).status).toBe(403);
+  });
+  it.each([
+    { sourceId: "bad", policyVersion: "1", collectionMode: "guest" },
+    { sourceId: ROOM_UUID_1, policyVersion: "0", collectionMode: "guest" },
+    { sourceId: ROOM_UUID_1, policyVersion: "1", collectionMode: "guest", role: "owner" },
+  ])("rejects malformed initial payer assertions before create: %j", async (initialPayer) => {
+    await seedAuthenticated("front_desk");
+    const { handleCreateReservation } = await import("@/routes/api/hotel/reservations");
+    const res = await handleCreateReservation({ request: post({ ...validBody(), initialPayer }) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("invalid_initial_payer");
+  });
 
   it("housekeeper → 403", async () => {
     await seedAuthenticated("housekeeper");

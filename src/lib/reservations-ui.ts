@@ -539,6 +539,13 @@ export function validateGuestsForNewReservation(guests: GuestDraft[]): Validatio
 
 // ---------- Error labels ----------
 const ERROR_MESSAGES: Record<string, string> = {
+  source_policy_scope_mismatch: "The booking source changed. Reload and review billing collection.",
+  source_policy_version_conflict:
+    "The source policy changed. Reload and confirm billing collection again.",
+  source_collection_mode_not_allowed:
+    "This collection mode is no longer allowed. Reload billing collection.",
+  source_billing_policy_missing: "Set up billing for this booking source in Settings. Refer Admin.",
+  initial_payer_required: "Reload and confirm billing collection before creating the booking.",
   invalid_stay_dates: "Arrival and departure dates are invalid.",
   arrival_date_in_past: "Arrival date cannot be earlier than today.",
   invalid_booking_source: "Please choose a valid booking source.",

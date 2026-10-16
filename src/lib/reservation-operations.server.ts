@@ -1,3 +1,4 @@
+import { SETTLEMENT_LOCK_CODES } from "./settlement-lock";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Server-only reservation operations store (HotelHub Run 5D2).
 //
@@ -8,7 +9,7 @@
 // Every call runs under the service-role client and requires an explicit
 // tenantId supplied by the trusted server context (never from the browser).
 
-import { isIsoDate, isUuid } from "./reservations-store.server";
+import { getReservationById, isIsoDate, isUuid } from "./reservations-store.server";
 import { resolveActorLabels } from "./tenant-store.server";
 
 async function admin() {
@@ -40,12 +41,17 @@ export type OperationState = (typeof OPERATION_STATES)[number];
 
 /** Stable, non-leaking error codes surfaced to the browser. */
 export const OPERATION_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
+  "security_collection_required",
+  "security_return_required",
   "unauthorized",
   "reservation_not_found",
   "operation_not_found",
   "invalid_transition",
   "reservation_changed",
   "early_check_in_required",
+  "stay_dates_expired",
+  "rate_change_disabled",
   "early_check_in_not_required",
   "property_timezone_invalid",
   "operation_pending",
@@ -321,22 +327,28 @@ export type CheckInAction = "early_check_in" | "check_in" | null;
  * configured IANA timezone. Browsers must never decide this from their own
  * clock. A bad timezone/check-in contract fails closed with null.
  */
-export function checkInActionFor(input: {
+export function checkInWindowFor(input: {
   status: string;
   arrivalDate: string;
+  departureDate: string;
   standardCheckInTime: string;
   timezone: string;
   now?: Date;
-}): CheckInAction {
-  if (input.status !== "confirmed") return null;
+}): {
+  action: CheckInAction;
+  code: "stay_dates_expired" | "validation_failed" | "property_timezone_invalid" | null;
+} {
+  if (input.status !== "confirmed") return { action: null, code: null };
   const timeMatch = /^(\d{2}):(\d{2})$/.exec(input.standardCheckInTime);
   if (
     !isIsoDate(input.arrivalDate) ||
+    !isIsoDate(input.departureDate) ||
+    input.departureDate <= input.arrivalDate ||
     !timeMatch ||
     Number(timeMatch[1]) > 23 ||
     Number(timeMatch[2]) > 59
   ) {
-    return null;
+    return { action: null, code: "validation_failed" };
   }
   let parts: Intl.DateTimeFormatPart[];
   try {
@@ -350,18 +362,26 @@ export function checkInActionFor(input: {
       hourCycle: "h23",
     }).formatToParts(input.now ?? new Date());
   } catch {
-    return null;
+    return { action: null, code: "property_timezone_invalid" };
   }
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((entry) => entry.type === type)?.value ?? "";
   const propertyDate = `${part("year")}-${part("month")}-${part("day")}`;
   const propertyTime = `${part("hour")}:${part("minute")}`;
-  if (!isIsoDate(propertyDate) || !/^\d{2}:\d{2}$/.test(propertyTime)) return null;
+  if (!isIsoDate(propertyDate) || !/^\d{2}:\d{2}$/.test(propertyTime))
+    return { action: null, code: "property_timezone_invalid" };
+  if (propertyDate >= input.departureDate) return { action: null, code: "stay_dates_expired" };
 
-  return propertyDate < input.arrivalDate ||
+  const action =
+    propertyDate < input.arrivalDate ||
     (propertyDate === input.arrivalDate && propertyTime < input.standardCheckInTime)
-    ? "early_check_in"
-    : "check_in";
+      ? "early_check_in"
+      : "check_in";
+  return { action, code: null };
+}
+
+export function checkInActionFor(input: Parameters<typeof checkInWindowFor>[0]): CheckInAction {
+  return checkInWindowFor(input).action;
 }
 
 /**
@@ -725,6 +745,24 @@ export async function checkInReservation(input: {
   /** True only for the authorised Early check-in action. */
   allowEarly?: boolean;
 }): Promise<{ status: string; checkedInAt: string | null; updatedAt: string }> {
+  // A stale or forged submit cannot bypass the date guard while its SQL
+  // migration is pending. The locked database transition repeats this check.
+  const { getOrCreateHotelSettings } = await import("./hotel-store.server");
+  const [reservation, settings] = await Promise.all([
+    getReservationById(input.tenantId, input.reservationId),
+    getOrCreateHotelSettings(input.tenantId),
+  ]);
+  if (!reservation) throw new OperationError("reservation_not_found");
+  if (reservation.status === "confirmed") {
+    const window = checkInWindowFor({
+      status: reservation.status,
+      arrivalDate: reservation.arrivalDate,
+      departureDate: reservation.departureDate,
+      standardCheckInTime: settings.standardCheckInTime,
+      timezone: settings.timezone,
+    });
+    if (window.code) throw new OperationError(window.code);
+  }
   // Housekeeping gate runs BEFORE the check-in RPC so a blocked attempt never
   // half-applies: nothing is written when a room is not verified clean.
   const blocker = await housekeepingCheckInBlocker(input.tenantId, input.reservationId);

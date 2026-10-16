@@ -1,0 +1,107 @@
+Fresh source-only verification. Synthetic fixtures; no operational N3/DB actions.
+Native concurrency remains pending.
+
+COMMAND: npm test (preserved input)
+EXIT CODE: 0 (observed execution result)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  179 passed | 4 skipped (183)
+      Tests  2695 passed | 38 skipped (2733)
+   Start at  23:13:23
+   Duration  21.48s (transform 16.58s, setup 0ms, import 66.42s, tests 18.75s, environment 33ms)
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+
+COMMAND: npm test (post-review candidate)
+EXIT CODE: 0 (observed execution result)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  182 passed | 4 skipped (186)
+      Tests  2731 passed | 38 skipped (2769)
+   Start at  00:04:25
+   Duration  21.18s (transform 15.60s, setup 0ms, import 67.86s, tests 17.76s, environment 31ms)
+
+
+
+COMMAND: npm test -- three new focused suites
+EXIT CODE: 0 (observed execution result)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run src/lib/__tests__/settlement-manual-evidence.test.ts src/lib/__tests__/accountant-cases-store.test.ts src/lib/__tests__/accountant-cases.test.ts
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  3 passed (3)
+      Tests  36 passed (36)
+   Start at  00:00:04
+   Duration  818ms (transform 901ms, setup 0ms, import 1.15s, tests 183ms, environment 0ms)
+
+
+
+COMMAND: npx tsc --noEmit
+EXIT CODE: 0 (observed execution result)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+
+COMMAND: npx eslint eight changed TS files
+EXIT CODE: 0 (observed execution result)
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+
+COMMAND: HH_SQL_TEST_TOOLS=<isolated tooling> node db/checks/hh-accountant-cases.mjs
+EXIT CODE: 0 (observed execution result)
+PASS stable_case_and_request_replay
+PASS known_OR_number_survives_the_durable_reference_snapshot
+PASS exclusive_day_end_includes_the_last_microseconds
+PASS committed_resolution_has_exact_GET_only_replay
+PASS same_request_changed_input_denied
+PASS unowned_or_and_alien_booking_cannot_be_adopted
+PASS review_is_not_resolution_and_notes_keep_unknown_amount
+PASS stale_case_version_and_request_replay_fenced
+PASS body_digest_cannot_resolve
+PASS immutable_case_identity_event_and_statement
+PASS read_and_statement_capture_do_not_change_case_events
+PASS historical_capture_unavailable_before_installed_history
+PASS public_roles_denied_and_rls_enabled
+PASS accountant SQL; native concurrency NOT VERIFIED
+
+
+COMMAND: npm run build
+EXIT CODE: 0 (observed execution result)
+.output/server/_libs/@tanstack/react-router+[...].mjs                        657.02 kB │ gzip: 137.88 kB
+
+✓ built in 867ms
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+[nitro] ℹ Adding Nitro fallback to _headers to handle all unmatched routes.
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt

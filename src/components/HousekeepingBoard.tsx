@@ -1,3 +1,4 @@
+import { SecurityInspectionPanel } from "./SecurityInspectionPanel";
 // ONE engine, TWO experiences.
 //
 // This is the single board component. `variant="dedicated"` adds floor filters
@@ -434,6 +435,17 @@ export function HousekeepingBoard({ variant }: { variant: "simple" | "dedicated"
           <RoomCard
             key={room.roomId}
             room={room}
+            securityInspection={
+              canUpdate &&
+              !room.dndActive &&
+              room.occupancy === "occupied" &&
+              room.occupancyReservationId ? (
+                <SecurityInspectionPanel
+                  reservationId={room.occupancyReservationId}
+                  roomId={room.roomId}
+                />
+              ) : undefined
+            }
             variant={variant}
             canUpdate={canUpdate}
             canDnd={canDnd}
@@ -553,6 +565,7 @@ export function RoomCard({
   onDnd,
   onInitialize,
   onHistory,
+  securityInspection,
 }: {
   room: HousekeepingRoomDTO;
   variant: "simple" | "dedicated";
@@ -564,6 +577,7 @@ export function RoomCard({
   onDnd: (active: boolean) => void;
   onInitialize: (c: BootstrapCondition) => void;
   onHistory?: () => void;
+  securityInspection?: React.ReactNode;
 }) {
   const style = room.condition ? CONDITION_STYLE[room.condition] : { bg: "#EEF2F6", fg: GRAY };
   const overdueOccupied = isOverdueOccupied(room);
@@ -634,6 +648,7 @@ export function RoomCard({
         </p>
       )}
 
+      {securityInspection}
       {/* DND needs no prose on the card: the state chip above says it is on,
           and Clear DND below says what to do next. */}
 

@@ -1,0 +1,36 @@
+name: CashMemo combined native SQL proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/cashmemo-review.yml
+      - db/checks/hh-cashmemo-native.mjs
+      - supabase/migrations/**
+permissions:
+  contents: read
+jobs:
+  disposable-current-billing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_DB: hh_settlement_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic_test_only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hh_settlement_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      HH_TEST_PG_URL: postgresql://postgres:synthetic_test_only@127.0.0.1:5432/hh_settlement_test
+      HH_SQL_TEST_TOOLS: ${{ runner.temp }}/hh-sql-tools
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install isolated SQL client
+        run: npm install --prefix "$HH_SQL_TEST_TOOLS" --no-package-lock --ignore-scripts pg@8.16.3
+      - name: Native current-candidate freeze and twenty-session claim race
+        run: node db/checks/hh-cashmemo-native.mjs

@@ -12,7 +12,7 @@ import {
 } from "@/lib/reservations-store.server";
 import { isSourceCodeFormat } from "@/lib/booking-sources-store.server";
 import { logAudit } from "@/lib/audit.server";
-import { checkInActionFor } from "@/lib/reservation-operations.server";
+import { checkInWindowFor } from "@/lib/reservation-operations.server";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -41,12 +41,15 @@ export async function handleReservationDetail({
     const { getOrCreateHotelSettings } = await import("@/lib/hotel-store.server");
     const { computeEditCapabilities } = await import("@/lib/reservation-edit-capabilities");
     const settings = await getOrCreateHotelSettings(ctx.session.tenantId!);
-    const checkInAction = checkInActionFor({
+    const checkInWindow = checkInWindowFor({
       status: res.status,
       arrivalDate: res.arrivalDate,
+      departureDate: res.departureDate,
       standardCheckInTime: settings.standardCheckInTime,
       timezone: settings.timezone,
     });
+    const checkInAction = checkInWindow.action;
+    const checkInBlockedReason = checkInWindow.code;
     const editCapabilities = computeEditCapabilities({
       role: ctx.role ?? null,
       status: res.status,
@@ -55,7 +58,7 @@ export async function handleReservationDetail({
         settings.allowOwnerPrimaryGuestChangeAfterCheckIn === true,
     });
     return Response.json(
-      { reservation: safe, editCapabilities, checkInAction },
+      { reservation: safe, editCapabilities, checkInAction, checkInBlockedReason },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (err) {

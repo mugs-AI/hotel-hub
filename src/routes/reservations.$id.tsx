@@ -1,3 +1,7 @@
+import { ReservationPayerCard } from "@/components/ReservationPayerCard";
+import { ChargeAttributionCard } from "@/components/ChargeAttributionCard";
+import { NoShowAction } from "@/components/NoShowAction";
+import { SecurityCashCard } from "@/components/SecurityCashCard";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
@@ -17,9 +21,9 @@ import { malaysianStateName } from "@/lib/malaysia-states";
 import { identityTypeLabel } from "@/lib/guest-identity";
 import { DepositsCard } from "@/components/DepositsCard";
 import { isDepositReservationEligible } from "@/lib/deposit-entry";
-import { PaymentStatusCard } from "@/components/PaymentStatusCard";
+import { SourceBillingCard } from "@/components/SourceBillingCard";
 import { WorkspaceHeader } from "@/components/WorkspaceHeader";
-import { useReservationTabLabel } from "@/lib/workspace-context";
+import { useReservationTabLabel, useWorkspaceDraft } from "@/lib/workspace-context";
 import { FolioCard } from "@/components/FolioCard";
 import { FolioBillToCard } from "@/components/FolioBillToCard";
 import {
@@ -112,9 +116,11 @@ function ReservationDetailPage() {
           <ErrorState code={query.error.code} onRetry={() => query.refetch()} />
         ) : query.data ? (
           <Detail
+            key={query.data.reservation.id}
             data={query.data.reservation}
             capabilities={query.data.editCapabilities}
             checkInAction={query.data.checkInAction}
+            checkInBlockedReason={query.data.checkInBlockedReason}
             canEdit={canEdit}
             role={role}
           />
@@ -255,12 +261,14 @@ function Detail({
   data,
   capabilities,
   checkInAction,
+  checkInBlockedReason,
   canEdit,
   role,
 }: {
   data: ReservationDetailDTO;
   capabilities: ReservationEditCapabilitiesDTO;
   checkInAction: "early_check_in" | "check_in" | null;
+  checkInBlockedReason?: string | null;
   canEdit: boolean;
   role: Parameters<typeof hasPermission>[0];
 }) {
@@ -420,6 +428,7 @@ function Detail({
         </div>
       </section>
 
+      <SecurityCashCard reservationId={data.id} rooms={data.rooms} owner={role === "owner"} />
       <DepositsCard
         key={data.id}
         reservationId={data.id}
@@ -435,9 +444,19 @@ function Detail({
           canEdit={canEdit && (data.status === "confirmed" || data.status === "checked_in")}
         />
       ) : null}
+      {hasPermission(role, "hotel:checkout:view") ? (
+        <ReservationPayerCard key={data.id} reservationId={data.id} />
+      ) : null}
       <FolioCard reservationId={data.id} canView={hasPermission(role, "hotel:folio:view")} />
+      {hasPermission(role, "hotel:checkout:view") ? (
+        <ChargeAttributionCard key={data.id} reservationId={data.id} />
+      ) : null}
 
-      {hasPermission(role, "hotel:folio:view") ? <PaymentStatusCard /> : null}
+      {hasPermission(role, "hotel:folio:view") ? (
+        <SourceBillingCard key={data.id} reservationId={data.id} />
+      ) : null}
+
+      <NoShowAction reservationId={data.id} canEdit={canEdit} />
 
       <ReservationActionsCard
         reservationId={data.id}
@@ -446,6 +465,7 @@ function Detail({
         checkedInAt={data.checkedInAt ?? null}
         departureDate={data.departureDate}
         checkInAction={checkInAction}
+        checkInBlockedReason={checkInBlockedReason}
         canCheckIn={hasPermission(role, "hotel:reservations:check_in")}
         canRequest={hasPermission(role, "hotel:operations:request")}
         rooms={data.rooms.map((r) => ({
@@ -529,7 +549,12 @@ function ReservationTimelineDrawer({
   bookingReference: string;
   canView: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useWorkspaceDraft(
+    "timeline-open",
+    false,
+    undefined,
+    `reservation:${reservationId.toLowerCase()}`,
+  );
   if (!canView) return null;
   return (
     <Sheet open={open} onOpenChange={setOpen}>

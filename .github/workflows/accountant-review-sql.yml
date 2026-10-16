@@ -1,0 +1,40 @@
+name: Accountant review SQL
+on:
+  push:
+    branches: [review/hh-source-prerequisites-20261012]
+    paths:
+      - .github/workflows/accountant-review-sql.yml
+      - db/checks/hh-accountant-cases*
+      - supabase/migrations/20261012032508_hh_accountant_handover.sql
+permissions:
+  contents: read
+jobs:
+  disposable-accountant-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_DB: hh_accountant_test
+          POSTGRES_USER: synthetic_test
+          POSTGRES_PASSWORD: synthetic_test_only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U synthetic_test -d hh_accountant_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      HH_NATIVE_PG_URL: postgresql://synthetic_test:synthetic_test_only@127.0.0.1:5432/hh_accountant_test
+      HH_ACCOUNTANT_NATIVE_DISPOSABLE: enabled
+      HH_SQL_TEST_TOOLS: .superpowers/sdd/2026-10-09-n3-accountant-handover/pg-client
+    steps:
+      - name: Check out exact review commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install isolated native SQL client
+        run: npm install --prefix "$HH_SQL_TEST_TOOLS" --no-package-lock --ignore-scripts pg@8.23.1
+      - name: Compile candidate and verify single-session cases
+        run: node db/checks/hh-accountant-cases.mjs
+      - name: Verify independent backend races and immutable statements
+        run: node db/checks/hh-accountant-cases-multisession.mjs

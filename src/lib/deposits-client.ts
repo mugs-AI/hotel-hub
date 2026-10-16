@@ -1,3 +1,4 @@
+import { settlementLockMessage } from "./settlement-lock";
 // Browser-side deposit queries/mutations. Same-origin, cookie-authenticated,
 // no direct Supabase or N3 access. Server re-verifies selected account IDs.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -196,6 +197,8 @@ export function depositStatusLabel(s: DepositDTO["status"]): string {
 }
 
 export function depositErrorMessage(code: string | null | undefined): string {
+  const lock = settlementLockMessage(code);
+  if (lock) return lock;
   switch (code) {
     case "receipt_contact_too_long":
       return "Shorten the saved Bill-to details: address must fit two 100-character remarks; phone and email must each fit 100 characters. Nothing was posted.";
