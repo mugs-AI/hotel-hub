@@ -1,3 +1,4 @@
+import { ExternalMatchingCheck } from "./ExternalMatchingCheck";
 import { useState } from "react";
 import { useSourceBilling } from "@/lib/source-billing-client";
 import type { SourceCheckoutView } from "@/lib/source-billing-checkout";
@@ -321,6 +322,16 @@ function GuestSettlement({
           </button>
         ) : null}
       </div>
+      {v.bill ? (
+        <ExternalMatchingCheck
+          reservationId={v.reservationId}
+          intentId={leg.legId}
+          revision={v.revision}
+          currency={v.currency}
+          disabled={q.pending || q.isFetching}
+          source={{ legId: leg.legId, planDigest: stay.planDigest, expectedRevision: v.revision }}
+        />
+      ) : null}
       {entering && canReceive && v.bill ? (
         <SettlementPaymentForm
           key={`${leg.legId}:${v.bill.id}:${v.revision}`}

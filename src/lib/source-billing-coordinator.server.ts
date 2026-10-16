@@ -1,3 +1,4 @@
+import type { SourceBillingReadScope } from "./source-billing-read-scope.server";
 import { hasPermission } from "./rbac";
 import type { SettlementActor } from "./settlement-context.server";
 import type { SettlementStepInput, SettlementView } from "./settlement";
@@ -18,7 +19,11 @@ export type SourceBillingDeps = {
   store: SourceBillStore;
   // Fixed service adapter supplies fresh scope/master/version evidence. Browser
   // inputs never supply this factory, client, contracts or prepared snapshots.
-  legDeps(actor: SettlementActor, leg: LegStoredIntent): Promise<Omit<SettlementDeps, "store">>;
+  legDeps(
+    actor: SettlementActor,
+    leg: LegStoredIntent,
+    readScope?: SourceBillingReadScope,
+  ): Promise<Omit<SettlementDeps, "store">>;
 };
 function fail(code: string): never {
   throw Error(code);

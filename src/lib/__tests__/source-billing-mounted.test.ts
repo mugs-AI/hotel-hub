@@ -206,6 +206,24 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
         const id = decodeURIComponent(url.split("/reservations/")[1]?.split("/")[0] ?? ids[0]);
         if (init.method === "POST") {
           posts.push({ url, body: JSON.parse(String(init.body)) });
+          if (url.endsWith("/external-matching-check")) {
+            return Response.json({
+              tenantId: actor.tenantId,
+              reservationId: id,
+              intentId: posts.at(-1)!.body.intentId,
+              status: "confirmed",
+              code: "external_matching_observed",
+              checkedAt: "2026-10-16T03:00:00Z",
+              billOutstandingCents: 0,
+              documents: [],
+              externalMatching: {
+                provenance: "external_n3_matching",
+                canClose: false,
+                matches: [],
+                receiptObservations: [],
+              },
+            });
+          }
           const action = (posts.at(-1)!.body.action as { action?: string })?.action;
           if (action === "apply_deposits") stage = "payment";
           if (action === "receive_balance") {
@@ -250,6 +268,30 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
     });
     expect(posts[0].url).toMatch(/source-billing\/step$/);
     expect(button("Receive Payment").disabled).toBe(false);
+  });
+  it("checks matching for only the saved guest leg with exact plan and revision", async () => {
+    stage = "deposit";
+    await render();
+    await click("Review final bills");
+    expect(
+      [...container.querySelectorAll("button")].filter(
+        (b) => b.textContent?.trim() === "Check N3 matching",
+      ),
+    ).toHaveLength(1);
+    expect(posts).toHaveLength(0);
+    await click("Check N3 matching");
+    const guest = plan().legs.find((l) => l.kind === "guest")!;
+    expect(posts).toEqual([
+      {
+        url: `/api/hotel/reservations/${ids[0]}/external-matching-check`,
+        body: {
+          intentId: guest.legId,
+          source: { legId: guest.legId, planDigest: digest, expectedRevision: "2" },
+        },
+      },
+    ]);
+    expect(container.textContent).toContain("N3 matching verified for this booking.");
+    expect(container.textContent).toContain("Complete Checkout still requires");
   });
   async function enterPayment(amount = "40.00") {
     await click("Receive Payment");

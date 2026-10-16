@@ -129,6 +129,7 @@ export async function checkExternalMatchingClient(
   id: string,
   intentId: string,
   signal?: AbortSignal,
+  source?: import("./saved-documents-check").SourceMatchingBinding,
 ): Promise<import("./saved-documents-check").ExternalMatchingCheckView> {
   const r = await fetch(
     `/api/hotel/reservations/${encodeURIComponent(id)}/external-matching-check`,
@@ -138,7 +139,7 @@ export async function checkExternalMatchingClient(
       cache: "no-store",
       signal,
       headers: { accept: "application/json", "content-type": "application/json" },
-      body: JSON.stringify({ intentId }),
+      body: JSON.stringify({ intentId, ...(source ? { source } : {}) }),
     },
   );
   const value = await r.json().catch(() => null);

@@ -1,5 +1,9 @@
 import type { SettlementActor } from "./settlement-context.server";
-import type { SavedDocumentCheck, SavedDocumentSelection } from "./saved-documents-check";
+import type {
+  SavedDocumentCheck,
+  SavedDocumentSelection,
+  SourceMatchingBinding,
+} from "./saved-documents-check";
 import { isUuid } from "./reservations-store.server";
 export type SavedCheckHttpDeps = {
   actor(): Promise<SettlementActor | null>;
@@ -10,6 +14,7 @@ export type SavedCheckHttpDeps = {
     intentId: string,
     signal: AbortSignal,
     deadlineAt: number,
+    source?: SourceMatchingBinding,
   ): Promise<SavedDocumentCheck>;
 };
 const deny = (status: number, error: string) =>
@@ -116,15 +121,40 @@ export async function handleSavedDocumentCheckHttp(
       !body ||
       typeof body !== "object" ||
       Array.isArray(body) ||
-      Object.keys(body).length !== 1 ||
+      ![1, 2].includes(Object.keys(body).length) ||
       !("intentId" in body) ||
       !isUuid(body.intentId)
     )
       return deny(400, "invalid_input");
+    let selection: SourceMatchingBinding | undefined;
+    if (Object.keys(body).length === 2) {
+      const value = "source" in body ? body.source : null;
+      if (
+        mode !== "external_matching" ||
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        Object.keys(value).length !== 3 ||
+        !("legId" in value) ||
+        !("planDigest" in value) ||
+        !("expectedRevision" in value) ||
+        value.legId !== body.intentId ||
+        !isUuid(value.legId) ||
+        typeof value.planDigest !== "string" ||
+        !/^[a-f0-9]{64}$/.test(value.planDigest) ||
+        typeof value.expectedRevision !== "string" ||
+        !/^(0|[1-9]\d{0,18})$/.test(value.expectedRevision) ||
+        BigInt(value.expectedRevision) > 9223372036854775807n
+      )
+        return deny(400, "invalid_input");
+      selection = value as SourceMatchingBinding;
+    }
     // Transfer the shared deadline to the runner: it cancels reads and returns
     // its safe waiting packet. A competing HTTP timer would discard that packet.
     clearTimeout(timer);
-    const result = await deps.check(actor, body.intentId as string, controller.signal, deadlineAt);
+    const result = selection
+      ? await deps.check(actor, body.intentId as string, controller.signal, deadlineAt, selection)
+      : await deps.check(actor, body.intentId as string, controller.signal, deadlineAt);
     if (
       result.tenantId !== actor.tenantId ||
       result.reservationId !== id ||

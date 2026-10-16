@@ -55,14 +55,20 @@ function copy<T>(value: T): T {
  */
 export function createCurrentSettlementMasters(
   actor: SettlementActor,
-  options: { invalidateSession?: () => Promise<void> } = {},
+  options: {
+    invalidateSession?: () => Promise<void>;
+    limit?: BillingReadLimit;
+    authorize?: (actor: SettlementActor) => Promise<boolean>;
+  } = {},
 ) {
   const boundActor = Object.freeze({ ...actor });
   const controller = new AbortController();
+  if (options.limit?.signal.aborted) controller.abort();
+  else options.limit?.signal.addEventListener("abort", () => controller.abort(), { once: true });
   const limit: BillingReadLimit = {
-    deadlineAt: Date.now() + 30_000,
+    deadlineAt: Math.min(Date.now() + 30_000, options.limit?.deadlineAt ?? Infinity),
     signal: controller.signal,
-    budget: { remainingBytes: 2_000_000 },
+    budget: options.limit?.budget ?? { remainingBytes: 2_000_000 },
   };
   const cache = new Map<string, Promise<EvidenceResult<Observation>>>();
   let terminal: string | null = null;
@@ -73,12 +79,30 @@ export function createCurrentSettlementMasters(
       return unavailable("n3_master_deadline");
     return null;
   }
+  async function permitted(a: SettlementActor): Promise<EvidenceResult<never> | null> {
+    const denied = access(a);
+    if (denied) return denied;
+    if (options.authorize) {
+      let allowed = false;
+      try {
+        allowed = await options.authorize(a);
+      } catch {
+        /* Fail closed before the next read. */
+      }
+      if (!allowed) {
+        terminal = "n3_session_expired";
+        controller.abort();
+        return unavailable(terminal);
+      }
+    }
+    return access(a);
+  }
   async function read(
     a: SettlementActor,
     kind: MasterKind,
     id: number | string,
   ): Promise<EvidenceResult<Observation>> {
-    const denied = access(a);
+    const denied = await permitted(a);
     if (denied) return denied;
     const key = `${kind}:${String(id).toLowerCase()}`;
     let result = cache.get(key);
@@ -124,7 +148,7 @@ export function createCurrentSettlementMasters(
       cache.set(key, result);
     }
     const out = await result;
-    return access(a) ?? out;
+    return (await permitted(a)) ?? out;
   }
   async function customer(a: SettlementActor, id: number) {
     const c = await read(a, "customer", id);

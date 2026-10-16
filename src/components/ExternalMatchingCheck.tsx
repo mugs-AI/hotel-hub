@@ -27,6 +27,7 @@ export function ExternalMatchingCheck(props: {
   revision: string;
   currency: string;
   disabled: boolean;
+  source?: import("@/lib/saved-documents-check").SourceMatchingBinding;
 }) {
   const session = useSessionMe();
   const identity = identityFromSession(session);
@@ -34,7 +35,7 @@ export function ExternalMatchingCheck(props: {
     session.data?.authenticated === true &&
     ["owner", "front_desk"].includes(session.data.role ?? "") ? (
     <MatchingCheckBody
-      key={`${identity}:${props.reservationId}:${props.intentId}:${props.revision}`}
+      key={`${identity}:${props.reservationId}:${props.intentId}:${props.revision}:${props.source?.planDigest ?? "legacy"}`}
       {...props}
       tenantId={session.data.tenant.tenantId}
     />
@@ -46,12 +47,14 @@ function MatchingCheckBody({
   currency,
   disabled,
   tenantId,
+  source,
 }: {
   reservationId: string;
   intentId: string;
   revision: string;
   currency: string;
   disabled: boolean;
+  source?: import("@/lib/saved-documents-check").SourceMatchingBinding;
   tenantId: string;
 }) {
   const qc = useQueryClient();
@@ -74,7 +77,12 @@ function MatchingCheckBody({
     setError("");
     setBusy(true);
     try {
-      const next = await checkExternalMatchingClient(reservationId, intentId, controller.signal);
+      const next = await checkExternalMatchingClient(
+        reservationId,
+        intentId,
+        controller.signal,
+        source,
+      );
       if (active.current !== controller || controller.signal.aborted) return;
       if (next.tenantId !== tenantId)
         throw new SettlementApiError(503, "saved_check_scope_mismatch");

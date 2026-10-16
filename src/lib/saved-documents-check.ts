@@ -49,3 +49,10 @@ export type ExternalMatchingCheckView = Pick<
   | "documents"
   | "externalMatching"
 >;
+
+/** Scope of a saved guest bill within a frozen separate-payer plan. */
+export type SourceMatchingBinding = {
+  legId: string;
+  planDigest: string;
+  expectedRevision: string;
+};

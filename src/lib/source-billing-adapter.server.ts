@@ -1,3 +1,4 @@
+import { assertSourceRead, type SourceBillingReadScope } from "./source-billing-read-scope.server";
 import type { SettlementActor } from "./settlement-context.server";
 import type {
   EvidenceResult,
@@ -26,12 +27,16 @@ export type SourceProductionPorts = {
   store: SourceBillStore;
   prepare(a: SettlementActor): Promise<EvidenceResult<SourceBillPlan>>;
   readLegacy(a: SettlementActor): Promise<boolean>;
-  readFrozenState(a: SettlementActor): Promise<FrozenSourceState>;
-  masters(a: SettlementActor): FrozenSourceDeps["masters"];
+  readFrozenState(
+    a: SettlementActor,
+    readScope?: SourceBillingReadScope,
+  ): Promise<FrozenSourceState>;
+  masters(a: SettlementActor, readScope?: SourceBillingReadScope): FrozenSourceDeps["masters"];
   verifyReceipt(
     a: SettlementActor,
     s: SettlementSnapshot,
     r: LinkedReceipt,
+    readScope?: SourceBillingReadScope,
   ): Promise<EvidenceResult<LinkedReceipt>>;
   now(): Date;
   invalidateSession(reason: string): Promise<void>;
@@ -44,10 +49,11 @@ export function createSourceBillingProductionDeps(
     readLegacy: p.readLegacy,
     billing: {
       store: p.store,
-      async legDeps(a, leg) {
+      async legDeps(a, leg, readScope) {
+        await assertSourceRead(readScope, a);
         const bound = Object.freeze({ ...a }),
           saved = structuredClone(leg),
-          masters = p.masters(bound);
+          masters = p.masters(bound, readScope);
         return {
           now: p.now,
           invalidateSession: p.invalidateSession,
@@ -60,9 +66,27 @@ export function createSourceBillingProductionDeps(
             )
               return { kind: "contradiction", code: "settlement_scope_mismatch" };
             return loadFrozenSourceLeg(current, saved, {
-              readState: p.readFrozenState,
-              masters,
-              verifyReceipt: p.verifyReceipt,
+              async readState(a) {
+                await assertSourceRead(readScope, a);
+                const state = await p.readFrozenState(a, readScope);
+                await assertSourceRead(readScope, a);
+                return state;
+              },
+              masters: {
+                async verifyLine(a, header, line) {
+                  await assertSourceRead(readScope, a);
+                  const result = await masters.verifyLine(a, header, line);
+                  await assertSourceRead(readScope, a);
+                  return result;
+                },
+                checkCurrent: masters.checkCurrent,
+              },
+              async verifyReceipt(a, s, r) {
+                await assertSourceRead(readScope, a);
+                const result = await p.verifyReceipt(a, s, r, readScope);
+                await assertSourceRead(readScope, a);
+                return result;
+              },
               now: p.now,
             });
           },
@@ -92,8 +116,11 @@ export async function readFrozenSourceState(
   a: SettlementActor,
   store: SourceBillStore,
   db: FrozenSourceDb,
+  readScope?: SourceBillingReadScope,
 ): Promise<FrozenSourceState> {
+  await assertSourceRead(readScope, a);
   const stay = await store.read(a);
+  await assertSourceRead(readScope, a);
   if (!stay) throw Error("settlement_not_found");
   const s = stay.plan.legs[0].snapshot;
   async function row(
@@ -102,6 +129,7 @@ export async function readFrozenSourceState(
     filters: Record<string, unknown>,
     latest = false,
   ) {
+    await assertSourceRead(readScope, a);
     let q = db
       .from(table)
       .select("tenant_id," + columns, { count: "exact" })
@@ -109,6 +137,7 @@ export async function readFrozenSourceState(
     for (const [k, v] of Object.entries(filters)) q = q.eq(k, v);
     if (latest) q = q.order("revision", { ascending: false });
     const r = await q.limit(latest ? 1 : 2);
+    await assertSourceRead(readScope, a);
     if (
       r.error ||
       !Array.isArray(r.data) ||
@@ -141,6 +170,7 @@ export async function readFrozenSourceState(
       p_reservation_id: a.reservationId,
     }),
   ]);
+  await assertSourceRead(readScope, a);
   if (
     versions.error ||
     !Array.isArray(versions.data) ||
@@ -172,7 +202,7 @@ async function db() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
 }
-export function liveSourceBillingHttpDeps(): SourceBillingHttpDeps {
+export function liveSourceBillingDeps(): SourceConfirmationDeps {
   const rpc = async (name: string, args: Record<string, unknown>) => {
     const s = await db();
     return s.rpc(name as never, args as never);
@@ -197,20 +227,35 @@ export function liveSourceBillingHttpDeps(): SourceBillingHttpDeps {
       if (r.error) throw Error("settlement_setup_required");
       return r.data !== null;
     },
-    async readFrozenState(a) {
-      return readFrozenSourceState(a, store, (await db()) as unknown as FrozenSourceDb);
+    async readFrozenState(a, readScope) {
+      await assertSourceRead(readScope, a);
+      const connection = await db();
+      await assertSourceRead(readScope, a);
+      return readFrozenSourceState(a, store, connection as unknown as FrozenSourceDb, readScope);
     },
-    masters: (a) => createCurrentSettlementMasters(a, { invalidateSession }),
+    masters: (a, readScope) =>
+      createCurrentSettlementMasters(a, {
+        invalidateSession,
+        limit: readScope,
+        authorize: readScope?.authorize,
+      }),
     now: () => new Date(),
     invalidateSession,
-    async verifyReceipt(a, s, r) {
+    async verifyReceipt(a, s, r, readScope) {
       try {
-        const detail = await n3BillingClient.readReceipt(a, r.receiptId, limit);
+        await assertSourceRead(readScope, a);
+        const detail = await n3BillingClient.readReceipt(a, r.receiptId, readScope ?? limit);
+        await assertSourceRead(readScope, a);
         if (detail.kind === "response" && detail.status === 401) {
           await invalidateSession();
           return { kind: "unavailable", code: "n3_session_expired" };
         }
-        const journal = await n3BillingClient.readReceiptJournal(a, r.receiptId, limit);
+        const journal = await n3BillingClient.readReceiptJournal(
+          a,
+          r.receiptId,
+          readScope ?? limit,
+        );
+        await assertSourceRead(readScope, a);
         if (journal.kind === "response" && journal.status === 401) {
           await invalidateSession();
           return { kind: "unavailable", code: "n3_session_expired" };
@@ -222,6 +267,10 @@ export function liveSourceBillingHttpDeps(): SourceBillingHttpDeps {
       }
     },
   });
+  return deps;
+}
+export function liveSourceBillingHttpDeps(): SourceBillingHttpDeps {
+  const deps = liveSourceBillingDeps();
   return {
     async actor() {
       const c = await readRequestContext();

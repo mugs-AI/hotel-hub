@@ -151,3 +151,52 @@ it("permits own-identity Front Desk read-only matching checks while retaining Ow
     (await handleSavedDocumentCheckHttp(request({ intentId }), actor.reservationId, d)).status,
   ).toBe(403);
 });
+
+it("accepts an exact source guest-leg selection only for external matching", async () => {
+  const d = setup();
+  const source = { legId: intentId, planDigest: "a".repeat(64), expectedRevision: "3" };
+  const result = await handleSavedDocumentCheckHttp(
+    request({ intentId, source }),
+    actor.reservationId,
+    d,
+    "external_matching",
+  );
+  expect(result.status).toBe(200);
+  expect(d.check).toHaveBeenCalledWith(
+    actor,
+    intentId,
+    expect.any(AbortSignal),
+    expect.any(Number),
+    source,
+  );
+  const diagnostics = setup();
+  expect(
+    (
+      await handleSavedDocumentCheckHttp(
+        request({ intentId, source }),
+        actor.reservationId,
+        diagnostics,
+      )
+    ).status,
+  ).toBe(400);
+  expect(diagnostics.check).not.toHaveBeenCalled();
+});
+it.each([
+  { legId: actor.reservationId, planDigest: "a".repeat(64), expectedRevision: "3" },
+  { legId: intentId, planDigest: "bad", expectedRevision: "3" },
+  { legId: intentId, planDigest: "a".repeat(64), expectedRevision: "-1" },
+  { legId: intentId, planDigest: "a".repeat(64), expectedRevision: "3", documentId: intentId },
+])("rejects malformed or mismatched guest selection %j", async (source) => {
+  const d = setup();
+  expect(
+    (
+      await handleSavedDocumentCheckHttp(
+        request({ intentId, source }),
+        actor.reservationId,
+        d,
+        "external_matching",
+      )
+    ).status,
+  ).toBe(400);
+  expect(d.check).not.toHaveBeenCalled();
+});

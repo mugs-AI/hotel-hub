@@ -754,3 +754,36 @@ describe("canonical allocation through current per-debtor graph", () => {
     expect(x.h.calls.some((c) => c.path === "/api/Customers/7")).toBe(false);
   });
 });
+
+it("shares the caller cancellation signal with current master reads", async () => {
+  const h = harness(),
+    controller = new AbortController();
+  const options = {
+    limit: {
+      signal: controller.signal,
+      deadlineAt: Date.now() + 10000,
+      budget: { remainingBytes: 2000000 },
+    },
+  };
+  const current = createCurrentSettlementMasters(actor, options);
+  controller.abort();
+  expect(await current.verifyLine(actor, header, line())).toMatchObject({ kind: "unavailable" });
+  expect(h.calls).toHaveLength(0);
+});
+it("rechecks caller authorization before continuing a master graph", async () => {
+  const h = harness();
+  let authorized = true;
+  h.fetcher.mockImplementationOnce(async (url, init) => {
+    authorized = false;
+    const path = new URL(String(url)).pathname;
+    h.calls.push({ path, init: init ?? {} });
+    return Response.json({ code: "0000", data: h.rows.get(path) });
+  });
+  const options = { authorize: async () => authorized };
+  const current = createCurrentSettlementMasters(actor, options);
+  expect(await current.verifyLine(actor, header, line())).toMatchObject({
+    kind: "unavailable",
+    code: "n3_session_expired",
+  });
+  expect(h.calls.map((x) => x.path)).toEqual(["/api/Customers/7"]);
+});
