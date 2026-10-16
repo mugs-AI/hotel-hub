@@ -392,7 +392,10 @@ function EditForm({
   });
   const availableRooms: AvailabilityRoomDTO[] = availabilityQ.data?.rooms ?? [];
   const selectedHotelRoomIds = new Set(rooms.map((r) => r.hotelRoomId));
-  const addableRooms = availableRooms.filter((r) => !selectedHotelRoomIds.has(r.hotelRoomId));
+  const availabilityReady = availabilityQ.isSuccess && !availabilityQ.isFetching;
+  const addableRooms = availableRooms.filter(
+    (r) => r.isActive && !selectedHotelRoomIds.has(r.hotelRoomId),
+  );
 
   const extCheck = useMemo(() => normalizeExternalBookingReference(externalRef), [externalRef]);
 
@@ -845,6 +848,26 @@ function EditForm({
               </p>
             )}
           </div>
+          {full ? (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Change booked room below to replace a room, including a one-room booking. The new room
+              uses its displayed normal rate; review the agreed rate before saving. Guests stay
+              assigned to the replacement room. Returning to an original room restores its booked
+              rate.
+            </p>
+          ) : null}
+          {full && availabilityQ.isError ? (
+            <p role="alert" className="mb-3 text-xs text-destructive">
+              Unable to check room availability. Room selection is paused.{" "}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => void availabilityQ.refetch()}
+              >
+                Retry availability
+              </button>
+            </p>
+          ) : null}
           <ul className="space-y-2">
             {rooms.map((r, i) => (
               <RoomRow
@@ -854,6 +877,41 @@ function EditForm({
                 currency={data.currency}
                 readOnly={!full}
                 canRemove={full && rooms.length > 1}
+                replacementRooms={addableRooms}
+                availabilityReady={availabilityReady}
+                onReplace={(hotelRoomId) => {
+                  const hit = addableRooms.find((a) => a.hotelRoomId === hotelRoomId);
+                  if (
+                    !full ||
+                    !availabilityReady ||
+                    !hit ||
+                    Math.max(r.adults + r.children, perRoomGuests[r.clientKey] ?? 0) >
+                      hit.maxOccupancy ||
+                    hit.maxOccupancy <= 0
+                  )
+                    return;
+                  const original = data.rooms.find((room) => room.hotelRoomId === hit.hotelRoomId);
+                  markDirty();
+                  setRooms((current) =>
+                    current.map((room) =>
+                      room.clientKey === r.clientKey
+                        ? {
+                            ...room,
+                            // Restore an original allocation when changing back, avoiding
+                            // a duplicate room/stay insert. Keep the client key so the
+                            // atomic API remaps every assigned guest.
+                            reservationRoomId: original?.id ?? null,
+                            hotelRoomId: hit.hotelRoomId,
+                            label: roomLabel(hit.displayName, hit.n3StockName, hit.roomNumber),
+                            baseRate: Number(original?.baseRateSnapshot ?? hit.baseRate),
+                            maxOccupancy: Number(hit.maxOccupancy),
+                            agreedRate: Number(original?.agreedRate ?? hit.baseRate),
+                            rateOverrideReason: original?.rateOverrideReason ?? "",
+                          }
+                        : room,
+                    ),
+                  );
+                }}
                 onChange={(next) => {
                   markDirty();
                   setRooms(rooms.map((x, j) => (i === j ? next : x)));
@@ -887,26 +945,29 @@ function EditForm({
                   value=""
                   onChange={(e) => {
                     const hit = addableRooms.find((a) => a.hotelRoomId === e.target.value);
-                    if (!hit) return;
+                    if (!availabilityReady || !hit) return;
+                    const original = data.rooms.find(
+                      (room) => room.hotelRoomId === hit.hotelRoomId,
+                    );
                     markDirty();
                     setRooms((prev) => [
                       ...prev,
                       {
                         clientKey: newKey("new-room"),
-                        reservationRoomId: null,
+                        reservationRoomId: original?.id ?? null,
                         hotelRoomId: hit.hotelRoomId,
                         label: roomLabel(hit.displayName, hit.n3StockName, hit.roomNumber),
-                        baseRate: Number(hit.baseRate),
+                        baseRate: Number(original?.baseRateSnapshot ?? hit.baseRate),
                         maxOccupancy: Number(hit.maxOccupancy) || 0,
-                        agreedRate: Number(hit.baseRate),
+                        agreedRate: Number(original?.agreedRate ?? hit.baseRate),
                         adults: 1,
                         children: 0,
-                        rateOverrideReason: "",
+                        rateOverrideReason: original?.rateOverrideReason ?? "",
                         remark: "",
                       },
                     ]);
                   }}
-                  disabled={addableRooms.length === 0}
+                  disabled={!availabilityReady || addableRooms.length === 0}
                 >
                   <option value="">
                     {addableRooms.length === 0
@@ -1101,6 +1162,9 @@ function RoomRow({
   currency,
   readOnly,
   canRemove,
+  replacementRooms,
+  availabilityReady,
+  onReplace,
   onChange,
   onRemove,
 }: {
@@ -1109,6 +1173,9 @@ function RoomRow({
   currency: string;
   readOnly: boolean;
   canRemove: boolean;
+  replacementRooms: AvailabilityRoomDTO[];
+  availabilityReady: boolean;
+  onReplace: (hotelRoomId: string) => void;
   onChange: (r: RoomDraftState) => void;
   onRemove: () => void;
 }) {
@@ -1138,6 +1205,36 @@ function RoomRow({
           </button>
         ) : null}
       </div>
+      {!readOnly ? (
+        <label className="mt-3 block">
+          <span className="mb-1 block font-medium">Change booked room</span>
+          <select
+            className="w-full rounded border border-input bg-background px-2 py-1.5"
+            value={room.hotelRoomId}
+            disabled={!availabilityReady}
+            onChange={(e) => onReplace(e.target.value)}
+          >
+            <option value={room.hotelRoomId}>{room.label} · current selection</option>
+            {replacementRooms.map((candidate) => {
+              const tooSmall =
+                candidate.maxOccupancy <= 0 ||
+                Math.max(room.adults + room.children, guestCount) > candidate.maxOccupancy;
+              return (
+                <option
+                  key={candidate.hotelRoomId}
+                  value={candidate.hotelRoomId}
+                  disabled={tooSmall}
+                >
+                  {roomLabel(candidate.displayName, candidate.n3StockName, candidate.roomNumber)} ·
+                  max {candidate.maxOccupancy} · {candidate.currency}{" "}
+                  {Number(candidate.baseRate).toFixed(2)}
+                  {tooSmall ? " · too small for current guests" : ""}
+                </option>
+              );
+            })}
+          </select>
+        </label>
+      ) : null}
       <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="block">
           <span className="mb-0.5 block text-muted-foreground">Adults</span>
@@ -1371,13 +1468,20 @@ function GuestCard({
           />
         </Field>
         <Field label="Assigned room">
+          <p className="mb-1 text-[11px] text-muted-foreground">
+            {capabilities.mode === "full"
+              ? "Choose a room already on this booking. To switch to another hotel room, use Change booked room in Rooms & rates above."
+              : "Choose a room already on this booking. To move to another hotel room after check-in, use Change room in Reservation actions."}
+          </p>
           <select
             className="w-full rounded border border-input bg-background px-2 py-1"
             value={guest.assignedRoomClientKey}
             disabled={!assignEditable}
             onChange={(e) => onChange({ ...guest, assignedRoomClientKey: e.target.value })}
           >
-            <option value="">Select a room…</option>
+            <option value="" disabled>
+              Select a booked room…
+            </option>
             {rooms.map((r) => (
               <option key={r.clientKey} value={r.clientKey}>
                 {r.label} · max {r.maxOccupancy}
