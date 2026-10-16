@@ -25,7 +25,7 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       HH_TEST_PG_URL: postgresql://postgres:synthetic_test_only@127.0.0.1:5432/hh_settlement_test
-      HH_SQL_TEST_TOOLS: ${{ runner.temp }}/hh-sql-tools
+      HH_SQL_TEST_TOOLS: /tmp/hh-sql-tools
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
