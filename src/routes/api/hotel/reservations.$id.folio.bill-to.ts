@@ -1,3 +1,4 @@
+import { settlementLockCode } from "@/lib/settlement-lock";
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getReservationById, isUuid } from "@/lib/reservations-store.server";
@@ -160,6 +161,8 @@ export async function handleSaveBillTo({
   } catch (err) {
     const failure = controlledFailure(err);
     if (failure) return failure;
+    const lock = settlementLockCode(err);
+    if (lock) return folioDeny(409, lock);
     console.error("[folio.bill_to.save] failed", (err as Error).message?.slice(0, 120));
     return folioDeny(500, "bill_to_save_failed");
   }

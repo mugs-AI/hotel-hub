@@ -1,3 +1,4 @@
+import { settlementLockMessage } from "./settlement-lock";
 // Browser-safe client for receipt-control endpoints (same-origin only).
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,9 @@ export const RECEIPT_CONTROL_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export const receiptControlMessage = (code: string) =>
-  RECEIPT_CONTROL_ERROR_MESSAGES[code] ?? "Something went wrong. Try again.";
+  settlementLockMessage(code) ??
+  RECEIPT_CONTROL_ERROR_MESSAGES[code] ??
+  "Something went wrong. Try again.";
 
 export class ReceiptControlClientError extends Error {
   constructor(public code: string) {
@@ -129,6 +132,13 @@ export const SENSITIVE_RECEIPT_PREFIXES = [
   "folio-bill-to",
   "bill-to-changes",
   "hotel-change-revision",
+  "deposit-module-policy",
+  "security-cash",
+  "settlement",
+  "source-policy",
+  "source-payer",
+  "source-attribution",
+  "source-billing",
 ] as const;
 
 type PurgeableClient = {

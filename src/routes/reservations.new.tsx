@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CardInfoPopover } from "@/components/CardInfoPopover";
 import { AppShell } from "@/components/AppShell";
 import { useSessionMe } from "@/lib/session-client";
+import { useInitialBookingPayer } from "@/lib/source-policy-client";
+import { InitialBookingPayerControl } from "@/components/InitialBookingPayerControl";
 import { hasPermission } from "@/lib/rbac";
 import {
   useAvailability,
@@ -99,7 +101,11 @@ function NewReservationPage() {
         {!authed ? null : !canCreate ? (
           <NoAccess />
         ) : tenantId && n3UserKey ? (
-          <NewReservationWizard tenantId={tenantId} n3UserKey={n3UserKey} />
+          <NewReservationWizard
+            key={`${tenantId}:${n3UserKey}:${role}`}
+            tenantId={tenantId}
+            n3UserKey={n3UserKey}
+          />
         ) : null}
       </div>
     </AppShell>
@@ -184,6 +190,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
   const [arrival, setArrival] = useState<string>(today);
   const [departure, setDeparture] = useState<string>(() => addDaysIso(today, 1));
   const [bookingSource, setBookingSource] = useState<string>("");
+  const payer = useInitialBookingPayer(bookingSource);
   const [externalRef, setExternalRef] = useState("");
   const [notes, setNotes] = useState("");
   const [rooms, setRooms] = useState<RoomDraft[]>([]);
@@ -306,7 +313,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
   }, [rooms]);
 
   // ---------- Step completion helpers ----------
-  const stayComplete = stayValid.ok && !!bookingSource && extRefCheck.ok;
+  const stayComplete = stayValid.ok && !!bookingSource && extRefCheck.ok && payer.ready;
   const roomsComplete = rooms.length > 0 && rooms.every((r) => validateRoom(r).ok);
   const assignmentsValid = validateGuestAssignments(guests, rooms);
   const guestsComplete = validateGuestsForNewReservation(guests).ok && assignmentsValid.ok;
@@ -317,6 +324,8 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
     setFormError(null);
     if (!stayValid.ok) return setFormError(friendlyError(stayValid.code));
     if (!bookingSource) return setFormError(friendlyError("invalid_booking_source"));
+    if (!payer.ready || !payer.currentScope())
+      return setFormError("Review and confirm billing collection before creating this booking.");
     if (!extRefCheck.ok) return setFormError(friendlyError(extRefCheck.code));
     if (rooms.length === 0) return setFormError(friendlyError("room_required"));
     for (const r of rooms) {
@@ -339,7 +348,12 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
     });
 
     try {
-      const res = await create.mutateAsync(payload);
+      const stillCurrent = payer.currentScope;
+      const res = await create.mutateAsync({
+        ...payload,
+        ...(payer.selection ? { initialPayer: payer.selection } : {}),
+      });
+      if (!stillCurrent()) return;
       // Order matters: cancel any pending debounced save BEFORE clearing
       // state, so the newly-empty form isn't re-persisted as the "next"
       // reservation's starting point.
@@ -348,9 +362,14 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
       vaultClearForUser(tenantId, n3UserKey);
       navigate({ to: "/reservations/$id", params: { id: res.reservationId } });
     } catch (err) {
+      if (!payer.currentScope()) return;
       const code = (err as { code?: string }).code ?? "reservation_create_failed";
       setFormError(friendlyError(code));
       if (code === "room_not_available") void availability.refetch();
+      if (/source_|initial_payer/.test(code)) {
+        payer.clear();
+        void payer.refetch();
+      }
     }
   }
 
@@ -376,13 +395,19 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
   }
 
   return (
-    <div className="space-y-4">
+    <fieldset
+      disabled={create.isPending}
+      aria-busy={create.isPending}
+      aria-label="New reservation"
+      className="min-w-0 space-y-4 border-0 p-0"
+    >
       <Stepper
         step={step}
         onGoto={setStep}
         complete={{ 1: stayComplete, 2: roomsComplete, 3: guestsComplete, 4: false }}
       />
       <DraftBar status={draftStatus} onDiscard={() => setShowDiscard(true)} />
+      <InitialBookingPayerControl payer={payer} sourceCode={bookingSource} />
       {showDiscard ? (
         <DiscardConfirm
           onCancel={() => setShowDiscard(false)}
@@ -478,6 +503,11 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
         <div className="flex items-center gap-2">
           <Link
             to="/reservations"
+            aria-disabled={create.isPending}
+            tabIndex={create.isPending ? -1 : undefined}
+            onClick={(e) => {
+              if (create.isPending) e.preventDefault();
+            }}
             search={{
               bookingReference: "",
               guestName: "",
@@ -519,7 +549,7 @@ function NewReservationWizard({ tenantId, n3UserKey }: { tenantId: string; n3Use
           )}
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }
 

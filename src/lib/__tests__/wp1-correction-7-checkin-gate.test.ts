@@ -22,6 +22,23 @@ const db: Record<string, Row[]> = {
 const errorTables = new Set<string>();
 const rpcCalls: { name: string }[] = [];
 
+// This suite owns readiness/handoffs; supply a valid date preflight. Expired
+// dates and early overrides are exercised by their separate server regressions.
+vi.mock("@/lib/reservations-store.server", async (load) => ({
+  ...(await load<object>()),
+  getReservationById: async () => ({
+    status: "confirmed",
+    arrivalDate: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
+    departureDate: new Date(Date.now() + 172800000).toISOString().slice(0, 10),
+  }),
+}));
+vi.mock("@/lib/hotel-store.server", () => ({
+  getOrCreateHotelSettings: async () => ({
+    standardCheckInTime: "15:00",
+    timezone: "Asia/Kuala_Lumpur",
+  }),
+}));
+
 function tableStub(table: string) {
   const eqs: Record<string, unknown> = {};
   let inFilter: { col: string; values: unknown[] } | null = null;

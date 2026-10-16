@@ -165,6 +165,7 @@ vi.mock("@/lib/reservation-operations.server", () => ({
   }),
   validateLateCheckoutWindow: () => ({ ok: true, utcIso: "2026-08-10T08:00:00.000Z" }),
   checkInActionFor: () => "early_check_in",
+  checkInWindowFor: () => ({ action: "early_check_in", code: null }),
   listOperationRequests: async () => [],
   requestOperation: async (i: any) => {
     calls.request.push(i);

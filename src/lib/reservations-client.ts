@@ -243,6 +243,7 @@ export type UpdateReservationFullResponse = {
 };
 
 export type CreateReservationPayload = {
+  initialPayer?: import("./initial-booking-payer").InitialBookingPayer;
   bookingSource: string;
   arrivalDate: string;
   departureDate: string;
@@ -348,6 +349,7 @@ type ReservationDetailResponse = {
   editCapabilities: ReservationEditCapabilitiesDTO;
   /** The one truthful action, derived from server time in the property timezone. */
   checkInAction: CheckInAction;
+  checkInBlockedReason?: string | null;
 };
 
 export function useReservationDetail(id: string) {

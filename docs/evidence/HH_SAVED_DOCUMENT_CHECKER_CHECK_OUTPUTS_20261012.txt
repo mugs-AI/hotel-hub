@@ -1,0 +1,84 @@
+HotelHub saved-document checker — fresh command-output evidence, 12/10/2026
+Upload to Project Sources: No.
+Product source: local 1a00e39869587fc623b76c4eef91836caef0e356. Synthetic fixtures only; no live N3 claim.
+
+Full suite; isolated DOM lane enabled; observed exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  187 passed | 4 skipped (191)
+      Tests  2767 passed | 38 skipped (2805)
+   Start at  01:21:55
+   Duration  29.31s (transform 22.45s, setup 0ms, import 91.80s, tests 25.46s, environment 47ms)
+
+
+Task completion command; observed exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run src/lib/__tests__/saved-documents-check.test.ts src/lib/__tests__/saved-documents-check-http.test.ts src/lib/__tests__/saved-documents-check-render.test.ts src/lib/__tests__/saved-documents-check-mounted.test.ts src/lib/__tests__/saved-documents-transport.test.ts src/lib/__tests__/n3-billing.test.ts src/lib/__tests__/settlement-api.test.ts src/lib/__tests__/financial-console-render.test.ts src/lib/__tests__/run-5d0-financial-verification.test.ts
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  9 passed (9)
+      Tests  165 passed (165)
+   Start at  01:23:41
+   Duration  6.17s (transform 4.19s, setup 0ms, import 11.15s, tests 2.15s, environment 1ms)
+
+
+New cases after one review fix pass; observed exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> test
+> vitest run src/lib/__tests__/saved-documents-check-mounted.test.ts src/lib/__tests__/saved-documents-check.test.ts src/lib/__tests__/saved-documents-check-http.test.ts src/lib/__tests__/saved-documents-check-render.test.ts src/lib/__tests__/saved-documents-transport.test.ts
+
+The plugin "vite-tsconfig-paths" is detected. Vite now supports tsconfig paths resolution natively via the resolve.tsconfigPaths option. You can remove the plugin and set resolve.tsconfigPaths: true in your Vite config instead.
+
+ RUN  v4.1.10 /workspace/scratch/90b6973e3a7b/hotel-hub-reconstruction
+
+
+ Test Files  5 passed (5)
+      Tests  36 passed (36)
+   Start at  01:20:56
+   Duration  2.05s (transform 2.95s, setup 0ms, import 4.28s, tests 1.07s, environment 1ms)
+
+
+TypeScript; observed exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+Changed-file ESLint; observed exit 0
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+Production build; observed exit 0
+.output/server/_libs/@radix-ui/react-alert-dialog+[...].mjs                   87.65 kB │ gzip:  20.35 kB
+.output/server/_libs/zod.mjs                                                 100.15 kB │ gzip:  17.32 kB
+.output/server/_libs/supabase__postgrest-js.mjs                              105.44 kB │ gzip:  21.69 kB
+.output/server/_libs/date-fns.mjs                                            105.73 kB │ gzip:  18.47 kB
+.output/server/_libs/@supabase/storage-js+[...].mjs                          119.00 kB │ gzip:  22.14 kB
+.output/server/_ssr/reservations._id-CS6EmQVZ.mjs                            126.30 kB │ gzip:  26.51 kB
+.output/server/_libs/react-day-picker.mjs                                    138.12 kB │ gzip:  26.57 kB
+.output/server/_ssr/settings-BVPAsaPR.mjs                                    152.78 kB │ gzip:  29.64 kB
+.output/server/_libs/supabase__auth-js.mjs                                   302.55 kB │ gzip:  60.35 kB
+.output/server/_ssr/router-C5wZ7dMP.mjs                                      558.89 kB │ gzip: 125.33 kB
+.output/server/_libs/@tanstack/react-router+[...].mjs                        657.02 kB │ gzip: 137.88 kB
+
+✓ built in 1.06s
+[nitro] ℹ Using auto generated worker name: tanstack-start-ts
+ℹ Generated .output/server/wrangler.json
+ℹ Generated .wrangler/deploy/config.json
+[nitro] ℹ Adding Nitro fallback to _headers to handle all unmatched routes.
+ℹ Generated .output/public/_headers
+ℹ Generated .output/nitro.json
+
+[nitro] ✔ You can preview this build using npx vite preview
+[nitro] ✔ You can deploy this build using npx nitro deploy --prebuilt

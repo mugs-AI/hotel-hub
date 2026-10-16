@@ -27,6 +27,7 @@ import { resolvePropertyToday } from "@/lib/checkout-preview.server";
 import { buildReservationListAmounts, type ReservationListAmounts } from "@/lib/folio-store.server";
 import { getHotelSettingsReadOnly } from "@/lib/hotel-store.server";
 import { hasPermission } from "@/lib/rbac";
+import { initialPayerSchema } from "@/lib/initial-booking-payer";
 
 function deny(status: number, error: string) {
   return Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
@@ -55,6 +56,7 @@ const IDENTITY_TYPES = new Set(["mykad", "mypr", "passport", "other"]);
 
 // Strict allow-lists — any key outside these sets is rejected.
 const ALLOWED_TOP = new Set([
+  "initialPayer",
   "bookingSource",
   "arrivalDate",
   "departureDate",
@@ -241,6 +243,22 @@ export async function handleCreateReservation({
   // bookingReference, status, createdAt, ...).
   const unknownTop = rejectUnknown(body, ALLOWED_TOP);
   if (unknownTop !== null) return deny(400, "unknown_field");
+  const payer =
+    body.initialPayer === undefined ? null : initialPayerSchema.safeParse(body.initialPayer);
+  if (payer && !payer.success) return deny(400, "invalid_initial_payer");
+  if (payer) {
+    try {
+      const site = request.headers.get("sec-fetch-site"),
+        origin = request.headers.get("origin");
+      if (
+        (site && site !== "same-origin") ||
+        (origin ? new URL(origin).origin !== new URL(request.url).origin : site !== "same-origin")
+      )
+        return deny(403, "cross_site_denied");
+    } catch {
+      return deny(403, "cross_site_denied");
+    }
+  }
 
   const source = body.bookingSource;
   if (typeof source !== "string" || !isSourceCodeFormat(source))
@@ -449,9 +467,14 @@ export async function handleCreateReservation({
     return deny(500, "reservation_create_failed");
   }
   if (!sourceRow || !sourceRow.isActive) return deny(400, "invalid_booking_source");
+  if (payer?.success && payer.data.sourceId !== sourceRow.id)
+    return deny(409, "source_policy_scope_mismatch");
 
   try {
     const result = await createReservationAtomic({
+      ...(payer?.success
+        ? { initialPayer: payer.data, actorRole: ctx.role as "owner" | "front_desk" }
+        : {}),
       tenantId: ctx.session.tenantId!,
       createdByN3UserKey: ctx.session.n3UserKey,
       bookingSource: source,
@@ -484,7 +507,8 @@ export async function handleCreateReservation({
       detail: { code, arrival, departure, source },
     });
     const status =
-      code === "room_not_available"
+      code === "room_not_available" ||
+      /source_policy|source_collection|source_billing_policy|initial_payer_required/.test(code)
         ? 409
         : code === "setup_incomplete"
           ? 409

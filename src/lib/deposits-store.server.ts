@@ -9,11 +9,16 @@
 //   database claim taken BEFORE the outbound POST.
 // - Ambiguous outcomes become `unknown` and are never auto-retried.
 
+import { settlementLockCode, SETTLEMENT_LOCK_CODES } from "./settlement-lock";
 import { todayInKualaLumpurIso } from "./malaysia-date";
 import { isDepositReservationEligible } from "./deposit-entry";
 import { getOrCreateHotelSettings } from "./hotel-store.server";
 import { logAudit } from "./audit.server";
 import { readReceiptContact, type ReceiptContact } from "./receipt-contact.server";
+import {
+  assertRoomAdvanceCollectionEnabled,
+  DepositModulePolicyError,
+} from "./deposit-module-policy.server";
 import {
   isRealN3Id,
   isSafeReferenceNo,
@@ -56,6 +61,7 @@ export function isDepositWriteEnabled(
 
 export const DEPOSIT_ERROR_CODES = new Set([
   "deposit_authority_changed",
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_amount",
   "receipt_contact_unavailable",
   "receipt_contact_too_long",
@@ -64,6 +70,8 @@ export const DEPOSIT_ERROR_CODES = new Set([
   "payment_method_hidden",
   "multi_payment_contract_unverified",
   "deposit_writes_disabled",
+  "room_advance_disabled",
+  "deposit_module_policy_unavailable",
   "reservation_not_found",
   "reservation_not_eligible",
   "walk_in_customer_not_mapped",
@@ -1159,7 +1167,8 @@ async function updateDeposit(tenantId: string, id: string, patch: Record<string,
     .eq("id", id)
     .select(SELECT_COLS)
     .maybeSingle();
-  if (res.error || !res.data) throw new DepositError("deposit_write_failed");
+  if (res.error || !res.data)
+    throw new DepositError(settlementLockCode(res.error) ?? "deposit_write_failed");
   return toRecord(res.data);
 }
 
@@ -1227,6 +1236,12 @@ export async function createDeposit(
     )
       throw new DepositError("invalid_payment_lines");
     return { deposit: existing, reused: true };
+  }
+  try {
+    await assertRoomAdvanceCollectionEnabled(input.tenantId);
+  } catch (error) {
+    if (error instanceof DepositModulePolicyError) throw new DepositError(error.code);
+    throw new DepositError("deposit_module_policy_unavailable");
   }
   if (
     choices.length > 1 &&
@@ -1296,6 +1311,10 @@ export async function createDeposit(
     .select(SELECT_COLS)
     .maybeSingle();
 
+  const claimLock = settlementLockCode(claim.error);
+  if (claimLock) throw new DepositError(claimLock);
+  if (claim.error?.message === "room_advance_disabled")
+    throw new DepositError("room_advance_disabled");
   if (claim.error || !claim.data) {
     // Lost the race with a concurrent duplicate: return that row, no POST.
     const raced = await findByIdempotencyKey(input.tenantId, input.clientRequestId);

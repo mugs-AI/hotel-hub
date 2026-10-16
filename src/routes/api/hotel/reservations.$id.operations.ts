@@ -14,7 +14,7 @@ import {
   OperationError,
   OPERATION_ERROR_CODES,
   requestOperation,
-  checkInActionFor,
+  checkInWindowFor,
   validateLateCheckoutWindow,
   validateOperationPayload,
 } from "@/lib/reservation-operations.server";
@@ -90,13 +90,15 @@ export async function handleOperationCreate({
     }
     if (!reservation) return deny(404, "reservation_not_found");
     if (reservation.status !== "confirmed") return deny(409, "invalid_transition");
-    const action = checkInActionFor({
+    const window = checkInWindowFor({
       status: reservation.status,
       arrivalDate: reservation.arrivalDate,
+      departureDate: reservation.departureDate,
       standardCheckInTime: settings.standardCheckInTime,
       timezone: settings.timezone,
     });
-    if (action === null) return deny(409, "property_timezone_invalid");
+    const action = window.action;
+    if (action === null) return deny(409, window.code ?? "property_timezone_invalid");
     if (action !== "early_check_in") return deny(409, "early_check_in_not_required");
   }
 

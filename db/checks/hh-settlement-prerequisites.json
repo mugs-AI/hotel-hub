@@ -1,0 +1,270 @@
+{
+  "capturedDate": "2026-10-08",
+  "source": "Lovable Cloud read-only pg_catalog queries; schema/functions only, no operational data",
+  "backendReference": "fkakhdzelilnejyehwfk",
+  "postgresVersion": "17.6",
+  "baseSourceSHA": "734ac405c82e653a7098ce0ef22d51586382bd9d",
+  "fixtureSHA256": "6244fb0ef127e031266dd64b226970ed29dd66aac2e444a61cb8a5e8694bcabe",
+  "capturedFunctions": [
+    {
+      "name": "hotelhub_add_folio_line",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_operation text, p_line_type hotel_folio_line_type, p_catalogue_id uuid, p_tax_class hotel_tax_class, p_description text, p_quantity integer, p_unit_price_cents integer, p_subtotal_cents integer, p_tax_cents integer, p_total_cents integer, p_tax_snapshot jsonb, p_reason text, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+      "sha256": "41f2a997b905d410f21a6e449253d3dbca03d1a681d6154fbad47b63e002528f"
+    },
+    {
+      "name": "hotelhub_add_tourism_tax_evidence",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_source_label text, p_reference text, p_collected_on date, p_amount_cents integer, p_note text, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+      "sha256": "d7b48142b57add4cb1404abadefaa4f20ff145caaed22dc83e4a8283551c5d43"
+    },
+    {
+      "name": "hotelhub_assign_guest_rooms_v2",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_actor_role text, p_client_request_id uuid, p_expected_updated_at timestamp with time zone, p_assignments jsonb, p_correction_reason text",
+      "sha256": "0759a4ba9ae8de0951e2c03c7d43d8515a1ad57eeff0cd38125354d1c8738588"
+    },
+    {
+      "name": "hotelhub_booking_source_code_immutable",
+      "arguments": "",
+      "sha256": "9d423eed9915a0b9e91e05c2af61d80d8f12bee8b16a6f6a52196961c298948f"
+    },
+    {
+      "name": "hotelhub_check_in_reservation",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_allow_early boolean, p_operation_request_id uuid",
+      "sha256": "0cb7b0082dcd74cfea8a38d723ceb8738c15fd506d56309f06f0d43ca0e78a02"
+    },
+    {
+      "name": "hotelhub_check_in_reservation",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_allow_early boolean, p_operation_request_id uuid, p_client_request_id uuid",
+      "sha256": "cb82f0c002cd93266caf99f2e9d72f2bbae965b56708e30afaf7ffeb1a5e8635"
+    },
+    {
+      "name": "hotelhub_claim_folio_operation",
+      "arguments": "p_tenant_id uuid, p_operation text, p_reservation_id uuid, p_folio_id uuid, p_target_line_id uuid, p_client_request_id uuid, p_request_fingerprint text, p_actor_n3_user_key text",
+      "sha256": "9a3ec576dd53c90414af968a1c2f5b6a811e412bff21fa090bf8010771619300"
+    },
+    {
+      "name": "hotelhub_create_reservation",
+      "arguments": "p_tenant_id uuid, p_created_by_n3_user_key text, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb, p_guests jsonb",
+      "sha256": "9247e53c35afb99d26f898d7750435bc20a352f4165841c0ac7cf7e92c07e2c2"
+    },
+    {
+      "name": "hotelhub_decide_operation",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_actor_n3_user_key text, p_decision text, p_note text, p_idempotency_key text",
+      "sha256": "1fdd0f8d38acb779bd0b4303812d96e00ab6523547e8a991e5c18461c2865fd0"
+    },
+    {
+      "name": "hotelhub_deposit_immutable_fields",
+      "arguments": "",
+      "sha256": "2b56bc9f625aebdcd69387cae140d19c501102ba05f64ecf4700b5cd1fe07f44"
+    },
+    {
+      "name": "hotelhub_direct_operation_v2",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_operation_type text, p_payload jsonb, p_idempotency_key text",
+      "sha256": "5dfad422caba943647cb6d4c85049453fcb82b5b98d4f37009af62d7dbfeaa8d"
+    },
+    {
+      "name": "hotelhub_folio_room_night_immutable",
+      "arguments": "",
+      "sha256": "d30e812dc0e6997ff61cf4d3e5c2500b6d3fb988472afdce1e36afcad95df370"
+    },
+    {
+      "name": "hotelhub_hk_cancel_handoff",
+      "arguments": "p_tenant_id uuid, p_handoff_id uuid",
+      "sha256": "4707a76d3f97aecea3249b1d210d469bc9996a134f4062a2a5d8ef8aaaae8bb9"
+    },
+    {
+      "name": "hotelhub_hk_enqueue_handoff",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_reservation_id uuid, p_operation_request_id uuid, p_source text",
+      "sha256": "5607676bcda1d57e3172df8aeea03fdeda6a81713769b7b7d728192568b70847"
+    },
+    {
+      "name": "hotelhub_hk_fail_handoff",
+      "arguments": "p_tenant_id uuid, p_handoff_id uuid, p_error text",
+      "sha256": "e6fcf7d99089b30268cea402f02fd12a7ff5bcb9962b7b3b6d06ce81f701452d"
+    },
+    {
+      "name": "hotelhub_hk_initialize_room",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_condition text, p_source text",
+      "sha256": "4e9b7c194d94144c5f41ed77a3c21a6664fef688b34b2ef6cccfd3497a1b5961"
+    },
+    {
+      "name": "hotelhub_hk_list_pending_handoffs",
+      "arguments": "p_tenant_id uuid, p_limit integer",
+      "sha256": "9a1a25c1811c8efc15271d44c8b796be083010d026aa4afedd35758e9c960797"
+    },
+    {
+      "name": "hotelhub_hk_readiness_blocker_locked",
+      "arguments": "p_tenant_id uuid, p_room_ids uuid[]",
+      "sha256": "3676d0bf40d6a5b8af6f811c405d97ae6bbb789b53273414a0f22211eac04969"
+    },
+    {
+      "name": "hotelhub_hk_set_dnd",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_active boolean, p_source text",
+      "sha256": "7ee61eb612144ce2ede765a14ae3b9cfd9d387cff15a7cdd8a0748182db9cfb2"
+    },
+    {
+      "name": "hotelhub_hk_touch_updated_at",
+      "arguments": "",
+      "sha256": "6c94df6a5eac2eab6d2b793f69ad07a0d86339602c97330924654e29d5c400b2"
+    },
+    {
+      "name": "hotelhub_hk_transition",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_action text, p_note text, p_source text",
+      "sha256": "8957d496e59c8419e2359a912a0ccaee04ece95ffa08aaa91047ec279379c9c7"
+    },
+    {
+      "name": "hotelhub_hk_vacate_room",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_source text",
+      "sha256": "c0f7341a77d1f30fb8f258d4b96cbf035d1d95a3d5b407ba094dc6de6bdfcd16"
+    },
+    {
+      "name": "hotelhub_hk_vacate_room_v2",
+      "arguments": "p_tenant_id uuid, p_hotel_room_id uuid, p_actor_n3_user_key text, p_source text, p_handoff_id uuid",
+      "sha256": "fa14dbe49dd809485f089f39d342cfd8cb6cc5f913803bd755c00893a15d720b"
+    },
+    {
+      "name": "hotelhub_housekeeping_history_preview_30d",
+      "arguments": "p_tenant_id uuid",
+      "sha256": "829a596008fb60ae366de2b872597c78a3b8584e08cccfeb070a51ca30ead02e"
+    },
+    {
+      "name": "hotelhub_list_reservations",
+      "arguments": "p_tenant_id uuid, p_booking_reference text, p_guest_name text, p_guest_mobile text, p_status text, p_booking_source text, p_arrival_from date, p_arrival_to date, p_sort_key text, p_sort_dir text, p_limit integer, p_offset integer",
+      "sha256": "8d967510b633d3887ede7c93e1798a02ec33fec2d2ed0410800182d4901669e5"
+    },
+    {
+      "name": "hotelhub_operation_request_immutable",
+      "arguments": "",
+      "sha256": "8eec7a315c6336b0fcd45b698d8a4156b9be3629e2f0e2c82e44eb9c0d2e9341"
+    },
+    {
+      "name": "hotelhub_property_now",
+      "arguments": "p_tenant_id uuid",
+      "sha256": "f653a8a10feef05ea56970cada631d69b266bf3906d955603fb348195c081531"
+    },
+    {
+      "name": "hotelhub_provision_owner",
+      "arguments": "p_n3_tenant_key text, p_n3_user_key text",
+      "sha256": "74decebdd61faefdd171214ae4730e12e92062cb21618fc15d8413445e8c0d67"
+    },
+    {
+      "name": "hotelhub_purge_housekeeping_history_30d",
+      "arguments": "p_tenant_id uuid, p_actor_n3_user_key text",
+      "sha256": "c91be61b3ec5393057ba6f301bc23c11fcc804df00b50925cadc2ee93946241e"
+    },
+    {
+      "name": "hotelhub_receipt_alert_claim",
+      "arguments": "p_tenant_id uuid, p_limit integer",
+      "sha256": "058de3ee04996b8d276dabb06477dc2036e5097ed526e2064bf71718ae0c3724"
+    },
+    {
+      "name": "hotelhub_receipt_alert_settle",
+      "arguments": "p_tenant_id uuid, p_alert_id uuid, p_claim_token uuid, p_status text, p_error_code text",
+      "sha256": "e4c57540cdaefa04bbf77bc6848e996c972012fb22e07b473602564adf019a13"
+    },
+    {
+      "name": "hotelhub_receipt_control_claim",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_step text, p_actor text",
+      "sha256": "8f63196572f20deaca9ebabe85b7b848e38379558851b8e0993489cd13db50a7"
+    },
+    {
+      "name": "hotelhub_receipt_control_complete",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_execution_id uuid, p_to_state text, p_outcome_code text, p_actor text, p_version jsonb",
+      "sha256": "9a1b193dee9b4ddb972a91f416c8ad8ec5c07e2121bf6a80d12d6cb042a2fc3b"
+    },
+    {
+      "name": "hotelhub_receipt_control_create",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_deposit_id uuid, p_client_request_id uuid, p_fingerprint text, p_kind text, p_reason text, p_original jsonb, p_proposal jsonb, p_comparison jsonb, p_original_cents bigint, p_proposed_cents bigint, p_actor text",
+      "sha256": "7e75d0bac7f7c98e20d2dd067f41b3934921989c6617f8c4689be2616512787b"
+    },
+    {
+      "name": "hotelhub_receipt_control_decide",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_decision text, p_to_state text, p_actor text, p_outcome_code text, p_note text",
+      "sha256": "a21c24382359b6871489583556b068a63fe16cf466efe6606c50615fc5f42f78"
+    },
+    {
+      "name": "hotelhub_receipt_control_guard",
+      "arguments": "",
+      "sha256": "fbb2810e0f8ab49822896a6e402436b65f41358c1677abdb8fdf7f92ff7cba36"
+    },
+    {
+      "name": "hotelhub_receipt_control_recover",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text, p_stale_seconds integer",
+      "sha256": "9355c8f007f1ef997014e236bdf25d1d97938a9ad69ab68c1afd76ecc58fe6e4"
+    },
+    {
+      "name": "hotelhub_receipt_control_verify_atomic",
+      "arguments": "p_tenant_id uuid, p_request_id uuid, p_expected_version integer, p_actor text, p_to_state text, p_outcome_code text, p_version jsonb",
+      "sha256": "b146bcca0f2bcbb49547060b774e1ca15a36dc3f43592d5dcb5c32c349c01bd2"
+    },
+    {
+      "name": "hotelhub_release_folio_operation",
+      "arguments": "p_tenant_id uuid, p_operation text, p_client_request_id uuid",
+      "sha256": "9da02e7ef49eecffb6ab5c4c9b2e88c5b007ba0da61a00a9184297d3d899aed7"
+    },
+    {
+      "name": "hotelhub_request_operation",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_operation_type text, p_payload jsonb, p_idempotency_key text",
+      "sha256": "0ecc575d0a4f9493341d4ce5232bbbdf6ae70ac263c42e77942b038843f9044f"
+    },
+    {
+      "name": "hotelhub_reservation_events_append_only",
+      "arguments": "",
+      "sha256": "7708dc394dc6fb1e0f84184c5a15a49499e95ff903839a218af8e0d573e34e5f"
+    },
+    {
+      "name": "hotelhub_reverse_folio_line",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_line_id uuid, p_reason text, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+      "sha256": "fade1f87751fd09e99dcb51dc73beee7778d9e3c642f94f4f177a0580c174d02"
+    },
+    {
+      "name": "hotelhub_seed_booking_sources",
+      "arguments": "",
+      "sha256": "33512cb307cd33e1908bd6887af88ec8eb07838c40bedfc2257534595c495047"
+    },
+    {
+      "name": "hotelhub_set_payment_account_preferences",
+      "arguments": "p_tenant_id uuid, p_account_id uuid, p_label text, p_show boolean",
+      "sha256": "c76a5b334e0920afebcfa9477b1d27a4d04c1bd64366621998928010f44a5633"
+    },
+    {
+      "name": "hotelhub_touch_updated_at",
+      "arguments": "",
+      "sha256": "41820ab8c016b8c80a7ae1023e413958ba8c7889079a8826701eaa3bcdf24c88"
+    },
+    {
+      "name": "hotelhub_update_folio_line_quantity",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_line_id uuid, p_expected_version integer, p_quantity integer, p_subtotal_cents integer, p_tax_cents integer, p_total_cents integer, p_client_request_id uuid, p_actor_n3_user_key text, p_request_fingerprint text",
+      "sha256": "df7de970829c9d88cb949e55a1511f512b5a65c89a170a0199191a6843615a77"
+    },
+    {
+      "name": "hotelhub_update_reservation",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_expected_updated_at timestamp with time zone, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb",
+      "sha256": "4b8c0bda7aff0c1e768c344f2ec0e2b1f29a794f5d1200d4dfc36db7645f4470"
+    },
+    {
+      "name": "hotelhub_update_reservation_v2",
+      "arguments": "p_tenant_id uuid, p_reservation_id uuid, p_actor_n3_user_key text, p_actor_role text, p_client_request_id uuid, p_fingerprint text, p_expected_updated_at timestamp with time zone, p_booking_source text, p_arrival_date date, p_departure_date date, p_notes text, p_external_booking_reference text, p_rooms jsonb, p_guests jsonb, p_correction_reason text",
+      "sha256": "1857bed7d2ab314cbe5d867f5b5f59f687d16b337fd9499dfaaf3e7892a050e9"
+    },
+    {
+      "name": "hotelhub_utf16_length",
+      "arguments": "p text",
+      "sha256": "31c82d0f323ec27557d2724064840ef59474645576570f089d21b1c9efd9257e"
+    }
+  ],
+  "reconstruction": {
+    "columns": 440,
+    "constraints": 231,
+    "enumLabels": 37,
+    "unconstrainedIndexes": 46,
+    "triggers": 22,
+    "generatedStayRange": "daterange(arrival_date, departure_date, '[)'::text)",
+    "fixtureOnlyRoles": [
+      "anon",
+      "authenticated",
+      "service_role BYPASSRLS"
+    ],
+    "dependencyOrder": "utf16 helper before CHECKs, non-FK constraints/indexes before FKs, functions before triggers"
+  },
+  "excluded": "No blanket migration replay. Repository/history names differ; unapplied automatic receipt migration 20261003120216 is excluded. Only current read-only reconstructed prerequisites and this settlement candidate are used. New function close/proof bodies are pending later tasks."
+}

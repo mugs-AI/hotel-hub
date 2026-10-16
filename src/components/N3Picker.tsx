@@ -93,6 +93,9 @@ export function N3Picker<T extends "customers" | "stocks">({
           value={query}
           disabled={state.kind !== "ok"}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
           aria-label={`Search ${kindLabel}`}
         />
         {query ? (
@@ -171,6 +174,7 @@ export function N3Picker<T extends "customers" | "stocks">({
                 ) : null}
               </span>
               <button
+                type="button"
                 onClick={() => {
                   if (mapped || !disabledCodes) {
                     if (mapped) return;
@@ -233,6 +237,7 @@ export function N3Picker<T extends "customers" | "stocks">({
                 </span>
               ) : (
                 <button
+                  type="button"
                   key={w}
                   onClick={() => setPage(w)}
                   aria-current={w === paged.page ? "page" : undefined}

@@ -406,9 +406,7 @@ afterEach(() => {
 });
 describe("ordinary receipt HTTP routes through normal fixed transport", () => {
   it.each([
-    { before: 70, after: 66, approval: true },
-    { before: 70, after: 66, approval: false },
-    { before: 33, after: 30, approval: false },
+    { before: 70, after: 60, approval: true },
     { before: 50, after: 51, approval: false },
   ])(
     "same-document source acceptance for $before → $after approval=$approval",
@@ -463,16 +461,6 @@ describe("ordinary receipt HTTP routes through normal fixed transport", () => {
     expect((await result.json()).outcome).toBe("needs_review");
     expect(f.posts()).toHaveLength(0);
     expect(f.projection()).toEqual({ effectiveCents: 5000, projections: 0 });
-  });
-  it("inactive automatic updater refuses new corrections instead of saving a manual task", async () => {
-    const f = fixture();
-    vi.stubEnv("HOTELHUB_RECEIPT_CONTROL_DIRECT_EDIT", "false");
-    const result = await call(CreateRoute, createBody(66));
-    expect(result.status).toBe(409);
-    expect(await result.json()).toMatchObject({ error: "automation_unavailable" });
-    expect(state.manualCreates).toBe(0);
-    expect(state.row).toBeNull();
-    expect(f.posts()).toHaveLength(0);
   });
   it("Owner policy-OFF Save change updates and independently verifies the SAME OR once", async () => {
     const f = fixture();

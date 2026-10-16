@@ -1,3 +1,5 @@
+import { SETTLEMENT_LOCK_CODES } from "./settlement-lock";
+import type { InitialBookingPayer } from "./initial-booking-payer";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Server-only reservations store. All operations run under the service-role
 // client and require an explicit tenantId supplied by the trusted server
@@ -46,6 +48,8 @@ export function isUuid(v: unknown): v is string {
 }
 
 export type CreateReservationInput = {
+  initialPayer?: InitialBookingPayer;
+  actorRole?: "owner" | "front_desk";
   tenantId: string;
   createdByN3UserKey: string;
   bookingSource: string;
@@ -92,6 +96,14 @@ export type CreateReservationResult = {
 };
 
 export const RESERVATION_ERROR_CODES = new Set([
+  "source_policy_scope_mismatch",
+  "source_policy_version_conflict",
+  "source_collection_mode_not_allowed",
+  "source_billing_policy_missing",
+  "source_billing_forbidden",
+  "invalid_initial_payer",
+  "initial_payer_required",
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_stay_dates",
   "arrival_date_in_past",
   "invalid_booking_source",
@@ -184,9 +196,25 @@ export async function createReservationAtomic(
       state_province: g.stateProvince ?? null,
     })),
   };
-  const res = await sb.rpc("hotelhub_create_reservation", rpcArgs);
+  if (input.initialPayer && !["owner", "front_desk"].includes(input.actorRole ?? ""))
+    throw new ReservationCreateError("source_billing_forbidden");
+  const res = input.initialPayer
+    ? await sb.rpc("hh_source_reservation_create", {
+        ...rpcArgs,
+        p_role: input.actorRole,
+        p_source_id: input.initialPayer.sourceId,
+        p_policy_version: input.initialPayer.policyVersion,
+        p_collection_mode: input.initialPayer.collectionMode,
+      })
+    : await sb.rpc("hotelhub_create_reservation", rpcArgs);
   if (res.error) {
     const msg = (res.error.message ?? "").toString();
+    if (
+      !input.initialPayer &&
+      res.error.code === "42501" &&
+      /hotelhub_create_reservation/.test(msg)
+    )
+      throw new ReservationCreateError("initial_payer_required");
     const match = msg.match(/[a-z_]+/g)?.find((w: string) => RESERVATION_ERROR_CODES.has(w));
     throw new ReservationCreateError(match ?? "reservation_create_failed");
   }
@@ -719,6 +747,7 @@ export async function getReservationById(
 // See migration hotelhub_update_reservation for the SQL contract.
 // ---------------------------------------------------------------------------
 export const RESERVATION_UPDATE_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "tenant_required",
   "creator_required",
   "invalid_stay_dates",
@@ -805,6 +834,7 @@ export async function updateReservationAtomic(
 // supplied by the browser.
 // ---------------------------------------------------------------------------
 export const RESERVATION_FULL_UPDATE_ERROR_CODES = new Set([
+  ...SETTLEMENT_LOCK_CODES,
   "invalid_request",
   "unauthorized",
   "idempotency_conflict",
