@@ -6,6 +6,7 @@
  * rendered here — the DTO only ever carries masked values.
  */
 import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   useAssignGuestRooms,
@@ -25,7 +26,11 @@ type Props = {
   capabilities: ReservationEditCapabilitiesDTO;
 };
 
-export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: Props) {
+export function GuestRoomAssignmentCard(props: Props) {
+  return <AssignmentForm key={`${props.reservationId}:${props.data.updatedAt}`} {...props} />;
+}
+
+function AssignmentForm({ reservationId, data, capabilities }: Props) {
   const initial = useMemo(() => {
     const m: Record<string, string> = {};
     for (const g of data.guests) m[g.id] = g.assignedReservationRoomId ?? "";
@@ -49,9 +54,13 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
   const overCapacity = data.rooms.filter((r) => (perRoomCount[r.id] ?? 0) > (r.maxOccupancy || 0));
 
   const reasonRequired = capabilities.correctionReasonRequired;
-  const allAssigned = data.guests.every((g) => Boolean(draft[g.id]));
+  const allAssigned = data.guests.every((g) => data.rooms.some((r) => r.id === draft[g.id]));
   const canSave =
-    dirty && allAssigned && !mutation.isPending && (!reasonRequired || reason.trim().length > 0);
+    dirty &&
+    allAssigned &&
+    overCapacity.length === 0 &&
+    !mutation.isPending &&
+    (!reasonRequired || reason.trim().length > 0);
   async function save() {
     try {
       const result = await mutation.mutateAsync({
@@ -90,6 +99,25 @@ export function GuestRoomAssignmentCard({ reservationId, data, capabilities }: P
         </div>
       </div>
 
+      <p className="mt-3 text-xs text-muted-foreground">
+        This list contains rooms already on this booking.
+        {capabilities.mode === "full" ? (
+          <>
+            {" "}
+            To switch to another hotel room, open{" "}
+            <Link
+              to="/reservations/$id/edit"
+              params={{ id: reservationId }}
+              className="font-medium underline"
+            >
+              Change booked room
+            </Link>{" "}
+            and choose the replacement in Rooms &amp; rates, then Save changes.
+          </>
+        ) : (
+          " To move to another hotel room after check-in, use Change room in Reservation actions."
+        )}
+      </p>
       <div className="mt-4 space-y-3">
         {data.guests.map((g) => (
           <div
