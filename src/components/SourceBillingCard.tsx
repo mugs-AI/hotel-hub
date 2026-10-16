@@ -75,8 +75,12 @@ function BillReview({ q }: { q: ReturnType<typeof useSourceBilling> }) {
     } catch (e) {
       setStatus(
         e instanceof SavedPaymentMatchingError
-          ? "Payment saved; matching needs checking. Use Check N3 result; do not repeat the payment."
-          : message((e as { code: string }).code ?? ""),
+          ? e.receiptVerified
+            ? "Payment saved; matching needs checking. Use Check N3 result; do not repeat the payment."
+            : "Payment result needs checking; do not collect again. Use Check N3 result."
+          : q.data?.stay
+            ? "Payment result needs checking; do not collect again. Use Check N3 result."
+            : message((e as { code: string }).code ?? ""),
       );
     }
   }
@@ -89,6 +93,11 @@ function BillReview({ q }: { q: ReturnType<typeof useSourceBilling> }) {
   }
   return (
     <div className="space-y-3">
+      {q.recovery ? (
+        <p role="alert">
+          Payment result needs checking; do not collect again. Use Check N3 result.
+        </p>
+      ) : null}
       {v.blockers.map((code) => (
         <p key={code} className="text-sm text-amber-900">
           {message(code)}
@@ -173,7 +182,7 @@ function BillReview({ q }: { q: ReturnType<typeof useSourceBilling> }) {
                   <button
                     type="button"
                     className={button}
-                    disabled={q.pending || q.isFetching}
+                    disabled={q.pending || q.isFetching || q.recovery}
                     onClick={() => void execute(() => q.postLeg(v.stay!, l))}
                   >
                     Post {l.kind === "source_room" ? "source" : "guest"} bill
@@ -224,9 +233,10 @@ function GuestSettlement({
 }) {
   const v = leg.view;
   const [entering, setEntering] = useState(false);
-  const canReceive = v.allowedActions.includes("receive_balance") && !v.blockers.length;
+  const canReceive =
+    v.allowedActions.includes("receive_balance") && !v.blockers.length && !q.recovery;
   const accounts = useSettlementPaymentAccounts(v.reservationId, entering && canReceive);
-  const disabled = q.pending || q.isFetching || !!v.blockers.length;
+  const disabled = q.pending || q.isFetching || !!v.blockers.length || q.recovery;
   function receive(lines: SettlementPaymentLine[]) {
     void execute(() => q.receive(stay, leg, lines));
   }
@@ -254,8 +264,13 @@ function GuestSettlement({
           <p>
             {v.state === "settled"
               ? "No further payment required."
-              : v.allowedActions.includes("apply_balance") || v.state === "balance_dispatched"
-                ? "Payment saved. Match the saved receipt; do not collect again."
+              : v.state === "balance_dispatched" || v.allowedActions.includes("apply_balance")
+                ? !q.recovery &&
+                  !v.blockers.length &&
+                  v.allowedActions.includes("apply_balance") &&
+                  v.receipts.length > 0
+                  ? "Payment saved. Match the saved receipt; do not collect again."
+                  : "Payment result needs checking; do not collect again."
                 : "Receive only the verified outstanding balance."}
           </p>
         </li>

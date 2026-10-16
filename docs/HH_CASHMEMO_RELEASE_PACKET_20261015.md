@@ -1,3 +1,19 @@
+# Latest continuation — 16/10/2026, Malaysia
+
+Draft [PR16](https://github.com/mugs-AI/hotel-hub/pull/16) now preserves the full candidate remotely. Guest-leg matching/payment/recovery source is connected. See the execution ledger for independent review and the single RED→GREEN fix pass, and the changed-files manifest for the exhaustive candidate list.
+
+Final source verification: **3,481 passed /22 skipped /0 failed**; TypeScript, changed-file lint, build and whitespace pass. New mounted17cases include unknown first receipt result, contradictory evidence and independent guest/sibling recovery. Two Important review findings fixed in one pass; no new Minor.
+
+Native combined SQL proof PASSED: run38828072125, PostgreSQL17.6, all11 migrations, canonical freeze,20 independent Owner/FrontDesk sessions/exactlyone claim, duplicate replay and denied Housekeeper. It does not establish N3 allocation safety or application installation.
+
+**Updated authority:** the16/10 direct instruction explicitly authorizes complete settlement implementation and associated posting database/API functions. Apply the exact database/code compatibility checks below when release acceptance is ready; do not request another generic implementation/publication approval. Prior automatic-review rejections remain historical boundaries and do not authorize deleting the marked temporary schema. No cleanup retry has occurred.
+
+**Remaining actual blockers:** the current N3 contracts still lack accepted committed-GL identity, refund/spendable-remainder and atomic stale/concurrent allocation semantics. Normal financial gates must not be replaced with fabricated accepted hashes. The designated test company is known, but no synthetic stay/leg is designated. The cloud browser is not signed in through N3. Do not use the real BK260920001/OR2610/001 as a transaction test. An operational migration without the compatible app could revoke old creation RPCs; keep the live backend/code unchanged until a safe release can be completed.
+
+Publication permission is already recorded. No successful CashMemo posting, matching or public publication is claimed. The earlier "awaiting explicit authorization" sections below record the prior stop; this current section supersedes them for associated implementation scope only.
+
+---
+
 # CashSalesMemo release packet — 15/10/2026
 
 Status: source candidate and database scope for review. **Not merged, financially activated or published.** No additional Project Sources upload is requested.

@@ -18,7 +18,11 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
     gets: number,
     blocked: boolean,
     stage: "review" | "deposit" | "payment" | "received" | "settled",
-    matchFailure: boolean;
+    matchFailure: boolean,
+    firstFailure: boolean,
+    corruptReceipt: boolean,
+    unknownReceipt: boolean,
+    siblingBlocked: boolean;
   const ids = [actor.reservationId, "88888888-8888-4888-8888-888888888888"];
   function data(id = ids[0]) {
     const p = plan();
@@ -28,7 +32,7 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
         reservationId: id,
         legacy: false,
         review: null,
-        blockers: [],
+        blockers: siblingBlocked ? ["n3_source_billing_contract_unverified"] : [],
         stay: {
           reservationId: id,
           revision: "1",
@@ -63,21 +67,26 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
                   l.kind === "guest" && stage === "settled" ? 0 : l.snapshot.totalCents,
               },
               receipts:
-                l.kind === "guest" && ["received", "settled"].includes(stage)
+                l.kind === "guest" && !unknownReceipt && ["received", "settled"].includes(stage)
                   ? [
                       {
                         id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
                         code: "OR-BALANCE",
                         documentDate: "2026-10-16",
-                        amountCents: l.snapshot.totalCents,
+                        amountCents: l.snapshot.totalCents + (corruptReceipt ? 1 : 0),
                         allocatedCents: stage === "settled" ? l.snapshot.totalCents : 0,
                         remainderCents: stage === "settled" ? 0 : l.snapshot.totalCents,
                       },
                     ]
                   : [],
-              blockers: [],
+              blockers:
+                unknownReceipt && l.kind === "guest"
+                  ? ["n3_receipt_read_unavailable"]
+                  : siblingBlocked && l.kind === "source_room"
+                    ? ["n3_source_billing_contract_unverified"]
+                    : [],
               allowedActions:
-                l.kind === "source_room" || stage === "settled"
+                l.kind === "source_room" || stage === "settled" || unknownReceipt
                   ? []
                   : [
                       stage === "deposit"
@@ -180,6 +189,10 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
     blocked = false;
     stage = "review";
     matchFailure = false;
+    firstFailure = false;
+    corruptReceipt = false;
+    unknownReceipt = false;
+    siblingBlocked = false;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -195,7 +208,10 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
           posts.push({ url, body: JSON.parse(String(init.body)) });
           const action = (posts.at(-1)!.body.action as { action?: string })?.action;
           if (action === "apply_deposits") stage = "payment";
-          if (action === "receive_balance") stage = "received";
+          if (action === "receive_balance") {
+            stage = "received";
+            if (firstFailure) return Response.json({ error: "n3_timeout" }, { status: 503 });
+          }
           if (action === "apply_balance") {
             if (matchFailure) return Response.json({ error: "n3_timeout" }, { status: 503 });
             stage = "settled";
@@ -329,6 +345,60 @@ describe.skipIf(!domPackage)("mounted source bill review and posting", () => {
     await settle();
     expect(posts).toHaveLength(1);
     expect(container.querySelector('input[aria-label="Amount 1"]')).toBeNull();
+  });
+  it("requires explicit recovery after a lost first payment response before any new write", async () => {
+    stage = "payment";
+    firstFailure = true;
+    await render();
+    await click("Review final bills");
+    await enterPayment();
+    await click("Receive Payment");
+    expect(posts).toHaveLength(1);
+    expect(container.textContent).toContain("Payment result needs checking");
+    expect(container.querySelector('input[aria-label="Amount 1"]')).toBeNull();
+    expect(button("Receive Payment").disabled).toBe(true);
+    await click("Receive Payment");
+    expect(posts).toHaveLength(1);
+    await click("Check N3 result");
+    expect(posts.map((p) => (p.body.action as { action?: string })?.action)).toEqual([
+      "receive_balance",
+      undefined,
+    ]);
+    expect(button("Match saved payment").disabled).toBe(false);
+  });
+  it("never says payment saved after contradictory receipt evidence", async () => {
+    stage = "payment";
+    corruptReceipt = true;
+    await render();
+    await click("Review final bills");
+    await enterPayment();
+    await click("Receive Payment");
+    expect(posts).toHaveLength(1);
+    expect(container.textContent).toContain("Payment result needs checking");
+    expect(container.textContent).not.toContain("Payment saved");
+  });
+  it("never equates an unverified balance dispatch with a saved receipt", async () => {
+    stage = "received";
+    unknownReceipt = true;
+    await render();
+    await click("Review final bills");
+    expect(container.textContent).not.toContain("Payment saved");
+    expect(container.textContent).toContain("Payment result needs checking");
+    expect(button("Receive Payment").disabled).toBe(true);
+  });
+  it("resolves guest recovery independently of a blocked source sibling", async () => {
+    stage = "payment";
+    firstFailure = true;
+    siblingBlocked = true;
+    await render();
+    await click("Review final bills");
+    await enterPayment();
+    await click("Receive Payment");
+    expect(button("Receive Payment").disabled).toBe(true);
+    await click("Check N3 result");
+    expect(button("Match saved payment").disabled).toBe(false);
+    await click("Match saved payment");
+    expect(container.textContent).toContain("No further payment required");
   });
   it("recovers an initial preparation blocker through an explicit reload without remount", async () => {
     blocked = true;

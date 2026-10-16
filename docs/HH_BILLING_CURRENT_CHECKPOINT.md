@@ -1,3 +1,21 @@
+# Current continuation — 16/10/2026, Malaysia · Revision10
+
+Upload to Project Sources: No additional upload requested. This top section supersedes older progress-state statements below.
+
+Knock Off / Settlement is implemented in the clean main-based release candidate, draft [PR16](https://github.com/mugs-AI/hotel-hub/pull/16). Live main/Lovable remain e8341907; the app still shows preparation-only checkout. Associated application migrations remain unapplied, and N3 financial operation gates remain closed. Nothing has been represented as a successful N3 post or public release.
+
+Final source checks: **3,481 passed /22 skipped /0 failed**, TypeScript, changed-file lint and production build pass. Seventeen mounted settlement cases pass.
+
+New source36a57d5 connects existing guest-leg Match Deposit, exact-balance Receive Payment and saved-receipt matching/recovery. Independent review found two Important recovery issues, reproduced and fixed once; final verification/identities are in the execution ledger and release packet. Source legs cannot receive guest payments. Unknown outcomes never invite recollection.
+
+Native PostgreSQL17.6 combined11-migration/freeze/20-session claim race PASSED in GitHub run38828072125. This supersedes earlier native-not-run statements for this narrow claim lane only. Application installation and N3-side allocation concurrency are still unverified. See docs/evidence/HH_CASHMEMO_NATIVE_CI_20261016.md.
+
+Latest direct Owner instruction authorizes settlement implementation and associated posting DB/API logic; publication authority is already recorded. Preserve exact release sequencing and the separately unapproved cleanup of the marked private test schema. The current external blockers are a designated synthetic proof booking, Owner N3 session/proof and supported vendor GL/refund/stale-matching semantics. The cloud browser currently displays Sign in from N3. No separate Supabase login is needed. Do not repeat completed master/journal captures or prior N3 UI exercises.
+
+Active checkout: `/workspace/scratch/cb26166d36cb/hotel-hub-cashmemo-release`, branch `review/hh-cashmemo-release-20261015`. Keep the original reconstruction checkout preserved; resume this candidate rather than repeat it.
+
+---
+
 # HotelHub — current billing checkpoint
 
 Version: 15/10/2026, Asia/Kuala_Lumpur. Revision 9: mounted per-leg billing and frozen recovery; exact release/database scope and approval-review stop. Owner reports the three-file pack uploaded and approves continued source work; no Project Sources cleanup is claimed.

@@ -9,6 +9,8 @@ import { invalidateSettlementReaders, SettlementApiError } from "./settlement-cl
 import type { SettlementStepInput } from "./settlement";
 import type { SettlementPaymentLine } from "./settlement-payment-entry";
 import { receivePaymentAndMatch } from "./settlement-payment-sequence";
+import { useWorkspace, useWorkspaceDraft } from "./workspace-context";
+type Recovery = { identity: string; legId: string; planDigest: string; revision: string };
 type Stay = NonNullable<SourceCheckoutView["stay"]>;
 type Leg = Stay["legs"][number];
 export function useSourceBilling(id: string, active = true) {
@@ -25,6 +27,21 @@ export function useSourceBilling(id: string, active = true) {
     keys = useRef(new Map<string, string>());
   current.current = scope;
   const [pending, setPending] = useState(false);
+  const workspace = useWorkspace();
+  const [savedRecovery, setRecovery] = useWorkspaceDraft<Recovery | null>(
+    "source-billing-recovery",
+    null,
+    undefined,
+    `reservation:${id.toLowerCase()}`,
+  );
+  const recovery = savedRecovery?.identity === identity ? savedRecovery : null;
+  function sameSession() {
+    return (
+      !!identity &&
+      identityFromSession({ data: qc.getQueryData(SESSION_QUERY_KEY) }) === identity &&
+      (!workspace || workspace.isCurrent())
+    );
+  }
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -119,6 +136,28 @@ export function useSourceBilling(id: string, active = true) {
     invalidateSettlementReaders(id);
     return result;
   }
+  async function financial(stay: Stay, leg: Leg, work: () => Promise<SourceCheckoutView>) {
+    return exclusive(async () => {
+      if (recovery) throw new SettlementApiError(409, "source_billing_recovery_required");
+      const hold = () => {
+        if (sameSession())
+          setRecovery({
+            identity: identity!,
+            legId: leg.legId,
+            planDigest: stay.planDigest,
+            revision: leg.view.revision,
+          });
+      };
+      try {
+        const result = await work();
+        if (result.stay?.legs.find((l) => l.legId === leg.legId)?.view.blockers.length) hold();
+        return result;
+      } catch (e) {
+        hold();
+        throw e;
+      }
+    });
+  }
   const run = (tail: string, body: unknown) => exclusive(() => save(tail, body));
   function stepBody(stay: Stay, leg: Leg, action: SettlementStepInput) {
     if (
@@ -142,6 +181,7 @@ export function useSourceBilling(id: string, active = true) {
     identity,
     data: enabled && !q.error ? q.data : undefined,
     pending,
+    recovery: !!recovery,
     confirm: (review: NonNullable<SourceCheckoutView["review"]>) =>
       run("/confirm", {
         expectedFolioRevision: review.folioRevision,
@@ -152,25 +192,29 @@ export function useSourceBilling(id: string, active = true) {
       stay: NonNullable<SourceCheckoutView["stay"]>,
       leg: NonNullable<SourceCheckoutView["stay"]>["legs"][number],
     ) =>
-      run("/step", {
-        legId: leg.legId,
-        planDigest: stay.planDigest,
-        expectedRevision: leg.view.revision,
-        action: {
-          action: "post_bill",
-          intentId: leg.legId,
+      financial(stay, leg, () =>
+        save("/step", {
+          legId: leg.legId,
+          planDigest: stay.planDigest,
           expectedRevision: leg.view.revision,
-          snapshotDigest: leg.view.snapshotDigest,
-          clientRequestId: requestKey(`bill:${stay.planDigest}:${leg.legId}`),
-        },
-      }),
+          action: {
+            action: "post_bill",
+            intentId: leg.legId,
+            expectedRevision: leg.view.revision,
+            snapshotDigest: leg.view.snapshotDigest,
+            clientRequestId: requestKey(`bill:${stay.planDigest}:${leg.legId}`),
+          },
+        }),
+      ),
     step: (stay: Stay, leg: Leg, action: "apply_deposits" | "apply_balance") =>
-      run(
-        "/step",
-        stepBody(stay, leg, { action, intentId: leg.legId, expectedRevision: leg.view.revision }),
+      financial(stay, leg, () =>
+        save(
+          "/step",
+          stepBody(stay, leg, { action, intentId: leg.legId, expectedRevision: leg.view.revision }),
+        ),
       ),
     receive: (stay: Stay, leg: Leg, lines: SettlementPaymentLine[]) =>
-      exclusive(async () => {
+      financial(stay, leg, async () => {
         if (leg.kind !== "guest")
           throw new SettlementApiError(409, "source_billing_guest_action_required");
         let result: SourceCheckoutView | undefined;
@@ -192,6 +236,23 @@ export function useSourceBilling(id: string, active = true) {
         if (!result) throw new SettlementApiError(409, "source_billing_scope_changed");
         return result;
       }),
-    reconcile: (digest: string) => run("/reconcile", { planDigest: digest }),
+    reconcile: (digest: string) =>
+      exclusive(async () => {
+        const result = await save("/reconcile", { planDigest: digest });
+        const selected = result.stay?.legs.find((l) => l.legId === recovery?.legId);
+        if (
+          recovery &&
+          result.stay?.planDigest === recovery.planDigest &&
+          selected &&
+          !selected.view.blockers.length &&
+          BigInt(selected.view.revision) > BigInt(recovery.revision) &&
+          (selected.view.state === "settled" ||
+            selected.view.allowedActions.some((a) =>
+              ["apply_deposits", "apply_balance", "receive_balance"].includes(a),
+            ))
+        )
+          setRecovery(null);
+        return result;
+      }),
   };
 }
